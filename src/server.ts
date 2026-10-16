@@ -3,7 +3,7 @@
 import { IncomingMessage, ServerResponse, createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { BrowserController, PageState, defaultBrowserConfig } from "./browserController";
+import { BrowserController, DEFAULT_PROFILE_DIR, PageState, defaultBrowserConfig } from "./browserController";
 import { AgentEvent, AgentOrchestrator, DEFAULT_MODEL } from "./promptLoop";
 
 const STATIC_DIR = join(__dirname, "..", "static");
@@ -50,7 +50,12 @@ interface RunRequestBody {
   model?: string;
 }
 
+interface LoginSession {
+  controller: BrowserController;
+}
+
 let currentRun: RunState | null = null;
+let loginSession: LoginSession | null = null;
 
 function validateRunRequest(body: unknown): RunRequestBody {
   if (typeof body !== "object" || body === null) {
@@ -91,6 +96,9 @@ async function onHumanVerification(run: RunState, state: PageState): Promise<voi
 function startRun(body: RunRequestBody): void {
   if (currentRun && currentRun.isRunning) {
     throw new Error("A run is already in progress. Wait for it to finish first.");
+  }
+  if (loginSession) {
+    throw new Error("A login session is open. Close it first (POST /api/login/close).");
   }
 
   const run: RunState = {
@@ -133,6 +141,35 @@ function startRun(body: RunRequestBody): void {
       run.queue.push(null);
     }
   })();
+}
+
+async function openLoginSession(url: string): Promise<void> {
+  if (loginSession) {
+    throw new Error("A login session is already open.");
+  }
+  if (currentRun && currentRun.isRunning) {
+    throw new Error("A task run is in progress. Wait for it to finish first.");
+  }
+  const controller = new BrowserController(defaultBrowserConfig({ headless: false }));
+  loginSession = { controller };
+  try {
+    await controller.start();
+    await controller.navigate(url);
+  } catch (err) {
+    loginSession = null;
+    await controller.close().catch(() => undefined);
+    throw err;
+  }
+}
+
+async function closeLoginSession(): Promise<boolean> {
+  if (!loginSession) {
+    return false;
+  }
+  const session = loginSession;
+  loginSession = null;
+  await session.controller.close();
+  return true;
 }
 
 function resumeCurrentRun(): boolean {
@@ -214,6 +251,30 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const message = (err as Error).message;
       const alreadyRunning = message.includes("already in progress");
       sendJson(res, alreadyRunning ? 409 : 400, { detail: message });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/login") {
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const loginUrl = typeof body.url === "string" && body.url.trim() ? body.url.trim() : "about:blank";
+      await openLoginSession(loginUrl);
+      sendJson(res, 200, { status: "opened", profileDir: DEFAULT_PROFILE_DIR });
+    } catch (err) {
+      const message = (err as Error).message;
+      const conflict = message.includes("already open") || message.includes("in progress");
+      sendJson(res, conflict ? 409 : 400, { detail: message });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/login/close") {
+    const closed = await closeLoginSession();
+    if (closed) {
+      sendJson(res, 200, { status: "closed" });
+    } else {
+      sendJson(res, 409, { detail: "No login session is currently open." });
     }
     return;
   }
