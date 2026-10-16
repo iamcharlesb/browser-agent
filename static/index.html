@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Browser Agent</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-border: #2a2e38;
+    --text: #e6e8ec;
+    --muted: #8b90a0;
+    --accent: #5b8def;
+    --ok: #3fb950;
+    --fail: #f85149;
+    --warn: #d29922;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+  }
+  #status-badge {
+    font-size: 12px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--panel-border);
+    color: var(--muted);
+  }
+  #status-badge.running { background: rgba(91, 141, 239, 0.18); color: var(--accent); }
+  #status-badge.success { background: rgba(63, 185, 80, 0.18); color: var(--ok); }
+  #status-badge.failure { background: rgba(248, 81, 73, 0.18); color: var(--fail); }
+
+  main {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    flex-wrap: wrap;
+  }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  #left {
+    flex: 1 1 380px;
+    min-width: 320px;
+    border-right: 1px solid var(--panel-border);
+  }
+  #right {
+    flex: 1.4 1 420px;
+    min-width: 320px;
+  }
+
+  #controls {
+    padding: 16px;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  textarea#task {
+    width: 100%;
+    min-height: 64px;
+    resize: vertical;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .row label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .row input[type="number"] {
+    width: 70px;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 4px 6px;
+  }
+  button#run-btn {
+    background: var(--accent);
+    color: #0b1020;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    align-self: flex-start;
+  }
+  button#run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  #error-banner {
+    display: none;
+    padding: 8px 12px;
+    background: rgba(248, 81, 73, 0.12);
+    color: var(--fail);
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  #feed {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .event {
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .event .meta { color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+  .event.ok { border-left: 3px solid var(--ok); }
+  .event.fail { border-left: 3px solid var(--fail); }
+  .event.terminal.success { border-color: var(--ok); background: rgba(63, 185, 80, 0.08); }
+  .event.terminal.failure { border-color: var(--fail); background: rgba(248, 81, 73, 0.08); }
+  .event .warning, .event .directive { color: var(--warn); margin-top: 4px; }
+
+  #screenshot-wrap {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 16px;
+    overflow: auto;
+    background: #090a0d;
+  }
+  #screenshot-wrap img {
+    max-width: 100%;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+  }
+  #screenshot-placeholder {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 40px;
+  }
+  #current-url {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--panel-border);
+    font-size: 12px;
+    color: var(--muted);
+    word-break: break-all;
+  }
+
+  #verify-banner {
+    display: none;
+    padding: 12px 16px;
+    background: rgba(210, 153, 34, 0.14);
+    border-bottom: 1px solid var(--warn);
+    color: var(--warn);
+    font-size: 13px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  #verify-banner.visible { display: flex; }
+  #verify-banner button {
+    background: var(--warn);
+    color: #1a1400;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Browser Agent</h1>
+    <span id="status-badge">idle</span>
+  </header>
+  <main>
+    <section id="left" class="panel">
+      <div id="controls">
+        <textarea id="task" placeholder="Describe the task, e.g. Go to duckduckgo.com and search for 'dress'"></textarea>
+        <div class="row">
+          <label><input type="checkbox" id="headless" /> headless</label>
+          <label>max steps <input type="number" id="max-steps" value="20" min="1" max="100" /></label>
+          <label>timeout (s) <input type="number" id="max-duration" value="900" min="10" max="3600" /></label>
+        </div>
+        <div id="error-banner"></div>
+        <button id="run-btn">Run</button>
+      </div>
+      <div id="feed"></div>
+    </section>
+    <section id="right" class="panel">
+      <div id="verify-banner">
+        <span id="verify-message"></span>
+        <button id="verify-resume-btn">I've solved it &mdash; Resume</button>
+      </div>
+      <div id="current-url">No page loaded yet.</div>
+      <div id="screenshot-wrap">
+        <div id="screenshot-placeholder">Screenshots will appear here once the run starts.</div>
+      </div>
+    </section>
+  </main>
+
+<script>
+(function () {
+  const taskEl = document.getElementById("task");
+  const headlessEl = document.getElementById("headless");
+  const maxStepsEl = document.getElementById("max-steps");
+  const maxDurationEl = document.getElementById("max-duration");
+  const runBtn = document.getElementById("run-btn");
+  const feedEl = document.getElementById("feed");
+  const statusBadge = document.getElementById("status-badge");
+  const errorBanner = document.getElementById("error-banner");
+  const screenshotWrap = document.getElementById("screenshot-wrap");
+  const currentUrlEl = document.getElementById("current-url");
+  const verifyBanner = document.getElementById("verify-banner");
+  const verifyMessage = document.getElementById("verify-message");
+  const verifyResumeBtn = document.getElementById("verify-resume-btn");
+
+  let eventSource = null;
+
+  function setStatus(label, cls) {
+    statusBadge.textContent = label;
+    statusBadge.className = cls || "";
+  }
+
+  function showError(message) {
+    errorBanner.textContent = message;
+    errorBanner.style.display = message ? "block" : "none";
+  }
+
+  function appendEvent(html, classes) {
+    const div = document.createElement("div");
+    div.className = "event " + (classes || "");
+    div.innerHTML = html;
+    feedEl.appendChild(div);
+    feedEl.scrollTop = feedEl.scrollHeight;
+  }
+
+  function showScreenshot(b64, url, title) {
+    screenshotWrap.innerHTML = "";
+    const img = document.createElement("img");
+    img.src = "data:image/png;base64," + b64;
+    screenshotWrap.appendChild(img);
+    currentUrlEl.textContent = (title ? title + " — " : "") + (url || "");
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text == null ? "" : String(text);
+    return div.innerHTML;
+  }
+
+  function handleEvent(event) {
+    if (event.type === "observe") {
+      appendEvent(
+        '<div class="meta">Step 0 · initial observation</div>' + escapeHtml(event.title || event.url),
+        "ok"
+      );
+      showScreenshot(event.screenshotB64, event.url, event.title);
+      return;
+    }
+    if (event.type === "step") {
+      const cls = event.ok ? "ok" : "fail";
+      let html =
+        '<div class="meta">Step ' + event.step + " · " + escapeHtml(event.toolName) + "</div>" +
+        escapeHtml(event.message);
+      if (event.warning) html += '<div class="warning">' + escapeHtml(event.warning) + "</div>";
+      if (event.directive) html += '<div class="directive">' + escapeHtml(event.directive) + "</div>";
+      appendEvent(html, cls);
+      if (event.screenshotB64) showScreenshot(event.screenshotB64, event.url, event.title);
+      return;
+    }
+    if (event.type === "human_verification") {
+      verifyMessage.textContent = event.message || "Human verification required.";
+      verifyBanner.classList.add("visible");
+      appendEvent(
+        '<div class="meta">Human verification detected</div>' + escapeHtml(event.title || event.url),
+        "fail"
+      );
+      if (event.screenshotB64) showScreenshot(event.screenshotB64, event.url, event.title);
+      return;
+    }
+    if (event.type === "human_verification_resolved") {
+      verifyBanner.classList.remove("visible");
+      appendEvent('<div class="meta">Human verification resolved</div>Continuing...', "ok");
+      if (event.screenshotB64) showScreenshot(event.screenshotB64, event.url, event.title);
+      return;
+    }
+    if (event.type === "terminal") {
+      const cls = event.success ? "terminal success" : "terminal failure";
+      const label = event.success ? "SUCCESS" : "FAILURE";
+      appendEvent(
+        "<strong>" + label + "</strong> (" + escapeHtml(event.terminationReason) + ", " +
+          event.stepsTaken + " steps, " + event.elapsedSeconds.toFixed(1) + "s)<br/>" +
+          escapeHtml(event.summary),
+        cls
+      );
+      setStatus(label.toLowerCase(), event.success ? "success" : "failure");
+      runBtn.disabled = false;
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+    }
+  }
+
+  async function startRun() {
+    const task = taskEl.value.trim();
+    if (!task) {
+      showError("Enter a task first.");
+      return;
+    }
+    showError("");
+    feedEl.innerHTML = "";
+    verifyBanner.classList.remove("visible");
+    screenshotWrap.innerHTML = '<div id="screenshot-placeholder">Waiting for the first screenshot...</div>';
+    currentUrlEl.textContent = "Starting...";
+    runBtn.disabled = true;
+    setStatus("running", "running");
+
+    let response;
+    try {
+      response = await fetch("/api/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task: task,
+          headless: headlessEl.checked,
+          maxSteps: parseInt(maxStepsEl.value, 10) || 20,
+          maxDurationSeconds: parseFloat(maxDurationEl.value) || 900,
+        }),
+      });
+    } catch (err) {
+      showError("Could not reach the agent server: " + err);
+      setStatus("idle", "");
+      runBtn.disabled = false;
+      return;
+    }
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ detail: response.statusText }));
+      showError(body.detail || "Failed to start the run.");
+      setStatus("idle", "");
+      runBtn.disabled = false;
+      return;
+    }
+
+    eventSource = new EventSource("/api/events");
+    eventSource.onmessage = function (msg) {
+      try {
+        handleEvent(JSON.parse(msg.data));
+      } catch (err) {
+        console.error("Failed to parse event", err, msg.data);
+      }
+    };
+    eventSource.onerror = function () {
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+      runBtn.disabled = false;
+    };
+  }
+
+  async function resumeRun() {
+    verifyResumeBtn.disabled = true;
+    try {
+      const response = await fetch("/api/resume", { method: "POST" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ detail: response.statusText }));
+        showError(body.detail || "Failed to resume the run.");
+      } else {
+        verifyBanner.classList.remove("visible");
+      }
+    } catch (err) {
+      showError("Could not reach the agent server: " + err);
+    } finally {
+      verifyResumeBtn.disabled = false;
+    }
+  }
+
+  runBtn.addEventListener("click", startRun);
+  verifyResumeBtn.addEventListener("click", resumeRun);
+  taskEl.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) startRun();
+  });
+})();
+</script>
+</body>
+</html>

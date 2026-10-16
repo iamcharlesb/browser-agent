@@ -1,0 +1,23 @@
+{
+  "name": "browser-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autonomous browser agent powered by an OpenAI model and Playwright (Node.js port).",
+  "main": "dist/promptLoop.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cli": "node dist/cli.js",
+    "server": "node dist/server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "openai": "^4.60.0",
+    "playwright": "^1.47.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.2"
+  }
+}
