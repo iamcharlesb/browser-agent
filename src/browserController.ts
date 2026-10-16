@@ -1,13 +1,18 @@
 /** Browser operations and state capture, backed by Playwright for Node. */
 
 import { createHash } from "node:crypto";
-import {
-  Browser,
-  BrowserContext,
-  Page,
-  chromium,
-  errors as playwrightErrors
-} from "playwright";
+import { mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { BrowserContext, Page, chromium, errors as playwrightErrors } from "playwright";
+
+/**
+ * Default on-disk profile directory. Using a persistent Chromium profile (cookies, local
+ * storage, session state) instead of a fresh in-memory context on every run is what lets the
+ * agent stay signed in across runs: log in and clear MFA once in this profile, and subsequent
+ * runs reuse that session instead of hitting a login wall every time.
+ */
+export const DEFAULT_PROFILE_DIR = join(homedir(), ".browser-agent-profile");
 
 const INTERACTIVE_SELECTOR =
   'a[href], button, input, select, textarea, ' +
@@ -62,17 +67,35 @@ const VERIFICATION_TITLE_KEYWORDS = [
   "checking your browser",
   "captcha",
   "robot check",
-  "attention required"
+  "attention required",
+  "sign in",
+  "sign up",
+  "log in",
+  "login",
+  "verify it's you",
+  "two-factor",
+  "two factor",
+  "2fa",
+  "one-time code",
+  "one time code",
+  "verification code"
 ];
 
-/** Executed inside the page via page.evaluate — must be a real function, see note above. */
+/**
+ * Executed inside the page via page.evaluate — must be a real function, see note above.
+ * Flags CAPTCHA/bot-check widgets AND generic login/sign-in/MFA forms. The agent never fills
+ * these in itself (it has no credentials and must not attempt to); it only uses this signal to
+ * pause and hand off to a real human via the human-verification flow.
+ */
 function detectVerificationChallenge(): boolean {
   const selectors = [
     'iframe[src*="recaptcha"]',
     'iframe[src*="hcaptcha"]',
     'iframe[title*="captcha" i]',
     'div[class*="cf-turnstile"]',
-    "div#challenge-form"
+    "div#challenge-form",
+    'input[type="password"]',
+    'input[autocomplete="one-time-code"]'
   ];
   for (const selector of selectors) {
     if (document.querySelector(selector)) return true;
@@ -96,6 +119,9 @@ export interface BrowserConfig {
   idleTimeoutMs: number;
   maxElements: number;
   userAgent?: string;
+  /** Persistent on-disk Chromium profile directory. Same directory across runs = same cookies,
+   * local storage, and signed-in sessions, so logins and MFA only have to happen once. */
+  userDataDir: string;
 }
 
 export function defaultBrowserConfig(overrides: Partial<BrowserConfig> = {}): BrowserConfig {
@@ -107,6 +133,7 @@ export function defaultBrowserConfig(overrides: Partial<BrowserConfig> = {}): Br
     actionTimeoutMs: 10_000,
     idleTimeoutMs: 4_000,
     maxElements: 50,
+    userDataDir: DEFAULT_PROFILE_DIR,
     ...overrides
   };
   if (config.viewportWidth <= 0 || config.viewportHeight <= 0) {
@@ -163,7 +190,6 @@ function computeStateHash(url: string, title: string, interactiveCount: number):
 
 export class BrowserController {
   private readonly config: BrowserConfig;
-  private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
 
@@ -176,14 +202,15 @@ export class BrowserController {
       return;
     }
     try {
-      this.browser = await chromium.launch({ headless: this.config.headless });
-      this.context = await this.browser.newContext({
+      mkdirSync(this.config.userDataDir, { recursive: true });
+      this.context = await chromium.launchPersistentContext(this.config.userDataDir, {
+        headless: this.config.headless,
         viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
         deviceScaleFactor: 1,
         userAgent: this.config.userAgent
       });
       this.context.setDefaultTimeout(this.config.actionTimeoutMs);
-      this.page = await this.context.newPage();
+      this.page = this.context.pages()[0] ?? (await this.context.newPage());
       this.page.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
     } catch (err) {
       await this.close();
@@ -192,17 +219,15 @@ export class BrowserController {
   }
 
   async close(): Promise<void> {
-    for (const closable of [this.page, this.context, this.browser]) {
-      if (closable === null) continue;
+    if (this.context !== null) {
       try {
-        await closable.close();
+        await this.context.close();
       } catch {
         // best-effort cleanup
       }
     }
     this.page = null;
     this.context = null;
-    this.browser = null;
   }
 
   private requirePage(): Page {

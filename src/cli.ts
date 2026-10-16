@@ -2,10 +2,12 @@
 
 import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
-import { BrowserController, PageState, defaultBrowserConfig } from "./browserController";
+import { BrowserController, DEFAULT_PROFILE_DIR, PageState, defaultBrowserConfig } from "./browserController";
 import { AgentOrchestrator, DEFAULT_MODEL } from "./promptLoop";
 
 interface CliOptions {
+  login: boolean;
+  loginUrl: string;
   task: string;
   headless: boolean;
   maxSteps: number;
@@ -14,6 +16,7 @@ interface CliOptions {
   viewportHeight: number;
   model: string;
   keepRecentImages: number;
+  profileDir: string;
 }
 
 function printUsage(): void {
@@ -22,15 +25,23 @@ function printUsage(): void {
       "Autonomous browser agent powered by an OpenAI model and Playwright.",
       "",
       "Usage: node dist/cli.js --task \"<description>\" [options]",
+      "       node dist/cli.js --login [--login-url <url>]",
+      "",
+      "Both modes share the same persistent browser profile (--profile-dir), so logging in and",
+      "clearing MFA once in --login mode carries over into every later --task run.",
       "",
       "Options:",
-      "  --task <string>             Natural language description of the task to accomplish. (required)",
-      "  --headless                  Run the browser without a visible UI window.",
+      "  --task <string>             Natural language description of the task to accomplish.",
+      "  --login                     Open the persistent profile in a visible window so you can",
+      "                               sign in to whatever sites you need. Press Enter when done.",
+      "  --login-url <url>           URL to open in --login mode. Default: about:blank.",
+      "  --headless                  Run the browser without a visible UI window (--task mode only).",
       "  --max-steps <n>             Maximum agent steps before the circuit breaker halts the run. Default: 20.",
       "  --max-duration <seconds>    Maximum wall-clock seconds before the circuit breaker halts the run. Default: 900.",
       "  --viewport <WxH>            Browser viewport size, e.g. 1280x800. Default: 1280x800.",
       `  --model <id>                OpenAI model id to use. Default: ${DEFAULT_MODEL}.`,
       "  --keep-recent-images <n>    Number of most recent screenshots to keep active in context. Default: 2.",
+      `  --profile-dir <path>        Persistent Chromium profile directory. Default: ${DEFAULT_PROFILE_DIR}.`,
       "  --help                      Show this help message."
     ].join("\n")
   );
@@ -54,12 +65,15 @@ function parseCliArgs(argv: string[]): CliOptions {
     args: argv,
     options: {
       task: { type: "string" },
+      login: { type: "boolean", default: false },
+      "login-url": { type: "string", default: "about:blank" },
       headless: { type: "boolean", default: false },
       "max-steps": { type: "string", default: "20" },
       "max-duration": { type: "string", default: "900" },
       viewport: { type: "string", default: "1280x800" },
       model: { type: "string", default: DEFAULT_MODEL },
       "keep-recent-images": { type: "string", default: "2" },
+      "profile-dir": { type: "string", default: DEFAULT_PROFILE_DIR },
       help: { type: "boolean", default: false }
     },
     allowPositionals: false
@@ -70,8 +84,9 @@ function parseCliArgs(argv: string[]): CliOptions {
     process.exit(0);
   }
 
-  if (!values.task || !String(values.task).trim()) {
-    throw new Error("--task is required.");
+  const login = Boolean(values.login);
+  if (!login && (!values.task || !String(values.task).trim())) {
+    throw new Error("--task is required (or pass --login to set up a signed-in session).");
   }
 
   const viewport = parseViewport(String(values.viewport));
@@ -89,14 +104,17 @@ function parseCliArgs(argv: string[]): CliOptions {
   }
 
   return {
-    task: String(values.task),
+    login,
+    loginUrl: String(values["login-url"]),
+    task: String(values.task ?? ""),
     headless: Boolean(values.headless),
     maxSteps,
     maxDuration,
     viewportWidth: viewport.width,
     viewportHeight: viewport.height,
     model: String(values.model),
-    keepRecentImages
+    keepRecentImages,
+    profileDir: String(values["profile-dir"])
   };
 }
 
@@ -121,21 +139,46 @@ function makeHumanVerificationHook(headless: boolean): (state: PageState) => Pro
   };
 }
 
-async function main(): Promise<number> {
-  let options: CliOptions;
-  try {
-    options = parseCliArgs(process.argv.slice(2));
-  } catch (err) {
-    console.error(`Argument error: ${(err as Error).message}`);
-    printUsage();
-    return 2;
-  }
-
+async function runLoginSetup(options: CliOptions): Promise<number> {
   const browser = new BrowserController(
     defaultBrowserConfig({
       viewportWidth: options.viewportWidth,
       viewportHeight: options.viewportHeight,
-      headless: options.headless
+      headless: false,
+      userDataDir: options.profileDir
+    })
+  );
+  try {
+    await browser.start();
+    await browser.navigate(options.loginUrl);
+    console.log(`\n>>> A browser window is open at ${options.loginUrl}.`);
+    console.log(`>>> Profile directory: ${options.profileDir}`);
+    console.log(">>> Sign in to whatever sites your tasks will need. MFA only needs to happen");
+    console.log(">>> once here — later --task runs reuse this same signed-in session.");
+    console.log(">>> Press Enter here when you're done to close the browser and save the session.");
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      await rl.question("");
+    } finally {
+      rl.close();
+    }
+  } catch (err) {
+    console.error(`Login setup failed: ${(err as Error).message}`);
+    return 2;
+  } finally {
+    await browser.close();
+  }
+  console.log("Session saved.");
+  return 0;
+}
+
+async function runTask(options: CliOptions): Promise<number> {
+  const browser = new BrowserController(
+    defaultBrowserConfig({
+      viewportWidth: options.viewportWidth,
+      viewportHeight: options.viewportHeight,
+      headless: options.headless,
+      userDataDir: options.profileDir
     })
   );
 
@@ -168,6 +211,19 @@ async function main(): Promise<number> {
   );
   console.log(`Summary: ${result.summary}`);
   return result.success ? 0 : 1;
+}
+
+async function main(): Promise<number> {
+  let options: CliOptions;
+  try {
+    options = parseCliArgs(process.argv.slice(2));
+  } catch (err) {
+    console.error(`Argument error: ${(err as Error).message}`);
+    printUsage();
+    return 2;
+  }
+
+  return options.login ? runLoginSetup(options) : runTask(options);
 }
 
 main()

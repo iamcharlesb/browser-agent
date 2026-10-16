@@ -71,6 +71,42 @@
     min-width: 320px;
   }
 
+  #session-panel {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(91, 141, 239, 0.06);
+  }
+  .session-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .session-label { font-weight: 600; color: var(--text); }
+  #session-status { color: var(--muted); }
+  #session-status.open { color: var(--ok); }
+  #session-url {
+    flex: 1;
+    min-width: 160px;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+  #session-panel button {
+    background: var(--panel-border);
+    color: var(--text);
+    border: none;
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #session-open-btn { background: var(--accent); color: #0b1020; }
+  #session-panel button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .session-hint { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.4; }
+
   #controls {
     padding: 16px;
     border-bottom: 1px solid var(--panel-border);
@@ -202,6 +238,22 @@
   </header>
   <main>
     <section id="left" class="panel">
+      <div id="session-panel">
+        <div class="session-row">
+          <span class="session-label">Session</span>
+          <span id="session-status">no persistent login session open</span>
+        </div>
+        <div class="row">
+          <input id="session-url" type="text" placeholder="URL to sign in at, e.g. https://x.com/login" />
+          <button id="session-open-btn">Open for login</button>
+          <button id="session-close-btn" disabled>Close &amp; save session</button>
+        </div>
+        <p class="session-hint">
+          Opens a real, visible browser window using the agent's persistent profile. Sign in
+          (and clear any MFA prompt) there, then close the session here &mdash; later task runs
+          reuse those cookies, so they won't hit the same login/MFA wall again.
+        </p>
+      </div>
       <div id="controls">
         <textarea id="task" placeholder="Describe the task, e.g. Go to duckduckgo.com and search for 'dress'"></textarea>
         <div class="row">
@@ -241,6 +293,10 @@
   const verifyBanner = document.getElementById("verify-banner");
   const verifyMessage = document.getElementById("verify-message");
   const verifyResumeBtn = document.getElementById("verify-resume-btn");
+  const sessionUrlEl = document.getElementById("session-url");
+  const sessionOpenBtn = document.getElementById("session-open-btn");
+  const sessionCloseBtn = document.getElementById("session-close-btn");
+  const sessionStatusEl = document.getElementById("session-status");
 
   let eventSource = null;
 
@@ -405,8 +461,54 @@
     }
   }
 
+  async function openLoginSession() {
+    sessionOpenBtn.disabled = true;
+    showError("");
+    try {
+      const url = sessionUrlEl.value.trim() || "about:blank";
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ detail: response.statusText }));
+        showError(body.detail || "Failed to open a login session.");
+        sessionOpenBtn.disabled = false;
+        return;
+      }
+      sessionStatusEl.textContent = "session open — sign in in the browser window, then close it here";
+      sessionStatusEl.classList.add("open");
+      sessionCloseBtn.disabled = false;
+    } catch (err) {
+      showError("Could not reach the agent server: " + err);
+      sessionOpenBtn.disabled = false;
+    }
+  }
+
+  async function closeLoginSession() {
+    sessionCloseBtn.disabled = true;
+    try {
+      const response = await fetch("/api/login/close", { method: "POST" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ detail: response.statusText }));
+        showError(body.detail || "Failed to close the login session.");
+        sessionCloseBtn.disabled = false;
+        return;
+      }
+      sessionStatusEl.textContent = "no persistent login session open";
+      sessionStatusEl.classList.remove("open");
+      sessionOpenBtn.disabled = false;
+    } catch (err) {
+      showError("Could not reach the agent server: " + err);
+      sessionCloseBtn.disabled = false;
+    }
+  }
+
   runBtn.addEventListener("click", startRun);
   verifyResumeBtn.addEventListener("click", resumeRun);
+  sessionOpenBtn.addEventListener("click", openLoginSession);
+  sessionCloseBtn.addEventListener("click", closeLoginSession);
   taskEl.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) startRun();
   });
