@@ -1,23 +1,33 @@
 /** OpenAI function-calling tool schemas for the browser agent, plus local dispatch. */
 
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import OpenAI from "openai";
 import { BrowserActionError, BrowserController } from "./browserController";
+
+export const ARTIFACTS_DIR = join(__dirname, "..", "artifacts");
+export const WORKSPACE_ROOT = resolve(__dirname, "..", "..", "..");
+
+function safeResolveWorkspacePath(filePath: string): string {
+  const cleaned = filePath.trim();
+  const resolved = isAbsolute(cleaned) ? resolve(cleaned) : resolve(WORKSPACE_ROOT, cleaned);
+  const rel = relative(WORKSPACE_ROOT, resolved);
+  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    throw new Error(`Path "${filePath}" is outside the project workspace (${WORKSPACE_ROOT}).`);
+  }
+  return resolved;
+}
 
 export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
       name: "navigate",
-      description:
-        "Navigate the browser to a specific URL. Use this to open a new page, go to a known " +
-        "address, or recover by returning to a trusted starting point.",
+      description: "Open a URL or search query in the browser.",
       parameters: {
         type: "object",
         properties: {
-          url: {
-            type: "string",
-            description: "Fully qualified URL to navigate to, e.g. https://example.com"
-          }
+          url: { type: "string", description: "URL or search query." }
         },
         required: ["url"]
       }
@@ -26,17 +36,59 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
-      name: "click_coords",
-      description:
-        "Click at a specific pixel coordinate within the current viewport. Coordinates are " +
-        "relative to the top-left corner of the viewport, matching the most recent screenshot " +
-        "and interactive element list.",
+      name: "click_mark",
+      description: "Click an interactive element by its #markId from the latest observation list.",
       parameters: {
         type: "object",
         properties: {
-          x: { type: "integer", description: "Horizontal pixel offset from the left edge of the viewport." },
-          y: { type: "integer", description: "Vertical pixel offset from the top edge of the viewport." },
-          label: { type: "string", description: "Short description of the element being clicked, for logging purposes." }
+          markId: { type: "integer", description: "Numeric mark ID (e.g. 12 for #12)." }
+        },
+        required: ["markId"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "type_mark",
+      description: "Click an input field by its #markId, type text into it, and optionally press Enter.",
+      parameters: {
+        type: "object",
+        properties: {
+          markId: { type: "integer", description: "Numeric mark ID of the input field." },
+          text: { type: "string", description: "Text to type." },
+          clear: { type: "boolean", description: "Clear field first (default true)." },
+          pressEnter: { type: "boolean", description: "Press Enter after typing (default false)." }
+        },
+        required: ["markId", "text"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "click_element",
+      description: "Click a visible element by its text label, aria-label, or CSS selector (e.g. 'Profile', 'Followers').",
+      parameters: {
+        type: "object",
+        properties: {
+          target: { type: "string", description: "Visible text, aria-label, or CSS selector." }
+        },
+        required: ["target"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "click_coords",
+      description: "Click at pixel coordinates (x, y) in the viewport.",
+      parameters: {
+        type: "object",
+        properties: {
+          x: { type: "integer" },
+          y: { type: "integer" },
+          label: { type: "string" }
         },
         required: ["x", "y"]
       }
@@ -46,16 +98,15 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "type_text",
-      description:
-        "Click a text input or textarea at the given coordinate, optionally clear its existing " +
-        "value, and type the given text.",
+      description: "Click at (x, y), type text, and optionally press Enter.",
       parameters: {
         type: "object",
         properties: {
-          x: { type: "integer", description: "Horizontal pixel offset of the field." },
-          y: { type: "integer", description: "Vertical pixel offset of the field." },
-          text: { type: "string", description: "Text to type into the field." },
-          clear: { type: "boolean", description: "Whether to clear the field before typing. Defaults to true." }
+          x: { type: "integer" },
+          y: { type: "integer" },
+          text: { type: "string" },
+          clear: { type: "boolean" },
+          pressEnter: { type: "boolean" }
         },
         required: ["x", "y", "text"]
       }
@@ -64,13 +115,107 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "extract_page_data",
+      description: "Extract structured DOM data (text, links, tables, headings, or html) from the page.",
+      parameters: {
+        type: "object",
+        properties: {
+          mode: { type: "string", enum: ["text", "links", "tables", "headings", "html"] },
+          selector: { type: "string", description: "Optional CSS selector." }
+        },
+        required: ["mode"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "understand_youtube_video",
+      description:
+        "Extract a YouTube video's title, channel, description, chapters, and full spoken transcript directly via fast HTTP (Codex-style, NO browser needed) so you can understand and apply its concepts.",
+      parameters: {
+        type: "object",
+        properties: {
+          urlOrQuery: {
+            type: "string",
+            description: "YouTube video URL (watch, youtu.be, shorts), 11-char video ID, or video search query."
+          }
+        },
+        required: ["urlOrQuery"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "web_search",
+      description: "Fast background lookup (Wikipedia + DuckDuckGo Instant Answers) without leaving the current tab.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string" }
+        },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "calculate",
+      description: "Evaluate math, percentage, or analytics expressions.",
+      parameters: {
+        type: "object",
+        properties: {
+          expression: { type: "string" }
+        },
+        required: ["expression"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_document",
+      description: "Save a downloadable report or file (md, csv, json, html, svg, txt).",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          format: { type: "string", enum: ["md", "csv", "json", "html", "svg", "txt"] },
+          content: { type: "string" },
+          filename: { type: "string" }
+        },
+        required: ["title", "format", "content"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "workspace_file",
+      description: "Read, write, append, or list files in the project workspace.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["read", "write", "append", "list"] },
+          path: { type: "string" },
+          content: { type: "string" }
+        },
+        required: ["action", "path"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "scroll_page",
-      description: "Scroll the current page up or down by a pixel amount.",
+      description: "Scroll the page up or down.",
       parameters: {
         type: "object",
         properties: {
           direction: { type: "string", enum: ["up", "down"] },
-          amount: { type: "integer", description: "Pixels to scroll. Defaults to 600 when omitted." }
+          amount: { type: "integer" }
         },
         required: ["direction"]
       }
@@ -79,15 +224,19 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "go_back",
+      description: "Navigate back in browser history.",
+      parameters: { type: "object", properties: {} }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "key_press",
-      description:
-        "Press a single keyboard key or chord on the currently focused element, e.g. 'Enter', " +
-        "'Escape', 'Tab', or 'Control+A'.",
+      description: "Press a keyboard key (e.g. 'Enter', 'Escape', 'Tab').",
       parameters: {
         type: "object",
-        properties: {
-          key: { type: "string", description: "Key or chord name understood by Playwright." }
-        },
+        properties: { key: { type: "string" } },
         required: ["key"]
       }
     }
@@ -96,12 +245,10 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "wait",
-      description: "Pause execution for a short duration to allow slow content to load.",
+      description: "Pause for 0.1 to 10 seconds.",
       parameters: {
         type: "object",
-        properties: {
-          seconds: { type: "number", description: "Seconds to wait, clamped between 0.1 and 10." }
-        },
+        properties: { seconds: { type: "number" } },
         required: ["seconds"]
       }
     }
@@ -110,13 +257,11 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "finish_task",
-      description:
-        "Call this when the task has been completed and verified against the current page " +
-        "state. Provide a concise summary of what was accomplished.",
+      description: "Complete the task and return a clear, well-structured Markdown answer to the user.",
       parameters: {
         type: "object",
         properties: {
-          summary: { type: "string", description: "Concise summary of the completed task." }
+          summary: { type: "string", description: "Final answer or summary (supports Markdown)." }
         },
         required: ["summary"]
       }
@@ -126,13 +271,11 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "fail_task",
-      description:
-        "Call this when the task cannot be completed, for example due to a dead end, missing " +
-        "information, or a blocking error. Provide the reason.",
+      description: "Stop when blocked or when specific input is needed from the user.",
       parameters: {
         type: "object",
         properties: {
-          reason: { type: "string", description: "Why the task could not be completed." }
+          reason: { type: "string" }
         },
         required: ["reason"]
       }
@@ -143,7 +286,380 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 export interface ToolExecutionResult {
   ok: boolean;
   message: string;
+  data?: string;
+  artifactUrl?: string;
   terminal?: "finish" | "fail";
+}
+
+async function runWebSearch(query: string): Promise<string> {
+  const results: string[] = [];
+  const q = query.trim();
+
+  // 1. DuckDuckGo HTML Lite real web search (returns top organic web titles, URLs, and snippets headlessly)
+  try {
+    const htmlRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9"
+      }
+    });
+    if (htmlRes.ok) {
+      const html = await htmlRes.text();
+      const blocks = html.split(/class="result__body"/i).slice(1, 8);
+      for (const block of blocks) {
+        const titleMatch = /class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i.exec(block);
+        const snippetMatch = /class="result__snippet"[^>]*>([\s\S]*?)<\/a>|class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i.exec(block);
+        if (titleMatch) {
+          let href = titleMatch[1];
+          const uddg = /[?&]uddg=([^&]+)/.exec(href);
+          if (uddg) {
+            try {
+              href = decodeURIComponent(uddg[1]);
+            } catch {
+              // ignore
+            }
+          }
+          const title = decodeHtmlEntities(titleMatch[2].replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
+          const rawSnippet = (snippetMatch?.[1] || snippetMatch?.[2] || "").replace(/<[^>]+>/g, "");
+          const snippet = decodeHtmlEntities(rawSnippet).replace(/\s+/g, " ").trim();
+          if (title) {
+            results.push(`- **${title}** (${href})\n  ${snippet}`);
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // 2. Wikipedia Search API for authoritative encyclopedic/technical summaries
+  try {
+    const wikiSearchRes = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&utf8=&format=json&srlimit=3`,
+      { headers: { "User-Agent": "OpenBots/1.0" } }
+    );
+    if (wikiSearchRes.ok) {
+      const wikiData = (await wikiSearchRes.json()) as {
+        query?: { search?: Array<{ title?: string; snippet?: string }> };
+      };
+      for (const item of wikiData.query?.search ?? []) {
+        if (item.title && item.snippet) {
+          const cleanSnippet = decodeHtmlEntities(item.snippet.replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
+          results.push(`- Wikipedia (${item.title}): ${cleanSnippet}`);
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // 3. DuckDuckGo Instant Answer API fallback
+  if (results.length < 2) {
+    try {
+      const ddgRes = await fetch(
+        `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`
+      );
+      if (ddgRes.ok) {
+        const ddg = (await ddgRes.json()) as {
+          AbstractText?: string;
+          AbstractURL?: string;
+          RelatedTopics?: Array<{ Text?: string; FirstURL?: string }>;
+        };
+        if (ddg.AbstractText) {
+          results.push(`Instant Answer: ${ddg.AbstractText} (${ddg.AbstractURL ?? ""})`);
+        }
+        if (Array.isArray(ddg.RelatedTopics)) {
+          const topics = ddg.RelatedTopics.filter((t) => t && t.Text).slice(0, 4);
+          for (const t of topics) {
+            results.push(`- ${t.Text} (${t.FirstURL ?? ""})`);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!results.length) {
+    return `Search completed for "${query}" (no external snippets returned; synthesize using your domain knowledge or refine your search query).`;
+  }
+  return results.slice(0, 8).join("\n\n");
+}
+
+function runCalculation(expression: string): string {
+  const cleaned = expression.trim();
+  if (!cleaned || /[;{}[\]`$]|import|require|process|global|window|document|fetch/i.test(cleaned)) {
+    throw new Error("Invalid mathematical expression.");
+  }
+  const mathContext = {
+    abs: Math.abs,
+    ceil: Math.ceil,
+    floor: Math.floor,
+    round: Math.round,
+    sqrt: Math.sqrt,
+    pow: Math.pow,
+    log: Math.log,
+    log10: Math.log10,
+    sin: Math.sin,
+    cos: Math.cos,
+    tan: Math.tan,
+    min: Math.min,
+    max: Math.max,
+    PI: Math.PI,
+    E: Math.E
+  };
+  const fn = new Function(...Object.keys(mathContext), `"use strict"; return (${cleaned});`);
+  const value = fn(...Object.values(mathContext));
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`Expression did not evaluate to a finite number: ${String(value)}`);
+  }
+  return String(Number.isInteger(value) ? value : Number(value.toFixed(8)));
+}
+
+function formatTimestamp(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  if (hrs > 0) {
+    return `${hrs}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)));
+}
+
+async function resolveYouTubeVideoId(urlOrQuery: string): Promise<string | null> {
+  const input = urlOrQuery.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(input)) {
+    return input;
+  }
+  const urlMatch =
+    /(?:youtube\.com\/(?:watch\?.*v=|shorts\/|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/.exec(input);
+  if (urlMatch) {
+    return urlMatch[1];
+  }
+  // If user passed a search query or video title, search YouTube HTML over HTTP
+  try {
+    const searchRes = await fetch(
+      `https://www.youtube.com/results?search_query=${encodeURIComponent(input)}`,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "Accept-Language": "en-US,en;q=0.9"
+        }
+      }
+    );
+    if (searchRes.ok) {
+      const html = await searchRes.text();
+      const idMatch = /"videoId":"([a-zA-Z0-9_-]{11})"/.exec(html);
+      if (idMatch) return idMatch[1];
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+async function understandYouTubeVideo(urlOrQuery: string): Promise<string> {
+  const videoId = await resolveYouTubeVideoId(urlOrQuery);
+  if (!videoId) {
+    return `Could not resolve a YouTube video ID from "${urlOrQuery}". Please provide a valid YouTube URL or video title.`;
+  }
+  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  let title = "";
+  let author = "";
+  let lengthSeconds = 0;
+  let viewCount = "";
+  let shortDescription = "";
+  let captionTracks: Array<{ baseUrl?: string; languageCode?: string; name?: { simpleText?: string } }> = [];
+
+  // 1. Fast oEmbed lookup
+  try {
+    const oembedRes = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(watchUrl)}&format=json`
+    );
+    if (oembedRes.ok) {
+      const oembed = (await oembedRes.json()) as { title?: string; author_name?: string };
+      title = oembed.title ?? "";
+      author = oembed.author_name ?? "";
+    }
+  } catch {
+    // ignore
+  }
+
+  // 2. Fetch watch page HTML for ytInitialPlayerResponse (description, metadata, captionTracks)
+  try {
+    const pageRes = await fetch(watchUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9"
+      }
+    });
+    if (pageRes.ok) {
+      const html = await pageRes.text();
+      const playerMatch = /ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*(?:var\s|window\[|<\/script>)/s.exec(html);
+      if (playerMatch) {
+        try {
+          const player = JSON.parse(playerMatch[1]);
+          const details = player?.videoDetails ?? {};
+          title = details.title || title;
+          author = details.author || author;
+          lengthSeconds = Number(details.lengthSeconds || 0);
+          viewCount = details.viewCount || "";
+          shortDescription = details.shortDescription || "";
+          captionTracks =
+            player?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
+        } catch {
+          // fallback regex extraction if JSON.parse fails on large script
+        }
+      }
+      if (!shortDescription) {
+        const descMatch = /"shortDescription":"((?:\\.|[^"\\])*)"/.exec(html);
+        if (descMatch) {
+          try {
+            shortDescription = JSON.parse(`"${descMatch[1]}"`);
+          } catch {
+            shortDescription = descMatch[1];
+          }
+        }
+      }
+      if (!captionTracks.length) {
+        const tracksMatch = /"captionTracks":(\[[^\]]+\])/.exec(html);
+        if (tracksMatch) {
+          try {
+            captionTracks = JSON.parse(tracksMatch[1]);
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // 3. Fallback to InnerTube player API if captionTracks were not found in watch HTML
+  if (!captionTracks.length) {
+    try {
+      const innertubeRes = await fetch("https://www.youtube.com/youtubei/v1/player?prettyPrint=false", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoId,
+          context: {
+            client: {
+              clientName: "ANDROID",
+              clientVersion: "19.09.37",
+              androidSdkVersion: 30,
+              hl: "en",
+              gl: "US"
+            }
+          }
+        })
+      });
+      if (innertubeRes.ok) {
+        const data = (await innertubeRes.json()) as any;
+        const details = data?.videoDetails ?? {};
+        title = details.title || title;
+        author = details.author || author;
+        lengthSeconds = Number(details.lengthSeconds || lengthSeconds || 0);
+        shortDescription = details.shortDescription || shortDescription;
+        captionTracks =
+          data?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? captionTracks;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // 4. Download and parse transcript from the best English (or first available) caption track
+  let transcriptText = "";
+  if (captionTracks.length > 0) {
+    const preferred =
+      captionTracks.find((t) => t.languageCode === "en" || t.languageCode?.startsWith("en")) ??
+      captionTracks[0];
+    if (preferred?.baseUrl) {
+      try {
+        const jsonUrl = preferred.baseUrl.includes("fmt=")
+          ? preferred.baseUrl
+          : `${preferred.baseUrl}&fmt=json3`;
+        const capRes = await fetch(jsonUrl);
+        if (capRes.ok) {
+          const raw = await capRes.text();
+          if (raw.trim().startsWith("{")) {
+            const json3 = JSON.parse(raw) as {
+              events?: Array<{ tStartMs?: number; segs?: Array<{ utf8?: string }> }>;
+            };
+            const lines: string[] = [];
+            for (const ev of json3.events ?? []) {
+              if (!ev.segs) continue;
+              const segText = ev.segs
+                .map((s) => s.utf8 ?? "")
+                .join("")
+                .replace(/\s+/g, " ")
+                .trim();
+              if (segText) {
+                const ts = formatTimestamp((ev.tStartMs ?? 0) / 1000);
+                lines.push(`[${ts}] ${segText}`);
+              }
+            }
+            transcriptText = lines.join("\n");
+          } else {
+            // XML fallback (<text start="12.3" dur="3.4">...</text>)
+            const lines: string[] = [];
+            const regex = /<text[^>]*start="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g;
+            let m: RegExpExecArray | null;
+            while ((m = regex.exec(raw)) !== null) {
+              const ts = formatTimestamp(Number(m[1]));
+              const clean = decodeHtmlEntities(m[2].replace(/<[^>]+>/g, ""))
+                .replace(/\s+/g, " ")
+                .trim();
+              if (clean) lines.push(`[${ts}] ${clean}`);
+            }
+            transcriptText = lines.join("\n");
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  const sections: string[] = [
+    `YOUTUBE VIDEO ANALYSIS (Headless Codex Mode — No Browser Used)`,
+    `URL: ${watchUrl}`,
+    `Title: ${title || "Unknown Title"}`,
+    `Channel: ${author || "Unknown Channel"}`,
+    ...(lengthSeconds ? [`Duration: ${formatTimestamp(lengthSeconds)}`] : []),
+    ...(viewCount ? [`Views: ${Number(viewCount).toLocaleString()}`] : [])
+  ];
+
+  if (shortDescription) {
+    sections.push(`\n--- VIDEO DESCRIPTION & CHAPTERS ---\n${shortDescription.slice(0, 3500)}`);
+  }
+
+  if (transcriptText) {
+    sections.push(`\n--- SPOKEN TRANSCRIPT (Timestamped) ---\n${transcriptText.slice(0, 11000)}`);
+  } else {
+    sections.push(
+      `\n(Note: Spoken captions were not available on this video track; rely on the video title, description, chapters, and web_search if additional context is needed.)`
+    );
+  }
+
+  return sections.join("\n");
 }
 
 export async function executeTool(
@@ -154,9 +670,31 @@ export async function executeTool(
   try {
     switch (name) {
       case "navigate": {
-        const url = String(toolInput.url);
+        const url = String(toolInput.url ?? "");
         await controller.navigate(url);
-        return { ok: true, message: `Navigated to ${url}.` };
+        return { ok: true, message: `Navigated to ${controller.currentUrl()}.` };
+      }
+      case "click_mark": {
+        const markId = Math.trunc(Number(toolInput.markId));
+        if (Number.isNaN(markId)) {
+          return { ok: false, message: "Invalid markId: must be an integer." };
+        }
+        const el = await controller.clickMark(markId);
+        return { ok: true, message: `Clicked #${markId} (${el.text || el.tag}) at (${el.x}, ${el.y}).` };
+      }
+      case "type_mark": {
+        const markId = Math.trunc(Number(toolInput.markId));
+        const text = String(toolInput.text ?? "");
+        const clear = toolInput.clear === undefined ? true : Boolean(toolInput.clear);
+        const pressEnter = Boolean(toolInput.pressEnter);
+        if (Number.isNaN(markId)) {
+          return { ok: false, message: "Invalid markId: must be an integer." };
+        }
+        const el = await controller.typeMark(markId, text, clear, pressEnter);
+        return {
+          ok: true,
+          message: `Typed "${text.slice(0, 40)}" into #${markId} (${el.text || el.tag})${pressEnter ? " and pressed Enter" : ""}.`
+        };
       }
       case "click_coords": {
         const x = Math.trunc(Number(toolInput.x));
@@ -168,22 +706,126 @@ export async function executeTool(
         const label = typeof toolInput.label === "string" ? toolInput.label : "";
         return { ok: true, message: `Clicked at (${x}, ${y})${label ? ` on ${label}` : ""}.` };
       }
+      case "click_element": {
+        const target = String(toolInput.target ?? "");
+        const clicked = await controller.clickBySelectorOrText(target);
+        return { ok: true, message: `Clicked element matching "${clicked}".` };
+      }
       case "type_text": {
         const x = Math.trunc(Number(toolInput.x));
         const y = Math.trunc(Number(toolInput.y));
         const text = String(toolInput.text ?? "");
         const clear = toolInput.clear === undefined ? true : Boolean(toolInput.clear);
+        const pressEnter = Boolean(toolInput.pressEnter);
         if (Number.isNaN(x) || Number.isNaN(y)) {
           return { ok: false, message: `Invalid arguments for tool '${name}': x and y must be numbers` };
         }
-        await controller.typeText(x, y, text, clear);
-        return { ok: true, message: `Typed ${text.length} character(s) at (${x}, ${y}).` };
+        await controller.typeText(x, y, text, clear, pressEnter);
+        return {
+          ok: true,
+          message: `Typed "${text.slice(0, 40)}" at (${x}, ${y})${pressEnter ? " and pressed Enter" : ""}.`
+        };
+      }
+      case "extract_page_data": {
+        const mode = (String(toolInput.mode ?? "text") as "text" | "links" | "tables" | "headings" | "html");
+        const selector = typeof toolInput.selector === "string" ? toolInput.selector : undefined;
+        const extracted = await controller.extractPageData(selector, mode);
+        return {
+          ok: true,
+          message: `Extracted ${mode} from page (${extracted.length} chars):\n${extracted}`
+        };
+      }
+      case "understand_youtube_video": {
+        const urlOrQuery = String(toolInput.urlOrQuery ?? "");
+        const analysis = await understandYouTubeVideo(urlOrQuery);
+        return {
+          ok: true,
+          message: analysis
+        };
+      }
+      case "web_search": {
+        const query = String(toolInput.query ?? "");
+        const searchOutput = await runWebSearch(query);
+        return {
+          ok: true,
+          message: `Web search results for "${query}":\n${searchOutput}`
+        };
+      }
+      case "calculate": {
+        const expr = String(toolInput.expression ?? "");
+        const result = runCalculation(expr);
+        return {
+          ok: true,
+          message: `Calculation result for (${expr}) = ${result}`
+        };
+      }
+      case "create_document": {
+        const title = String(toolInput.title ?? "Report").trim();
+        const format = String(toolInput.format ?? "md").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const content = String(toolInput.content ?? "");
+        const rawFilename = typeof toolInput.filename === "string" && toolInput.filename.trim()
+          ? toolInput.filename.trim()
+          : `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50) || "document"}.${format}`;
+        const safeFilename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, "_");
+        await mkdir(ARTIFACTS_DIR, { recursive: true });
+        const fullPath = join(ARTIFACTS_DIR, safeFilename);
+        let formatted = content;
+        if (format === "md" && !content.trim().startsWith("#")) {
+          formatted = `# ${title}\n\n${content}\n`;
+        } else if (format === "html" && !/<html/i.test(content)) {
+          formatted = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:system-ui,sans-serif;max-width:820px;margin:2rem auto;padding:0 1rem;line-height:1.6}</style></head><body><h1>${title}</h1><div>${content.replace(/\n/g, "<br>")}</div></body></html>`;
+        }
+        await writeFile(fullPath, formatted, "utf8");
+        const artifactUrl = `/api/artifacts/${encodeURIComponent(safeFilename)}`;
+        return {
+          ok: true,
+          artifactUrl,
+          message: `Created document "${safeFilename}" (Download: ${artifactUrl}).`
+        };
+      }
+      case "workspace_file": {
+        const action = String(toolInput.action ?? "read");
+        const targetPath = String(toolInput.path ?? ".");
+        const resolved = safeResolveWorkspacePath(targetPath);
+        if (action === "list") {
+          const entries = await readdir(resolved, { withFileTypes: true });
+          const listStr = entries
+            .slice(0, 100)
+            .map((e) => `${e.isDirectory() ? "[DIR] " : ""}${e.name}`)
+            .join("\n");
+          return { ok: true, message: `Directory listing for ${targetPath}:\n${listStr}` };
+        }
+        if (action === "read") {
+          const content = await readFile(resolved, "utf8");
+          return {
+            ok: true,
+            message: `Contents of ${targetPath} (${content.length} chars):\n${content.slice(0, 6000)}`
+          };
+        }
+        if (action === "write") {
+          const content = String(toolInput.content ?? "");
+          await mkdir(dirname(resolved), { recursive: true });
+          await writeFile(resolved, content, "utf8");
+          return { ok: true, message: `Wrote ${content.length} chars to ${targetPath}.` };
+        }
+        if (action === "append") {
+          const content = String(toolInput.content ?? "");
+          await mkdir(dirname(resolved), { recursive: true });
+          const existing = await readFile(resolved, "utf8").catch(() => "");
+          await writeFile(resolved, existing + content, "utf8");
+          return { ok: true, message: `Appended ${content.length} chars to ${targetPath}.` };
+        }
+        return { ok: false, message: `Unsupported workspace_file action: ${action}` };
       }
       case "scroll_page": {
         const direction = String(toolInput.direction) as "up" | "down";
         const amount = toolInput.amount === undefined ? 600 : Math.trunc(Number(toolInput.amount));
         await controller.scroll(direction, amount);
         return { ok: true, message: `Scrolled ${direction} by ${amount}px.` };
+      }
+      case "go_back": {
+        await controller.goBack();
+        return { ok: true, message: "Navigated back to previous page." };
       }
       case "key_press": {
         const key = String(toolInput.key);
@@ -213,6 +855,6 @@ export async function executeTool(
     if (err instanceof BrowserActionError) {
       return { ok: false, message: err.message };
     }
-    return { ok: false, message: `Invalid arguments for tool '${name}': ${(err as Error).message}` };
+    return { ok: false, message: `Tool '${name}' failed: ${(err as Error).message}` };
   }
 }

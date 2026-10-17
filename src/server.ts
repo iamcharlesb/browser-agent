@@ -6,7 +6,8 @@ import { IncomingMessage, ServerResponse, createServer } from "node:http";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { BrowserController, DEFAULT_PROFILE_DIR, PageState, defaultBrowserConfig } from "./browserController";
-import { AgentEvent, AgentOrchestrator, DEFAULT_MODEL } from "./promptLoop";
+import { ARTIFACTS_DIR } from "./agentTools";
+import { AgentEvent, AgentOrchestrator, DEFAULT_MODEL, requiresInitialBrowserState } from "./promptLoop";
 import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
 
 const STATIC_DIR = join(__dirname, "..", "static");
@@ -83,6 +84,7 @@ class AsyncQueue<T> {
 interface RunState {
   headless: boolean;
   isRunning: boolean;
+  cancelled: boolean;
   queue: AsyncQueue<AgentEvent | null>;
   resolveVerification: (() => void) | null;
 }
@@ -107,6 +109,7 @@ interface RunRequestBody {
   task: string;
   botName?: string;
   expertise?: string;
+  initialUrl?: string;
   collaborationContext?: string;
   approvedCategories?: ApprovalCategory[];
   scheduleId?: string;
@@ -130,6 +133,7 @@ interface ScheduledTask {
 
 let currentRun: RunState | null = null;
 let activeSession: BrowserSession | null = null;
+let activeSessionMode: "persistent" | "guest" = "persistent";
 let schedules: ScheduledTask[] = [];
 const scheduleTimers = new Map<string, NodeJS.Timeout>();
 
@@ -142,7 +146,7 @@ function validateRunRequest(body: unknown): RunRequestBody {
   if (!task || task.length > 200_000) {
     throw new Error("task must be a non-empty string of at most 200000 characters.");
   }
-  const headless = record.headless === undefined ? false : Boolean(record.headless);
+  const headless = record.headless === undefined ? true : Boolean(record.headless);
   const maxSteps = record.maxSteps === undefined ? 120 : Number(record.maxSteps);
   if (!Number.isFinite(maxSteps) || maxSteps < 1 || maxSteps > 500) {
     throw new Error("maxSteps must be a number between 1 and 500.");
@@ -165,6 +169,7 @@ function validateRunRequest(body: unknown): RunRequestBody {
     model,
     botName: typeof record.botName === "string" ? record.botName.slice(0, 120) : undefined,
     expertise: typeof record.expertise === "string" ? record.expertise.slice(0, 500) : undefined,
+    initialUrl: typeof record.initialUrl === "string" ? record.initialUrl.trim().slice(0, 1000) : undefined,
     collaborationContext:
       typeof record.collaborationContext === "string" ? record.collaborationContext.slice(0, 10_000) : undefined,
     approvedCategories,
@@ -226,14 +231,10 @@ try {
   schedules = [];
 }
 
-async function onHumanVerification(run: RunState, state: PageState): Promise<void> {
-  if (run.headless) {
-    console.warn(
-      `Human verification detected at ${state.url} during a headless run; there is no visible ` +
-        "window to solve it in, so the run continues without pausing."
-    );
-    return;
-  }
+async function onHumanVerification(run: RunState, _state: PageState): Promise<void> {
+  // Even when running headless, our embedded live screencast panel lets the user interact
+  // directly with the page and click "I've handled it — resume". Only skip if this is an
+  // unattended background schedule run with no UI viewer.
   await new Promise<void>((resolve) => {
     run.resolveVerification = resolve;
   });
@@ -242,16 +243,20 @@ async function onHumanVerification(run: RunState, state: PageState): Promise<voi
 
 function startRun(body: RunRequestBody): void {
   if (currentRun && currentRun.isRunning) {
-    throw new Error("A run is already in progress. Wait for it to finish first.");
+    throw new Error("A run is already in progress. Wait for it to finish or stop it first.");
   }
   if (activeSession?.kind === "login") {
-    throw new Error("A login session is open. Close it first (POST /api/login/close).");
+    // Seamlessly promote an open login session into the bot's conversation session so the
+    // exact page the user just signed into is preserved without closing the browser!
+    activeSession.kind = "conversation";
+    activeSession.botKey = body.botName?.trim() || "default";
   }
 
   const botKey = body.botName?.trim() || "default";
   const run: RunState = {
     headless: Boolean(body.headless),
     isRunning: true,
+    cancelled: false,
     queue: new AsyncQueue<AgentEvent | null>(),
     resolveVerification: null
   };
@@ -259,15 +264,13 @@ function startRun(body: RunRequestBody): void {
 
   void (async () => {
     try {
-      // Reuse the existing browser/page when this message continues the same bot's conversation,
-      // so the agent sees wherever it actually left off instead of a blank tab every message.
-      // Switching to a different bot (or recovering from a crash) starts a fresh session.
-      if (!activeSession || activeSession.kind !== "conversation" || activeSession.botKey !== botKey) {
-        if (activeSession) {
-          await activeSession.controller.close().catch(() => undefined);
-          activeSession = null;
-        }
-        const controller = new BrowserController(defaultBrowserConfig({ headless: run.headless }));
+      const existingUrl = activeSession ? activeSession.controller.currentUrl() : "about:blank";
+      const needsBrowserImmediately = requiresInitialBrowserState(body.task, existingUrl);
+
+      if (!activeSession && needsBrowserImmediately) {
+        const controller = new BrowserController(
+          defaultBrowserConfig({ headless: run.headless, guestMode: activeSessionMode === "guest" })
+        );
         await controller.start();
         const viewport = controller.viewportSize;
         const session: BrowserSession = {
@@ -280,19 +283,50 @@ function startRun(body: RunRequestBody): void {
         };
         await controller.startScreencast((frame) => session.frameQueue.push(frame));
         activeSession = session;
+      } else if (activeSession) {
+        activeSession.kind = "conversation";
+        activeSession.botKey = botKey;
       }
-      const session = activeSession;
+
+      // Create a standby controller if starting text-only; if the LLM decides to call a browser tool,
+      // AgentOrchestrator will start it on demand.
+      const controller = activeSession
+        ? activeSession.controller
+        : new BrowserController(
+            defaultBrowserConfig({ headless: run.headless, guestMode: activeSessionMode === "guest" })
+          );
+
+      if (activeSession && needsBrowserImmediately) {
+        const currentUrl = controller.currentUrl();
+        if ((!currentUrl || currentUrl === "about:blank") && body.initialUrl && body.initialUrl !== "about:blank") {
+          await controller.navigate(body.initialUrl).catch(() => undefined);
+        }
+      }
 
       const orchestrator = new AgentOrchestrator({
         task: body.task,
         botName: body.botName,
         expertise: body.expertise,
         collaborationContext: body.collaborationContext,
-        browser: session.controller,
+        browser: controller,
         model: body.model,
         maxSteps: body.maxSteps,
         maxDurationSeconds: body.maxDurationSeconds,
         onEvent: (event) => {
+          // If the standby controller was started mid-run by a tool call, promote it to activeSession
+          if (!activeSession && controller.isStarted) {
+            const viewport = controller.viewportSize;
+            const promoted: BrowserSession = {
+              kind: "conversation",
+              botKey,
+              controller,
+              frameQueue: new AsyncQueue<string | null>(),
+              viewportWidth: viewport.width,
+              viewportHeight: viewport.height
+            };
+            void controller.startScreencast((frame) => promoted.frameQueue.push(frame)).catch(() => undefined);
+            activeSession = promoted;
+          }
           const safeEvent = { ...event };
           if (typeof safeEvent.summary === "string") safeEvent.summary = redactSecrets(safeEvent.summary);
           run.queue.push(safeEvent);
@@ -312,23 +346,22 @@ function startRun(body: RunRequestBody): void {
             }
           }
         },
-        onHumanVerification: (state) => onHumanVerification(run, state)
+        onHumanVerification: (state) => {
+          if (body.scheduleId) return; // Don't block unattended scheduled runs
+          return onHumanVerification(run, state);
+        }
       });
       await orchestrator.run();
     } catch (err) {
-      run.queue.push({
-        type: "terminal",
-        success: false,
-        summary: `Run crashed before completion: ${(err as Error).message}`,
-        terminationReason: "crash",
-        stepsTaken: 0,
-        elapsedSeconds: 0
-      });
-      // The session may be in a bad state after an unexpected crash - drop it so the next
-      // message starts clean rather than reusing a possibly-broken browser.
-      if (activeSession) {
-        await activeSession.controller.close().catch(() => undefined);
-        activeSession = null;
+      if (!run.cancelled) {
+        run.queue.push({
+          type: "terminal",
+          success: false,
+          summary: `Run stopped before completion: ${(err as Error).message}`,
+          terminationReason: "crash",
+          stepsTaken: 0,
+          elapsedSeconds: 0
+        });
       }
     } finally {
       run.isRunning = false;
@@ -337,32 +370,70 @@ function startRun(body: RunRequestBody): void {
   })();
 }
 
+function stopCurrentRun(): boolean {
+  if (!currentRun || !currentRun.isRunning) {
+    return false;
+  }
+  const run = currentRun;
+  run.cancelled = true;
+  if (run.resolveVerification) {
+    run.resolveVerification();
+  }
+  run.queue.push({
+    type: "terminal",
+    success: false,
+    summary: "Stopped by user.",
+    terminationReason: "stopped",
+    stepsTaken: 0,
+    elapsedSeconds: 0
+  });
+  run.isRunning = false;
+  run.queue.push(null);
+  return true;
+}
+
 function activeBrowserSession(): BrowserSession | null {
   return activeSession;
 }
 
-async function openLoginSession(url: string): Promise<{ viewportWidth: number; viewportHeight: number }> {
-  if (activeSession?.kind === "login") {
-    throw new Error("A login session is already open.");
-  }
+async function openLoginSession(
+  url: string,
+  botName?: string,
+  requestedMode?: "persistent" | "guest"
+): Promise<{ viewportWidth: number; viewportHeight: number; url: string; sessionMode: "persistent" | "guest" }> {
   if (currentRun && currentRun.isRunning) {
-    throw new Error("A task run is in progress. Wait for it to finish first.");
+    throw new Error("A task run is in progress. Wait for it to finish or stop it first.");
   }
-  if (activeSession) {
-    // A conversation browser was sitting open between messages. Only one Chromium process can
-    // hold the shared profile at a time, so end that first - its cookies/login state are on
-    // disk already, so nothing is lost except the current page position, which the next message
-    // to that bot will simply re-navigate from.
-    await activeSession.controller.close().catch(() => undefined);
+  const targetMode = requestedMode ?? activeSessionMode;
+  const modeChanged = activeSession && activeSession.controller.isGuestMode !== (targetMode === "guest");
+  if (modeChanged && activeSession) {
+    const oldSession = activeSession;
     activeSession = null;
+    oldSession.frameQueue.push(null);
+    await oldSession.controller.close().catch(() => undefined);
   }
-  // Always headless under the hood: the embedded live view (CDP screencast) is what renders the
-  // page inside the web UI tab, instead of popping a separate OS browser window.
-  const controller = new BrowserController(defaultBrowserConfig({ headless: true }));
+  activeSessionMode = targetMode;
+
+  if (activeSession) {
+    activeSession.kind = "login";
+    if (botName) activeSession.botKey = botName.trim();
+    if (url && url !== "about:blank") {
+      await activeSession.controller.navigate(url).catch(() => undefined);
+    }
+    return {
+      viewportWidth: activeSession.viewportWidth,
+      viewportHeight: activeSession.viewportHeight,
+      url: activeSession.controller.currentUrl(),
+      sessionMode: activeSessionMode
+    };
+  }
+  const controller = new BrowserController(
+    defaultBrowserConfig({ headless: true, guestMode: activeSessionMode === "guest" })
+  );
   const { width, height } = controller.viewportSize;
   const session: BrowserSession = {
     kind: "login",
-    botKey: null,
+    botKey: botName ? botName.trim() : null,
     controller,
     frameQueue: new AsyncQueue<string | null>(),
     viewportWidth: width,
@@ -371,19 +442,31 @@ async function openLoginSession(url: string): Promise<{ viewportWidth: number; v
   activeSession = session;
   try {
     await controller.start();
-    await controller.navigate(url);
     await controller.startScreencast((frame) => session.frameQueue.push(frame));
+    if (url && url !== "about:blank") {
+      await controller.navigate(url);
+    }
   } catch (err) {
     activeSession = null;
     await controller.close().catch(() => undefined);
     throw err;
   }
-  return { viewportWidth: width, viewportHeight: height };
+  return {
+    viewportWidth: width,
+    viewportHeight: height,
+    url: controller.currentUrl(),
+    sessionMode: activeSessionMode
+  };
 }
 
-async function closeLoginSession(): Promise<boolean> {
-  if (!activeSession || activeSession.kind !== "login") {
+async function closeLoginSession(keepBrowserOpen = true): Promise<boolean> {
+  if (!activeSession) {
     return false;
+  }
+  if (keepBrowserOpen) {
+    activeSession.kind = "conversation";
+    activeSession.botKey = activeSession.botKey || "default";
+    return true;
   }
   const session = activeSession;
   activeSession = null;
@@ -458,9 +541,78 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/status") {
+    const tabs = activeSession ? await activeSession.controller.getTabs() : [];
+    sendJson(res, 200, {
+      ok: true,
+      hasApiKey: Boolean(process.env.OPENAI_API_KEY || process.env.XAI_API_KEY),
+      hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
+      hasXaiKey: Boolean(process.env.XAI_API_KEY),
+      defaultModel: DEFAULT_MODEL,
+      isRunning: Boolean(currentRun?.isRunning),
+      waitingForVerification: Boolean(currentRun?.resolveVerification),
+      hasBrowserSession: Boolean(activeSession),
+      sessionKind: activeSession?.kind ?? null,
+      sessionMode: activeSessionMode,
+      currentUrl: activeSession ? activeSession.controller.currentUrl() : null,
+      tabs,
+      profileDir: activeSessionMode === "guest" ? "Ephemeral Guest Context" : DEFAULT_PROFILE_DIR
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/session/mode") {
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const mode: "persistent" | "guest" = body.mode === "guest" ? "guest" : "persistent";
+      const changed = activeSessionMode !== mode;
+      activeSessionMode = mode;
+      if (changed && activeSession && (!currentRun || !currentRun.isRunning)) {
+        const old = activeSession;
+        activeSession = null;
+        old.frameQueue.push(null);
+        await old.controller.close().catch(() => undefined);
+      }
+      sendJson(res, 200, { status: "ok", sessionMode: activeSessionMode });
+    } catch (err) {
+      sendJson(res, 400, { detail: (err as Error).message });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/settings") {
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      if (typeof body.openaiApiKey === "string" && body.openaiApiKey.trim()) {
+        process.env.OPENAI_API_KEY = body.openaiApiKey.trim();
+      }
+      if (typeof body.xaiApiKey === "string" && body.xaiApiKey.trim()) {
+        process.env.XAI_API_KEY = body.xaiApiKey.trim();
+      }
+      if (typeof body.baseURL === "string") {
+        if (body.baseURL.trim()) process.env.OPENAI_BASE_URL = body.baseURL.trim();
+        else delete process.env.OPENAI_BASE_URL;
+      }
+      sendJson(res, 200, {
+        status: "saved",
+        hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
+        hasXaiKey: Boolean(process.env.XAI_API_KEY)
+      });
+    } catch (err) {
+      sendJson(res, 400, { detail: (err as Error).message });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/stop") {
+    const stopped = stopCurrentRun();
+    sendJson(res, 200, { status: stopped ? "stopped" : "idle" });
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/run") {
-    if (!process.env.OPENAI_API_KEY) {
-      sendJson(res, 400, { detail: "OPENAI_API_KEY is not set in the server environment." });
+    if (!process.env.OPENAI_API_KEY && !process.env.XAI_API_KEY) {
+      sendJson(res, 400, { detail: "No API key is set. Click Settings in the header to configure your OpenAI or xAI Grok key." });
       return;
     }
     try {
@@ -567,24 +719,38 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (req.method === "POST" && url.pathname === "/api/login") {
     try {
       const body = (await readJsonBody(req)) as Record<string, unknown>;
-      const loginUrl = typeof body.url === "string" && body.url.trim() ? body.url.trim() : "about:blank";
-      const { viewportWidth, viewportHeight } = await openLoginSession(loginUrl);
-      sendJson(res, 200, { status: "opened", profileDir: DEFAULT_PROFILE_DIR, viewportWidth, viewportHeight });
+      const loginUrl = typeof body.url === "string" && body.url.trim() ? body.url.trim() : "https://www.google.com/";
+      const botName = typeof body.botName === "string" ? body.botName : undefined;
+      const requestedMode =
+        body.mode === "guest" ? "guest" : body.mode === "persistent" ? "persistent" : undefined;
+      const { viewportWidth, viewportHeight, url: currentUrl, sessionMode } = await openLoginSession(
+        loginUrl,
+        botName,
+        requestedMode
+      );
+      const tabs = activeSession ? await activeSession.controller.getTabs() : [];
+      sendJson(res, 200, {
+        status: "opened",
+        sessionMode,
+        profileDir: sessionMode === "guest" ? "Ephemeral Guest Context" : DEFAULT_PROFILE_DIR,
+        viewportWidth,
+        viewportHeight,
+        url: currentUrl,
+        tabs
+      });
     } catch (err) {
       const message = (err as Error).message;
-      const conflict = message.includes("already open") || message.includes("in progress");
+      const conflict = message.includes("in progress");
       sendJson(res, conflict ? 409 : 400, { detail: message });
     }
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/login/close") {
-    const closed = await closeLoginSession();
-    if (closed) {
-      sendJson(res, 200, { status: "closed" });
-    } else {
-      sendJson(res, 409, { detail: "No login session is currently open." });
-    }
+    const body = (await readJsonBody(req).catch(() => ({}))) as Record<string, unknown>;
+    const keepOpen = body.keepBrowserOpen !== false;
+    await closeLoginSession(keepOpen);
+    sendJson(res, 200, { status: "closed", currentUrl: activeSession ? activeSession.controller.currentUrl() : null });
     return;
   }
 
@@ -599,10 +765,17 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       "Cache-Control": "no-cache",
       Connection: "keep-alive"
     });
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
+    const initialFrame = session.controller.latestFrame;
+    if (initialFrame) {
+      res.write(`data: ${initialFrame}\n\n`);
+    }
+    let closed = false;
+    req.on("close", () => {
+      closed = true;
+    });
+    while (!closed) {
       const frame = await session.frameQueue.next();
-      if (frame === null) break;
+      if (frame === null || closed) break;
       res.write(`data: ${frame}\n\n`);
     }
     res.end();
@@ -610,7 +783,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (req.method === "POST" && url.pathname === "/api/login/input") {
-    const session = activeBrowserSession();
+    let session = activeBrowserSession();
+    if (!session) {
+      await openLoginSession("https://www.google.com/");
+      session = activeBrowserSession();
+    }
     if (!session) {
       sendJson(res, 404, { detail: "No browser session is currently open." });
       return;
@@ -623,6 +800,24 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         case "navigate":
           await controller.navigate(String(body.url ?? ""));
           break;
+        case "back":
+          await controller.goBack();
+          break;
+        case "forward":
+          await controller.goForward();
+          break;
+        case "reload":
+          await controller.reload();
+          break;
+        case "new_tab":
+          await controller.newTab(typeof body.url === "string" ? body.url : "https://www.google.com/");
+          break;
+        case "switch_tab":
+          await controller.switchTab(Number(body.index ?? 0));
+          break;
+        case "close_tab":
+          await controller.closeTab(Number(body.index ?? 0));
+          break;
         case "click":
           await controller.remoteClick(Number(body.x), Number(body.y));
           break;
@@ -631,6 +826,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           break;
         case "type":
           await controller.remoteType(String(body.text ?? ""));
+          break;
+        case "paste":
+          await controller.remotePaste(String(body.text ?? ""));
           break;
         case "key":
           await controller.remoteKeyPress(String(body.key ?? ""));
@@ -647,7 +845,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           sendJson(res, 400, { detail: `Unknown input type '${inputType}'.` });
           return;
       }
-      sendJson(res, 200, { status: "ok" });
+      const tabs = await controller.getTabs();
+      sendJson(res, 200, { status: "ok", url: controller.currentUrl(), tabs });
     } catch (err) {
       sendJson(res, 400, { detail: (err as Error).message });
     }
@@ -659,6 +858,21 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       sendJson(res, 200, { status: "resumed" });
     } else {
       sendJson(res, 409, { detail: "No run is currently waiting for human verification." });
+    }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname.startsWith("/api/artifacts/")) {
+    const filename = decodeURIComponent(url.pathname.slice("/api/artifacts/".length)).replace(/[^a-zA-Z0-9._-]/g, "_");
+    try {
+      const data = await readFile(join(ARTIFACTS_DIR, filename));
+      res.writeHead(200, {
+        "Content-Type": "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${filename}"`
+      });
+      res.end(data);
+    } catch {
+      sendJson(res, 404, { detail: "Artifact not found." });
     }
     return;
   }
@@ -682,6 +896,28 @@ const server = createServer((req, res) => {
   });
 });
 
+async function gracefulShutdown(): Promise<void> {
+  if (currentRun) {
+    currentRun.cancelled = true;
+    currentRun.isRunning = false;
+    currentRun.queue.push(null);
+  }
+  if (activeSession) {
+    const sess = activeSession;
+    activeSession = null;
+    sess.frameQueue.push(null);
+    await sess.controller.close().catch(() => undefined);
+  }
+  if (typeof server.closeAllConnections === "function") {
+    server.closeAllConnections();
+  }
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 500).unref();
+}
+
+process.on("SIGTERM", () => void gracefulShutdown());
+process.on("SIGINT", () => void gracefulShutdown());
+
 server.listen(PORT, HOST, () => {
-  console.log(`Browser Agent UI listening on http://${HOST}:${PORT}`);
+  console.log(`Open Bots Server listening on http://${HOST}:${PORT}`);
 });
