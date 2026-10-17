@@ -5,11 +5,33 @@ import { TOOLS, ToolExecutionResult, executeTool } from "./agentTools";
 import { BrowserActionError, BrowserController, PageState } from "./browserController";
 import { CircuitBreakerTriggered, LoopGuard, PrunableMessage } from "./loopGuard";
 
-export const DEFAULT_MODEL = "gpt-4o-mini";
+export const DEFAULT_MODEL = "gpt-6-luna";
 const MAX_TOKENS = 1200;
 const ZERO_DELTA_WARNING =
   "Warning: Last action produced zero visual or DOM changes. Choose an alternate element or approach.";
 const MAX_API_RETRIES_DEFAULT = 3;
+/** Tools that can run arbitrary shell commands or mutate files on disk - gated behind explicit
+ * per-call approval, and excluded entirely from scheduled/unattended runs (see allowPrivilegedTools). */
+const PRIVILEGED_TOOL_NAMES = new Set(["run_terminal_command", "workspace_file"]);
+const MUTATING_WORKSPACE_FILE_ACTIONS = new Set(["write", "append"]);
+
+function requiresPrivilegedApproval(toolName: string, input: Record<string, unknown>): boolean {
+  if (toolName === "run_terminal_command") return true;
+  if (toolName === "workspace_file") {
+    return MUTATING_WORKSPACE_FILE_ACTIONS.has(String(input.action ?? ""));
+  }
+  return false;
+}
+
+function describePrivilegedCall(toolName: string, input: Record<string, unknown>): string {
+  if (toolName === "run_terminal_command") {
+    const cwd = typeof input.cwd === "string" && input.cwd ? ` (in ${input.cwd})` : "";
+    return `Run shell command${cwd}: ${String(input.command ?? "")}`;
+  }
+  const action = String(input.action ?? "");
+  const path = String(input.path ?? "");
+  return `${action === "append" ? "Append to" : "Overwrite"} file: ${path}`;
+}
 
 export interface AgentResult {
   success: boolean;
@@ -17,11 +39,18 @@ export interface AgentResult {
   stepsTaken: number;
   elapsedSeconds: number;
   terminationReason: string;
+  delegateTo?: {
+    targetBotName: string;
+    task: string;
+    handoffNote?: string;
+  };
 }
 
 export type AgentEvent = Record<string, unknown>;
 export type OnEvent = (event: AgentEvent) => void;
 export type OnHumanVerification = (state: PageState) => Promise<void> | void;
+/** Returns true to run the command/write, false to deny it. Must default to deny if unset. */
+export type OnTerminalApproval = (details: { toolName: string; description: string }) => Promise<boolean> | boolean;
 
 interface ExtractedToolCall {
   id: string;
@@ -44,6 +73,10 @@ export interface AgentOrchestratorOptions {
   maxApiRetries?: number;
   onEvent?: OnEvent;
   onHumanVerification?: OnHumanVerification;
+  onTerminalApproval?: OnTerminalApproval;
+  /** Set false for scheduled/unattended runs: removes run_terminal_command and workspace_file
+   * write/append from the model's tool list entirely, since nobody is present to approve them. */
+  allowPrivilegedTools?: boolean;
 }
 
 type ChatMessage =
@@ -76,7 +109,7 @@ export function requiresInitialBrowserState(task: string, browserUrl: string): b
   }
   // Explicit headless Codex & Local Terminal tool requests never need initial browser state
   if (
-    /\b(run_terminal_command|terminal|shell|bash|zsh|git status|git log|npm |npx |python3? |node |ls |grep |web_search|workspace_file|create_document|calculate)\b/.test(lower) &&
+    /\b(run_terminal_command|terminal|shell|bash|zsh|git status|git log|npm |npx |python3? |node |ls |grep |web_search|workspace_file|create_document|calculate|other bots|my bots|workspace bots|delegate_to_bot)\b/.test(lower) &&
     !/\b(click|instagram|x\.com|twitter|linkedin|current page|on this page)\b/.test(lower)
   ) {
     return false;
@@ -100,11 +133,18 @@ export class AgentOrchestrator {
   private readonly browser: BrowserController;
   private readonly client: OpenAI;
   private readonly model: string;
+  /** gpt-6-family models reject `max_tokens` (need `max_completion_tokens`) and only support
+   * tool calling on Chat Completions when `reasoning_effort` is explicitly "none". Verified
+   * directly against the API before wiring this in - not inferred from docs alone. */
+  private readonly isGpt6Family: boolean;
   private readonly useLocalEngine: boolean;
   private readonly keepRecentImages: number;
   private readonly maxApiRetries: number;
   private readonly onEvent?: OnEvent;
   private readonly onHumanVerification?: OnHumanVerification;
+  private readonly onTerminalApproval?: OnTerminalApproval;
+  private readonly allowPrivilegedTools: boolean;
+  private readonly toolsForModel: OpenAI.Chat.Completions.ChatCompletionTool[];
   private readonly loopGuard: LoopGuard;
   private readonly messages: ChatMessage[] = [];
   private readonly systemPrompt: string;
@@ -153,10 +193,16 @@ export class AgentOrchestrator {
       ...(resolvedBaseURL ? { baseURL: resolvedBaseURL } : {})
     });
     this.model = isOllamaModel ? rawModel.slice("ollama:".length) || "llama3.2" : rawModel;
+    this.isGpt6Family = this.model.startsWith("gpt-6");
     this.keepRecentImages = keepRecentImages;
     this.maxApiRetries = maxApiRetries;
     this.onEvent = options.onEvent;
     this.onHumanVerification = options.onHumanVerification;
+    this.onTerminalApproval = options.onTerminalApproval;
+    this.allowPrivilegedTools = options.allowPrivilegedTools ?? true;
+    this.toolsForModel = this.allowPrivilegedTools
+      ? TOOLS
+      : TOOLS.filter((tool) => tool.type !== "function" || !PRIVILEGED_TOOL_NAMES.has(tool.function.name));
     this.loopGuard = new LoopGuard(options.maxSteps ?? 25, options.maxDurationSeconds ?? 900.0);
     this.systemPrompt = this.buildSystemPrompt();
   }
@@ -164,20 +210,56 @@ export class AgentOrchestrator {
   private buildSystemPrompt(): string {
     return (
       `You are ${this.botName}. Role & Purpose: ${this.expertise}.\n` +
-      "Everything runs locally on the user's machine behind the browser (no cloud sandbox required).\n" +
-      "You have three local execution modes:\n" +
+      "You are the user's personal agent and close friend/co-builder in Open Bots, running locally behind their browser (no cloud sandbox required).\n" +
+      "VOICE & TEXTING STYLE (CRITICAL — READ CAREFULLY):\n" +
+      "- Text the user back the way a smart, warm, trusted friend texts in iMessage or Grok: casual, direct, human, and specific.\n" +
+      "- NEVER use stiff corporate filler like 'To [do X], we can implement several strategies:', 'Certainly!', 'Here are some strategies:', or 'In conclusion'.\n" +
+      "- NEVER dump textbook walls of bold-titled bullet points (e.g. '• **Create Engaging Content**: Share high-quality...') unless the user explicitly asks for a checklist or table.\n" +
+      "- Write in 1 to 3 short, natural chat messages/paragraphs (1–2 sentences each, separated by a blank line `\\n\\n` so the UI renders them as natural back-to-back chat bubbles). Share your real take immediately, suggest 1–2 concrete moves you can run for them right now, and end with a quick, natural question like a friend would.\n" +
+      "You have four capabilities:\n" +
+      "- MULTI-BOT COLLABORATION (`delegate_to_bot` & `OPEN BOTS WORKSPACE ROSTER` in CONTEXT): You know all other bots in the user's workspace (their names, roles, expertise, and recent conversation outputs). When the user asks about 'other bots', 'my bots', 'which bots do I have', or refers to another specialist bot (e.g. Instagram bot, YouTube bot, Social Media bot, DevOps bot), ALWAYS refer to the actual bots listed in `OPEN BOTS WORKSPACE ROSTER` below — NEVER give generic encyclopedia definitions of internet bots/web crawlers! Use `delegate_to_bot` whenever the user wants another bot to perform a task or when handing off work to a peer bot.\n" +
       "- LOCAL TERMINAL (`run_terminal_command`): Execute real local shell commands (`node`, `python3`, `git`, `npm`, `ls`, `grep`, `curl`, tests, scripts) directly in the project workspace.\n" +
       "- CODEX HEADLESS TOOLS (Fast & Low-Token, NO Browser Needed): `understand_youtube_video` (extracts YouTube title, description, chapters & full spoken transcript over HTTP and lets you apply its concepts), `web_search`, `calculate`, `create_document`, `workspace_file`.\n" +
       "- LOCAL HEADLESS BROWSER TOOLS (Runs behind the browser UI when interacting with a live webpage or signed-in account): `navigate`, `click_mark`, `type_mark`, `click_element`, `click_coords`, `type_text`, `extract_page_data`, `scroll_page`, `go_back`, `key_press`, `wait`.\n" +
       "Rules:\n" +
       "1. SPEED: Execute actions immediately and batch independent tool calls in a single turn whenever possible to complete the job in the minimum number of steps.\n" +
-      "2. Use `run_terminal_command` whenever the user asks to run terminal/shell commands, inspect system/git state, run code/scripts, or verify builds locally.\n" +
-      "3. Check `[Detected Stats: ...]` and `Text:` in browser observations FIRST! If requested numbers (e.g. posts, followers, following, bio, prices) are already present, immediately call `finish_task` (or reply directly) with the exact numbers.\n" +
-      "4. After clicking a profile/navigation link on a Single-Page App (like Instagram or X), if stats haven't appeared yet, call `extract_page_data` (with `selector: \"header\"` or `mode: \"text\"`) or `wait` (1 second) — NEVER call `fail_task` on the first try.\n" +
-      "5. For YouTube links or video learning requests, ALWAYS call `understand_youtube_video` instead of `navigate`, then synthesize and apply the concepts.\n" +
-      "6. Never expose credentials. Ask before financial transactions or public posting/deleting unless approved.\n" +
+      "2. PEER BOTS: If the user asks what other bots exist, what another bot found, or how to work with their other bots, answer directly from `OPEN BOTS WORKSPACE ROSTER` in CONTEXT (or call `delegate_to_bot` to hand off a task).\n" +
+      "3. Use `run_terminal_command` whenever the user asks to run terminal/shell commands, inspect system/git state, run code/scripts, or verify builds locally. Every call to `run_terminal_command`, and every `workspace_file` write/append, pauses and requires the user's explicit approval before it runs - expect some of these to be denied, and adapt (explain what you wanted to do and why) rather than retrying the same call.\n" +
+      "4. Check `[Detected Stats: ...]` and `Text:` in browser observations FIRST! If requested numbers (e.g. posts, followers, following, bio, prices) are already present, immediately call `finish_task` (or reply directly) with the exact numbers.\n" +
+      "5. After clicking a profile/navigation link on a Single-Page App (like Instagram or X), if stats haven't appeared yet, call `extract_page_data` (with `selector: \"header\"` or `mode: \"text\"`) or `wait` (1 second) — NEVER call `fail_task` on the first try.\n" +
+      "6. For YouTube links or video learning requests, ALWAYS call `understand_youtube_video` instead of `navigate`, then synthesize and apply the concepts.\n" +
+      "7. Never expose credentials. Ask before financial transactions or public posting/deleting unless approved.\n" +
       (this.collaborationContext ? `\nCONTEXT:\n${this.collaborationContext}\n` : "")
     );
+  }
+
+  private humanizeSummary(raw: string): string {
+    if (!raw) return raw;
+    if (/```/.test(raw)) return raw.trim();
+
+    let text = raw.trim();
+    text = text.replace(
+      /^(?:Certainly!|Sure!|Of course!|Great question!)?\s*(?:To\s+[^:\n]{8,110},\s*(?:we|you)\s+can\s+(?:implement|use|try|follow|focus on)[^:\n]*:|Here\s+are\s+(?:several|some|a few|key)\s+(?:strategies|ways|steps|tips)[^:\n]*:)\s*/i,
+      ""
+    );
+
+    const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+    const bulletMatches = lines.filter((l) => /^(?:[-*•]|\d+\.)\s+\*\*[^*]+\*\*\s*:\s*/.test(l));
+    if (bulletMatches.length >= 3 && bulletMatches.length >= lines.length - 2) {
+      const converted = bulletMatches.slice(0, 3).map((l) =>
+        l.replace(/^(?:[-*•]|\d+\.)\s+\*\*([^*]+)\*\*\s*:\s*/, (_, title) => `**${title.trim()}** — `).trim()
+      );
+      const tail = lines.find(
+        (l) => !/^(?:[-*•]|\d+\.)\s+/.test(l) && lines.indexOf(l) > lines.indexOf(bulletMatches[bulletMatches.length - 1])
+      );
+      return [
+        "Here's what I'd actually focus on first to get real traction:",
+        converted.join("\n\n"),
+        tail || "Want me to jump in on one of these right now, or check out your current page first?"
+      ].join("\n\n");
+    }
+
+    return text;
   }
 
   private emit(event: AgentEvent): void {
@@ -191,15 +273,53 @@ export class AgentOrchestrator {
   }
 
   private finish(result: AgentResult): AgentResult {
+    const cleanedSummary = this.humanizeSummary(result.summary);
+    const finalResult: AgentResult = { ...result, summary: cleanedSummary };
     this.emit({
       type: "terminal",
-      success: result.success,
-      summary: result.summary,
-      terminationReason: result.terminationReason,
-      stepsTaken: result.stepsTaken,
-      elapsedSeconds: result.elapsedSeconds
+      success: finalResult.success,
+      summary: finalResult.summary,
+      terminationReason: finalResult.terminationReason,
+      stepsTaken: finalResult.stepsTaken,
+      elapsedSeconds: finalResult.elapsedSeconds,
+      ...(finalResult.delegateTo ? { delegateTo: finalResult.delegateTo } : {})
     });
-    return result;
+    return finalResult;
+  }
+
+  /**
+   * Pauses and asks the user to explicitly approve a shell command or file write before it runs.
+   * Unlike handleHumanVerification (which safely continues if unattended), this defaults to DENY
+   * when there's no hook or the hook throws - running an unapproved command is the unsafe default,
+   * not the safe one.
+   */
+  private async requestPrivilegedApproval(toolName: string, input: Record<string, unknown>): Promise<boolean> {
+    const description = describePrivilegedCall(toolName, input);
+    this.emit({
+      type: "privileged_approval_required",
+      toolName,
+      description,
+      message: `${this.botName} wants to: ${description}. Approve or deny before it runs.`
+    });
+
+    const waitStarted = Date.now();
+    let approved = false;
+    if (this.onTerminalApproval) {
+      try {
+        approved = await this.onTerminalApproval({ toolName, description });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("onTerminalApproval hook raised; denying by default.", err);
+        approved = false;
+      }
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn(`Privileged call "${description}" denied: no onTerminalApproval hook was configured.`);
+    }
+    this.loopGuard.extendDeadline((Date.now() - waitStarted) / 1000);
+
+    this.emit({ type: "privileged_approval_resolved", toolName, description, approved });
+    return approved;
   }
 
   private async handleHumanVerification(state: PageState): Promise<PageState> {
@@ -314,7 +434,19 @@ export class AgentOrchestrator {
       outputs.push(`### Local Headless Browser Extraction (${targetUrl})\n${extRes.message.slice(0, 2500)}`);
     }
 
-    // 4. Fallback to local web search + workspace summary if no other tool matched
+    // 4. Check for workspace bots / peer bots inquiry
+    if (
+      outputs.length === 0 &&
+      /\b(other bots|my bots|what bots|which bots|list bots|workspace bots|peer bots)\b/i.test(rawRequest) &&
+      this.collaborationContext
+    ) {
+      const rosterIdx = this.collaborationContext.indexOf("OPEN BOTS WORKSPACE ROSTER:");
+      const rosterText =
+        rosterIdx >= 0 ? this.collaborationContext.slice(rosterIdx).trim() : this.collaborationContext;
+      outputs.push(`### Your Open Bots Workspace Roster\n${rosterText}`);
+    }
+
+    // 5. Fallback to local web search + workspace summary if no other tool matched
     if (outputs.length === 0) {
       const searchRes = await executeTool("web_search", { query: rawRequest.slice(0, 120) }, this.browser);
       emitLocalStep("web_search", { query: rawRequest.slice(0, 120) }, searchRes);
@@ -343,11 +475,16 @@ export class AgentOrchestrator {
   }> {
     const rawRequest = this.extractUserRequestCore();
 
-    // 1. Direct `$ <command>` shell invocation: run immediately in <30ms and return without waiting on LLM
+    // 1. Direct `$ <command>` shell invocation: skips the LLM round-trip for speed, but still goes
+    //    through the same explicit per-command approval as any other privileged tool call - and is
+    //    only available on attended runs, never on scheduled/unattended ones.
     const directShellMatch = /^\$\s*([^\n]+)$/.exec(rawRequest);
-    if (directShellMatch) {
+    if (directShellMatch && this.allowPrivilegedTools) {
       const cmd = directShellMatch[1].trim();
-      const res = await executeTool("run_terminal_command", { command: cmd }, this.browser);
+      const approved = await this.requestPrivilegedApproval("run_terminal_command", { command: cmd });
+      const res = approved
+        ? await executeTool("run_terminal_command", { command: cmd }, this.browser)
+        : { ok: false, message: "This command was not approved by the user and was not executed." };
       this.emit({
         type: "step",
         step: 1,
@@ -362,7 +499,9 @@ export class AgentOrchestrator {
         stepsUsed: 1,
         instantFinish: this.finish({
           success: res.ok,
-          summary: `Executed \`$ ${cmd}\` locally (${res.terminalEntry?.durationMs ?? 0}ms):\n\`\`\`text\n${out}\n\`\`\``,
+          summary: approved
+            ? `Executed \`$ ${cmd}\` locally (${res.terminalEntry?.durationMs ?? 0}ms):\n\`\`\`text\n${out}\n\`\`\``
+            : `Command \`$ ${cmd}\` was not approved and was not run.`,
           stepsTaken: 1,
           elapsedSeconds: this.loopGuard.elapsedSeconds(),
           terminationReason: "finish_task"
@@ -510,6 +649,15 @@ export class AgentOrchestrator {
       let response: OpenAI.Chat.Completions.ChatCompletion;
       try {
         response = await this.callLlm();
+        if (response.usage) {
+          this.emit({
+            type: "usage",
+            model: this.model,
+            promptTokens: response.usage.prompt_tokens ?? 0,
+            completionTokens: response.usage.completion_tokens ?? 0,
+            totalTokens: response.usage.total_tokens ?? 0
+          });
+        }
       } catch {
         // If cloud API or local Ollama is unreachable on first turn, automatically fall back to our zero-cloud local engine!
         if (step <= 2) {
@@ -553,6 +701,32 @@ export class AgentOrchestrator {
         const toolCall = toolCalls[i];
         if (i > 0) {
           step += 1;
+        }
+
+        if (toolCall.name === "delegate_to_bot") {
+          const targetBotName = String(toolCall.input.targetBotName ?? "").trim() || "Specialist Bot";
+          const delegatedTask = String(toolCall.input.task ?? "").trim() || this.extractUserRequestCore();
+          const handoffNote = typeof toolCall.input.handoffNote === "string" ? toolCall.input.handoffNote.trim() : "";
+          this.emit({
+            type: "step",
+            step,
+            toolName: "delegate_to_bot",
+            toolInput: toolCall.input,
+            ok: true,
+            message: `Delegating to ${targetBotName}: ${delegatedTask.slice(0, 120)}`
+          });
+          return this.finish({
+            success: true,
+            summary: `Handing off to **${targetBotName}**${handoffNote ? ` — ${handoffNote}` : ""}.`,
+            stepsTaken: step,
+            elapsedSeconds: this.loopGuard.elapsedSeconds(),
+            terminationReason: "delegate_to_bot",
+            delegateTo: {
+              targetBotName,
+              task: delegatedTask,
+              handoffNote
+            }
+          });
         }
 
         if (toolCall.name === "finish_task") {
@@ -611,7 +785,15 @@ export class AgentOrchestrator {
           }
         }
 
-        const execResult = await executeTool(toolCall.name, toolCall.input, this.browser);
+        let execResult: ToolExecutionResult;
+        if (requiresPrivilegedApproval(toolCall.name, toolCall.input)) {
+          const approved = await this.requestPrivilegedApproval(toolCall.name, toolCall.input);
+          execResult = approved
+            ? await executeTool(toolCall.name, toolCall.input, this.browser)
+            : { ok: false, message: "This action was not approved by the user and was not executed." };
+        } else {
+          execResult = await executeTool(toolCall.name, toolCall.input, this.browser);
+        }
         pendingToolOutputs.push({ id: toolCall.id, result: execResult });
 
         // Capture browser state only on the last browser tool in the batch (or if the next tool depends on fresh markIds)
@@ -735,11 +917,19 @@ export class AgentOrchestrator {
       try {
         return await this.client.chat.completions.create({
           model: this.model,
-          max_tokens: MAX_TOKENS,
-          tools: TOOLS,
+          tools: this.toolsForModel,
           tool_choice: "auto",
           parallel_tool_calls: true,
-          messages: this.messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+          messages: this.messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+          // The installed openai SDK's bundled types predate gpt-6 and don't list "none" as a
+          // valid reasoning_effort value, but the live API accepts and requires it for tool
+          // calling on this model family (verified directly against the API before adding this).
+          ...(this.isGpt6Family
+            ? {
+                max_completion_tokens: MAX_TOKENS,
+                reasoning_effort: "none" as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParams["reasoning_effort"]
+              }
+            : { max_tokens: MAX_TOKENS })
         });
       } catch (err) {
         if (!isRetryableOpenAIError(err)) {
