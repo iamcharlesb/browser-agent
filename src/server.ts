@@ -132,12 +132,25 @@ class AsyncQueue<T> {
 }
 
 interface RunState {
+  botName: string;
   headless: boolean;
   isRunning: boolean;
   cancelled: boolean;
-  queue: AsyncQueue<AgentEvent | null>;
+  events: SequencedRunEvent[];
+  subscribers: Set<AsyncQueue<SequencedRunEvent | null>>;
   resolveVerification: (() => void) | null;
   resolveApproval: ((approved: boolean) => void) | null;
+}
+
+interface SequencedRunEvent {
+  sequence: number;
+  event: AgentEvent;
+}
+
+function publishRunEvent(run: RunState, event: AgentEvent | null): void {
+  const sequencedEvent = event ? { sequence: run.events.length + 1, event } : null;
+  if (sequencedEvent) run.events.push(sequencedEvent);
+  for (const subscriber of run.subscribers) subscriber.push(sequencedEvent);
 }
 
 /**
@@ -395,10 +408,12 @@ function startRun(body: RunRequestBody): void {
 
   const botKey = body.botName?.trim() || "default";
   const run: RunState = {
+    botName: body.botName?.trim() || "default",
     headless: Boolean(body.headless),
     isRunning: true,
     cancelled: false,
-    queue: new AsyncQueue<AgentEvent | null>(),
+    events: [],
+    subscribers: new Set<AsyncQueue<SequencedRunEvent | null>>(),
     resolveVerification: null,
     resolveApproval: null
   };
@@ -479,7 +494,7 @@ function startRun(body: RunRequestBody): void {
           }
           const safeEvent = { ...event };
           if (typeof safeEvent.summary === "string") safeEvent.summary = redactSecrets(safeEvent.summary);
-          run.queue.push(safeEvent);
+          publishRunEvent(run, safeEvent);
           if (body.scheduleId && event.type === "terminal") {
             const schedule = schedules.find((item) => item.id === body.scheduleId);
             if (schedule) {
@@ -508,7 +523,7 @@ function startRun(body: RunRequestBody): void {
       await orchestrator.run();
     } catch (err) {
       if (!run.cancelled) {
-        run.queue.push({
+        publishRunEvent(run, {
           type: "terminal",
           success: false,
           summary: `Run stopped before completion: ${(err as Error).message}`,
@@ -519,7 +534,7 @@ function startRun(body: RunRequestBody): void {
       }
     } finally {
       run.isRunning = false;
-      run.queue.push(null);
+      publishRunEvent(run, null);
     }
   })();
 }
@@ -536,7 +551,7 @@ function stopCurrentRun(): boolean {
   if (run.resolveApproval) {
     run.resolveApproval(false);
   }
-  run.queue.push({
+  publishRunEvent(run, {
     type: "terminal",
     success: false,
     summary: "Stopped by user.",
@@ -545,7 +560,7 @@ function stopCurrentRun(): boolean {
     elapsedSeconds: 0
   });
   run.isRunning = false;
-  run.queue.push(null);
+  publishRunEvent(run, null);
   return true;
 }
 
@@ -658,29 +673,49 @@ function sendJson(res: ServerResponse, statusCode: number, payload: unknown): vo
   res.end(body);
 }
 
-async function handleEventsStream(res: ServerResponse): Promise<void> {
+async function handleEventsStream(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (!currentRun) {
     sendJson(res, 404, { detail: "No run has been started yet." });
     return;
   }
   const run = currentRun;
+  const requestedSequence = Number(req.headers["last-event-id"] ?? new URL(req.url ?? "/api/events", "http://localhost").searchParams.get("after") ?? 0);
+  const afterSequence = Number.isSafeInteger(requestedSequence) && requestedSequence > 0 ? requestedSequence : 0;
+  const history = run.events.filter((item) => item.sequence > afterSequence);
+  const subscriber = new AsyncQueue<SequencedRunEvent | null>();
+  if (run.isRunning) run.subscribers.add(subscriber);
+  res.once("close", () => {
+    run.subscribers.delete(subscriber);
+    subscriber.push(null);
+  });
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
     Connection: "keep-alive"
   });
 
+  for (const event of history) {
+    if (res.destroyed) break;
+    res.write(`id: ${event.sequence}\ndata: ${JSON.stringify(event.event)}\n\n`);
+  }
+  if (!run.isRunning || res.destroyed) {
+    run.subscribers.delete(subscriber);
+    res.end();
+    return;
+  }
+
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const event = await run.queue.next();
-    if (event === null) {
+    const item = await subscriber.next();
+    if (item === null) {
       break;
     }
-    res.write(`data: ${JSON.stringify(event)}\n\n`);
-    if (event.type === "terminal") {
+    res.write(`id: ${item.sequence}\ndata: ${JSON.stringify(item.event)}\n\n`);
+    if (item.event.type === "terminal") {
       break;
     }
   }
+  run.subscribers.delete(subscriber);
   res.end();
 }
 
@@ -780,6 +815,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       hasXaiKey: Boolean(process.env.XAI_API_KEY),
       defaultModel: DEFAULT_MODEL,
       isRunning: Boolean(currentRun?.isRunning),
+      runBotName: currentRun?.botName ?? null,
+      runHasPendingApproval: Boolean(currentRun?.resolveApproval),
+      runHasPendingVerification: Boolean(currentRun?.resolveVerification),
       waitingForVerification: Boolean(currentRun?.resolveVerification),
       hasBrowserSession: Boolean(activeSession),
       sessionKind: activeSession?.kind ?? null,
@@ -1163,7 +1201,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (req.method === "GET" && url.pathname === "/api/events") {
-    await handleEventsStream(res);
+    await handleEventsStream(req, res);
     return;
   }
 
@@ -1185,7 +1223,7 @@ async function gracefulShutdown(): Promise<void> {
   if (currentRun) {
     currentRun.cancelled = true;
     currentRun.isRunning = false;
-    currentRun.queue.push(null);
+    publishRunEvent(currentRun, null);
   }
   if (activeSession) {
     const sess = activeSession;
