@@ -197,7 +197,10 @@ const scheduleTimers = new Map<string, NodeJS.Timeout>();
 const MODEL_PRICING_PER_MILLION: Record<string, { input: number; output: number }> = {
   "gpt-6-luna": { input: 0.1, output: 0.5 },
   "gpt-4o-mini": { input: 0.15, output: 0.6 },
-  "gpt-4o": { input: 2.5, output: 10.0 }
+  "gpt-4o": { input: 2.5, output: 10.0 },
+  // Image generation: $5/1M text-input tokens, $30/1M image-output tokens (verified before use).
+  // Doesn't account for image-input tokens (only relevant for image editing, not implemented).
+  "gpt-image-2": { input: 5.0, output: 30.0 }
 };
 
 interface ModelUsage {
