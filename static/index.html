@@ -6,276 +6,299 @@
 <title>Browser Agent</title>
 <style>
   :root {
-    color-scheme: dark;
-    --bg: #0a0a0b;
-    --panel: #151517;
-    --panel-2: #1b1b1e;
-    --border: #272729;
-    --text: #f2f2f3;
-    --muted: #8c8c92;
+    --page-bg: linear-gradient(135deg, #f472b6, #fb923c);
+    --bg: #fafafa;
+    --sidebar-bg: #f1f1f3;
+    --panel: #ffffff;
+    --border: #e4e4e7;
+    --text: #18181b;
+    --muted: #71717a;
     --accent: #3b82f6;
-    --accent-strong: #2563eb;
-    --ok: #22c55e;
-    --fail: #ef4444;
-    --warn: #eab308;
+    --ok: #16a34a;
+    --fail: #dc2626;
+    --warn: #ca8a04;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background: var(--bg);
+    background: var(--page-bg);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     min-height: 100vh;
-  }
-  #app {
-    max-width: 720px;
-    margin: 0 auto;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* ---------- shared header ---------- */
-  header {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: rgba(10, 10, 11, 0.92);
-    backdrop-filter: blur(6px);
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), #8b5cf6);
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 24px;
+  }
+  #shell {
+    width: 100%;
+    max-width: 1100px;
+    height: calc(100vh - 48px);
+    max-height: 760px;
+    background: var(--bg);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+    display: flex;
+  }
+
+  /* ---------- sidebar ---------- */
+  #sidebar {
+    width: 270px;
+    flex-shrink: 0;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 14px 10px;
+  }
+  #new-bot-btn-sidebar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+  }
+  #new-bot-btn-sidebar:hover { background: #fff; border-color: #ccc; }
+  #new-bot-btn-sidebar.active { background: #e4e4e7; }
+  #bot-list { margin-top: 10px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; flex: 1; }
+  .bot-list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 9px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .bot-list-item:hover { background: #e9e9ec; }
+  .bot-list-item.active { background: #e4e4e7; font-weight: 600; }
+  .bot-list-item .mini-avatar { width: 22px; height: 22px; flex-shrink: 0; }
+  #empty-chats {
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+    margin-top: 24px;
+  }
+  #profile-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 8px 4px;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .profile-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
     font-weight: 700;
-    font-size: 14px;
-    color: #06060a;
     flex-shrink: 0;
   }
-  #bot-name {
-    font-size: 15px;
-    font-weight: 600;
+
+  /* ---------- main panel shared ---------- */
+  #main-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--panel); }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
   }
+  .panel-header .mini-avatar { width: 24px; height: 24px; }
+  .panel-header h2 { font-size: 15px; margin: 0; font-weight: 600; }
   #status-pill {
     margin-left: auto;
     font-size: 11px;
     font-weight: 600;
     padding: 4px 10px;
     border-radius: 999px;
-    background: var(--panel-2);
+    background: #f1f1f3;
     color: var(--muted);
     white-space: nowrap;
   }
-  #status-pill.running { background: rgba(59, 130, 246, 0.16); color: var(--accent); }
-  #status-pill.success { background: rgba(34, 197, 94, 0.16); color: var(--ok); }
-  #status-pill.failure { background: rgba(239, 68, 68, 0.16); color: var(--fail); }
-  #new-bot-btn {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--muted);
-    border-radius: 7px;
-    padding: 5px 10px;
-    font-size: 12px;
-    cursor: pointer;
-  }
-  #new-bot-btn:hover { color: var(--text); border-color: var(--muted); }
+  #status-pill.running { background: rgba(59, 130, 246, 0.12); color: var(--accent); }
+  #status-pill.success { background: rgba(22, 163, 74, 0.12); color: var(--ok); }
+  #status-pill.failure { background: rgba(220, 38, 38, 0.12); color: var(--fail); }
 
   /* ---------- create view ---------- */
-  #create-view {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 32px 20px 60px;
-    gap: 22px;
-    text-align: center;
-  }
-  .hero-avatar {
-    width: 72px;
-    height: 72px;
+  #create-view { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+  #create-body { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 28px 24px 10px; gap: 20px; }
+  #avatar-preview { width: 90px; height: 90px; }
+  .swatch-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; max-width: 420px; }
+  .color-swatch {
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    cursor: pointer;
+    border: 2px solid transparent;
+    padding: 0;
+  }
+  .color-swatch.selected { border-color: #000; box-shadow: 0 0 0 2px #fff, 0 0 0 4px currentColor; }
+  .shape-swatch {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: var(--panel);
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
-    font-size: 26px;
-    color: #06060a;
+    padding: 4px;
   }
-  #create-view h1 {
-    font-size: 22px;
-    margin: 0;
-    font-weight: 700;
-  }
-  #create-view p.sub {
-    margin: 0;
-    color: var(--muted);
-    font-size: 14px;
-    max-width: 440px;
-  }
-  .create-card {
-    width: 100%;
-    max-width: 480px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    text-align: left;
-  }
-  .field-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 6px;
-    display: block;
-  }
+  .shape-swatch.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+  .shape-swatch svg { width: 100%; height: 100%; }
+
+  .field-block { width: 100%; max-width: 420px; }
+  .field-label { font-size: 12px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 6px; }
   input[type="text"], textarea {
     width: 100%;
-    background: var(--panel-2);
+    background: var(--panel);
     color: var(--text);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 9px;
     padding: 10px 12px;
     font-size: 14px;
     font-family: inherit;
   }
-  input[type="text"]:focus, textarea:focus {
-    outline: none;
-    border-color: var(--accent);
+  input[type="text"]:focus, textarea:focus { outline: none; border-color: var(--accent); }
+
+  button.primary {
+    background: #e4e4e7;
+    color: #a1a1aa;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 28px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: not-allowed;
   }
-  #create-task {
-    min-height: 80px;
-    resize: vertical;
-  }
-  details.advanced {
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
-  }
-  details.advanced summary {
-    cursor: pointer;
-    font-size: 12px;
-    color: var(--muted);
-    font-weight: 600;
-  }
-  .advanced-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-top: 12px;
-  }
-  .advanced-grid label {
-    font-size: 12px;
-    color: var(--muted);
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .advanced-grid input[type="number"] {
-    background: var(--panel-2);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 8px;
-  }
-  .checkbox-row {
+  button.primary.ready { background: var(--accent); color: #fff; cursor: pointer; }
+  button.primary.ready:hover { background: #2563eb; }
+
+  details.advanced { width: 100%; max-width: 420px; border-top: 1px solid var(--border); padding-top: 10px; }
+  details.advanced summary { cursor: pointer; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .advanced-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .advanced-grid label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+  .advanced-grid input[type="number"] { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
+  .checkbox-row { grid-column: span 2; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .session-strip {
     grid-column: span 2;
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  .session-strip {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: rgba(59, 130, 246, 0.08);
-    border: 1px solid rgba(59, 130, 246, 0.25);
-    border-radius: 10px;
-    padding: 10px 12px;
-    font-size: 12px;
+    gap: 8px;
+    background: rgba(59, 130, 246, 0.06);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 11.5px;
   }
   .session-strip span#session-status-text { color: var(--muted); flex: 1; }
   .session-strip.open span#session-status-text { color: var(--ok); }
   .session-strip button {
-    background: var(--panel-2);
-    color: var(--text);
+    background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 6px 10px;
-    font-size: 12px;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 11px;
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
   }
   .session-strip button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  button.primary {
-    background: var(--accent);
-    color: #06060a;
-    border: none;
-    border-radius: 10px;
-    padding: 12px 18px;
-    font-size: 14px;
-    font-weight: 700;
+  #create-error { color: var(--fail); font-size: 12px; min-height: 16px; }
+
+  #login-live-view {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 0 24px 20px;
+  }
+  #login-live-view.visible { display: flex; }
+  .live-view-hint { font-size: 12px; color: var(--muted); max-width: 440px; text-align: center; margin: 0; }
+  #live-view-address-row { display: flex; gap: 8px; width: 100%; max-width: 480px; }
+  #live-view-address-row input {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 12.5px;
+  }
+  #live-view-address-row button {
+    background: #f4f4f5;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
     cursor: pointer;
   }
-  button.primary:hover { background: var(--accent-strong); }
-  button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  #live-view-img-wrap {
+    width: 100%;
+    max-width: 480px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: text;
+    background: #000;
+  }
+  #live-view-img { display: block; width: 100%; height: auto; }
+  #remote-keyboard-capture {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+  }
 
-  #create-error {
-    display: none;
-    font-size: 12px;
-    color: var(--fail);
+  #suggestions { padding: 16px 24px 22px; }
+  #suggestions .suggestions-label { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .suggestion-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+  .suggestion-card {
+    flex: 1;
+    min-width: 220px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    background: var(--panel);
     text-align: left;
   }
+  .suggestion-card:hover { border-color: var(--accent); }
+  .suggestion-card .mini-avatar { width: 30px; height: 30px; flex-shrink: 0; margin-top: 2px; }
+  .suggestion-card strong { display: block; font-size: 13px; margin-bottom: 3px; }
+  .suggestion-card span { font-size: 12px; color: var(--muted); line-height: 1.4; }
 
   /* ---------- chat view ---------- */
-  #chat-view {
-    display: none;
-    flex: 1;
-    flex-direction: column;
-    min-height: 0;
-  }
-  #chat-log {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px 16px 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
+  #chat-view { display: none; flex: 1; flex-direction: column; min-height: 0; }
+  #chat-log { flex: 1; overflow-y: auto; padding: 18px 20px 8px; display: flex; flex-direction: column; gap: 14px; }
   .bubble-row { display: flex; gap: 10px; align-items: flex-start; }
   .bubble-row.user { flex-direction: row-reverse; }
-  .bubble-avatar {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    font-weight: 700;
-  }
-  .bubble-row.user .bubble-avatar { background: var(--panel-2); color: var(--muted); }
-  .bubble-row.bot .bubble-avatar { background: linear-gradient(135deg, var(--accent), #8b5cf6); color: #06060a; }
+  .bubble-row .mini-avatar { width: 24px; height: 24px; flex-shrink: 0; }
+  .bubble-row.user .mini-avatar { border-radius: 50%; background: #e4e4e7; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--muted); }
   .bubble {
     max-width: 78%;
     padding: 10px 13px;
@@ -283,26 +306,20 @@
     font-size: 14px;
     line-height: 1.45;
   }
-  .bubble-row.user .bubble { background: var(--accent); color: #06060a; border-radius: 14px 14px 4px 14px; }
-  .bubble-row.bot .bubble { background: var(--panel); border: 1px solid var(--border); border-radius: 14px 14px 14px 4px; }
-  .bubble.fail { border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.07); }
-  .bubble.terminal.success { border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.08); }
-  .bubble.terminal.failure { border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); }
-  .bubble.verify { border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); }
+  .bubble-row.user .bubble { background: var(--accent); color: #fff; border-radius: 14px 14px 4px 14px; }
+  .bubble-row.bot .bubble { background: #f4f4f5; border: 1px solid var(--border); border-radius: 14px 14px 14px 4px; }
+  .bubble.fail { border-color: rgba(220, 38, 38, 0.3); background: rgba(220, 38, 38, 0.05); }
+  .bubble.terminal.success { border-color: rgba(22, 163, 74, 0.35); background: rgba(22, 163, 74, 0.06); }
+  .bubble.terminal.failure { border-color: rgba(220, 38, 38, 0.35); background: rgba(220, 38, 38, 0.06); }
+  .bubble.verify { border-color: rgba(202, 138, 4, 0.4); background: rgba(202, 138, 4, 0.07); }
   .bubble .step-meta { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
   .bubble .warning-line, .bubble .directive-line { color: var(--warn); margin-top: 6px; font-size: 12.5px; }
   .bubble a.thumb-link { display: inline-block; margin-top: 8px; }
-  .bubble a.thumb-link img {
-    max-width: 220px;
-    max-height: 140px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    display: block;
-  }
+  .bubble a.thumb-link img { max-width: 220px; max-height: 140px; border-radius: 8px; border: 1px solid var(--border); display: block; }
   .bubble button.resume-btn {
     margin-top: 8px;
     background: var(--warn);
-    color: #1a1400;
+    color: #fff;
     border: none;
     border-radius: 7px;
     padding: 7px 12px;
@@ -311,23 +328,11 @@
     cursor: pointer;
   }
 
-  #composer {
-    border-top: 1px solid var(--border);
-    padding: 12px 16px;
-    display: flex;
-    gap: 10px;
-    align-items: flex-end;
-    background: var(--bg);
-  }
-  #composer textarea {
-    flex: 1;
-    min-height: 44px;
-    max-height: 140px;
-    resize: vertical;
-  }
+  #composer { border-top: 1px solid var(--border); padding: 12px 16px; display: flex; gap: 10px; align-items: flex-end; }
+  #composer textarea { flex: 1; min-height: 44px; max-height: 140px; resize: vertical; }
   #composer button {
     background: var(--accent);
-    color: #06060a;
+    color: #fff;
     border: none;
     border-radius: 10px;
     padding: 11px 16px;
@@ -337,108 +342,312 @@
     white-space: nowrap;
   }
   #composer button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  @media (max-width: 760px) {
+    #shell { flex-direction: column; height: calc(100vh - 32px); }
+    #sidebar { width: 100%; flex-direction: row; overflow-x: auto; }
+    #bot-list { flex-direction: row; }
+  }
 </style>
 </head>
 <body>
-<div id="app">
-  <header>
-    <div class="avatar" id="header-avatar">B</div>
-    <span id="bot-name">Browser Agent</span>
-    <span id="status-pill">idle</span>
-    <button id="new-bot-btn" style="display:none;">New bot</button>
-  </header>
+<div id="shell">
+  <aside id="sidebar">
+    <button id="new-bot-btn-sidebar" class="active">
+      <span id="sidebar-new-icon" class="mini-avatar"></span>
+      <span>Create your first Bot</span>
+    </button>
+    <div id="bot-list"></div>
+    <div id="empty-chats">No chats yet</div>
+    <div id="profile-row">
+      <div class="profile-avatar">L</div>
+      <span>Local</span>
+    </div>
+  </aside>
 
-  <section id="create-view">
-    <div class="hero-avatar" id="hero-avatar">B</div>
-    <h1>Create a bot</h1>
-    <p class="sub">Name it, tell it what to do first, and it'll go drive a real browser to get it done &mdash; screenshots and all, step by step.</p>
-
-    <div class="create-card">
-      <div>
-        <span class="field-label">Bot name</span>
-        <input type="text" id="bot-name-input" placeholder="Browser Agent" />
+  <main id="main-panel">
+    <section id="create-view">
+      <div class="panel-header">
+        <span id="create-header-avatar" class="mini-avatar"></span>
+        <h2>New Bot</h2>
       </div>
-      <div>
-        <span class="field-label">First instruction</span>
-        <textarea id="create-task" placeholder="e.g. Go to duckduckgo.com and search for 'dress'"></textarea>
-      </div>
+      <div id="create-body">
+        <div id="avatar-preview"></div>
 
-      <div class="session-strip" id="session-strip">
-        <span id="session-status-text">no saved login session yet</span>
-        <button id="session-open-btn">Set up login</button>
-        <button id="session-close-btn" disabled>Done &amp; save</button>
-      </div>
+        <div class="swatch-row" id="color-row"></div>
+        <div class="swatch-row" id="shape-row"></div>
 
-      <details class="advanced">
-        <summary>Advanced settings</summary>
-        <div class="advanced-grid">
-          <label>Max steps
-            <input type="number" id="max-steps" value="20" min="1" max="100" />
-          </label>
-          <label>Timeout (s)
-            <input type="number" id="max-duration" value="900" min="10" max="3600" />
-          </label>
-          <div class="checkbox-row">
-            <input type="checkbox" id="headless" /> <label for="headless">run headless (no visible window)</label>
-          </div>
+        <div class="field-block">
+          <span class="field-label">Name</span>
+          <input type="text" id="bot-name-input" placeholder="New Bot" />
         </div>
-      </details>
 
-      <div id="create-error"></div>
-      <button class="primary" id="create-btn">Create bot &amp; run</button>
-    </div>
-  </section>
+        <button class="primary" id="create-btn" disabled>Get started</button>
+        <div id="create-error"></div>
 
-  <section id="chat-view">
-    <div id="chat-log"></div>
-    <div id="composer">
-      <textarea id="followup-task" placeholder="Instruct your bot..."></textarea>
-      <button id="followup-send-btn">Send</button>
-    </div>
-  </section>
+        <details class="advanced">
+          <summary>Advanced settings</summary>
+          <div class="advanced-grid">
+            <label>Max steps
+              <input type="number" id="max-steps" value="20" min="1" max="100" />
+            </label>
+            <label>Timeout (s)
+              <input type="number" id="max-duration" value="900" min="10" max="3600" />
+            </label>
+            <div class="checkbox-row">
+              <input type="checkbox" id="headless" /> <label for="headless">run headless (no visible window)</label>
+            </div>
+            <div class="session-strip" id="session-strip">
+              <span id="session-status-text">no saved login session yet</span>
+              <button id="session-open-btn">Set up login</button>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div id="login-live-view">
+        <p class="live-view-hint">
+          This is the real browser, running inside this tab &mdash; click and type directly on it
+          to sign in. Clearing MFA here only has to happen once; later runs reuse this session.
+        </p>
+        <div id="live-view-address-row">
+          <input type="text" id="live-view-url" placeholder="https://..." />
+          <button id="live-view-go-btn" type="button">Go</button>
+        </div>
+        <div id="live-view-img-wrap">
+          <img id="live-view-img" alt="live browser view" />
+        </div>
+        <input id="remote-keyboard-capture" type="text" autocomplete="off" spellcheck="false" />
+        <button class="primary ready" id="live-view-done-btn">Done &amp; save session</button>
+      </div>
+
+      <div id="suggestions">
+        <div class="suggestions-label">Suggestions</div>
+        <div class="suggestion-cards">
+          <button class="suggestion-card" type="button" data-name="Price Watcher" data-color="#f97316" data-shape="hexagon" data-task="Go to example.com and report the main heading text.">
+            <span class="mini-avatar" data-preview-color="#f97316" data-preview-shape="hexagon"></span>
+            <span>
+              <strong>Price Watcher</strong>
+              <span>Checks a product page and reports back what it finds</span>
+            </span>
+          </button>
+          <button class="suggestion-card" type="button" data-name="Research Assistant" data-color="#ec4899" data-shape="cloud" data-task="Go to duckduckgo.com and search for 'latest Node.js LTS version'.">
+            <span class="mini-avatar" data-preview-color="#ec4899" data-preview-shape="cloud"></span>
+            <span>
+              <strong>Research Assistant</strong>
+              <span>Searches the web and summarizes what it finds</span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section id="chat-view">
+      <div class="panel-header">
+        <span id="chat-header-avatar" class="mini-avatar"></span>
+        <h2 id="chat-bot-name">Bot</h2>
+        <span id="status-pill">idle</span>
+      </div>
+      <div id="chat-log"></div>
+      <div id="composer">
+        <textarea id="followup-task" placeholder="Instruct your bot..."></textarea>
+        <button id="followup-send-btn">Send</button>
+      </div>
+    </section>
+  </main>
 </div>
 
 <script>
 (function () {
-  const createView = document.getElementById("create-view");
-  const chatView = document.getElementById("chat-view");
-  const botNameInput = document.getElementById("bot-name-input");
-  const createTaskEl = document.getElementById("create-task");
-  const createBtn = document.getElementById("create-btn");
-  const createErrorEl = document.getElementById("create-error");
-  const headlessEl = document.getElementById("headless");
-  const maxStepsEl = document.getElementById("max-steps");
-  const maxDurationEl = document.getElementById("max-duration");
-  const sessionStrip = document.getElementById("session-strip");
-  const sessionStatusText = document.getElementById("session-status-text");
-  const sessionOpenBtn = document.getElementById("session-open-btn");
-  const sessionCloseBtn = document.getElementById("session-close-btn");
+  "use strict";
 
-  const headerAvatar = document.getElementById("header-avatar");
-  const heroAvatar = document.getElementById("hero-avatar");
-  const botNameLabel = document.getElementById("bot-name");
-  const statusPill = document.getElementById("status-pill");
-  const newBotBtn = document.getElementById("new-bot-btn");
-  const chatLog = document.getElementById("chat-log");
-  const followupTaskEl = document.getElementById("followup-task");
-  const followupSendBtn = document.getElementById("followup-send-btn");
+  var COLORS = ["#8d6e63", "#ef4444", "#f97316", "#f59e0b", "#22c55e", "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899", "#6b7280"];
+  var SHAPES = ["circle", "rounded-square", "square", "pill", "triangle", "hexagon", "cloud", "drop"];
+  var STORAGE_KEY = "browserAgentBots";
 
-  let eventSource = null;
-  let isRunning = false;
-  let botName = "Browser Agent";
-
-  function initials(name) {
-    const trimmed = (name || "B").trim();
-    if (!trimmed) return "B";
-    const parts = trimmed.split(/\s+/).slice(0, 2);
-    return parts.map((p) => p[0].toUpperCase()).join("");
+  function shapeInnerSvg(shape) {
+    switch (shape) {
+      case "circle": return '<circle cx="50" cy="50" r="42"/>';
+      case "rounded-square": return '<rect x="10" y="10" width="80" height="80" rx="24"/>';
+      case "square": return '<rect x="10" y="10" width="80" height="80" rx="6"/>';
+      case "pill": return '<rect x="5" y="26" width="90" height="48" rx="24"/>';
+      case "triangle": return '<polygon points="50,8 92,88 8,88"/>';
+      case "hexagon": return '<polygon points="50,6 90,28 90,72 50,94 10,72 10,28"/>';
+      case "cloud": return '<g><ellipse cx="50" cy="62" rx="40" ry="24"/><circle cx="30" cy="46" r="18"/><circle cx="55" cy="38" r="22"/><circle cx="76" cy="48" r="16"/></g>';
+      case "drop": return '<path d="M50 6 C72 34 86 54 86 70 A36 36 0 1 1 14 70 C14 54 28 34 50 6 Z"/>';
+      default: return '<circle cx="50" cy="50" r="42"/>';
+    }
   }
 
-  function setBotName(name) {
-    botName = name && name.trim() ? name.trim() : "Browser Agent";
-    botNameLabel.textContent = botName;
-    headerAvatar.textContent = initials(botName);
-    heroAvatar.textContent = initials(botName);
+  function avatarSvg(color, shape) {
+    return '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="' + color + '">' + shapeInnerSvg(shape) + "</svg>";
+  }
+
+  function setAvatarEl(el, color, shape) {
+    el.innerHTML = avatarSvg(color, shape);
+  }
+
+  function initials(name) {
+    var trimmed = (name || "B").trim();
+    if (!trimmed) return "B";
+    var parts = trimmed.split(/\s+/).slice(0, 2);
+    return parts.map(function (p) { return p[0].toUpperCase(); }).join("");
+  }
+
+  // ---------- persisted bot list ----------
+  function loadBots() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveBots(bots) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(bots)); } catch (e) { /* ignore */ }
+  }
+
+  var bots = loadBots();
+  var activeBotId = null;
+  var isRunning = false;
+  var eventSource = null;
+
+  // ---------- dom refs ----------
+  var createView = document.getElementById("create-view");
+  var chatView = document.getElementById("chat-view");
+  var botNameInput = document.getElementById("bot-name-input");
+  var createBtn = document.getElementById("create-btn");
+  var createErrorEl = document.getElementById("create-error");
+  var headlessEl = document.getElementById("headless");
+  var maxStepsEl = document.getElementById("max-steps");
+  var maxDurationEl = document.getElementById("max-duration");
+  var sessionStrip = document.getElementById("session-strip");
+  var sessionStatusText = document.getElementById("session-status-text");
+  var sessionOpenBtn = document.getElementById("session-open-btn");
+  var loginLiveView = document.getElementById("login-live-view");
+  var liveViewImgWrap = document.getElementById("live-view-img-wrap");
+  var liveViewImg = document.getElementById("live-view-img");
+  var remoteKeyboardCapture = document.getElementById("remote-keyboard-capture");
+  var liveViewDoneBtn = document.getElementById("live-view-done-btn");
+  var liveViewUrlInput = document.getElementById("live-view-url");
+  var liveViewGoBtn = document.getElementById("live-view-go-btn");
+  var colorRow = document.getElementById("color-row");
+  var shapeRow = document.getElementById("shape-row");
+  var avatarPreview = document.getElementById("avatar-preview");
+  var createHeaderAvatar = document.getElementById("create-header-avatar");
+  var sidebarNewIcon = document.getElementById("sidebar-new-icon");
+  var newBotBtnSidebar = document.getElementById("new-bot-btn-sidebar");
+  var botListEl = document.getElementById("bot-list");
+  var emptyChatsEl = document.getElementById("empty-chats");
+  var chatHeaderAvatar = document.getElementById("chat-header-avatar");
+  var chatBotNameEl = document.getElementById("chat-bot-name");
+  var statusPill = document.getElementById("status-pill");
+  var chatLog = document.getElementById("chat-log");
+  var followupTaskEl = document.getElementById("followup-task");
+  var followupSendBtn = document.getElementById("followup-send-btn");
+
+  var selected = { color: COLORS[6], shape: SHAPES[0] };
+
+  function renderSwatches() {
+    colorRow.innerHTML = "";
+    COLORS.forEach(function (color) {
+      var btn = document.createElement("button");
+      btn.className = "color-swatch" + (color === selected.color ? " selected" : "");
+      btn.style.background = color;
+      btn.style.color = color;
+      btn.type = "button";
+      btn.addEventListener("click", function () {
+        selected.color = color;
+        renderSwatches();
+        updatePreview();
+      });
+      colorRow.appendChild(btn);
+    });
+
+    shapeRow.innerHTML = "";
+    SHAPES.forEach(function (shape) {
+      var btn = document.createElement("button");
+      btn.className = "shape-swatch" + (shape === selected.shape ? " selected" : "");
+      btn.type = "button";
+      btn.innerHTML = avatarSvg(selected.color, shape);
+      btn.addEventListener("click", function () {
+        selected.shape = shape;
+        renderSwatches();
+        updatePreview();
+      });
+      shapeRow.appendChild(btn);
+    });
+  }
+
+  function updatePreview() {
+    setAvatarEl(avatarPreview, selected.color, selected.shape);
+    setAvatarEl(createHeaderAvatar, selected.color, selected.shape);
+    updateCreateReady();
+  }
+
+  function updateCreateReady() {
+    var ready = botNameInput.value.trim().length > 0;
+    createBtn.disabled = !ready;
+    createBtn.classList.toggle("ready", ready);
+  }
+
+  function renderSidebar() {
+    botListEl.innerHTML = "";
+    emptyChatsEl.style.display = bots.length ? "none" : "block";
+    bots.forEach(function (bot) {
+      var row = document.createElement("div");
+      row.className = "bot-list-item" + (bot.id === activeBotId ? " active" : "");
+      var avatar = document.createElement("span");
+      avatar.className = "mini-avatar";
+      setAvatarEl(avatar, bot.color, bot.shape);
+      var label = document.createElement("span");
+      label.textContent = bot.name;
+      row.appendChild(avatar);
+      row.appendChild(label);
+      row.addEventListener("click", function () { selectBot(bot.id); });
+      botListEl.appendChild(row);
+    });
+    newBotBtnSidebar.classList.toggle("active", activeBotId === null);
+  }
+
+  function showCreateView() {
+    activeBotId = null;
+    if (eventSource) { eventSource.close(); eventSource = null; }
+    botNameInput.value = "";
+    selected = { color: COLORS[6], shape: SHAPES[0] };
+    renderSwatches();
+    updatePreview();
+    createErrorEl.textContent = "";
+    createView.style.display = "flex";
+    chatView.style.display = "none";
+    renderSidebar();
+  }
+
+  function findBot(id) {
+    return bots.filter(function (b) { return b.id === id; })[0] || null;
+  }
+
+  function renderChatLog(bot) {
+    chatLog.innerHTML = "";
+    bot.transcript.forEach(function (entry) {
+      addBubbleDom(entry.role, entry.html, entry.cls, bot, false);
+    });
+    scrollChatToBottom();
+  }
+
+  function selectBot(id) {
+    var bot = findBot(id);
+    if (!bot) return;
+    activeBotId = id;
+    if (eventSource) { eventSource.close(); eventSource = null; }
+    setAvatarEl(chatHeaderAvatar, bot.color, bot.shape);
+    chatBotNameEl.textContent = bot.name;
+    setStatus("idle", "");
+    createView.style.display = "none";
+    chatView.style.display = "flex";
+    renderChatLog(bot);
+    followupSendBtn.disabled = isRunning;
+    renderSidebar();
   }
 
   function setStatus(label, cls) {
@@ -451,35 +660,49 @@
   }
 
   function escapeHtml(text) {
-    const div = document.createElement("div");
+    var div = document.createElement("div");
     div.textContent = text == null ? "" : String(text);
     return div.innerHTML;
   }
 
-  function addBubble(role, innerHtml, extraClass) {
-    const row = document.createElement("div");
+  function addBubbleDom(role, innerHtml, extraClass, bot, persist) {
+    var row = document.createElement("div");
     row.className = "bubble-row " + role;
-    const avatar = document.createElement("div");
-    avatar.className = "bubble-avatar";
-    avatar.textContent = role === "user" ? "you" : initials(botName).slice(0, 1);
-    const bubble = document.createElement("div");
+    var avatar = document.createElement("span");
+    avatar.className = "mini-avatar";
+    if (role === "user") {
+      avatar.textContent = "you";
+    } else {
+      setAvatarEl(avatar, bot.color, bot.shape);
+    }
+    var bubble = document.createElement("div");
     bubble.className = "bubble " + (extraClass || "");
     bubble.innerHTML = innerHtml;
     row.appendChild(avatar);
     row.appendChild(bubble);
     chatLog.appendChild(row);
     scrollChatToBottom();
+    if (persist !== false) {
+      bot.transcript.push({ role: role, html: innerHtml, cls: extraClass || "" });
+      saveBots(bots);
+    }
     return bubble;
+  }
+
+  function addBubble(role, innerHtml, extraClass) {
+    var bot = findBot(activeBotId);
+    if (!bot) return;
+    return addBubbleDom(role, innerHtml, extraClass, bot, true);
   }
 
   function thumbHtml(screenshotB64) {
     if (!screenshotB64) return "";
-    const dataUrl = "data:image/png;base64," + screenshotB64;
+    var dataUrl = "data:image/png;base64," + screenshotB64;
     return '<a class="thumb-link" href="' + dataUrl + '" target="_blank" rel="noopener"><img src="' + dataUrl + '" alt="screenshot" /></a>';
   }
 
   function describeStep(event) {
-    const toolLabels = {
+    var toolLabels = {
       navigate: "Navigating",
       click_coords: "Clicking",
       type_text: "Typing",
@@ -487,21 +710,17 @@
       key_press: "Pressing a key",
       wait: "Waiting"
     };
-    const label = toolLabels[event.toolName] || event.toolName;
+    var label = toolLabels[event.toolName] || event.toolName;
     return label + " &mdash; " + escapeHtml(event.message);
   }
 
   function handleEvent(event) {
     if (event.type === "observe") {
-      addBubble(
-        "bot",
-        '<div class="step-meta">looking at the page</div>' + escapeHtml(event.title || event.url) + thumbHtml(event.screenshotB64),
-        "ok"
-      );
+      addBubble("bot", '<div class="step-meta">looking at the page</div>' + escapeHtml(event.title || event.url) + thumbHtml(event.screenshotB64), "ok");
       return;
     }
     if (event.type === "step") {
-      let html = '<div class="step-meta">step ' + event.step + "</div>" + describeStep(event);
+      var html = '<div class="step-meta">step ' + event.step + "</div>" + describeStep(event);
       if (event.warning) html += '<div class="warning-line">' + escapeHtml(event.warning) + "</div>";
       if (event.directive) html += '<div class="directive-line">' + escapeHtml(event.directive) + "</div>";
       html += thumbHtml(event.screenshotB64);
@@ -509,13 +728,13 @@
       return;
     }
     if (event.type === "human_verification") {
-      const html =
+      var vhtml =
         '<div class="step-meta">needs you</div>' +
         escapeHtml(event.message || "Sign-in or verification needed.") +
         thumbHtml(event.screenshotB64) +
-        '<br/><button class="resume-btn" id="inline-resume-btn">I\'ve handled it &mdash; Resume</button>';
-      addBubble("bot", html, "verify");
-      document.getElementById("inline-resume-btn").addEventListener("click", resumeRun);
+        '<br/><button class="resume-btn" data-resume="1">I\'ve handled it &mdash; Resume</button>';
+      var bubble = addBubble("bot", vhtml, "verify");
+      bubble.querySelector("[data-resume]").addEventListener("click", resumeRun);
       return;
     }
     if (event.type === "human_verification_resolved") {
@@ -523,8 +742,8 @@
       return;
     }
     if (event.type === "terminal") {
-      const label = event.success ? "Done" : "Couldn't finish";
-      const cls = event.success ? "terminal success" : "terminal failure";
+      var label = event.success ? "Done" : "Couldn't finish";
+      var cls = event.success ? "terminal success" : "terminal failure";
       addBubble(
         "bot",
         "<strong>" + label + "</strong> &mdash; " + escapeHtml(event.summary) +
@@ -536,174 +755,247 @@
       setStatus(event.success ? "done" : "failed", event.success ? "success" : "failure");
       isRunning = false;
       followupSendBtn.disabled = false;
-      if (eventSource) {
-        eventSource.close();
-        eventSource = null;
-      }
+      if (eventSource) { eventSource.close(); eventSource = null; }
     }
   }
 
-  async function startBotRun(task, headless, maxSteps, maxDurationSeconds) {
+  function startBotRun(task, headless, maxSteps, maxDurationSeconds) {
     isRunning = true;
     setStatus("running", "running");
-    let response;
-    try {
-      response = await fetch("/api/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task, headless, maxSteps, maxDurationSeconds }),
-      });
-    } catch (err) {
-      addBubble("bot", "Could not reach the agent server: " + escapeHtml(String(err)), "fail");
-      setStatus("idle", "");
-      isRunning = false;
-      followupSendBtn.disabled = false;
-      return false;
-    }
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({ detail: response.statusText }));
-      addBubble("bot", escapeHtml(body.detail || "Failed to start the run."), "fail");
-      setStatus("idle", "");
-      isRunning = false;
-      followupSendBtn.disabled = false;
-      return false;
-    }
-
-    eventSource = new EventSource("/api/events");
-    eventSource.onmessage = function (msg) {
-      try {
-        handleEvent(JSON.parse(msg.data));
-      } catch (err) {
-        console.error("Failed to parse event", err, msg.data);
-      }
-    };
-    eventSource.onerror = function () {
-      if (eventSource) {
-        eventSource.close();
-        eventSource = null;
-      }
-      isRunning = false;
-      followupSendBtn.disabled = false;
-    };
-    return true;
-  }
-
-  async function resumeRun() {
-    try {
-      const response = await fetch("/api/resume", { method: "POST" });
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({ detail: response.statusText }));
-        addBubble("bot", escapeHtml(body.detail || "Failed to resume."), "fail");
-      }
-    } catch (err) {
-      addBubble("bot", "Could not reach the agent server: " + escapeHtml(String(err)), "fail");
-    }
-  }
-
-  async function createBot() {
-    const task = createTaskEl.value.trim();
-    createErrorEl.style.display = "none";
-    if (!task) {
-      createErrorEl.textContent = "Give your bot a first instruction.";
-      createErrorEl.style.display = "block";
-      return;
-    }
-    setBotName(botNameInput.value);
-    createBtn.disabled = true;
-
-    createView.style.display = "none";
-    chatView.style.display = "flex";
-    newBotBtn.style.display = "inline-block";
-
-    addBubble("user", escapeHtml(task));
-    const headless = headlessEl.checked;
-    const maxSteps = parseInt(maxStepsEl.value, 10) || 20;
-    const maxDurationSeconds = parseFloat(maxDurationEl.value) || 900;
     followupSendBtn.disabled = true;
-    await startBotRun(task, headless, maxSteps, maxDurationSeconds);
-    createBtn.disabled = false;
+    return fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task: task, headless: headless, maxSteps: maxSteps, maxDurationSeconds: maxDurationSeconds })
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          return response.json().catch(function () { return { detail: response.statusText }; }).then(function (body) {
+            throw new Error(body.detail || "Failed to start the run.");
+          });
+        }
+        eventSource = new EventSource("/api/events");
+        eventSource.onmessage = function (msg) {
+          try { handleEvent(JSON.parse(msg.data)); } catch (err) { console.error("Failed to parse event", err, msg.data); }
+        };
+        eventSource.onerror = function () {
+          if (eventSource) { eventSource.close(); eventSource = null; }
+          isRunning = false;
+          followupSendBtn.disabled = false;
+        };
+      })
+      .catch(function (err) {
+        addBubble("bot", escapeHtml(err.message || String(err)), "fail");
+        setStatus("idle", "");
+        isRunning = false;
+        followupSendBtn.disabled = false;
+      });
   }
 
-  async function sendFollowup() {
-    const task = followupTaskEl.value.trim();
-    if (!task || isRunning) return;
+  function resumeRun() {
+    fetch("/api/resume", { method: "POST" })
+      .then(function (response) {
+        if (!response.ok) {
+          return response.json().catch(function () { return { detail: response.statusText }; }).then(function (body) {
+            addBubble("bot", escapeHtml(body.detail || "Failed to resume."), "fail");
+          });
+        }
+      })
+      .catch(function (err) {
+        addBubble("bot", "Could not reach the agent server: " + escapeHtml(String(err)), "fail");
+      });
+  }
+
+  function createBotAndRun(initialTask) {
+    var name = botNameInput.value.trim() || "New Bot";
+    var bot = {
+      id: "bot_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
+      name: name,
+      color: selected.color,
+      shape: selected.shape,
+      transcript: []
+    };
+    bots.push(bot);
+    saveBots(bots);
+    selectBot(bot.id);
+
+    var task = (initialTask || "").trim();
+    if (task) {
+      addBubble("user", escapeHtml(task));
+      startBotRun(task, headlessEl.checked, parseInt(maxStepsEl.value, 10) || 20, parseFloat(maxDurationEl.value) || 900);
+    }
+  }
+
+  function sendFollowup() {
+    var task = followupTaskEl.value.trim();
+    if (!task || isRunning || !activeBotId) return;
     addBubble("user", escapeHtml(task));
     followupTaskEl.value = "";
-    followupSendBtn.disabled = true;
-    setStatus("running", "running");
-    await startBotRun(task, headlessEl.checked, parseInt(maxStepsEl.value, 10) || 20, parseFloat(maxDurationEl.value) || 900);
+    startBotRun(task, headlessEl.checked, parseInt(maxStepsEl.value, 10) || 20, parseFloat(maxDurationEl.value) || 900);
   }
 
-  function resetToCreateView() {
-    if (eventSource) {
-      eventSource.close();
-      eventSource = null;
+  var liveViewSource = null;
+  var liveViewport = { width: 1280, height: 800 };
+
+  function sendRemoteInput(payload) {
+    fetch("/api/login/input", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).catch(function () { /* best-effort; a dropped input event isn't fatal */ });
+  }
+
+  function scaledCoords(evt) {
+    var rect = liveViewImg.getBoundingClientRect();
+    var scaleX = liveViewport.width / rect.width;
+    var scaleY = liveViewport.height / rect.height;
+    return {
+      x: Math.round((evt.clientX - rect.left) * scaleX),
+      y: Math.round((evt.clientY - rect.top) * scaleY)
+    };
+  }
+
+  function onLiveViewClick(evt) {
+    var coords = scaledCoords(evt);
+    sendRemoteInput({ type: "click", x: coords.x, y: coords.y });
+    remoteKeyboardCapture.value = "";
+    remoteKeyboardCapture.focus();
+  }
+
+  function onLiveViewWheel(evt) {
+    evt.preventDefault();
+    var coords = scaledCoords(evt);
+    sendRemoteInput({ type: "scroll", x: coords.x, y: coords.y, deltaX: evt.deltaX, deltaY: evt.deltaY });
+  }
+
+  var SPECIAL_KEYS = ["Enter", "Tab", "Escape", "Backspace", "Delete", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+  function onKeyboardCaptureKeydown(evt) {
+    if (SPECIAL_KEYS.indexOf(evt.key) !== -1) {
+      evt.preventDefault();
+      sendRemoteInput({ type: "key", key: evt.key });
     }
-    isRunning = false;
-    chatLog.innerHTML = "";
-    chatView.style.display = "none";
-    createView.style.display = "flex";
-    newBotBtn.style.display = "none";
-    setStatus("idle", "");
+  }
+  function onKeyboardCaptureInput(evt) {
+    var text = evt.data;
+    if (text) sendRemoteInput({ type: "type", text: text });
+    remoteKeyboardCapture.value = "";
   }
 
-  async function openLoginSession() {
+  function connectLiveView() {
+    liveViewSource = new EventSource("/api/login/screencast");
+    liveViewSource.onmessage = function (msg) {
+      liveViewImg.src = "data:image/jpeg;base64," + msg.data;
+    };
+    liveViewSource.onerror = function () {
+      if (liveViewSource) { liveViewSource.close(); liveViewSource = null; }
+    };
+  }
+
+  function openLoginSession() {
     sessionOpenBtn.disabled = true;
-    try {
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: "about:blank" }),
-      });
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({ detail: response.statusText }));
-        createErrorEl.textContent = body.detail || "Failed to open a login session.";
-        createErrorEl.style.display = "block";
+    fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: "https://www.google.com" })
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          return response.json().catch(function () { return { detail: response.statusText }; }).then(function (body) {
+            throw new Error(body.detail || "Failed to open a login session.");
+          });
+        }
+        return response.json();
+      })
+      .then(function (body) {
+        liveViewport = { width: body.viewportWidth, height: body.viewportHeight };
+        liveViewUrlInput.value = "https://www.google.com";
+        document.getElementById("create-body").style.display = "none";
+        document.getElementById("suggestions").style.display = "none";
+        loginLiveView.classList.add("visible");
+        connectLiveView();
+        remoteKeyboardCapture.focus();
+      })
+      .catch(function (err) {
+        createErrorEl.textContent = err.message || String(err);
         sessionOpenBtn.disabled = false;
-        return;
-      }
-      sessionStatusText.textContent = "browser window open — sign in, then click “Done & save”";
-      sessionStrip.classList.add("open");
-      sessionCloseBtn.disabled = false;
-    } catch (err) {
-      createErrorEl.textContent = "Could not reach the agent server: " + err;
-      createErrorEl.style.display = "block";
-      sessionOpenBtn.disabled = false;
-    }
+      });
   }
 
-  async function closeLoginSession() {
-    sessionCloseBtn.disabled = true;
-    try {
-      const response = await fetch("/api/login/close", { method: "POST" });
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({ detail: response.statusText }));
-        createErrorEl.textContent = body.detail || "Failed to close the login session.";
-        createErrorEl.style.display = "block";
-        sessionCloseBtn.disabled = false;
-        return;
-      }
-      sessionStatusText.textContent = "session saved — later runs reuse it";
-      sessionStrip.classList.remove("open");
-      sessionOpenBtn.disabled = false;
-    } catch (err) {
-      createErrorEl.textContent = "Could not reach the agent server: " + err;
-      createErrorEl.style.display = "block";
-      sessionCloseBtn.disabled = false;
-    }
+  function closeLoginSession() {
+    liveViewDoneBtn.disabled = true;
+    fetch("/api/login/close", { method: "POST" })
+      .then(function (response) {
+        if (!response.ok) {
+          return response.json().catch(function () { return { detail: response.statusText }; }).then(function (body) {
+            throw new Error(body.detail || "Failed to close the login session.");
+          });
+        }
+        sessionStatusText.textContent = "session saved — later runs reuse it";
+        sessionStrip.classList.add("open");
+        sessionOpenBtn.disabled = false;
+        sessionOpenBtn.textContent = "Set up login again";
+      })
+      .catch(function (err) {
+        createErrorEl.textContent = err.message || String(err);
+      })
+      .then(function () {
+        if (liveViewSource) { liveViewSource.close(); liveViewSource = null; }
+        loginLiveView.classList.remove("visible");
+        document.getElementById("create-body").style.display = "";
+        document.getElementById("suggestions").style.display = "";
+        liveViewDoneBtn.disabled = false;
+      });
   }
 
-  createBtn.addEventListener("click", createBot);
-  newBotBtn.addEventListener("click", resetToCreateView);
+  function navigateLiveView() {
+    var url = liveViewUrlInput.value.trim();
+    if (!url) return;
+    sendRemoteInput({ type: "navigate", url: url });
+  }
+
+  liveViewImgWrap.addEventListener("click", onLiveViewClick);
+  liveViewImgWrap.addEventListener("wheel", onLiveViewWheel, { passive: false });
+  remoteKeyboardCapture.addEventListener("keydown", onKeyboardCaptureKeydown);
+  remoteKeyboardCapture.addEventListener("input", onKeyboardCaptureInput);
+  liveViewDoneBtn.addEventListener("click", closeLoginSession);
+  liveViewGoBtn.addEventListener("click", navigateLiveView);
+  liveViewUrlInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") navigateLiveView();
+  });
+
+  // ---------- suggestion cards ----------
+  document.querySelectorAll(".suggestion-card").forEach(function (card) {
+    var color = card.getAttribute("data-color");
+    var shape = card.getAttribute("data-shape");
+    var preview = card.querySelector("[data-preview-shape]");
+    setAvatarEl(preview, color, shape);
+    card.addEventListener("click", function () {
+      botNameInput.value = card.getAttribute("data-name");
+      selected = { color: color, shape: shape };
+      renderSwatches();
+      updatePreview();
+      createBotAndRun(card.getAttribute("data-task"));
+    });
+  });
+
+  // ---------- wiring ----------
+  botNameInput.addEventListener("input", updateCreateReady);
+  createBtn.addEventListener("click", function () { createBotAndRun(""); });
+  newBotBtnSidebar.addEventListener("click", showCreateView);
   sessionOpenBtn.addEventListener("click", openLoginSession);
   sessionCloseBtn.addEventListener("click", closeLoginSession);
   followupSendBtn.addEventListener("click", sendFollowup);
-  createTaskEl.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) createBot();
-  });
   followupTaskEl.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendFollowup();
   });
+  botNameInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !createBtn.disabled) createBotAndRun("");
+  });
+
+  setAvatarEl(sidebarNewIcon, "#3b82f6", "circle");
+  renderSwatches();
+  updatePreview();
+  renderSidebar();
 })();
 </script>
 <script>
