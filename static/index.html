@@ -2333,7 +2333,7 @@ dialog.modal-dialog::backdrop {
               <textarea id="prompt" rows="1" placeholder="Ask anything, run $ command, or paste a URL…"></textarea>
               <label class="sr-only" for="composer-model-select">Choose model</label>
               <div class="composer-model-wrap"><select id="composer-model-select" aria-label="Choose model">
-                <option value="gpt-6-luna">GPT-6 Luna · Light</option>
+                <option value="gpt-6-luna">GPT-6 Luna · Reasoning</option>
                 <option value="gpt-4o-mini">GPT-4o Mini</option>
                 <option value="local-engine">Local Engine</option>
                 <option value="ollama:llama3.2">Ollama Llama 3.2</option>
@@ -2601,7 +2601,7 @@ dialog.modal-dialog::backdrop {
       <div class="form-field">
         <label for="model-select">Active Execution Engine / Model</label>
         <select id="model-select" class="header-select" style="width:100%;height:38px;" aria-label="Select AI model">
-          <option value="gpt-6-luna">⚡ GPT-6 Luna (Low Token — Recommended)</option>
+          <option value="gpt-6-luna">⚡ GPT-6 Luna (Reasoning · Low effort)</option>
           <option value="gpt-4o-mini">GPT-4o Mini</option>
           <option value="local-engine">🖥 Local Engine (Zero Cloud · Terminal + Browser + Codex)</option>
           <option value="ollama:llama3.2">🦙 Ollama Llama 3.2 (Local 127.0.0.1:11434 · No Cloud)</option>
@@ -3660,7 +3660,7 @@ dialog.modal-dialog::backdrop {
     runningAgentName = agent && agent.name || "Bot";
     sendButton.disabled = true;
     setStatusState("running", "Thinking");
-    status.textContent = "Agent is thinking (low-token mode)…";
+    status.textContent = "Agent is thinking it through…";
     stepCounter.textContent = "";
     liveStepFeedBubble = null;
     setRunPresence("Thinking it through");

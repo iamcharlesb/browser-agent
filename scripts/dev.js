@@ -21,7 +21,11 @@ if (initialBuild.status !== 0) {
 const children = [];
 
 function spawnWatcher(name, command, args) {
-  const child = spawn(command, args, { cwd: projectRoot, stdio: "inherit", env: process.env });
+  const child = spawn(command, args, {
+    cwd: projectRoot,
+    stdio: "inherit",
+    env: { ...process.env, BROWSER_AGENT_LIVE_RELOAD: "1" }
+  });
   child.on("exit", (code, signal) => {
     if (signal) return; // killed by us during shutdown
     console.error(`[dev] ${name} exited unexpectedly (code ${code}).`);

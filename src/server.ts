@@ -100,10 +100,16 @@ function notifyLiveReload(): void {
   }
 }
 
-try {
-  watch(STATIC_DIR, { recursive: true }, () => notifyLiveReload());
-} catch (err) {
-  console.warn(`Live reload file watch failed to start: ${(err as Error).message}`);
+if (process.env.BROWSER_AGENT_LIVE_RELOAD === "1") {
+  try {
+    const watcher = watch(STATIC_DIR, { recursive: true }, () => notifyLiveReload());
+    watcher.on("error", (err) => {
+      console.warn(`Live reload file watch stopped: ${err.message}`);
+      watcher.close();
+    });
+  } catch (err) {
+    console.warn(`Live reload file watch failed to start: ${(err as Error).message}`);
+  }
 }
 
 /** A minimal async pull-queue used to fan a run's events out over SSE. */
