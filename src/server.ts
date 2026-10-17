@@ -84,11 +84,23 @@ interface RunState {
   headless: boolean;
   isRunning: boolean;
   queue: AsyncQueue<AgentEvent | null>;
+  resolveVerification: (() => void) | null;
+}
+
+/**
+ * The one shared Chromium process against the persistent profile. Only one can exist at a time
+ * (the profile directory is locked to a single process), so "conversation" and "login" sessions
+ * take turns owning it. A "conversation" session stays open across multiple /api/run calls for
+ * the same bot - that's what lets a bot remember it's already on a page between chat messages,
+ * instead of every message starting over from a blank tab.
+ */
+interface BrowserSession {
+  kind: "conversation" | "login";
+  botKey: string | null;
+  controller: BrowserController;
   frameQueue: AsyncQueue<string | null>;
-  controller: BrowserController | null;
   viewportWidth: number;
   viewportHeight: number;
-  resolveVerification: (() => void) | null;
 }
 
 interface RunRequestBody {
@@ -116,15 +128,8 @@ interface ScheduledTask {
   lastRunAt?: string;
 }
 
-interface LoginSession {
-  controller: BrowserController;
-  frameQueue: AsyncQueue<string | null>;
-  viewportWidth: number;
-  viewportHeight: number;
-}
-
 let currentRun: RunState | null = null;
-let loginSession: LoginSession | null = null;
+let activeSession: BrowserSession | null = null;
 let schedules: ScheduledTask[] = [];
 const scheduleTimers = new Map<string, NodeJS.Timeout>();
 
@@ -186,7 +191,7 @@ async function executeSchedule(id: string): Promise<void> {
     armSchedule(schedule);
     return;
   }
-  if ((currentRun && currentRun.isRunning) || loginSession) {
+  if ((currentRun && currentRun.isRunning) || activeSession?.kind === "login") {
     schedule.status = "queued";
     schedule.nextRunAt = new Date(Date.now() + 60_000).toISOString();
     await saveSchedules();
@@ -239,67 +244,77 @@ function startRun(body: RunRequestBody): void {
   if (currentRun && currentRun.isRunning) {
     throw new Error("A run is already in progress. Wait for it to finish first.");
   }
-  if (loginSession) {
+  if (activeSession?.kind === "login") {
     throw new Error("A login session is open. Close it first (POST /api/login/close).");
   }
 
+  const botKey = body.botName?.trim() || "default";
   const run: RunState = {
     headless: Boolean(body.headless),
     isRunning: true,
     queue: new AsyncQueue<AgentEvent | null>(),
-    frameQueue: new AsyncQueue<string | null>(),
-    controller: null,
-    viewportWidth: 1280,
-    viewportHeight: 800,
     resolveVerification: null
   };
   currentRun = run;
 
   void (async () => {
-    const browser = new BrowserController(defaultBrowserConfig({ headless: run.headless }));
     try {
-      await browser.start();
-      run.controller = browser;
-      const viewport = browser.viewportSize;
-      run.viewportWidth = viewport.width;
-      run.viewportHeight = viewport.height;
-      await browser.startScreencast((frame) => run.frameQueue.push(frame));
-      try {
-        const orchestrator = new AgentOrchestrator({
-          task: body.task,
-          botName: body.botName,
-          expertise: body.expertise,
-          collaborationContext: body.collaborationContext,
-          browser,
-          model: body.model,
-          maxSteps: body.maxSteps,
-          maxDurationSeconds: body.maxDurationSeconds,
-          onEvent: (event) => {
-            const safeEvent = { ...event };
-            if (typeof safeEvent.summary === "string") safeEvent.summary = redactSecrets(safeEvent.summary);
-            run.queue.push(safeEvent);
-            if (body.scheduleId && event.type === "terminal") {
-              const schedule = schedules.find((item) => item.id === body.scheduleId);
-              if (schedule) {
-                schedule.lastResult = redactSecrets(String(event.summary ?? ""));
-                const success = Boolean(event.success);
-                if (schedule.recurrenceMinutes) {
-                  schedule.status = "scheduled";
-                  schedule.nextRunAt = new Date(Date.now() + schedule.recurrenceMinutes * 60_000).toISOString();
-                  armSchedule(schedule);
-                } else {
-                  schedule.status = success ? "completed" : "failed";
-                }
-                void saveSchedules();
-              }
-            }
-          },
-          onHumanVerification: (state) => onHumanVerification(run, state)
-        });
-        await orchestrator.run();
-      } finally {
-        await browser.close();
+      // Reuse the existing browser/page when this message continues the same bot's conversation,
+      // so the agent sees wherever it actually left off instead of a blank tab every message.
+      // Switching to a different bot (or recovering from a crash) starts a fresh session.
+      if (!activeSession || activeSession.kind !== "conversation" || activeSession.botKey !== botKey) {
+        if (activeSession) {
+          await activeSession.controller.close().catch(() => undefined);
+          activeSession = null;
+        }
+        const controller = new BrowserController(defaultBrowserConfig({ headless: run.headless }));
+        await controller.start();
+        const viewport = controller.viewportSize;
+        const session: BrowserSession = {
+          kind: "conversation",
+          botKey,
+          controller,
+          frameQueue: new AsyncQueue<string | null>(),
+          viewportWidth: viewport.width,
+          viewportHeight: viewport.height
+        };
+        await controller.startScreencast((frame) => session.frameQueue.push(frame));
+        activeSession = session;
       }
+      const session = activeSession;
+
+      const orchestrator = new AgentOrchestrator({
+        task: body.task,
+        botName: body.botName,
+        expertise: body.expertise,
+        collaborationContext: body.collaborationContext,
+        browser: session.controller,
+        model: body.model,
+        maxSteps: body.maxSteps,
+        maxDurationSeconds: body.maxDurationSeconds,
+        onEvent: (event) => {
+          const safeEvent = { ...event };
+          if (typeof safeEvent.summary === "string") safeEvent.summary = redactSecrets(safeEvent.summary);
+          run.queue.push(safeEvent);
+          if (body.scheduleId && event.type === "terminal") {
+            const schedule = schedules.find((item) => item.id === body.scheduleId);
+            if (schedule) {
+              schedule.lastResult = redactSecrets(String(event.summary ?? ""));
+              const success = Boolean(event.success);
+              if (schedule.recurrenceMinutes) {
+                schedule.status = "scheduled";
+                schedule.nextRunAt = new Date(Date.now() + schedule.recurrenceMinutes * 60_000).toISOString();
+                armSchedule(schedule);
+              } else {
+                schedule.status = success ? "completed" : "failed";
+              }
+              void saveSchedules();
+            }
+          }
+        },
+        onHumanVerification: (state) => onHumanVerification(run, state)
+      });
+      await orchestrator.run();
     } catch (err) {
       run.queue.push({
         type: "terminal",
@@ -309,57 +324,57 @@ function startRun(body: RunRequestBody): void {
         stepsTaken: 0,
         elapsedSeconds: 0
       });
+      // The session may be in a bad state after an unexpected crash - drop it so the next
+      // message starts clean rather than reusing a possibly-broken browser.
+      if (activeSession) {
+        await activeSession.controller.close().catch(() => undefined);
+        activeSession = null;
+      }
     } finally {
       run.isRunning = false;
-      run.controller = null;
-      run.frameQueue.push(null);
       run.queue.push(null);
     }
   })();
 }
 
-function activeBrowserSession(): {
-  controller: BrowserController;
-  frameQueue: AsyncQueue<string | null>;
-  viewportWidth: number;
-  viewportHeight: number;
-} | null {
-  if (loginSession) return loginSession;
-  if (currentRun?.controller) {
-    return {
-      controller: currentRun.controller,
-      frameQueue: currentRun.frameQueue,
-      viewportWidth: currentRun.viewportWidth,
-      viewportHeight: currentRun.viewportHeight
-    };
-  }
-  return null;
+function activeBrowserSession(): BrowserSession | null {
+  return activeSession;
 }
 
 async function openLoginSession(url: string): Promise<{ viewportWidth: number; viewportHeight: number }> {
-  if (loginSession) {
+  if (activeSession?.kind === "login") {
     throw new Error("A login session is already open.");
   }
   if (currentRun && currentRun.isRunning) {
     throw new Error("A task run is in progress. Wait for it to finish first.");
   }
+  if (activeSession) {
+    // A conversation browser was sitting open between messages. Only one Chromium process can
+    // hold the shared profile at a time, so end that first - its cookies/login state are on
+    // disk already, so nothing is lost except the current page position, which the next message
+    // to that bot will simply re-navigate from.
+    await activeSession.controller.close().catch(() => undefined);
+    activeSession = null;
+  }
   // Always headless under the hood: the embedded live view (CDP screencast) is what renders the
   // page inside the web UI tab, instead of popping a separate OS browser window.
   const controller = new BrowserController(defaultBrowserConfig({ headless: true }));
   const { width, height } = controller.viewportSize;
-  const session: LoginSession = {
+  const session: BrowserSession = {
+    kind: "login",
+    botKey: null,
     controller,
     frameQueue: new AsyncQueue<string | null>(),
     viewportWidth: width,
     viewportHeight: height
   };
-  loginSession = session;
+  activeSession = session;
   try {
     await controller.start();
     await controller.navigate(url);
     await controller.startScreencast((frame) => session.frameQueue.push(frame));
   } catch (err) {
-    loginSession = null;
+    activeSession = null;
     await controller.close().catch(() => undefined);
     throw err;
   }
@@ -367,11 +382,11 @@ async function openLoginSession(url: string): Promise<{ viewportWidth: number; v
 }
 
 async function closeLoginSession(): Promise<boolean> {
-  if (!loginSession) {
+  if (!activeSession || activeSession.kind !== "login") {
     return false;
   }
-  const session = loginSession;
-  loginSession = null;
+  const session = activeSession;
+  activeSession = null;
   session.frameQueue.push(null);
   await session.controller.close();
   return true;
