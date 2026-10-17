@@ -11,9 +11,9 @@ const GPT6_REASONING_EFFORT = "low" as const;
 const ZERO_DELTA_WARNING =
   "Warning: Last action produced zero visual or DOM changes. Choose an alternate element or approach.";
 const MAX_API_RETRIES_DEFAULT = 3;
-/** Tools that can run arbitrary shell commands or mutate files on disk - gated behind explicit
- * per-call approval, and excluded entirely from scheduled/unattended runs (see allowPrivilegedTools). */
-const PRIVILEGED_TOOL_NAMES = new Set(["run_terminal_command", "workspace_file"]);
+/** Local mutation and paid-generation tools excluded from scheduled/unattended runs. */
+const PRIVILEGED_TOOL_NAMES = new Set(["run_terminal_command", "workspace_file", "create_document", "generate_image"]);
+const INTERACTIVE_BROWSER_TOOL_NAMES = new Set(["click_mark", "type_mark", "click_element", "click_coords", "type_text", "key_press"]);
 const MUTATING_WORKSPACE_FILE_ACTIONS = new Set(["write", "append"]);
 
 function requiresPrivilegedApproval(toolName: string, input: Record<string, unknown>): boolean {
@@ -52,6 +52,7 @@ export type OnEvent = (event: AgentEvent) => void;
 export type OnHumanVerification = (state: PageState) => Promise<void> | void;
 /** Returns true to run the command/write, false to deny it. Must default to deny if unset. */
 export type OnTerminalApproval = (details: { toolName: string; description: string }) => Promise<boolean> | boolean;
+export type OnScheduleTask = (input: Record<string, unknown>) => Promise<ToolExecutionResult>;
 
 interface ExtractedToolCall {
   id: string;
@@ -77,9 +78,12 @@ export interface AgentOrchestratorOptions {
   onEvent?: OnEvent;
   onHumanVerification?: OnHumanVerification;
   onTerminalApproval?: OnTerminalApproval;
-  /** Set false for scheduled/unattended runs: removes run_terminal_command and workspace_file
-   * write/append from the model's tool list entirely, since nobody is present to approve them. */
+  onScheduleTask?: OnScheduleTask;
+  scheduleTimeZone?: string;
+  /** Set false for scheduled/unattended runs: removes local writes and paid image generation. */
   allowPrivilegedTools?: boolean;
+  /** Set false for unattended tasks so they can inspect pages but cannot click or type. */
+  allowBrowserInteraction?: boolean;
 }
 
 type ChatMessage =
@@ -146,6 +150,9 @@ export class AgentOrchestrator {
   private readonly onHumanVerification?: OnHumanVerification;
   private readonly onTerminalApproval?: OnTerminalApproval;
   private readonly allowPrivilegedTools: boolean;
+  private readonly onScheduleTask?: OnScheduleTask;
+  private readonly scheduleTimeZone: string;
+  private readonly allowBrowserInteraction: boolean;
   private readonly toolsForModel: OpenAI.Chat.Completions.ChatCompletionTool[];
   private readonly loopGuard: LoopGuard;
   private readonly messages: ChatMessage[] = [];
@@ -203,9 +210,15 @@ export class AgentOrchestrator {
     this.onHumanVerification = options.onHumanVerification;
     this.onTerminalApproval = options.onTerminalApproval;
     this.allowPrivilegedTools = options.allowPrivilegedTools ?? true;
-    this.toolsForModel = this.allowPrivilegedTools
-      ? TOOLS
-      : TOOLS.filter((tool) => tool.type !== "function" || !PRIVILEGED_TOOL_NAMES.has(tool.function.name));
+    this.onScheduleTask = options.onScheduleTask;
+    this.scheduleTimeZone = options.scheduleTimeZone || "UTC";
+    this.allowBrowserInteraction = options.allowBrowserInteraction ?? true;
+    this.toolsForModel = TOOLS.filter((tool) => {
+      if (tool.type !== "function") return true;
+      if (!this.allowPrivilegedTools && PRIVILEGED_TOOL_NAMES.has(tool.function.name)) return false;
+      if (!this.allowBrowserInteraction && INTERACTIVE_BROWSER_TOOL_NAMES.has(tool.function.name)) return false;
+      return true;
+    });
     this.loopGuard = new LoopGuard(options.maxSteps ?? 25, options.maxDurationSeconds ?? 900.0);
     this.systemPrompt = this.buildSystemPrompt();
   }
@@ -214,6 +227,7 @@ export class AgentOrchestrator {
     return (
       `You are ${this.botName}. Role & Purpose: ${this.expertise}.\n` +
       "You are the user's personal agent and close friend/co-builder in Open Bots, running locally behind their browser (no cloud sandbox required).\n" +
+      "SCHEDULING: You can create real persistent one-time or daily tasks with schedule_task. User's local timezone is " + this.scheduleTimeZone + ". When asked to schedule, call schedule_task with an explicit timezone and exact local time. Schedules execute while this local app server is running (the browser tab itself need not stay open). Unattended tasks are read-only: research, monitor, summarize, and draft suggestions only. Never perform likes, follows, comments, posts, messages, purchases, or other external side effects from a schedule; ask the user to approve specific actions interactively. Recurring model runs may consume paid API tokens: if the user has not explicitly approved that recurring usage, ask before creating the recurrence and set costApproved only after they say yes.\n" +
       "VOICE & TEXTING STYLE (CRITICAL — READ CAREFULLY):\n" +
       "- Text the user back the way a smart, warm, trusted friend texts in iMessage or Grok: casual, direct, human, and specific.\n" +
       "- NEVER use stiff corporate filler like 'To [do X], we can implement several strategies:', 'Certainly!', 'Here are some strategies:', or 'In conclusion'.\n" +
@@ -755,6 +769,22 @@ export class AgentOrchestrator {
               handoffNote
             }
           });
+        }
+
+        if (toolCall.name === "schedule_task") {
+          const result = this.onScheduleTask
+            ? await this.onScheduleTask(toolCall.input)
+            : { ok: false, message: "Scheduling is unavailable in this app instance." };
+          pendingToolOutputs.push({ id: toolCall.id, result });
+          this.emit({
+            type: "step",
+            step,
+            toolName: "schedule_task",
+            toolInput: toolCall.input,
+            ok: result.ok,
+            message: result.message.slice(0, 180)
+          });
+          continue;
         }
 
         if (toolCall.name === "finish_task") {

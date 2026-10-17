@@ -88,3 +88,55 @@ test("model errors are surfaced instead of silently becoming local heuristic ans
   assert.doesNotMatch(result.summary, /test-key/);
   assert.doesNotMatch(result.summary, /Local Research Results/);
 });
+
+test("daily scheduling tool creates a schedule and unattended tools are read-only", { concurrency: false }, async () => {
+  const requestBodies: Array<Record<string, any>> = [];
+  let scheduledInput: Record<string, unknown> | null = null;
+  const mockFetch: typeof fetch = async (_input, init) => {
+    requestBodies.push(JSON.parse(String(init?.body)));
+    const response = requestBodies.length === 1
+      ? makeResponsesPayload([{
+          id: "fc_schedule",
+          type: "function_call",
+          status: "completed",
+          call_id: "schedule_call",
+          name: "schedule_task",
+          arguments: JSON.stringify({ task: "Review recent public posts and prepare a report", scheduleType: "daily", localTime: "15:00", timeZone: "America/Los_Angeles", costApproved: true })
+        }], "resp_schedule")
+      : makeResponsesPayload([{
+          id: "msg_schedule",
+          type: "message",
+          status: "completed",
+          role: "assistant",
+          content: [{ type: "output_text", text: "Done — I set up the daily read-only review for 3:00 p.m. Pacific." }]
+        }], "resp_done");
+    return new Response(JSON.stringify(response), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const agent = new AgentOrchestrator({
+    task: "Run this every day at 3pm Pacific.",
+    model: "gpt-6-luna",
+    apiKey: "test-key-not-a-secret",
+    fetch: mockFetch,
+    browser: {} as BrowserController,
+    maxApiRetries: 1,
+    allowPrivilegedTools: false,
+    allowBrowserInteraction: false,
+    scheduleTimeZone: "America/Los_Angeles",
+    onScheduleTask: async (input) => {
+      scheduledInput = input;
+      return { ok: true, message: "Scheduled daily at 15:00 America/Los_Angeles." };
+    }
+  });
+  const result = await agent.run();
+  assert.equal(result.success, true, result.summary);
+  assert.equal((scheduledInput as Record<string, unknown> | null)?.scheduleType, "daily");
+  assert.match(requestBodies[0].instructions, /persistent one-time or daily tasks/);
+  assert.match(requestBodies[0].instructions, /America\/Los_Angeles/);
+  const functionNames = requestBodies[0].tools.map((tool: any) => tool.name || tool.function?.name);
+  assert.ok(functionNames.includes("schedule_task"));
+  assert.ok(!functionNames.includes("click_element"));
+  assert.ok(!functionNames.includes("type_text"));
+  assert.ok(!functionNames.includes("run_terminal_command"));
+  assert.ok(!functionNames.includes("create_document"));
+  assert.ok(!functionNames.includes("generate_image"));
+});

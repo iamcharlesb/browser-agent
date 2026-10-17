@@ -338,6 +338,26 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "schedule_task",
+      description:
+        "Create a one-time or recurring daily task in the app's persistent local scheduler. Use only for safe read-only research, monitoring, or preparation. Scheduled tasks must not post, like, follow, send messages, purchase, or otherwise cause external side effects. For a recurrence, first ask the user to approve possible recurring model-token charges; only then set costApproved=true.",
+      parameters: {
+        type: "object",
+        properties: {
+          task: { type: "string", description: "A concrete read-only task to run unattended." },
+          scheduleType: { type: "string", enum: ["once", "daily"] },
+          runAt: { type: "string", description: "ISO timestamp for a one-time run, including timezone offset." },
+          localTime: { type: "string", description: "Local 24-hour time HH:mm for a daily schedule." },
+          timeZone: { type: "string", description: "IANA timezone, e.g. America/Los_Angeles." },
+          costApproved: { type: "boolean", description: "True only after the user explicitly agrees to the recurring model-token usage." }
+        },
+        required: ["task", "scheduleType"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "finish_task",
       description:
         "Complete the task and text the user back like a close, sharp friend — casual, warm, direct, and human (1–3 short conversational paragraphs separated by blank lines; avoid robotic preambles or textbook bullet-point essays).",

@@ -996,7 +996,18 @@ button { color: inherit; }
   font-size: 13px;
   line-height: 1.4;
   animation: presenceAppear 180ms ease-out both;
+  position: relative;
 }
+.run-presence-label {
+  color: transparent;
+  background: linear-gradient(100deg, var(--text-secondary) 0%, #a8b0bd 38%, #202938 50%, #a8b0bd 62%, var(--text-secondary) 100%);
+  background-size: 240% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: thinkingSweep 2.2s ease-in-out infinite;
+}
+@keyframes thinkingSweep { from { background-position: 100% 0; } to { background-position: -140% 0; } }
+@media (prefers-reduced-motion: reduce) { .run-presence-label { animation: none; color: var(--text-secondary); background: none; } }
 .run-presence .agent-avatar {
   width: 26px;
   height: 26px;
@@ -2570,14 +2581,31 @@ dialog.modal-dialog::backdrop {
         <label for="sched-task">Task instruction</label>
         <textarea id="sched-task" rows="2" required placeholder="e.g. Check current follower count and top performing post"></textarea>
       </div>
-      <div class="form-field">
+      <div class="form-field" id="sched-first-run-field">
         <label for="sched-when">First run date &amp; time</label>
         <input id="sched-when" type="datetime-local" required />
       </div>
       <div class="form-field">
-        <label for="sched-repeat">Repeat interval (minutes, optional — min 5)</label>
-        <input id="sched-repeat" type="number" min="5" placeholder="Leave blank for one-time run" />
+        <label for="sched-repeat-type">Repeat</label>
+        <select id="sched-repeat-type">
+          <option value="once">Just once</option>
+          <option value="daily">Every day</option>
+          <option value="interval">At an interval</option>
+        </select>
       </div>
+      <div class="form-field" id="sched-daily-fields" hidden>
+        <label for="sched-daily-time">Daily time (your local timezone)</label>
+        <input id="sched-daily-time" type="time" value="15:00" />
+        <small id="sched-timezone-label" style="color:var(--muted)"></small>
+      </div>
+      <div class="form-field" id="sched-interval-field" hidden>
+        <label for="sched-repeat">Repeat interval (minutes, min 5)</label>
+        <input id="sched-repeat" type="number" min="5" placeholder="e.g. 60" />
+      </div>
+      <label id="sched-cost-approval" class="form-field" style="display:none;flex-direction:row;align-items:flex-start;gap:8px;">
+        <input id="sched-cost-approved" type="checkbox" style="margin-top:2px;" />
+        <span> I approve recurring model runs, which may use paid API tokens.</span>
+      </label>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" data-close-modal="schedule-modal">Cancel</button>
         <button type="submit" class="btn-primary">Create Schedule</button>
@@ -3660,10 +3688,10 @@ dialog.modal-dialog::backdrop {
     runningAgentName = agent && agent.name || "Bot";
     sendButton.disabled = true;
     setStatusState("running", "Thinking");
-    status.textContent = "Agent is thinking it through…";
+    status.textContent = "Thinking…";
     stepCounter.textContent = "";
     liveStepFeedBubble = null;
-    setRunPresence("Thinking it through");
+    setRunPresence("Thinking");
 
     var rosterContext = buildWorkspaceBotsContext(agent);
     var historyContext = buildConversationHistory(agent);
@@ -3679,6 +3707,7 @@ dialog.modal-dialog::backdrop {
         botName: agent && agent.name,
         expertise: agent && agent.intent && agent.intent.expertise,
         initialUrl: initialUrl,
+        scheduleTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
         collaborationContext: combinedContext,
         approvedCategories: approvedCategories || [],
         autoApprove: autoApproveEnabled,
@@ -3859,50 +3888,21 @@ dialog.modal-dialog::backdrop {
         browserScreen.src = "data:image/jpeg;base64," + e.screenshotB64;
         browserPlaceholder.style.display = "none";
       }
-      var stepText = e.message || e.toolName || "working";
-      status.textContent = "Step " + e.step + ": " + stepText;
-      setRunPresence(stepText);
-      stepCounter.textContent = "Step " + e.step;
-      var artifactIsImage = e.artifactUrl && /\.(png|jpe?g|webp|gif)$/i.test(e.artifactUrl);
-      var artifactLink = e.artifactUrl
-        ? (artifactIsImage
-            ? '<div style="margin-top:6px;"><a href="' + esc(e.artifactUrl) + '" target="_blank" rel="noopener">' +
-              '<img src="' + esc(e.artifactUrl) + '" alt="Generated image" style="max-width:260px;max-height:260px;border-radius:8px;border:1px solid var(--border);display:block;"></a></div>'
-            : ' <a href="' + esc(e.artifactUrl) + '" download style="color:var(--blue);font-weight:600;margin-left:6px;">Download file</a>')
-        : "";
-      var stepRowHtml =
-        '<div class="step-item"><span class="step-badge">Step ' + esc(e.step) + "</span><span>" + esc(stepText) + artifactLink + "</span></div>";
-      if (!liveStepFeedBubble) {
-        liveStepFeedBubble = appendMessage(
-          "agent",
-          '<details class="step-details">' +
-            '<summary title="Click to expand or collapse step details">' +
-              '<span class="step-summary-left">' +
-                '<span class="step-badge step-count-badge">1 step</span>' +
-                '<span class="step-summary-latest">' + esc(stepText) + "</span>" +
-              "</span>" +
-              '<span class="step-chevron">▸</span>' +
-            "</summary>" +
-            '<div class="step-items-list">' + stepRowHtml + "</div>" +
-          "</details>",
-          "step-feed",
-          false
-        );
-      } else {
-        var listEl = liveStepFeedBubble.querySelector(".step-items-list");
-        if (listEl) {
-          var item = document.createElement("div");
-          item.className = "step-item";
-          item.innerHTML = '<span class="step-badge">Step ' + esc(e.step) + "</span><span>" + esc(stepText) + artifactLink + "</span>";
-          listEl.appendChild(item);
-          var count = listEl.querySelectorAll(".step-item").length;
-          var countBadge = liveStepFeedBubble.querySelector(".step-count-badge");
-          var latestSpan = liveStepFeedBubble.querySelector(".step-summary-latest");
-          if (countBadge) countBadge.textContent = count + (count === 1 ? " step" : " steps");
-          if (latestSpan) latestSpan.textContent = stepText;
-        }
-        messages.scrollTop = messages.scrollHeight;
-      }
+      var tool = String(e.toolName || "");
+      var stepText = e.message || "";
+      var activity = tool === "web_search" ? "Searching the web"
+        : tool === "navigate" ? "Opening a page"
+        : tool === "extract_page_data" ? "Reading the page"
+        : tool === "run_terminal_command" ? "Working in the terminal"
+        : tool === "schedule_task" ? "Setting up your schedule"
+        : tool === "delegate_to_bot" ? "Checking with a specialist"
+        : tool === "understand_youtube_video" ? "Understanding the video"
+        : tool === "calculate" ? "Working through the numbers"
+        : tool === "create_document" ? "Preparing your document"
+        : (stepText && !/^(clicked|typed|waited|scrolled|navigated)\b/i.test(stepText) ? stepText : "Thinking");
+      status.textContent = activity;
+      setRunPresence(activity);
+      stepCounter.textContent = "";
       return;
     }
     if (e.type === "human_verification") {
@@ -3991,9 +3991,7 @@ dialog.modal-dialog::backdrop {
       runningAgentName = "";
       sendButton.disabled = false;
       setStatusState("ready", "Ready");
-      status.textContent = e.success
-        ? (isDirectReply ? "Answered directly" : "Completed in " + (e.stepsTaken || 0) + " step(s)")
-        : "Ready for your next instruction";
+      status.textContent = e.success ? (isDirectReply ? "Answered directly" : "Done") : "Ready for your next instruction";
       stepCounter.textContent = "";
       liveStepFeedBubble = null;
       if (runEvents) {
@@ -4253,9 +4251,29 @@ dialog.modal-dialog::backdrop {
     var defaultTime = new Date(Date.now() + 3600000);
     defaultTime.setMinutes(defaultTime.getMinutes() - defaultTime.getTimezoneOffset());
     whenInput.value = defaultTime.toISOString().slice(0, 16);
+    document.getElementById("sched-repeat-type").value = "once";
+    document.getElementById("sched-cost-approved").checked = false;
+    document.getElementById("sched-cost-approved").required = false;
+    document.getElementById("sched-repeat").required = false;
+    document.getElementById("sched-daily-fields").hidden = true;
+    document.getElementById("sched-first-run-field").hidden = false;
+    document.getElementById("sched-interval-field").hidden = true;
+    document.getElementById("sched-cost-approval").style.display = "none";
+    var timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    document.getElementById("sched-timezone-label").textContent = "Timezone: " + timezone;
     loadSchedulesList();
     modal.showModal();
   }
+
+  document.getElementById("sched-repeat-type").addEventListener("change", function() {
+    document.getElementById("sched-daily-fields").hidden = this.value !== "daily";
+    document.getElementById("sched-interval-field").hidden = this.value !== "interval";
+    document.getElementById("sched-first-run-field").hidden = this.value === "daily";
+    var recurring = this.value !== "once";
+    document.getElementById("sched-cost-approval").style.display = recurring ? "flex" : "none";
+    document.getElementById("sched-cost-approved").required = recurring;
+    document.getElementById("sched-repeat").required = this.value === "interval";
+  });
 
   function loadSchedulesList() {
     var container = document.getElementById("schedule-list");
@@ -4276,7 +4294,7 @@ dialog.modal-dialog::backdrop {
             : "";
           row.innerHTML =
             '<div><strong>' + esc(item.botName) + '</strong>: ' + esc(item.task.slice(0, 60)) +
-            '<br><span style="color:var(--muted);font-size:11px;">Next: ' + esc(new Date(item.nextRunAt).toLocaleString()) + ' (' + esc(item.status) + ')</span>' +
+            '<br><span style="color:var(--muted);font-size:11px;">Next: ' + esc(new Date(item.nextRunAt).toLocaleString()) + (item.recurrenceType === "daily" ? ' · daily at ' + esc(item.localTime) + ' ' + esc(item.timeZone) : '') + ' (' + esc(item.status) + ')</span>' +
             summaryHtml + '</div>' +
             '<button type="button" class="btn-secondary" style="padding:4px 8px;font-size:11px;">Delete</button>';
           row.querySelector("button").onclick = function() {
@@ -4295,6 +4313,18 @@ dialog.modal-dialog::backdrop {
     var task = document.getElementById("sched-task").value.trim();
     var whenVal = document.getElementById("sched-when").value;
     var repeatVal = document.getElementById("sched-repeat").value.trim();
+    var repeatType = document.getElementById("sched-repeat-type").value;
+    var timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    var localTime = document.getElementById("sched-daily-time").value || "15:00";
+    if (repeatType === "interval" && !repeatVal) {
+      status.textContent = "Enter the interval in minutes.";
+      return;
+    }
+    var costApproved = repeatType === "once" || document.getElementById("sched-cost-approved").checked;
+    if (!costApproved) {
+      status.textContent = "Please confirm recurring model usage before scheduling.";
+      return;
+    }
     if (!task || !whenVal) return;
     fetch("/api/schedules", {
       method: "POST",
@@ -4304,7 +4334,11 @@ dialog.modal-dialog::backdrop {
         expertise: agent.intent && agent.intent.expertise,
         task: task + attachmentContext(),
         runAt: new Date(whenVal).toISOString(),
-        recurrenceMinutes: repeatVal ? Number(repeatVal) : null
+        recurrenceMinutes: repeatType === "interval" && repeatVal ? Number(repeatVal) : null,
+        scheduleType: repeatType,
+        timeZone: timeZone,
+        localTime: localTime,
+        costApproved: costApproved
       })
     })
       .then(readResponse)
@@ -4314,7 +4348,7 @@ dialog.modal-dialog::backdrop {
           appendMessage(
             "agent",
             "Scheduled task for <strong>" + esc(new Date(body.schedule.nextRunAt).toLocaleString()) + "</strong>" +
-            (body.schedule.recurrenceMinutes ? " (repeating every " + body.schedule.recurrenceMinutes + " mins)." : ".")
+            (body.schedule.recurrenceType === "daily" ? " · every day at " + esc(body.schedule.localTime) + " " + esc(body.schedule.timeZone) + "." : body.schedule.recurrenceMinutes ? " (repeating every " + body.schedule.recurrenceMinutes + " mins)." : ".")
           );
         } else {
           status.textContent = "Task scheduled for " + new Date(body.schedule.nextRunAt).toLocaleString();
