@@ -44,8 +44,13 @@ button { color: inherit; }
 #app {
   height: 100vh;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width, 280px) minmax(0, 1fr);
   transition: grid-template-columns 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#app.is-resizing,
+#app.is-resizing #workspace {
+  transition: none !important;
+  user-select: none;
 }
 #app.sidebar-collapsed {
   grid-template-columns: 68px minmax(0, 1fr);
@@ -102,6 +107,7 @@ button { color: inherit; }
 
 /* Sidebar */
 #sidebar {
+  position: relative;
   min-width: 0;
   background: var(--sidebar);
   border-right: 1px solid var(--border);
@@ -647,36 +653,101 @@ button { color: inherit; }
 }
 .header-pill-btn svg { width: 15px; height: 15px; }
 
-/* Workspace Split */
+/* Workspace Split & Draggable Panel Resizers */
 #workspace {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(340px, 0.82fr) minmax(480px, 1.18fr);
+  grid-template-columns: 1fr;
   transition: grid-template-columns 0.2s ease;
+}
+#workspace.has-browser {
+  grid-template-columns: var(--chat-width, 46%) minmax(240px, 1fr);
 }
 #workspace.empty {
   grid-template-columns: 1fr;
 }
-#workspace.chat-collapsed {
+#workspace.has-browser.chat-collapsed {
   grid-template-columns: 0px 1fr;
 }
-#workspace.chat-collapsed #conversation {
+#workspace.has-browser.chat-collapsed #conversation {
   overflow: hidden;
   border-right: 0;
   opacity: 0;
   pointer-events: none;
 }
 #conversation {
+  position: relative;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border);
+  border-right: 0;
   overflow-anchor: none;
+}
+#workspace.has-browser #conversation {
+  border-right: 1px solid var(--border);
 }
 #workspace.empty #conversation {
   border-right: 0;
+}
+
+.panel-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  cursor: col-resize;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  user-select: none;
+}
+.panel-resizer::before {
+  content: "";
+  width: 2px;
+  height: 100%;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+.panel-resizer::after {
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 36px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.28);
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.panel-resizer:hover::before,
+.panel-resizer.dragging::before {
+  background: rgba(22, 119, 255, 0.45);
+}
+.panel-resizer:hover::after,
+.panel-resizer.dragging::after {
+  opacity: 1;
+  background: var(--blue);
+  transform: scaleY(1.12);
+}
+#sidebar-resizer {
+  right: -5px;
+}
+#workspace-resizer {
+  left: -5px;
+}
+#workspace.has-browser.chat-collapsed #workspace-resizer {
+  left: 0;
+}
+#right-edge-resizer {
+  right: 0;
+  width: 8px;
+}
+#workspace.has-browser #right-edge-resizer {
+  display: none;
 }
 
 /* Welcome Screen */
@@ -1760,6 +1831,7 @@ dialog.modal-dialog::backdrop {
         <span id="connect-pill-label" class="connect-label">Gmail · Persistent</span>
       </button>
     </div>
+    <div id="sidebar-resizer" class="panel-resizer" role="separator" aria-orientation="vertical" aria-label="Drag to resize or expand/collapse sidebar (double-click to toggle)" title="Drag to resize sidebar (double-click to toggle)"></div>
   </aside>
 
   <main id="main">
@@ -1874,9 +1946,11 @@ dialog.modal-dialog::backdrop {
             <span id="step-counter"></span>
           </div>
         </div>
+        <div id="right-edge-resizer" class="panel-resizer" role="separator" aria-orientation="vertical" aria-label="Drag left to open and resize Browser / Terminal panel" title="Drag left to open Browser / Terminal panel"></div>
       </section>
 
       <section id="browser-panel" aria-label="Local Browser and Terminal">
+        <div id="workspace-resizer" class="panel-resizer" role="separator" aria-orientation="vertical" aria-label="Drag to resize chat and browser/terminal panels (double-click to reset)" title="Drag to adjust panel width (double-click to reset 50/50)"></div>
         <button id="browser-restore-chrome" type="button" title="Show browser URL bar">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>
           <span>URL Bar</span>
@@ -3572,12 +3646,151 @@ dialog.modal-dialog::backdrop {
     document.getElementById("toggle-sidebar-btn").classList.toggle("active", !collapsed);
   }
 
+  // Restore saved custom panel widths while keeping panels collapsed by default on load
+  var savedSidebarWidth = localStorage.getItem("openBotsSidebarWidth");
+  if (savedSidebarWidth) {
+    appEl.style.setProperty("--sidebar-width", savedSidebarWidth);
+  }
+  var savedChatWidth = localStorage.getItem("openBotsChatWidth");
+  if (savedChatWidth) {
+    workspace.style.setProperty("--chat-width", savedChatWidth);
+  }
+
   // Always start with both the left sidebar and right Browser/Terminal panel collapsed
   appEl.classList.add("sidebar-collapsed");
   workspace.classList.remove("has-browser");
 
   document.getElementById("toggle-sidebar-btn").onclick = toggleSidebar;
   document.getElementById("sidebar-collapse-btn").onclick = toggleSidebar;
+
+  // Draggable Resizer: Left Sidebar (#sidebar-resizer)
+  var sidebarResizer = document.getElementById("sidebar-resizer");
+  if (sidebarResizer) {
+    sidebarResizer.addEventListener("pointerdown", function(e) {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      sidebarResizer.setPointerCapture(e.pointerId);
+      sidebarResizer.classList.add("dragging");
+      appEl.classList.add("is-resizing");
+
+      function onMove(ev) {
+        var x = ev.clientX;
+        if (x < 115) {
+          appEl.classList.add("sidebar-collapsed");
+          document.getElementById("toggle-sidebar-btn").classList.remove("active");
+        } else {
+          appEl.classList.remove("sidebar-collapsed");
+          document.getElementById("toggle-sidebar-btn").classList.add("active");
+          var maxW = Math.min(520, Math.floor(window.innerWidth * 0.45));
+          var clamped = Math.max(190, Math.min(maxW, Math.round(x)));
+          appEl.style.setProperty("--sidebar-width", clamped + "px");
+          localStorage.setItem("openBotsSidebarWidth", clamped + "px");
+        }
+      }
+
+      function onUp(ev) {
+        sidebarResizer.releasePointerCapture(ev.pointerId);
+        sidebarResizer.classList.remove("dragging");
+        appEl.classList.remove("is-resizing");
+        sidebarResizer.removeEventListener("pointermove", onMove);
+        sidebarResizer.removeEventListener("pointerup", onUp);
+        sidebarResizer.removeEventListener("pointercancel", onUp);
+      }
+
+      sidebarResizer.addEventListener("pointermove", onMove);
+      sidebarResizer.addEventListener("pointerup", onUp);
+      sidebarResizer.addEventListener("pointercancel", onUp);
+    });
+
+    sidebarResizer.addEventListener("dblclick", function() {
+      appEl.style.setProperty("--sidebar-width", "280px");
+      localStorage.setItem("openBotsSidebarWidth", "280px");
+      toggleSidebar();
+    });
+  }
+
+  // Draggable Resizer: Center Split (#workspace-resizer) & Right Edge Pull (#right-edge-resizer)
+  var workspaceResizer = document.getElementById("workspace-resizer");
+  var rightEdgeResizer = document.getElementById("right-edge-resizer");
+
+  function attachWorkspaceDrag(handleEl, openOnDragStart) {
+    if (!handleEl) return;
+    handleEl.addEventListener("pointerdown", function(e) {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      handleEl.setPointerCapture(e.pointerId);
+      handleEl.classList.add("dragging");
+      appEl.classList.add("is-resizing");
+
+      if (openOnDragStart && !workspace.classList.contains("has-browser")) {
+        workspace.classList.remove("empty");
+        workspace.classList.add("has-browser");
+        var isTerm = browserPanel.classList.contains("terminal-mode");
+        toggleBrowserBtn.classList.toggle("active", !isTerm);
+        if (toggleTerminalBtn) toggleTerminalBtn.classList.toggle("active", isTerm);
+      }
+
+      function onMove(ev) {
+        var rect = workspace.getBoundingClientRect();
+        if (!rect.width) return;
+        var relX = ev.clientX - rect.left;
+
+        if (relX < 110) {
+          // Dragged all the way left -> maximize Browser/Terminal panel
+          workspace.classList.add("chat-collapsed");
+          document.getElementById("browser-expand-btn").classList.add("active");
+        } else if (relX > rect.width - 110) {
+          // Dragged all the way right -> collapse Browser/Terminal panel
+          workspace.classList.remove("has-browser");
+          workspace.classList.remove("chat-collapsed");
+          document.getElementById("browser-expand-btn").classList.remove("active");
+          toggleBrowserBtn.classList.remove("active");
+          if (toggleTerminalBtn) toggleTerminalBtn.classList.remove("active");
+          if (!activeAgentId) workspace.classList.add("empty");
+        } else {
+          if (!workspace.classList.contains("has-browser")) {
+            workspace.classList.remove("empty");
+            workspace.classList.add("has-browser");
+            var isTermMode = browserPanel.classList.contains("terminal-mode");
+            toggleBrowserBtn.classList.toggle("active", !isTermMode);
+            if (toggleTerminalBtn) toggleTerminalBtn.classList.toggle("active", isTermMode);
+          }
+          workspace.classList.remove("chat-collapsed");
+          document.getElementById("browser-expand-btn").classList.remove("active");
+          var pct = (relX / rect.width) * 100;
+          var clampedPct = Math.max(20, Math.min(78, pct));
+          var val = clampedPct.toFixed(1) + "%";
+          workspace.style.setProperty("--chat-width", val);
+          localStorage.setItem("openBotsChatWidth", val);
+        }
+      }
+
+      function onUp(ev) {
+        handleEl.releasePointerCapture(ev.pointerId);
+        handleEl.classList.remove("dragging");
+        appEl.classList.remove("is-resizing");
+        handleEl.removeEventListener("pointermove", onMove);
+        handleEl.removeEventListener("pointerup", onUp);
+        handleEl.removeEventListener("pointercancel", onUp);
+      }
+
+      handleEl.addEventListener("pointermove", onMove);
+      handleEl.addEventListener("pointerup", onUp);
+      handleEl.addEventListener("pointercancel", onUp);
+    });
+  }
+
+  attachWorkspaceDrag(workspaceResizer, false);
+  attachWorkspaceDrag(rightEdgeResizer, true);
+
+  if (workspaceResizer) {
+    workspaceResizer.addEventListener("dblclick", function() {
+      workspace.classList.remove("chat-collapsed");
+      document.getElementById("browser-expand-btn").classList.remove("active");
+      workspace.style.setProperty("--chat-width", "46%");
+      localStorage.setItem("openBotsChatWidth", "46%");
+    });
+  }
 
   document.getElementById("sidebar-search-toggle").onclick = function() {
     var wrap = document.getElementById("sidebar-search-wrap");
