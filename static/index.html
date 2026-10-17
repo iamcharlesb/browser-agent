@@ -1723,7 +1723,7 @@ dialog.modal-dialog::backdrop {
 </style>
 </head>
 <body>
-<div id="app">
+<div id="app" class="sidebar-collapsed">
   <aside id="sidebar">
     <div class="sidebar-header">
       <div class="brand-lockup" title="Open Bots">
@@ -2486,6 +2486,7 @@ dialog.modal-dialog::backdrop {
     if (!a.intent) a.intent = inferredIntent(a.name, a.description || a.summary);
     activeAgentId = id;
     workspace.classList.remove("empty");
+    appEl.classList.add("sidebar-collapsed");
     welcome.hidden = true;
     messages.hidden = false;
     var roleLabel = a.description || a.summary || (a.intent.expertise ? a.intent.expertise.split(",")[0] : "Autonomous Specialist");
@@ -3016,7 +3017,7 @@ dialog.modal-dialog::backdrop {
 
   function handleRunEvent(e) {
     if (e.type === "observe") {
-      showBrowser();
+      // Keep the browser panel collapsed unless the user explicitly opened it!
       if (!browserFrames) connectBrowserFrames(true);
       if (e.url) browserAddress.value = e.url;
       if (e.screenshotB64) {
@@ -3033,7 +3034,7 @@ dialog.modal-dialog::backdrop {
         browserAddress.value = e.url;
       }
       if (e.screenshotB64) {
-        showBrowser();
+        // Update background frame silently without forcing the right panel open
         if (!browserFrames) connectBrowserFrames(true);
         browserScreen.src = "data:image/jpeg;base64," + e.screenshotB64;
         browserPlaceholder.style.display = "none";
@@ -3080,15 +3081,21 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "human_verification") {
-      showBrowser();
       status.textContent = "Action required: sign in or verify in the live browser.";
       setStatusState("running", "Waiting for Sign-In");
       var bubble = appendMessage(
         "agent",
-        "<strong>Sign-in or verification needed.</strong> Please sign in or solve the challenge directly in the live browser panel on the right, then click below to continue." +
+        "<strong>Sign-in or verification needed.</strong> Click <em>Open Live Browser</em> below (or the browser icon in the header) to sign in, then click resume." +
         screenshotHtml(e.screenshotB64) +
-        '<br><button type="button" class="resume-button">I’ve signed in — resume agent</button>'
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">' +
+          '<button type="button" class="btn-secondary open-verify-browser-btn" style="padding:6px 12px;font-size:12px;">Open Live Browser</button>' +
+          '<button type="button" class="resume-button" style="margin-top:0;">I’ve signed in — resume agent</button>' +
+        "</div>"
       );
+      var openBtn = bubble.querySelector(".open-verify-browser-btn");
+      if (openBtn) {
+        openBtn.onclick = function() { showBrowser(); };
+      }
       bubble.querySelector(".resume-button").onclick = function(ev) {
         ev.target.disabled = true;
         ev.target.textContent = "Resuming…";
@@ -3562,14 +3569,12 @@ dialog.modal-dialog::backdrop {
 
   function toggleSidebar() {
     var collapsed = appEl.classList.toggle("sidebar-collapsed");
-    document.getElementById("toggle-sidebar-btn").classList.toggle("active", collapsed);
-    localStorage.setItem("agentFireworksSidebarCollapsed", collapsed ? "1" : "0");
+    document.getElementById("toggle-sidebar-btn").classList.toggle("active", !collapsed);
   }
 
-  if (localStorage.getItem("agentFireworksSidebarCollapsed") === "1") {
-    appEl.classList.add("sidebar-collapsed");
-    document.getElementById("toggle-sidebar-btn").classList.add("active");
-  }
+  // Always start with both the left sidebar and right Browser/Terminal panel collapsed
+  appEl.classList.add("sidebar-collapsed");
+  workspace.classList.remove("has-browser");
 
   document.getElementById("toggle-sidebar-btn").onclick = toggleSidebar;
   document.getElementById("sidebar-collapse-btn").onclick = toggleSidebar;
