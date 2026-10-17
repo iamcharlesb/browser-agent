@@ -284,12 +284,43 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
-      name: "finish_task",
-      description: "Complete the task and return a clear, well-structured Markdown answer to the user.",
+      name: "delegate_to_bot",
+      description:
+        "Hand off or delegate a task to another bot in the user's Open Bots workspace (listed in OPEN BOTS WORKSPACE ROSTER). Use when the user asks another specialist bot to handle a job or when a peer bot is better suited for the next step.",
       parameters: {
         type: "object",
         properties: {
-          summary: { type: "string", description: "Final answer or summary (supports Markdown)." }
+          targetBotName: {
+            type: "string",
+            description: "Exact name of the peer bot from OPEN BOTS WORKSPACE ROSTER (or a new specialist bot name)."
+          },
+          task: {
+            type: "string",
+            description: "The specific task or question for the target bot to execute."
+          },
+          handoffNote: {
+            type: "string",
+            description: "Brief context or findings from your work to pass along to the target bot."
+          }
+        },
+        required: ["targetBotName", "task"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "finish_task",
+      description:
+        "Complete the task and text the user back like a close, sharp friend — casual, warm, direct, and human (1–3 short conversational paragraphs separated by blank lines; avoid robotic preambles or textbook bullet-point essays).",
+      parameters: {
+        type: "object",
+        properties: {
+          summary: {
+            type: "string",
+            description:
+              "Your conversational reply to the user, written like a smart friend texting back (short, natural paragraphs; no corporate filler)."
+          }
         },
         required: ["summary"]
       }
@@ -343,6 +374,20 @@ export function clearTerminalHistory(): void {
   terminalHistory.length = 0;
 }
 
+/** Env var name fragments that indicate a secret. Matched case-insensitively against each key. */
+const SECRET_ENV_KEY_PATTERN = /(API[_-]?KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|PRIVATE[_-]?KEY|ACCESS[_-]?KEY)/i;
+
+/** Strips anything that looks like a secret out of the environment handed to a spawned shell
+ * command, so a command can't read or exfiltrate e.g. OPENAI_API_KEY via `env` or similar. */
+function sanitizedTerminalEnv(): NodeJS.ProcessEnv {
+  const sanitized: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (SECRET_ENV_KEY_PATTERN.test(key)) continue;
+    sanitized[key] = value;
+  }
+  return sanitized;
+}
+
 const BLOCKED_TERMINAL_PATTERNS = [
   /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f?\s+\/(?:\s|$)/i,
   /\b(?:mkfs|shutdown|reboot|halt|poweroff)\b/i,
@@ -374,7 +419,7 @@ export async function runTerminalCommand(
         cwd: resolvedCwd,
         timeout: clampedTimeout,
         maxBuffer: 2 * 1024 * 1024,
-        env: { ...process.env, PAGER: "cat", GIT_PAGER: "cat" }
+        env: { ...sanitizedTerminalEnv(), PAGER: "cat", GIT_PAGER: "cat" }
       },
       (error, stdout, stderr) => {
         const durationMs = Date.now() - startedAt;

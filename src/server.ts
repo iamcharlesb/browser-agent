@@ -19,6 +19,7 @@ import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
 const STATIC_DIR = join(__dirname, "..", "static");
 const ENV_FILE = join(__dirname, "..", ".env");
 const SCHEDULE_FILE = join(__dirname, "..", ".browser-agent-schedules.json");
+const USAGE_FILE = join(__dirname, "..", ".browser-agent-usage.json");
 
 // Keep local setup dependency-free. Values already provided by the shell always win.
 if (existsSync(ENV_FILE)) {
@@ -93,6 +94,7 @@ interface RunState {
   cancelled: boolean;
   queue: AsyncQueue<AgentEvent | null>;
   resolveVerification: (() => void) | null;
+  resolveApproval: ((approved: boolean) => void) | null;
 }
 
 /**
@@ -118,6 +120,8 @@ interface RunRequestBody {
   initialUrl?: string;
   collaborationContext?: string;
   approvedCategories?: ApprovalCategory[];
+  /** Opt-in for lower-risk tool approvals. Financial actions always need task-specific approval. */
+  autoApprove?: boolean;
   scheduleId?: string;
   headless?: boolean;
   maxSteps?: number;
@@ -142,6 +146,72 @@ let activeSession: BrowserSession | null = null;
 let activeSessionMode: "persistent" | "guest" = "persistent";
 let schedules: ScheduledTask[] = [];
 const scheduleTimers = new Map<string, NodeJS.Timeout>();
+
+/**
+ * $ per 1M tokens, verified directly before use (not guessed). Models not listed here (local
+ * engine, Ollama, xAI/Grok) still have their token counts tracked, just no cost estimate shown.
+ */
+const MODEL_PRICING_PER_MILLION: Record<string, { input: number; output: number }> = {
+  "gpt-6-luna": { input: 0.1, output: 0.5 },
+  "gpt-4o-mini": { input: 0.15, output: 0.6 },
+  "gpt-4o": { input: 2.5, output: 10.0 }
+};
+
+interface ModelUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  calls: number;
+}
+
+let usageByModel: Record<string, ModelUsage> = {};
+let usageSaveTimer: NodeJS.Timeout | null = null;
+
+function recordUsage(model: string, promptTokens: number, completionTokens: number, totalTokens: number): void {
+  const current = usageByModel[model] ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0, calls: 0 };
+  usageByModel[model] = {
+    promptTokens: current.promptTokens + promptTokens,
+    completionTokens: current.completionTokens + completionTokens,
+    totalTokens: current.totalTokens + totalTokens,
+    calls: current.calls + 1
+  };
+  // Debounce the write so a fast sequence of steps doesn't hit disk on every single API call.
+  if (usageSaveTimer) clearTimeout(usageSaveTimer);
+  usageSaveTimer = setTimeout(() => {
+    void writeFile(USAGE_FILE, `${JSON.stringify(usageByModel, null, 2)}\n`, { mode: 0o600 }).catch(() => undefined);
+  }, 2000);
+}
+
+function usageSnapshot(): {
+  byModel: Array<ModelUsage & { model: string; estimatedCostUsd: number | null }>;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  totalEstimatedCostUsd: number;
+} {
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+  let totalTokens = 0;
+  let totalEstimatedCostUsd = 0;
+  const byModel = Object.entries(usageByModel).map(([model, usage]) => {
+    totalPromptTokens += usage.promptTokens;
+    totalCompletionTokens += usage.completionTokens;
+    totalTokens += usage.totalTokens;
+    const pricing = MODEL_PRICING_PER_MILLION[model];
+    const estimatedCostUsd = pricing
+      ? (usage.promptTokens / 1_000_000) * pricing.input + (usage.completionTokens / 1_000_000) * pricing.output
+      : null;
+    if (estimatedCostUsd !== null) totalEstimatedCostUsd += estimatedCostUsd;
+    return { model, ...usage, estimatedCostUsd };
+  });
+  return { byModel, totalPromptTokens, totalCompletionTokens, totalTokens, totalEstimatedCostUsd };
+}
+
+try {
+  usageByModel = JSON.parse(readFileSync(USAGE_FILE, "utf8")) as Record<string, ModelUsage>;
+} catch {
+  usageByModel = {};
+}
 
 function validateRunRequest(body: unknown): RunRequestBody {
   if (typeof body !== "object" || body === null) {
@@ -179,6 +249,7 @@ function validateRunRequest(body: unknown): RunRequestBody {
     collaborationContext:
       typeof record.collaborationContext === "string" ? record.collaborationContext.slice(0, 10_000) : undefined,
     approvedCategories,
+    autoApprove: Boolean(record.autoApprove),
     scheduleId: typeof record.scheduleId === "string" ? record.scheduleId : undefined
   };
 }
@@ -247,6 +318,24 @@ async function onHumanVerification(run: RunState, _state: PageState): Promise<vo
   run.resolveVerification = null;
 }
 
+/** Pauses a run and waits for an explicit POST /api/approval before a shell command or file
+ * write/append is allowed to execute. Only ever wired up for attended (non-scheduled) runs. */
+async function onTerminalApproval(run: RunState): Promise<boolean> {
+  const approved = await new Promise<boolean>((resolve) => {
+    run.resolveApproval = resolve;
+  });
+  run.resolveApproval = null;
+  return approved;
+}
+
+function resolvePendingApproval(approved: boolean): boolean {
+  if (!currentRun || !currentRun.isRunning || !currentRun.resolveApproval) {
+    return false;
+  }
+  currentRun.resolveApproval(approved);
+  return true;
+}
+
 function startRun(body: RunRequestBody): void {
   if (currentRun && currentRun.isRunning) {
     throw new Error("A run is already in progress. Wait for it to finish or stop it first.");
@@ -264,7 +353,8 @@ function startRun(body: RunRequestBody): void {
     isRunning: true,
     cancelled: false,
     queue: new AsyncQueue<AgentEvent | null>(),
-    resolveVerification: null
+    resolveVerification: null,
+    resolveApproval: null
   };
   currentRun = run;
 
@@ -319,6 +409,14 @@ function startRun(body: RunRequestBody): void {
         maxSteps: body.maxSteps,
         maxDurationSeconds: body.maxDurationSeconds,
         onEvent: (event) => {
+          if (event.type === "usage" && typeof event.model === "string") {
+            recordUsage(
+              event.model,
+              Number(event.promptTokens ?? 0),
+              Number(event.completionTokens ?? 0),
+              Number(event.totalTokens ?? 0)
+            );
+          }
           // If the standby controller was started mid-run by a tool call, promote it to activeSession
           if (!activeSession && controller.isStarted) {
             const viewport = controller.viewportSize;
@@ -355,7 +453,11 @@ function startRun(body: RunRequestBody): void {
         onHumanVerification: (state) => {
           if (body.scheduleId) return; // Don't block unattended scheduled runs
           return onHumanVerification(run, state);
-        }
+        },
+        // Scheduled/unattended runs never get run_terminal_command or workspace_file write/append
+        // at all (filtered out of the model's tool list below) - nobody is present to approve them.
+        allowPrivilegedTools: !body.scheduleId,
+        onTerminalApproval: body.scheduleId ? undefined : body.autoApprove ? () => true : () => onTerminalApproval(run)
       });
       await orchestrator.run();
     } catch (err) {
@@ -384,6 +486,9 @@ function stopCurrentRun(): boolean {
   run.cancelled = true;
   if (run.resolveVerification) {
     run.resolveVerification();
+  }
+  if (run.resolveApproval) {
+    run.resolveApproval(false);
   }
   run.queue.push({
     type: "terminal",
@@ -662,7 +767,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
       const missingApprovals = risk.approvalsRequired.filter(
-        (category) => !body.approvedCategories?.includes(category)
+        (category) =>
+          !body.approvedCategories?.includes(category) &&
+          (category === "financial_transaction" || !body.autoApprove)
       );
       if (missingApprovals.length > 0) {
         sendJson(res, 428, {
@@ -684,6 +791,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   if (req.method === "GET" && url.pathname === "/api/schedules") {
     sendJson(res, 200, { schedules });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/usage") {
+    sendJson(res, 200, usageSnapshot());
     return;
   }
 
@@ -897,6 +1009,21 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       sendJson(res, 200, { status: "resumed" });
     } else {
       sendJson(res, 409, { detail: "No run is currently waiting for human verification." });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/approval") {
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const approved = Boolean(body.approved);
+      if (resolvePendingApproval(approved)) {
+        sendJson(res, 200, { status: approved ? "approved" : "denied" });
+      } else {
+        sendJson(res, 409, { detail: "No command or file write is currently waiting for approval." });
+      }
+    } catch (err) {
+      sendJson(res, 400, { detail: (err as Error).message });
     }
     return;
   }
