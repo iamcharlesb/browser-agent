@@ -7,15 +7,17 @@
 <style>
   :root {
     color-scheme: dark;
-    --bg: #0f1115;
-    --panel: #171a21;
-    --panel-border: #2a2e38;
-    --text: #e6e8ec;
-    --muted: #8b90a0;
-    --accent: #5b8def;
-    --ok: #3fb950;
-    --fail: #f85149;
-    --warn: #d29922;
+    --bg: #0a0a0b;
+    --panel: #151517;
+    --panel-2: #1b1b1e;
+    --border: #272729;
+    --text: #f2f2f3;
+    --muted: #8c8c92;
+    --accent: #3b82f6;
+    --accent-strong: #2563eb;
+    --ok: #22c55e;
+    --fail: #ef4444;
+    --warn: #eab308;
   }
   * { box-sizing: border-box; }
   body {
@@ -23,307 +25,429 @@
     background: var(--bg);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    height: 100vh;
+    min-height: 100vh;
+  }
+  #app {
+    max-width: 720px;
+    margin: 0 auto;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
   }
+
+  /* ---------- shared header ---------- */
   header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: rgba(10, 10, 11, 0.92);
+    backdrop-filter: blur(6px);
     padding: 14px 20px;
-    border-bottom: 1px solid var(--panel-border);
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
   }
-  header h1 {
-    font-size: 16px;
+  .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    color: #06060a;
+    flex-shrink: 0;
+  }
+  #bot-name {
+    font-size: 15px;
     font-weight: 600;
-    margin: 0;
   }
-  #status-badge {
-    font-size: 12px;
-    padding: 3px 9px;
+  #status-pill {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
     border-radius: 999px;
-    background: var(--panel-border);
+    background: var(--panel-2);
     color: var(--muted);
+    white-space: nowrap;
   }
-  #status-badge.running { background: rgba(91, 141, 239, 0.18); color: var(--accent); }
-  #status-badge.success { background: rgba(63, 185, 80, 0.18); color: var(--ok); }
-  #status-badge.failure { background: rgba(248, 81, 73, 0.18); color: var(--fail); }
-
-  main {
-    flex: 1;
-    display: flex;
-    min-height: 0;
-    flex-wrap: wrap;
-  }
-  .panel {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  #left {
-    flex: 1 1 380px;
-    min-width: 320px;
-    border-right: 1px solid var(--panel-border);
-  }
-  #right {
-    flex: 1.4 1 420px;
-    min-width: 320px;
-  }
-
-  #session-panel {
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--panel-border);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    background: rgba(91, 141, 239, 0.06);
-  }
-  .session-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-  .session-label { font-weight: 600; color: var(--text); }
-  #session-status { color: var(--muted); }
-  #session-status.open { color: var(--ok); }
-  #session-url {
-    flex: 1;
-    min-width: 160px;
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--panel-border);
-    border-radius: 6px;
-    padding: 6px 8px;
-    font-size: 13px;
-  }
-  #session-panel button {
-    background: var(--panel-border);
-    color: var(--text);
-    border: none;
-    border-radius: 6px;
-    padding: 7px 12px;
+  #status-pill.running { background: rgba(59, 130, 246, 0.16); color: var(--accent); }
+  #status-pill.success { background: rgba(34, 197, 94, 0.16); color: var(--ok); }
+  #status-pill.failure { background: rgba(239, 68, 68, 0.16); color: var(--fail); }
+  #new-bot-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 7px;
+    padding: 5px 10px;
     font-size: 12px;
-    font-weight: 600;
     cursor: pointer;
   }
-  #session-open-btn { background: var(--accent); color: #0b1020; }
-  #session-panel button:disabled { opacity: 0.5; cursor: not-allowed; }
-  .session-hint { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.4; }
+  #new-bot-btn:hover { color: var(--text); border-color: var(--muted); }
 
-  #controls {
-    padding: 16px;
-    border-bottom: 1px solid var(--panel-border);
+  /* ---------- create view ---------- */
+  #create-view {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px 60px;
+    gap: 22px;
+    text-align: center;
   }
-  textarea#task {
+  .hero-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 26px;
+    color: #06060a;
+  }
+  #create-view h1 {
+    font-size: 22px;
+    margin: 0;
+    font-weight: 700;
+  }
+  #create-view p.sub {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 440px;
+  }
+  .create-card {
     width: 100%;
-    min-height: 64px;
-    resize: vertical;
+    max-width: 480px;
     background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    text-align: left;
+  }
+  .field-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: block;
+  }
+  input[type="text"], textarea {
+    width: 100%;
+    background: var(--panel-2);
     color: var(--text);
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
     padding: 10px 12px;
     font-size: 14px;
     font-family: inherit;
   }
-  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .row label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
-  .row input[type="number"] {
-    width: 70px;
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--panel-border);
-    border-radius: 6px;
-    padding: 4px 6px;
+  input[type="text"]:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
   }
-  button#run-btn {
-    background: var(--accent);
-    color: #0b1020;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 16px;
-    font-size: 14px;
-    font-weight: 600;
+  #create-task {
+    min-height: 80px;
+    resize: vertical;
+  }
+  details.advanced {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  details.advanced summary {
     cursor: pointer;
-    align-self: flex-start;
-  }
-  button#run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  #error-banner {
-    display: none;
-    padding: 8px 12px;
-    background: rgba(248, 81, 73, 0.12);
-    color: var(--fail);
-    border-radius: 6px;
-    font-size: 13px;
-  }
-
-  #feed {
-    flex: 1;
-    overflow-y: auto;
-    padding: 12px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .event {
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 13px;
-    line-height: 1.4;
-  }
-  .event .meta { color: var(--muted); font-size: 11px; margin-bottom: 3px; }
-  .event.ok { border-left: 3px solid var(--ok); }
-  .event.fail { border-left: 3px solid var(--fail); }
-  .event.terminal.success { border-color: var(--ok); background: rgba(63, 185, 80, 0.08); }
-  .event.terminal.failure { border-color: var(--fail); background: rgba(248, 81, 73, 0.08); }
-  .event .warning, .event .directive { color: var(--warn); margin-top: 4px; }
-
-  #screenshot-wrap {
-    flex: 1;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 16px;
-    overflow: auto;
-    background: #090a0d;
-  }
-  #screenshot-wrap img {
-    max-width: 100%;
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-  }
-  #screenshot-placeholder {
-    color: var(--muted);
-    font-size: 13px;
-    margin-top: 40px;
-  }
-  #current-url {
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--panel-border);
     font-size: 12px;
     color: var(--muted);
-    word-break: break-all;
+    font-weight: 600;
+  }
+  .advanced-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .advanced-grid label {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .advanced-grid input[type="number"] {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 8px;
+  }
+  .checkbox-row {
+    grid-column: span 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
   }
 
-  #verify-banner {
-    display: none;
-    padding: 12px 16px;
-    background: rgba(210, 153, 34, 0.14);
-    border-bottom: 1px solid var(--warn);
-    color: var(--warn);
-    font-size: 13px;
+  .session-strip {
+    display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
+    gap: 10px;
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 12px;
   }
-  #verify-banner.visible { display: flex; }
-  #verify-banner button {
+  .session-strip span#session-status-text { color: var(--muted); flex: 1; }
+  .session-strip.open span#session-status-text { color: var(--ok); }
+  .session-strip button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .session-strip button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  button.primary {
+    background: var(--accent);
+    color: #06060a;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  button.primary:hover { background: var(--accent-strong); }
+  button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #create-error {
+    display: none;
+    font-size: 12px;
+    color: var(--fail);
+    text-align: left;
+  }
+
+  /* ---------- chat view ---------- */
+  #chat-view {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+  #chat-log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 16px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .bubble-row { display: flex; gap: 10px; align-items: flex-start; }
+  .bubble-row.user { flex-direction: row-reverse; }
+  .bubble-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .bubble-row.user .bubble-avatar { background: var(--panel-2); color: var(--muted); }
+  .bubble-row.bot .bubble-avatar { background: linear-gradient(135deg, var(--accent), #8b5cf6); color: #06060a; }
+  .bubble {
+    max-width: 78%;
+    padding: 10px 13px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .bubble-row.user .bubble { background: var(--accent); color: #06060a; border-radius: 14px 14px 4px 14px; }
+  .bubble-row.bot .bubble { background: var(--panel); border: 1px solid var(--border); border-radius: 14px 14px 14px 4px; }
+  .bubble.fail { border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.07); }
+  .bubble.terminal.success { border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.08); }
+  .bubble.terminal.failure { border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); }
+  .bubble.verify { border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); }
+  .bubble .step-meta { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .bubble .warning-line, .bubble .directive-line { color: var(--warn); margin-top: 6px; font-size: 12.5px; }
+  .bubble a.thumb-link { display: inline-block; margin-top: 8px; }
+  .bubble a.thumb-link img {
+    max-width: 220px;
+    max-height: 140px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    display: block;
+  }
+  .bubble button.resume-btn {
+    margin-top: 8px;
     background: var(--warn);
     color: #1a1400;
     border: none;
-    border-radius: 6px;
-    padding: 8px 14px;
-    font-size: 13px;
-    font-weight: 600;
+    border-radius: 7px;
+    padding: 7px 12px;
+    font-size: 12.5px;
+    font-weight: 700;
     cursor: pointer;
   }
+
+  #composer {
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    background: var(--bg);
+  }
+  #composer textarea {
+    flex: 1;
+    min-height: 44px;
+    max-height: 140px;
+    resize: vertical;
+  }
+  #composer button {
+    background: var(--accent);
+    color: #06060a;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  #composer button:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 </head>
 <body>
+<div id="app">
   <header>
-    <h1>Browser Agent</h1>
-    <span id="status-badge">idle</span>
+    <div class="avatar" id="header-avatar">B</div>
+    <span id="bot-name">Browser Agent</span>
+    <span id="status-pill">idle</span>
+    <button id="new-bot-btn" style="display:none;">New bot</button>
   </header>
-  <main>
-    <section id="left" class="panel">
-      <div id="session-panel">
-        <div class="session-row">
-          <span class="session-label">Session</span>
-          <span id="session-status">no persistent login session open</span>
+
+  <section id="create-view">
+    <div class="hero-avatar" id="hero-avatar">B</div>
+    <h1>Create a bot</h1>
+    <p class="sub">Name it, tell it what to do first, and it'll go drive a real browser to get it done &mdash; screenshots and all, step by step.</p>
+
+    <div class="create-card">
+      <div>
+        <span class="field-label">Bot name</span>
+        <input type="text" id="bot-name-input" placeholder="Browser Agent" />
+      </div>
+      <div>
+        <span class="field-label">First instruction</span>
+        <textarea id="create-task" placeholder="e.g. Go to duckduckgo.com and search for 'dress'"></textarea>
+      </div>
+
+      <div class="session-strip" id="session-strip">
+        <span id="session-status-text">no saved login session yet</span>
+        <button id="session-open-btn">Set up login</button>
+        <button id="session-close-btn" disabled>Done &amp; save</button>
+      </div>
+
+      <details class="advanced">
+        <summary>Advanced settings</summary>
+        <div class="advanced-grid">
+          <label>Max steps
+            <input type="number" id="max-steps" value="20" min="1" max="100" />
+          </label>
+          <label>Timeout (s)
+            <input type="number" id="max-duration" value="900" min="10" max="3600" />
+          </label>
+          <div class="checkbox-row">
+            <input type="checkbox" id="headless" /> <label for="headless">run headless (no visible window)</label>
+          </div>
         </div>
-        <div class="row">
-          <input id="session-url" type="text" placeholder="URL to sign in at, e.g. https://x.com/login" />
-          <button id="session-open-btn">Open for login</button>
-          <button id="session-close-btn" disabled>Close &amp; save session</button>
-        </div>
-        <p class="session-hint">
-          Opens a real, visible browser window using the agent's persistent profile. Sign in
-          (and clear any MFA prompt) there, then close the session here &mdash; later task runs
-          reuse those cookies, so they won't hit the same login/MFA wall again.
-        </p>
-      </div>
-      <div id="controls">
-        <textarea id="task" placeholder="Describe the task, e.g. Go to duckduckgo.com and search for 'dress'"></textarea>
-        <div class="row">
-          <label><input type="checkbox" id="headless" /> headless</label>
-          <label>max steps <input type="number" id="max-steps" value="20" min="1" max="100" /></label>
-          <label>timeout (s) <input type="number" id="max-duration" value="900" min="10" max="3600" /></label>
-        </div>
-        <div id="error-banner"></div>
-        <button id="run-btn">Run</button>
-      </div>
-      <div id="feed"></div>
-    </section>
-    <section id="right" class="panel">
-      <div id="verify-banner">
-        <span id="verify-message"></span>
-        <button id="verify-resume-btn">I've solved it &mdash; Resume</button>
-      </div>
-      <div id="current-url">No page loaded yet.</div>
-      <div id="screenshot-wrap">
-        <div id="screenshot-placeholder">Screenshots will appear here once the run starts.</div>
-      </div>
-    </section>
-  </main>
+      </details>
+
+      <div id="create-error"></div>
+      <button class="primary" id="create-btn">Create bot &amp; run</button>
+    </div>
+  </section>
+
+  <section id="chat-view">
+    <div id="chat-log"></div>
+    <div id="composer">
+      <textarea id="followup-task" placeholder="Instruct your bot..."></textarea>
+      <button id="followup-send-btn">Send</button>
+    </div>
+  </section>
+</div>
 
 <script>
 (function () {
-  const taskEl = document.getElementById("task");
+  const createView = document.getElementById("create-view");
+  const chatView = document.getElementById("chat-view");
+  const botNameInput = document.getElementById("bot-name-input");
+  const createTaskEl = document.getElementById("create-task");
+  const createBtn = document.getElementById("create-btn");
+  const createErrorEl = document.getElementById("create-error");
   const headlessEl = document.getElementById("headless");
   const maxStepsEl = document.getElementById("max-steps");
   const maxDurationEl = document.getElementById("max-duration");
-  const runBtn = document.getElementById("run-btn");
-  const feedEl = document.getElementById("feed");
-  const statusBadge = document.getElementById("status-badge");
-  const errorBanner = document.getElementById("error-banner");
-  const screenshotWrap = document.getElementById("screenshot-wrap");
-  const currentUrlEl = document.getElementById("current-url");
-  const verifyBanner = document.getElementById("verify-banner");
-  const verifyMessage = document.getElementById("verify-message");
-  const verifyResumeBtn = document.getElementById("verify-resume-btn");
-  const sessionUrlEl = document.getElementById("session-url");
+  const sessionStrip = document.getElementById("session-strip");
+  const sessionStatusText = document.getElementById("session-status-text");
   const sessionOpenBtn = document.getElementById("session-open-btn");
   const sessionCloseBtn = document.getElementById("session-close-btn");
-  const sessionStatusEl = document.getElementById("session-status");
+
+  const headerAvatar = document.getElementById("header-avatar");
+  const heroAvatar = document.getElementById("hero-avatar");
+  const botNameLabel = document.getElementById("bot-name");
+  const statusPill = document.getElementById("status-pill");
+  const newBotBtn = document.getElementById("new-bot-btn");
+  const chatLog = document.getElementById("chat-log");
+  const followupTaskEl = document.getElementById("followup-task");
+  const followupSendBtn = document.getElementById("followup-send-btn");
 
   let eventSource = null;
+  let isRunning = false;
+  let botName = "Browser Agent";
+
+  function initials(name) {
+    const trimmed = (name || "B").trim();
+    if (!trimmed) return "B";
+    const parts = trimmed.split(/\s+/).slice(0, 2);
+    return parts.map((p) => p[0].toUpperCase()).join("");
+  }
+
+  function setBotName(name) {
+    botName = name && name.trim() ? name.trim() : "Browser Agent";
+    botNameLabel.textContent = botName;
+    headerAvatar.textContent = initials(botName);
+    heroAvatar.textContent = initials(botName);
+  }
 
   function setStatus(label, cls) {
-    statusBadge.textContent = label;
-    statusBadge.className = cls || "";
+    statusPill.textContent = label;
+    statusPill.className = cls || "";
   }
 
-  function showError(message) {
-    errorBanner.textContent = message;
-    errorBanner.style.display = message ? "block" : "none";
-  }
-
-  function appendEvent(html, classes) {
-    const div = document.createElement("div");
-    div.className = "event " + (classes || "");
-    div.innerHTML = html;
-    feedEl.appendChild(div);
-    feedEl.scrollTop = feedEl.scrollHeight;
-  }
-
-  function showScreenshot(b64, url, title) {
-    screenshotWrap.innerHTML = "";
-    const img = document.createElement("img");
-    img.src = "data:image/png;base64," + b64;
-    screenshotWrap.appendChild(img);
-    currentUrlEl.textContent = (title ? title + " — " : "") + (url || "");
+  function scrollChatToBottom() {
+    chatLog.scrollTop = chatLog.scrollHeight;
   }
 
   function escapeHtml(text) {
@@ -332,53 +456,86 @@
     return div.innerHTML;
   }
 
+  function addBubble(role, innerHtml, extraClass) {
+    const row = document.createElement("div");
+    row.className = "bubble-row " + role;
+    const avatar = document.createElement("div");
+    avatar.className = "bubble-avatar";
+    avatar.textContent = role === "user" ? "you" : initials(botName).slice(0, 1);
+    const bubble = document.createElement("div");
+    bubble.className = "bubble " + (extraClass || "");
+    bubble.innerHTML = innerHtml;
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    chatLog.appendChild(row);
+    scrollChatToBottom();
+    return bubble;
+  }
+
+  function thumbHtml(screenshotB64) {
+    if (!screenshotB64) return "";
+    const dataUrl = "data:image/png;base64," + screenshotB64;
+    return '<a class="thumb-link" href="' + dataUrl + '" target="_blank" rel="noopener"><img src="' + dataUrl + '" alt="screenshot" /></a>';
+  }
+
+  function describeStep(event) {
+    const toolLabels = {
+      navigate: "Navigating",
+      click_coords: "Clicking",
+      type_text: "Typing",
+      scroll_page: "Scrolling",
+      key_press: "Pressing a key",
+      wait: "Waiting"
+    };
+    const label = toolLabels[event.toolName] || event.toolName;
+    return label + " &mdash; " + escapeHtml(event.message);
+  }
+
   function handleEvent(event) {
     if (event.type === "observe") {
-      appendEvent(
-        '<div class="meta">Step 0 · initial observation</div>' + escapeHtml(event.title || event.url),
+      addBubble(
+        "bot",
+        '<div class="step-meta">looking at the page</div>' + escapeHtml(event.title || event.url) + thumbHtml(event.screenshotB64),
         "ok"
       );
-      showScreenshot(event.screenshotB64, event.url, event.title);
       return;
     }
     if (event.type === "step") {
-      const cls = event.ok ? "ok" : "fail";
-      let html =
-        '<div class="meta">Step ' + event.step + " · " + escapeHtml(event.toolName) + "</div>" +
-        escapeHtml(event.message);
-      if (event.warning) html += '<div class="warning">' + escapeHtml(event.warning) + "</div>";
-      if (event.directive) html += '<div class="directive">' + escapeHtml(event.directive) + "</div>";
-      appendEvent(html, cls);
-      if (event.screenshotB64) showScreenshot(event.screenshotB64, event.url, event.title);
+      let html = '<div class="step-meta">step ' + event.step + "</div>" + describeStep(event);
+      if (event.warning) html += '<div class="warning-line">' + escapeHtml(event.warning) + "</div>";
+      if (event.directive) html += '<div class="directive-line">' + escapeHtml(event.directive) + "</div>";
+      html += thumbHtml(event.screenshotB64);
+      addBubble("bot", html, event.ok ? "" : "fail");
       return;
     }
     if (event.type === "human_verification") {
-      verifyMessage.textContent = event.message || "Human verification required.";
-      verifyBanner.classList.add("visible");
-      appendEvent(
-        '<div class="meta">Human verification detected</div>' + escapeHtml(event.title || event.url),
-        "fail"
-      );
-      if (event.screenshotB64) showScreenshot(event.screenshotB64, event.url, event.title);
+      const html =
+        '<div class="step-meta">needs you</div>' +
+        escapeHtml(event.message || "Sign-in or verification needed.") +
+        thumbHtml(event.screenshotB64) +
+        '<br/><button class="resume-btn" id="inline-resume-btn">I\'ve handled it &mdash; Resume</button>';
+      addBubble("bot", html, "verify");
+      document.getElementById("inline-resume-btn").addEventListener("click", resumeRun);
       return;
     }
     if (event.type === "human_verification_resolved") {
-      verifyBanner.classList.remove("visible");
-      appendEvent('<div class="meta">Human verification resolved</div>Continuing...', "ok");
-      if (event.screenshotB64) showScreenshot(event.screenshotB64, event.url, event.title);
+      addBubble("bot", '<div class="step-meta">resolved</div>Continuing...' + thumbHtml(event.screenshotB64), "ok");
       return;
     }
     if (event.type === "terminal") {
+      const label = event.success ? "Done" : "Couldn't finish";
       const cls = event.success ? "terminal success" : "terminal failure";
-      const label = event.success ? "SUCCESS" : "FAILURE";
-      appendEvent(
-        "<strong>" + label + "</strong> (" + escapeHtml(event.terminationReason) + ", " +
-          event.stepsTaken + " steps, " + event.elapsedSeconds.toFixed(1) + "s)<br/>" +
-          escapeHtml(event.summary),
+      addBubble(
+        "bot",
+        "<strong>" + label + "</strong> &mdash; " + escapeHtml(event.summary) +
+          '<div class="step-meta" style="margin-top:6px;">' +
+          escapeHtml(event.terminationReason) + " · " + event.stepsTaken + " steps · " +
+          event.elapsedSeconds.toFixed(1) + "s</div>",
         cls
       );
-      setStatus(label.toLowerCase(), event.success ? "success" : "failure");
-      runBtn.disabled = false;
+      setStatus(event.success ? "done" : "failed", event.success ? "success" : "failure");
+      isRunning = false;
+      followupSendBtn.disabled = false;
       if (eventSource) {
         eventSource.close();
         eventSource = null;
@@ -386,45 +543,30 @@
     }
   }
 
-  async function startRun() {
-    const task = taskEl.value.trim();
-    if (!task) {
-      showError("Enter a task first.");
-      return;
-    }
-    showError("");
-    feedEl.innerHTML = "";
-    verifyBanner.classList.remove("visible");
-    screenshotWrap.innerHTML = '<div id="screenshot-placeholder">Waiting for the first screenshot...</div>';
-    currentUrlEl.textContent = "Starting...";
-    runBtn.disabled = true;
+  async function startBotRun(task, headless, maxSteps, maxDurationSeconds) {
+    isRunning = true;
     setStatus("running", "running");
-
     let response;
     try {
       response = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          task: task,
-          headless: headlessEl.checked,
-          maxSteps: parseInt(maxStepsEl.value, 10) || 20,
-          maxDurationSeconds: parseFloat(maxDurationEl.value) || 900,
-        }),
+        body: JSON.stringify({ task, headless, maxSteps, maxDurationSeconds }),
       });
     } catch (err) {
-      showError("Could not reach the agent server: " + err);
+      addBubble("bot", "Could not reach the agent server: " + escapeHtml(String(err)), "fail");
       setStatus("idle", "");
-      runBtn.disabled = false;
-      return;
+      isRunning = false;
+      followupSendBtn.disabled = false;
+      return false;
     }
-
     if (!response.ok) {
       const body = await response.json().catch(() => ({ detail: response.statusText }));
-      showError(body.detail || "Failed to start the run.");
+      addBubble("bot", escapeHtml(body.detail || "Failed to start the run."), "fail");
       setStatus("idle", "");
-      runBtn.disabled = false;
-      return;
+      isRunning = false;
+      followupSendBtn.disabled = false;
+      return false;
     }
 
     eventSource = new EventSource("/api/events");
@@ -440,48 +582,92 @@
         eventSource.close();
         eventSource = null;
       }
-      runBtn.disabled = false;
+      isRunning = false;
+      followupSendBtn.disabled = false;
     };
+    return true;
   }
 
   async function resumeRun() {
-    verifyResumeBtn.disabled = true;
     try {
       const response = await fetch("/api/resume", { method: "POST" });
       if (!response.ok) {
         const body = await response.json().catch(() => ({ detail: response.statusText }));
-        showError(body.detail || "Failed to resume the run.");
-      } else {
-        verifyBanner.classList.remove("visible");
+        addBubble("bot", escapeHtml(body.detail || "Failed to resume."), "fail");
       }
     } catch (err) {
-      showError("Could not reach the agent server: " + err);
-    } finally {
-      verifyResumeBtn.disabled = false;
+      addBubble("bot", "Could not reach the agent server: " + escapeHtml(String(err)), "fail");
     }
+  }
+
+  async function createBot() {
+    const task = createTaskEl.value.trim();
+    createErrorEl.style.display = "none";
+    if (!task) {
+      createErrorEl.textContent = "Give your bot a first instruction.";
+      createErrorEl.style.display = "block";
+      return;
+    }
+    setBotName(botNameInput.value);
+    createBtn.disabled = true;
+
+    createView.style.display = "none";
+    chatView.style.display = "flex";
+    newBotBtn.style.display = "inline-block";
+
+    addBubble("user", escapeHtml(task));
+    const headless = headlessEl.checked;
+    const maxSteps = parseInt(maxStepsEl.value, 10) || 20;
+    const maxDurationSeconds = parseFloat(maxDurationEl.value) || 900;
+    followupSendBtn.disabled = true;
+    await startBotRun(task, headless, maxSteps, maxDurationSeconds);
+    createBtn.disabled = false;
+  }
+
+  async function sendFollowup() {
+    const task = followupTaskEl.value.trim();
+    if (!task || isRunning) return;
+    addBubble("user", escapeHtml(task));
+    followupTaskEl.value = "";
+    followupSendBtn.disabled = true;
+    setStatus("running", "running");
+    await startBotRun(task, headlessEl.checked, parseInt(maxStepsEl.value, 10) || 20, parseFloat(maxDurationEl.value) || 900);
+  }
+
+  function resetToCreateView() {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    isRunning = false;
+    chatLog.innerHTML = "";
+    chatView.style.display = "none";
+    createView.style.display = "flex";
+    newBotBtn.style.display = "none";
+    setStatus("idle", "");
   }
 
   async function openLoginSession() {
     sessionOpenBtn.disabled = true;
-    showError("");
     try {
-      const url = sessionUrlEl.value.trim() || "about:blank";
       const response = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: "about:blank" }),
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({ detail: response.statusText }));
-        showError(body.detail || "Failed to open a login session.");
+        createErrorEl.textContent = body.detail || "Failed to open a login session.";
+        createErrorEl.style.display = "block";
         sessionOpenBtn.disabled = false;
         return;
       }
-      sessionStatusEl.textContent = "session open — sign in in the browser window, then close it here";
-      sessionStatusEl.classList.add("open");
+      sessionStatusText.textContent = "browser window open — sign in, then click “Done & save”";
+      sessionStrip.classList.add("open");
       sessionCloseBtn.disabled = false;
     } catch (err) {
-      showError("Could not reach the agent server: " + err);
+      createErrorEl.textContent = "Could not reach the agent server: " + err;
+      createErrorEl.style.display = "block";
       sessionOpenBtn.disabled = false;
     }
   }
@@ -492,25 +678,31 @@
       const response = await fetch("/api/login/close", { method: "POST" });
       if (!response.ok) {
         const body = await response.json().catch(() => ({ detail: response.statusText }));
-        showError(body.detail || "Failed to close the login session.");
+        createErrorEl.textContent = body.detail || "Failed to close the login session.";
+        createErrorEl.style.display = "block";
         sessionCloseBtn.disabled = false;
         return;
       }
-      sessionStatusEl.textContent = "no persistent login session open";
-      sessionStatusEl.classList.remove("open");
+      sessionStatusText.textContent = "session saved — later runs reuse it";
+      sessionStrip.classList.remove("open");
       sessionOpenBtn.disabled = false;
     } catch (err) {
-      showError("Could not reach the agent server: " + err);
+      createErrorEl.textContent = "Could not reach the agent server: " + err;
+      createErrorEl.style.display = "block";
       sessionCloseBtn.disabled = false;
     }
   }
 
-  runBtn.addEventListener("click", startRun);
-  verifyResumeBtn.addEventListener("click", resumeRun);
+  createBtn.addEventListener("click", createBot);
+  newBotBtn.addEventListener("click", resetToCreateView);
   sessionOpenBtn.addEventListener("click", openLoginSession);
   sessionCloseBtn.addEventListener("click", closeLoginSession);
-  taskEl.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) startRun();
+  followupSendBtn.addEventListener("click", sendFollowup);
+  createTaskEl.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) createBot();
+  });
+  followupTaskEl.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendFollowup();
   });
 })();
 </script>
