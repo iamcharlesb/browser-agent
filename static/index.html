@@ -297,36 +297,12 @@ button { color: inherit; }
   transition: transform 0.2s ease;
 }
 
-/* Grok-style Active Action Animation on Bot Icons */
-.agent-avatar.is-working::before {
-  content: "";
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  border-top-color: var(--bot-color, #1677ff);
-  border-right-color: rgba(22, 119, 255, 0.35);
-  animation: grokOrbitSpin 0.95s linear infinite;
-  pointer-events: none;
-}
-.agent-avatar.is-working::after {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--bot-color, rgba(22, 119, 255, 0.28)) 0%, transparent 70%);
-  opacity: 0.55;
-  animation: grokGlowPulse 1.4s ease-in-out infinite;
-  pointer-events: none;
-  z-index: -1;
-}
-.agent-avatar.is-working svg.bot-char-svg,
-.agent-avatar.is-working .spark {
-  animation: grokBotFloat 1.1s ease-in-out infinite;
-}
-.agent-avatar.is-working svg.bot-char-svg .bot-eyes {
-  animation: grokEyeScan 1.8s ease-in-out infinite;
+/* Only the eyes move while the bot is working, so the mascot keeps its friendly shape. */
+.agent-avatar.is-working svg.bot-char-svg .bot-eyes,
+.agent-row.is-working .agent-avatar svg.bot-char-svg .bot-eyes {
+  animation: botEyeScan 1.55s ease-in-out infinite;
   transform-origin: center;
+  transform-box: fill-box;
 }
 .agent-row.is-working {
   background: color-mix(in srgb, var(--bot-color, #1677ff) 9%, var(--sidebar));
@@ -337,33 +313,13 @@ button { color: inherit; }
   font-size: 11px;
   font-weight: 600;
 }
-.agent-row.is-working .agent-avatar svg.bot-char-svg {
-  animation: grokBotFloat 1.1s ease-in-out infinite, grokBotTilt 3.2s ease-in-out infinite;
-}
-@keyframes grokBotTilt {
-  0%, 100% { rotate: 0deg; }
-  50% { rotate: 8deg; }
-}
-@keyframes grokOrbitSpin {
-  0% { transform: rotate(0deg) scale(0.96); }
-  50% { transform: rotate(180deg) scale(1.06); }
-  100% { transform: rotate(360deg) scale(0.96); }
-}
-@keyframes grokGlowPulse {
-  0%, 100% { transform: scale(0.88); opacity: 0.35; }
-  50% { transform: scale(1.22); opacity: 0.75; }
-}
-@keyframes grokBotFloat {
-  0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
-  25% { transform: translateY(-2px) rotate(-4deg) scale(1.06); }
-  75% { transform: translateY(1.5px) rotate(4deg) scale(0.98); }
-}
-@keyframes grokEyeScan {
-  0%, 100% { transform: translate(0, 0) scaleY(1); }
-  20% { transform: translate(-3.5px, -1px) scaleY(1); }
-  45% { transform: translate(3.5px, -1px) scaleY(1); }
-  55% { transform: translate(3.5px, 0) scaleY(0.15); }
-  65% { transform: translate(0, 1px) scaleY(1); }
+@keyframes botEyeScan {
+  0%, 100% { transform: rotate(-20deg) translate(0, 0) scaleY(1); }
+  22% { transform: rotate(-20deg) translate(-4px, -1px) scaleY(1); }
+  48% { transform: rotate(-20deg) translate(4px, -1px) scaleY(1); }
+  56% { transform: rotate(-20deg) translate(4px, 0) scaleY(0.12); }
+  64% { transform: rotate(-20deg) translate(0, 0) scaleY(1); }
+  82% { transform: rotate(-20deg) translate(-2px, 1px) scaleY(0.9); }
 }
 
 /* Create Bot Modal (Grok Bots Shape & Color Customizer) */
@@ -1295,8 +1251,8 @@ button { color: inherit; }
   margin: 0;
 }
 #composer {
-  width: min(100%, 1120px);
-  min-height: 56px;
+  width: min(100%, 960px);
+  min-height: 52px;
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -2138,18 +2094,29 @@ dialog.modal-dialog::backdrop {
   .template-card { min-width: 0; width: 100%; }
   .template-copy { min-width: 0; }
   #composer-wrap { padding: 8px 10px 12px; }
-  #composer { min-width: 0; width: 100%; min-height: 60px; gap: 5px; padding: 7px; border-radius: 28px; flex-wrap: wrap; }
-  #composer textarea { order: 4; flex: 1 1 135px; min-width: 0; min-height: 38px; padding: 5px; font-size: 16px; }
-  #composer-model-select { max-width: 145px; font-size: 14px; }
-  .composer-model-wrap { order: 5; margin-left: auto; }
-  .composer-action { width: 38px; height: 38px; font-size: 16px; }
-  .approval-action { order: 3; width: 38px; min-width: 38px; padding: 0; justify-content: center; }
+  #composer {
+    min-width: 0;
+    width: 100%;
+    min-height: 80px;
+    display: grid;
+    grid-template-columns: 32px 32px 32px minmax(0, 1fr) 36px;
+    grid-template-rows: 38px 30px;
+    grid-template-areas: "attach schedule approval prompt send" "model model model model voice";
+    gap: 3px;
+    padding: 7px;
+    border-radius: 24px;
+  }
+  #composer textarea { grid-area: prompt; order: 0; flex: initial; width: 100%; min-width: 0; min-height: 34px; padding: 4px; font-size: 15px; }
+  #composer-model-select { max-width: 190px; font-size: 12px; }
+  .composer-model-wrap { grid-area: model; order: 0; margin: 0; justify-self: start; min-width: 0; }
+  .composer-action { width: 32px; height: 32px; font-size: 14px; }
+  #attach-button { grid-area: attach; }
+  #schedule-button { grid-area: schedule; }
+  .approval-action { grid-area: approval; order: 0; width: 32px; min-width: 32px; height: 32px; padding: 0; justify-content: center; }
   .approval-action .composer-action-label { display: none; }
-  #schedule-button { order: 2; }
-  #attach-button { order: 1; }
-  #voice-button { order: 6; width: 34px; height: 38px; }
-  #send-button { order: 7; width: 42px; height: 42px; }
-  #send-button svg { width: 21px; height: 21px; }
+  #voice-button { grid-area: voice; order: 0; width: 30px; height: 30px; justify-self: end; }
+  #send-button { grid-area: send; order: 0; width: 36px; height: 36px; }
+  #send-button svg { width: 19px; height: 19px; }
   #messages { padding: 14px 10px 8px; }
   .message-body { min-width: 0; max-width: calc(100% - 30px); }
   .bubble { overflow-wrap: anywhere; }
@@ -2173,25 +2140,21 @@ dialog.modal-dialog::backdrop {
   .topbar-right::-webkit-scrollbar { display: none; }
   .topbar-right .header-pill-btn { flex: 0 0 30px; }
   #agent-chip { min-width: 0; padding-right: 2px; }
-  #composer { gap: 2px; padding: 5px; }
-  .composer-action { width: 32px; height: 32px; font-size: 13px; }
-  .approval-action { width: 32px; min-width: 32px; }
-  #composer textarea { flex-basis: 110px; font-size: 15px; }
+  #composer { gap: 2px; padding: 6px; }
+  .composer-action { width: 30px; height: 30px; font-size: 13px; }
+  .approval-action { width: 30px; min-width: 30px; height: 30px; }
+  #composer textarea { font-size: 14px; }
   .composer-model-wrap { gap: 3px; padding: 0; }
-  #composer-model-select { max-width: 116px; font-size: 12px; }
-  #voice-button { width: 28px; height: 32px; }
+  #composer-model-select { max-width: 170px; font-size: 12px; }
+  #voice-button { width: 28px; height: 28px; }
   #voice-button svg { width: 19px; height: 19px; }
-  #send-button { width: 36px; height: 36px; }
+  #send-button { width: 34px; height: 34px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .agent-avatar.is-working::before,
-  .agent-avatar.is-working::after,
-  .agent-avatar.is-working svg.bot-char-svg,
-  .agent-avatar.is-working .spark,
   .agent-avatar.is-working svg.bot-char-svg .bot-eyes,
+  .agent-row.is-working .agent-avatar svg.bot-char-svg .bot-eyes,
   .status-badge.running .status-dot,
   #voice-button.is-listening { animation: none !important; }
-  .agent-avatar.is-working::before { border: 2px solid var(--bot-color, #1677ff); }
 }
 </style>
 </head>
@@ -2674,6 +2637,8 @@ dialog.modal-dialog::backdrop {
   var agents = loadAgents();
   var activeAgentId = null;
   var isRunning = false;
+  var runningAgentId = null;
+  var runningAgentName = "";
   var setupSessionOpen = false;
   var runEvents = null;
   var browserFrames = null;
@@ -2682,6 +2647,8 @@ dialog.modal-dialog::backdrop {
   var viewport = { width: 1280, height: 800 };
   var searchQuery = "";
   var liveStepFeedBubble = null;
+  var queuedRunAfterActive = null;
+  var runEventCursorKey = "openBotsRunEventCursor";
   var currentSessionMode = localStorage.getItem("openBotsSessionMode") === "guest" ? "guest" : "persistent";
   var gmailAccount = localStorage.getItem("openBotsGmailAccount") || "";
   var googleIdentityLoader = null;
@@ -2747,6 +2714,14 @@ dialog.modal-dialog::backdrop {
   }
   function activeAgent() {
     return agents.find(function(a) { return a.id === activeAgentId; }) || null;
+  }
+  function syncPromptPlaceholder() {
+    var current = activeAgent();
+    prompt.placeholder = current
+      ? "Message " + current.name + "…"
+      : window.matchMedia("(max-width: 430px)").matches
+      ? "Ask anything…"
+      : "Ask anything, run $ command, or paste a URL…";
   }
   function initials(v) {
     return (v || "A").trim().split(/\s+/).slice(0, 2).map(function(w) { return w.charAt(0).toUpperCase(); }).join("");
@@ -2825,7 +2800,7 @@ dialog.modal-dialog::backdrop {
     statusBadge.className = "status-badge " + (running ? "running" : "ready");
     statusBadgeText.textContent = text || (running ? "Working" : "Ready");
     stopRunBtn.hidden = !running;
-    chipAvatar.classList.toggle("is-working", running);
+    chipAvatar.classList.toggle("is-working", running && activeAgentId === runningAgentId);
     renderSidebar();
   }
 
@@ -2971,7 +2946,7 @@ dialog.modal-dialog::backdrop {
     });
     filtered.forEach(function(agent) {
       var isCurrent = agent.id === activeAgentId;
-      var isAgentWorking = isCurrent && isRunning;
+      var isAgentWorking = agent.id === runningAgentId && isRunning;
       var row = document.createElement("div");
       row.className = "agent-row" + (isCurrent ? " active" : "") + (isAgentWorking ? " is-working" : "");
       row.style.setProperty("--bot-color", agent.color || "#1677ff");
@@ -3073,7 +3048,7 @@ dialog.modal-dialog::backdrop {
     renderTranscript();
     renderSidebar();
     renderQuickStarts(a);
-    prompt.placeholder = "Message " + a.name + "…";
+    syncPromptPlaceholder();
     if (a.intent && a.intent.url) {
       browserAddress.value = a.intent.url;
     }
@@ -3096,7 +3071,7 @@ dialog.modal-dialog::backdrop {
     messages.innerHTML = "";
     setChip("New Bot", "Pick or create a bot", null);
     prompt.value = "";
-    prompt.placeholder = "Ask anything, run $ command, or paste a URL…";
+    syncPromptPlaceholder();
     quickStarts.hidden = true;
     status.textContent = "";
     stepCounter.textContent = "";
@@ -3211,7 +3186,7 @@ dialog.modal-dialog::backdrop {
       .catch(function() {});
   }
 
-  function createAgent(name, customDescription, shapeId, colorHex) {
+  function createAgent(name, customDescription, shapeId, colorHex, options) {
     var desc = (customDescription || "").trim();
     var intent = inferredIntent(name, desc);
     var idx = Math.abs(name.split("").reduce(function(acc, c) { return acc + c.charCodeAt(0); }, 0));
@@ -3227,11 +3202,12 @@ dialog.modal-dialog::backdrop {
     };
     agents.push(a);
     saveAgents();
-    selectAgent(a.id);
-    appendMessage(
-      "agent",
-      "<strong>" + esc(a.name) + "</strong> ready — " + esc(a.summary)
-    );
+    if (!options || options.select !== false) {
+      selectAgent(a.id);
+      appendMessage("agent", "<strong>" + esc(a.name) + "</strong> ready — " + esc(a.summary));
+    } else {
+      renderSidebar();
+    }
     if (intent && intent.url) {
       browserAddress.value = intent.url;
     }
@@ -3543,6 +3519,24 @@ dialog.modal-dialog::backdrop {
     return bestScore > 0 ? best : null;
   }
 
+  function parseNaturalHandoff(value, source) {
+    var lead = /^(?:can you\s+)?(?:please\s+)?(?:tell|ask|send)\s+(?:to\s+)?(.+)$/i.exec(value.trim());
+    if (!lead) return null;
+    var words = lead[1].trim().split(/\s+/);
+    var match = null;
+    for (var count = 1; count < words.length; count++) {
+      var target = findPeerBotByQuery(words.slice(0, count).join(" "), source && source.id);
+      if (!target) continue;
+      var taskIndex = count;
+      if (words[taskIndex] && /^(?:bot|agent)$/i.test(words[taskIndex])) taskIndex += 1;
+      var task = words.slice(taskIndex).join(" ").replace(/^to\s+/i, "").trim();
+      if (task) match = { target: target, task: task };
+      // Prefer the first recognizable recipient, but consume a trailing "bot" label.
+      if (task && taskIndex === count + 1) break;
+    }
+    return match;
+  }
+
   function buildWorkspaceBotsContext(currentAgent) {
     var lines = ["OPEN BOTS WORKSPACE ROSTER (All bots created by the user in this workspace):"];
     if (currentAgent) {
@@ -3582,11 +3576,13 @@ dialog.modal-dialog::backdrop {
     return "RECENT CONVERSATION HISTORY:\n" + recent.join("\n");
   }
 
-  function startRun(task, approvedCategories, collaborationContext) {
-    var agent = activeAgent();
+  function startRun(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride) {
+    var agent = runAgentOverride || activeAgent();
     setupSessionOpen = false;
     browserFooter.classList.remove("visible");
     isRunning = true;
+    runningAgentId = agent && agent.id || null;
+    runningAgentName = agent && agent.name || "Bot";
     sendButton.disabled = true;
     setStatusState("running", "Thinking");
     status.textContent = "Agent is thinking (low-token mode)…";
@@ -3618,12 +3614,58 @@ dialog.modal-dialog::backdrop {
     })
       .then(readResponse)
       .then(function() {
+        localStorage.removeItem(runEventCursorKey);
+        if (approvalBubble) {
+          var approvedButton = approvalBubble.querySelector(".approve-task-btn");
+          if (approvedButton) approvedButton.textContent = "Approved";
+        }
         connectRunEvents();
       })
       .catch(function(err) {
         isRunning = false;
         sendButton.disabled = false;
+        if (err.status === 409) {
+          fetch("/api/status")
+            .then(readResponse)
+            .then(function(serverState) {
+              if (!serverState.isRunning) {
+                runningAgentId = null;
+                runningAgentName = "";
+                setStatusState("ready", "Ready");
+                setTimeout(function() { startRun(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride); }, 250);
+                return;
+              }
+              var activeBot = agents.find(function(item) { return item.name === serverState.runBotName; });
+              runningAgentId = activeBot ? activeBot.id : null;
+              runningAgentName = serverState.runBotName || "Another bot";
+              queuedRunAfterActive = {
+                task: task,
+                approvedCategories: approvedCategories || [],
+                collaborationContext: collaborationContext,
+                approvalBubble: approvalBubble,
+                runAgentOverride: runAgentOverride
+              };
+              isRunning = true;
+              sendButton.disabled = true;
+              setStatusState("running", "Another Run Active");
+              status.textContent = "Your task is queued and will start when the current run finishes.";
+              if (approvalBubble) {
+                var queuedButton = approvalBubble.querySelector(".approve-task-btn");
+                if (queuedButton) queuedButton.textContent = "Queued — starting next";
+              } else {
+                appendMessage("agent", "Another bot task is already running. I’ve queued this request and will continue automatically when it finishes.", "success");
+              }
+              connectRunEvents();
+            })
+            .catch(function() {
+              setStatusState("ready", "Ready");
+              appendMessage("agent", "The server is busy with another task. Please wait for it to finish, then try again.", "error");
+            });
+          return;
+        }
         if (err.status === 428 && err.body) {
+          runningAgentId = null;
+          runningAgentName = "";
           setStatusState("ready", "Waiting for Approval");
           status.textContent = "Action required: approve or deny the request below.";
           stepCounter.textContent = "";
@@ -3639,7 +3681,7 @@ dialog.modal-dialog::backdrop {
           approvalBubble.querySelector(".approve-task-btn").onclick = function(ev) {
             approvalBubble.querySelectorAll("button").forEach(function(b) { b.disabled = true; });
             ev.target.textContent = "Approving…";
-            startRun(task, err.body.approvalsRequired || [], collaborationContext);
+            startRun(task, err.body.approvalsRequired || [], collaborationContext, approvalBubble);
           };
           approvalBubble.querySelector(".deny-task-btn").onclick = function(ev) {
             approvalBubble.querySelectorAll("button").forEach(function(b) { b.disabled = true; });
@@ -3649,6 +3691,8 @@ dialog.modal-dialog::backdrop {
           };
           return;
         }
+        runningAgentId = null;
+        runningAgentName = "";
         setStatusState("ready", "Ready");
         status.textContent = "";
         stepCounter.textContent = "";
@@ -3664,6 +3708,8 @@ dialog.modal-dialog::backdrop {
       .then(readResponse)
       .then(function() {
         isRunning = false;
+        runningAgentId = null;
+        runningAgentName = "";
         sendButton.disabled = false;
         setStatusState("ready", "Ready");
         status.textContent = "Run stopped.";
@@ -3673,16 +3719,35 @@ dialog.modal-dialog::backdrop {
 
   function connectRunEvents() {
     if (runEvents) runEvents.close();
-    runEvents = new EventSource("/api/events");
+    var cursor = localStorage.getItem(runEventCursorKey) || "0";
+    runEvents = new EventSource("/api/events?after=" + encodeURIComponent(cursor));
+    var source = runEvents;
     runEvents.onmessage = function(m) {
+      if (m.lastEventId) localStorage.setItem(runEventCursorKey, m.lastEventId);
       try { handleRunEvent(JSON.parse(m.data)); } catch (_) {}
     };
     runEvents.onerror = function() {
-      if (runEvents) {
-        runEvents.close();
-        runEvents = null;
+      if (runEvents === source && isRunning) {
+        status.textContent = "Reconnecting to your bot…";
+        // EventSource retries automatically; the server replays this run's recent events.
       }
     };
+  }
+
+  function startQueuedRunWhenServerIsIdle(queued) {
+    fetch("/api/status")
+      .then(readResponse)
+      .then(function(serverState) {
+        if (serverState.isRunning) {
+          setTimeout(function() { startQueuedRunWhenServerIsIdle(queued); }, 250);
+          return;
+        }
+        status.textContent = "Starting your queued request…";
+        startRun(queued.task, queued.approvedCategories, queued.collaborationContext, queued.approvalBubble, queued.runAgentOverride);
+      })
+      .catch(function() {
+        setTimeout(function() { startQueuedRunWhenServerIsIdle(queued); }, 750);
+      });
   }
 
   function screenshotHtml(b) {
@@ -3804,6 +3869,12 @@ dialog.modal-dialog::backdrop {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ approved: approved })
+        }).then(readResponse).then(function() {
+          ev.target.textContent = approved ? "Approved" : "Denied";
+        }).catch(function(err) {
+          approvalBubble.querySelectorAll("button").forEach(function(button) { button.disabled = false; });
+          ev.target.textContent = approved ? "Retry approval" : "Retry denial";
+          status.textContent = err.message || "Could not confirm your response. Please retry.";
         });
       };
       approvalBubble.querySelector(".approve-btn").onclick = function(ev) { respondApproval(true, ev); };
@@ -3811,6 +3882,8 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "privileged_approval_resolved") {
+      var resolvedButton = document.querySelector(".approve-btn[disabled], .deny-btn[disabled]");
+      if (resolvedButton) resolvedButton.textContent = e.approved ? "Approved" : "Denied";
       status.textContent = e.approved ? "Approved. Agent is continuing…" : "Denied. Agent is continuing…";
       setStatusState("running", "Agent Running");
       return;
@@ -3818,12 +3891,17 @@ dialog.modal-dialog::backdrop {
     if (e.type === "terminal") {
       var isDirectReply = e.reason === "direct_reply";
       var prefix = e.success ? "" : "<strong>Requires follow-up.</strong> ";
+      var delegatedPrefix = runningAgentId && runningAgentId !== activeAgentId
+        ? "<strong>" + esc(runningAgentName) + " replied:</strong> "
+        : "";
       appendMessage(
         "agent",
-        prefix + formatMarkdown(e.summary || ""),
+        delegatedPrefix + prefix + formatMarkdown(e.summary || ""),
         e.success ? "" : "error"
       );
       isRunning = false;
+      runningAgentId = null;
+      runningAgentName = "";
       sendButton.disabled = false;
       setStatusState("ready", "Ready");
       status.textContent = e.success
@@ -3835,29 +3913,32 @@ dialog.modal-dialog::backdrop {
         runEvents.close();
         runEvents = null;
       }
+      localStorage.removeItem(runEventCursorKey);
 
-      // If the bot called delegate_to_bot, automatically switch to (or spawn) the peer bot and run the delegated task!
+      if (queuedRunAfterActive) {
+        var queued = queuedRunAfterActive;
+        queuedRunAfterActive = null;
+        startQueuedRunWhenServerIsIdle(queued);
+      }
+
+      // Keep the conversation in the requesting bot's chat while the specialist works.
       if (e.delegateTo && e.delegateTo.targetBotName) {
         var sourceBot = activeAgent();
         var sourceName = sourceBot ? sourceBot.name : "Peer Bot";
         var targetPeer = findPeerBotByQuery(e.delegateTo.targetBotName, sourceBot && sourceBot.id);
         if (!targetPeer) {
-          targetPeer = createAgent(e.delegateTo.targetBotName, e.delegateTo.handoffNote || "");
-        } else {
-          selectAgent(targetPeer.id);
+          targetPeer = createAgent(e.delegateTo.targetBotName, e.delegateTo.handoffNote || "", null, null, { select: false });
         }
         var handoffTask = e.delegateTo.task || "";
         var handoffNote = e.delegateTo.handoffNote || "";
-        appendMessage(
-          "user",
-          "<strong>Delegated from " + esc(sourceName) + ":</strong> " + esc(handoffTask) +
-          (handoffNote ? "<br><small>" + esc(handoffNote) + "</small>" : "")
-        );
+        appendMessage("agent", "I’m checking with <strong>" + esc(targetPeer.name) + "</strong> and will bring the result back here.");
         quickStarts.hidden = true;
         startRun(
           "Continue acting as " + targetPeer.name + ". Task delegated by peer bot '" + sourceName + "': " + handoffTask,
           [],
-          "DELEGATION HANDOFF FROM '" + sourceName + "': " + (handoffNote || handoffTask)
+          "DELEGATION HANDOFF FROM '" + sourceName + "': " + (handoffNote || handoffTask),
+          null,
+          targetPeer
         );
       }
     }
@@ -4039,18 +4120,26 @@ dialog.modal-dialog::backdrop {
     var match =
       /^\/delegate\s+(.+?)\s*:\s*([\s\S]+)$/i.exec(value) ||
       /^(?:delegate\s+to|hand\s*off\s+to|ask|tell)\s+(.+?)\s+(?:to|:)\s+([\s\S]+)$/i.exec(value);
+    var naturalHandoff = !match ? parseNaturalHandoff(value, source) : null;
+    if (naturalHandoff) {
+      match = [value, naturalHandoff.target.name, naturalHandoff.task];
+    }
     if (match) {
       var target = findPeerBotByQuery(match[1].trim(), source && source.id);
       if (target) {
         appendMessage("user", esc(value));
-        appendMessage("agent", "Handing off to <strong>" + esc(target.name) + "</strong>.");
+        appendMessage("agent", "I’m asking <strong>" + esc(target.name) + "</strong> and will bring the response back to this chat.");
         var sourceName = source.name;
         var delegatedTask = match[2].trim() + attachmentContext();
-        selectAgent(target.id);
         quickStarts.hidden = true;
-        appendMessage("user", "<strong>From " + esc(sourceName) + ":</strong> " + esc(match[2].trim()));
         clearAttachments();
-        startRun(delegatedTask, [], "This task was delegated by peer bot '" + sourceName + "'. Return a result that can be shared across the workspace.");
+        startRun(
+          delegatedTask,
+          [],
+          "This task was delegated by peer bot '" + sourceName + "'. Return a concise result that can be shared in the requesting bot's chat.",
+          null,
+          target
+        );
         return;
       }
     }
@@ -4874,6 +4963,8 @@ dialog.modal-dialog::backdrop {
   });
 
   renderSessionModeUI();
+  window.addEventListener("resize", syncPromptPlaceholder);
+  syncPromptPlaceholder();
 
   // Sync preferred session mode and restore status if server already has an active browser session
   fetch("/api/status")
@@ -4891,6 +4982,18 @@ dialog.modal-dialog::backdrop {
       }
       if (st.tabs && st.tabs.length) {
         renderBrowserTabs(st.tabs);
+      }
+      if (st.isRunning) {
+        isRunning = true;
+        var activeBot = agents.find(function(item) { return item.name === st.runBotName; });
+        runningAgentId = activeBot ? activeBot.id : null;
+        runningAgentName = st.runBotName || "Bot";
+        sendButton.disabled = true;
+        setStatusState("running", st.runHasPendingApproval ? "Waiting for Approval" : "Reconnecting");
+        status.textContent = st.runHasPendingApproval
+          ? "Your bot is waiting for your approval. Reconnecting to the current task…"
+          : "Reconnecting to your active bot task…";
+        connectRunEvents();
       }
       if (st.hasBrowserSession) {
         connectBrowserFrames(true);
