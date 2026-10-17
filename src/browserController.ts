@@ -204,9 +204,9 @@ export function defaultBrowserConfig(overrides: Partial<BrowserConfig> = {}): Br
     viewportWidth: 1280,
     viewportHeight: 800,
     headless: true,
-    navigationTimeoutMs: 30_000,
-    actionTimeoutMs: 10_000,
-    idleTimeoutMs: 2_500,
+    navigationTimeoutMs: 18_000,
+    actionTimeoutMs: 6_000,
+    idleTimeoutMs: 250,
     maxElements: 40,
     userDataDir: DEFAULT_PROFILE_DIR,
     guestMode: false,
@@ -535,13 +535,13 @@ export class BrowserController {
 
   async waitForIdle(timeoutMs?: number, minSettleMs = 0): Promise<void> {
     const page = this.requirePage();
+    try {
+      await page.waitForLoadState("domcontentloaded", { timeout: timeoutMs ?? this.config.idleTimeoutMs });
+    } catch {
+      // best-effort
+    }
     if (minSettleMs > 0) {
       await page.waitForTimeout(minSettleMs).catch(() => undefined);
-    }
-    try {
-      await page.waitForLoadState("networkidle", { timeout: timeoutMs ?? this.config.idleTimeoutMs });
-    } catch {
-      // best-effort: many pages never go fully idle (polling, websockets, etc.)
     }
   }
 
@@ -565,7 +565,7 @@ export class BrowserController {
       const prefix = err instanceof playwrightErrors.TimeoutError ? "Timed out navigating to" : "Failed to navigate to";
       throw new BrowserActionError(`${prefix} ${resolved}: ${(err as Error).message}`);
     }
-    await this.waitForIdle(undefined, 700);
+    await this.waitForIdle(undefined, 140);
   }
 
   private validateCoords(x: number, y: number): void {
@@ -584,8 +584,7 @@ export class BrowserController {
     } catch (err) {
       throw new BrowserActionError(`Failed to click at (${x}, ${y}): ${(err as Error).message}`);
     }
-    // Give SPAs (Instagram, X, GitHub, etc.) 850ms to fire GraphQL/API requests and mount the new route DOM
-    await this.waitForIdle(undefined, 850);
+    await this.waitForIdle(undefined, 160);
   }
 
   async clickMark(markId: number): Promise<InteractiveElement> {
@@ -617,7 +616,7 @@ export class BrowserController {
         await page.keyboard.press("Backspace");
       }
       if (text) {
-        await page.keyboard.type(text, { delay: 12 });
+        await page.keyboard.insertText(text);
       }
       if (pressEnter) {
         await page.keyboard.press("Enter");
@@ -625,7 +624,7 @@ export class BrowserController {
     } catch (err) {
       throw new BrowserActionError(`Failed to type at (${x}, ${y}): ${(err as Error).message}`);
     }
-    await this.waitForIdle(undefined, pressEnter ? 800 : 150);
+    await this.waitForIdle(undefined, pressEnter ? 160 : 40);
   }
 
   async scroll(direction: "up" | "down", amount = 600): Promise<void> {
@@ -640,7 +639,7 @@ export class BrowserController {
     const delta = normalized === "down" ? amount : -amount;
     try {
       await page.mouse.wheel(0, delta);
-      await page.waitForTimeout(180);
+      await page.waitForTimeout(50);
     } catch (err) {
       throw new BrowserActionError(`Failed to scroll ${normalized}: ${(err as Error).message}`);
     }
@@ -807,7 +806,7 @@ export class BrowserController {
       if (!clickedLabel) {
         throw new BrowserActionError(`Could not find a visible element matching "${query}".`);
       }
-      await this.waitForIdle(undefined, 850);
+      await this.waitForIdle(undefined, 160);
       return clickedLabel;
     } catch (err) {
       if (err instanceof BrowserActionError) throw err;
@@ -822,33 +821,28 @@ export class BrowserController {
     let title: string;
     let rawElements: RawElement[];
     let pageText = "";
+    let challengeDetected = false;
     try {
-      // Use compressed JPEG (quality 60) instead of PNG to cut image payload & vision tokens by ~70%
-      screenshotBuffer = await page.screenshot({ type: "jpeg", quality: 60 });
-      this.lastScreencastFrame = screenshotBuffer.toString("base64");
       url = page.url();
-      title = await page.title().catch(() => "");
-      try {
-        rawElements = await page.evaluate(extractInteractiveElements, INTERACTIVE_SELECTOR);
-      } catch {
-        await page.waitForTimeout(500).catch(() => undefined);
-        rawElements = await page.evaluate(extractInteractiveElements, INTERACTIVE_SELECTOR).catch(() => []);
-      }
-      pageText = await page.evaluate(extractPageTextSummary).catch(() => "");
+      const [shotBuf, pageTitle, elementsRes, textRes, challengeRes] = await Promise.all([
+        page.screenshot({ type: "jpeg", quality: 55, animations: "disabled" }),
+        page.title().catch(() => ""),
+        page.evaluate(extractInteractiveElements, INTERACTIVE_SELECTOR).catch(() => [] as RawElement[]),
+        page.evaluate(extractPageTextSummary).catch(() => ""),
+        page.evaluate(detectVerificationChallenge).catch(() => false)
+      ]);
+      screenshotBuffer = shotBuf;
+      this.lastScreencastFrame = screenshotBuffer.toString("base64");
+      title = pageTitle;
+      rawElements = elementsRes;
+      pageText = textRes;
+      challengeDetected = challengeRes;
     } catch (err) {
       throw new BrowserActionError(`Failed to capture page state: ${(err as Error).message}`);
     }
 
-    let requiresHumanVerification = VERIFICATION_TITLE_KEYWORDS.some((keyword) =>
-      title.toLowerCase().includes(keyword)
-    );
-    if (!requiresHumanVerification) {
-      try {
-        requiresHumanVerification = await page.evaluate(detectVerificationChallenge);
-      } catch {
-        requiresHumanVerification = false;
-      }
-    }
+    const requiresHumanVerification =
+      VERIFICATION_TITLE_KEYWORDS.some((keyword) => title.toLowerCase().includes(keyword)) || challengeDetected;
 
     const limited = Array.isArray(rawElements) ? rawElements.slice(0, this.config.maxElements) : [];
     const elements: InteractiveElement[] = limited.map((item, index) => ({
@@ -867,7 +861,7 @@ export class BrowserController {
     return {
       url,
       title,
-      screenshotB64: screenshotBuffer.toString("base64"),
+      screenshotB64: this.lastScreencastFrame,
       elements,
       pageText,
       stateHash: computeStateHash(url, title, elements.length, pageText),

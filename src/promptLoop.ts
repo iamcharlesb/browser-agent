@@ -170,11 +170,12 @@ export class AgentOrchestrator {
       "- CODEX HEADLESS TOOLS (Fast & Low-Token, NO Browser Needed): `understand_youtube_video` (extracts YouTube title, description, chapters & full spoken transcript over HTTP and lets you apply its concepts), `web_search`, `calculate`, `create_document`, `workspace_file`.\n" +
       "- LOCAL HEADLESS BROWSER TOOLS (Runs behind the browser UI when interacting with a live webpage or signed-in account): `navigate`, `click_mark`, `type_mark`, `click_element`, `click_coords`, `type_text`, `extract_page_data`, `scroll_page`, `go_back`, `key_press`, `wait`.\n" +
       "Rules:\n" +
-      "1. Use `run_terminal_command` whenever the user asks to run terminal/shell commands, inspect system/git state, run code/scripts, or verify builds locally.\n" +
-      "2. Check `[Detected Stats: ...]` and `Text:` in browser observations FIRST! If requested numbers (e.g. posts, followers, following, bio, prices) are already present, immediately call `finish_task` (or reply directly) with the exact numbers.\n" +
-      "3. After clicking a profile/navigation link on a Single-Page App (like Instagram or X), if stats haven't appeared yet, call `extract_page_data` (with `selector: \"header\"` or `mode: \"text\"`) or `wait` (2 seconds) — NEVER call `fail_task` on the first try.\n" +
-      "4. For YouTube links or video learning requests, ALWAYS call `understand_youtube_video` instead of `navigate`, then synthesize and apply the concepts.\n" +
-      "5. Never expose credentials. Ask before financial transactions or public posting/deleting unless approved.\n" +
+      "1. SPEED: Execute actions immediately and batch independent tool calls in a single turn whenever possible to complete the job in the minimum number of steps.\n" +
+      "2. Use `run_terminal_command` whenever the user asks to run terminal/shell commands, inspect system/git state, run code/scripts, or verify builds locally.\n" +
+      "3. Check `[Detected Stats: ...]` and `Text:` in browser observations FIRST! If requested numbers (e.g. posts, followers, following, bio, prices) are already present, immediately call `finish_task` (or reply directly) with the exact numbers.\n" +
+      "4. After clicking a profile/navigation link on a Single-Page App (like Instagram or X), if stats haven't appeared yet, call `extract_page_data` (with `selector: \"header\"` or `mode: \"text\"`) or `wait` (1 second) — NEVER call `fail_task` on the first try.\n" +
+      "5. For YouTube links or video learning requests, ALWAYS call `understand_youtube_video` instead of `navigate`, then synthesize and apply the concepts.\n" +
+      "6. Never expose credentials. Ask before financial transactions or public posting/deleting unless approved.\n" +
       (this.collaborationContext ? `\nCONTEXT:\n${this.collaborationContext}\n` : "")
     );
   }
@@ -329,16 +330,116 @@ export class AgentOrchestrator {
     });
   }
 
+  /**
+   * Pre-executes obvious first actions (direct `$ command`, YouTube URL extraction, or explicit
+   * target URL navigation) BEFORE waiting on the first LLM round-trip so the user sees immediate
+   * action within milliseconds of submitting a job.
+   */
+  private async preExecuteFirstAction(): Promise<{
+    instantFinish?: AgentResult;
+    preExecutedContext?: string;
+    initialState?: PageState | null;
+    stepsUsed: number;
+  }> {
+    const rawRequest = this.extractUserRequestCore();
+
+    // 1. Direct `$ <command>` shell invocation: run immediately in <30ms and return without waiting on LLM
+    const directShellMatch = /^\$\s*([^\n]+)$/.exec(rawRequest);
+    if (directShellMatch) {
+      const cmd = directShellMatch[1].trim();
+      const res = await executeTool("run_terminal_command", { command: cmd }, this.browser);
+      this.emit({
+        type: "step",
+        step: 1,
+        toolName: "run_terminal_command",
+        toolInput: { command: cmd },
+        ok: res.ok,
+        message: res.message.split("\n")[0].slice(0, 180),
+        terminalEntry: res.terminalEntry
+      });
+      const out = (res.terminalEntry?.stdout || res.terminalEntry?.stderr || res.message).trim();
+      return {
+        stepsUsed: 1,
+        instantFinish: this.finish({
+          success: res.ok,
+          summary: `Executed \`$ ${cmd}\` locally (${res.terminalEntry?.durationMs ?? 0}ms):\n\`\`\`text\n${out}\n\`\`\``,
+          stepsTaken: 1,
+          elapsedSeconds: this.loopGuard.elapsedSeconds(),
+          terminationReason: "finish_task"
+        })
+      };
+    }
+
+    // 2. YouTube video URL in prompt: immediately extract video metadata & transcript before Turn 1
+    const ytMatch =
+      /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=[^\s&)]+|youtu\.be\/[^\s?&)]+|youtube\.com\/shorts\/[^\s?&)]+))/i.exec(
+        rawRequest
+      );
+    if (ytMatch && !/\b(open in browser|watch in browser)\b/i.test(rawRequest)) {
+      const videoUrl = ytMatch[1];
+      const res = await executeTool("understand_youtube_video", { urlOrQuery: videoUrl }, this.browser);
+      this.emit({
+        type: "step",
+        step: 1,
+        toolName: "understand_youtube_video",
+        toolInput: { urlOrQuery: videoUrl },
+        ok: res.ok,
+        message: res.message.split("\n")[0].slice(0, 180)
+      });
+      return {
+        stepsUsed: 1,
+        preExecutedContext: `[PRE-EXECUTED TOOL OUTPUT: understand_youtube_video("${videoUrl}")]\n${res.message}\n(You already have the full video analysis above — synthesize your response or take the next step immediately without calling understand_youtube_video again.)`
+      };
+    }
+
+    // 3. Explicit non-YouTube URL in browser request: navigate immediately so Step 1 starts on the target page
+    const urlMatch = /(https?:\/\/[^\s)"'>]+)/i.exec(rawRequest);
+    if (urlMatch && !ytMatch) {
+      const targetUrl = urlMatch[1];
+      if (!this.browser.isStarted) {
+        await this.browser.start();
+      }
+      const cur = this.browser.currentUrl();
+      if (!cur || cur === "about:blank" || !cur.startsWith(targetUrl.slice(0, 24))) {
+        const navRes = await executeTool("navigate", { url: targetUrl }, this.browser);
+        const state = await this.browser.captureState().catch(() => null);
+        this.emit({
+          type: "step",
+          step: 1,
+          toolName: "navigate",
+          toolInput: { url: targetUrl },
+          ok: navRes.ok,
+          message: navRes.message,
+          url: state?.url,
+          title: state?.title,
+          screenshotB64: state?.screenshotB64
+        });
+        return {
+          stepsUsed: 1,
+          initialState: state,
+          preExecutedContext: `[PRE-EXECUTED NAVIGATION: Already navigated to ${state?.url || targetUrl}. Do not call navigate("${targetUrl}") again.]`
+        };
+      }
+    }
+
+    return { stepsUsed: 0 };
+  }
+
   async run(): Promise<AgentResult> {
     if (this.useLocalEngine) {
       return this.runLocalEngine();
     }
 
-    let step = 0;
-    let lastToolCallId: string | null = null;
-    let lastExecResult: ToolExecutionResult | null = null;
+    const pre = await this.preExecuteFirstAction();
+    if (pre.instantFinish) {
+      return pre.instantFinish;
+    }
+
+    let step = pre.stepsUsed;
+    let pendingToolOutputs: Array<{ id: string; result: ToolExecutionResult }> = [];
     let warningText: string | null = null;
     let directiveText: string | null = null;
+    const preContext = pre.preExecutedContext ?? null;
 
     if (this.messages.length === 0) {
       this.messages.push({ role: "system", content: this.systemPrompt });
@@ -346,16 +447,16 @@ export class AgentOrchestrator {
 
     const currentUrl = this.browser.isStarted ? this.browser.currentUrl() : "about:blank";
     const skipInitialScreenshot = !requiresInitialBrowserState(this.task, currentUrl);
-    let state: PageState | null = null;
+    let state: PageState | null = pre.initialState ?? null;
 
-    if (!skipInitialScreenshot && this.browser.isStarted) {
+    if (!state && !skipInitialScreenshot && this.browser.isStarted) {
       try {
         state = await this.browser.captureState();
       } catch (err) {
         return this.finish({
           success: false,
           summary: `Failed to capture initial page state: ${(err as Error).message}`,
-          stepsTaken: 0,
+          stepsTaken: step,
           elapsedSeconds: this.loopGuard.elapsedSeconds(),
           terminationReason: "initial_observation_error"
         });
@@ -373,6 +474,8 @@ export class AgentOrchestrator {
         screenshotB64: state.screenshotB64
       });
     }
+
+    let isFirstTurn = true;
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
@@ -392,15 +495,24 @@ export class AgentOrchestrator {
         throw err;
       }
 
-      this.appendObservation(step, state, lastToolCallId, lastExecResult, warningText, directiveText);
+      this.appendObservation(
+        step,
+        isFirstTurn,
+        state,
+        pendingToolOutputs,
+        warningText,
+        directiveText,
+        isFirstTurn ? preContext : null
+      );
+      isFirstTurn = false;
       this.loopGuard.pruneContext(this.messages as PrunableMessage[], this.keepRecentImages);
 
       let response: OpenAI.Chat.Completions.ChatCompletion;
       try {
         response = await this.callLlm();
       } catch {
-        // If cloud API or local Ollama is unreachable on step 1, automatically fall back to our zero-cloud local engine!
-        if (step === 1) {
+        // If cloud API or local Ollama is unreachable on first turn, automatically fall back to our zero-cloud local engine!
+        if (step <= 2) {
           return this.runLocalEngine();
         }
         return this.finish({
@@ -413,10 +525,10 @@ export class AgentOrchestrator {
       }
 
       const message = response.choices[0].message;
-      this.messages.push(this.serializeAssistantMessage(message));
-      const toolCall = this.extractToolCall(message);
-      if (!toolCall) {
-        // Conversational fast-path: if the model answered directly in plain text/Markdown, finish immediately!
+      const toolCalls = this.extractToolCalls(message);
+      this.messages.push(this.serializeAssistantMessage(message, toolCalls.length));
+
+      if (toolCalls.length === 0) {
         const directReply = (message.content ?? "").trim();
         if (directReply) {
           return this.finish({
@@ -427,108 +539,127 @@ export class AgentOrchestrator {
             terminationReason: "direct_reply"
           });
         }
-        lastToolCallId = null;
-        lastExecResult = { ok: false, message: "Call a tool or provide a final response." };
+        pendingToolOutputs = [];
         warningText = null;
         directiveText = null;
         continue;
       }
 
-      if (toolCall.name === "finish_task") {
-        const summary = typeof toolCall.input.summary === "string" ? toolCall.input.summary : "Task completed.";
-        return this.finish({
-          success: true,
-          summary,
-          stepsTaken: step,
-          elapsedSeconds: this.loopGuard.elapsedSeconds(),
-          terminationReason: "finish_task"
-        });
-      }
-      if (toolCall.name === "fail_task") {
-        const reason = typeof toolCall.input.reason === "string" ? toolCall.input.reason : "Task failed.";
-        // Guard against premature Step 1-2 failure after an SPA route transition (e.g. clicking Profile on Instagram)
-        if (step <= 2 && this.browser.isStarted) {
-          try {
-            await this.browser.wait(1.2);
-            state = await this.browser.captureState();
-            lastToolCallId = toolCall.id;
-            lastExecResult = {
-              ok: true,
-              message:
-                "Refreshed live DOM after SPA transition. Re-check `[Detected Stats]` and `Text:` in the observation below — if the requested info (such as follower/following/post counts) is now visible, call `finish_task` with the answer!"
-            };
-            warningText = null;
-            directiveText = null;
-            continue;
-          } catch {
-            // Fall through to normal fail_task if refresh fails
+      pendingToolOutputs = [];
+      let touchedBrowserInBatch = false;
+      const preHash = state?.stateHash ?? "none";
+
+      for (let i = 0; i < toolCalls.length; i += 1) {
+        const toolCall = toolCalls[i];
+        if (i > 0) {
+          step += 1;
+        }
+
+        if (toolCall.name === "finish_task") {
+          const summary = typeof toolCall.input.summary === "string" ? toolCall.input.summary : "Task completed.";
+          return this.finish({
+            success: true,
+            summary,
+            stepsTaken: step,
+            elapsedSeconds: this.loopGuard.elapsedSeconds(),
+            terminationReason: "finish_task"
+          });
+        }
+
+        if (toolCall.name === "fail_task") {
+          const reason = typeof toolCall.input.reason === "string" ? toolCall.input.reason : "Task failed.";
+          if (step <= 2 && this.browser.isStarted) {
+            try {
+              await this.browser.wait(0.6);
+              state = await this.browser.captureState();
+              pendingToolOutputs.push({
+                id: toolCall.id,
+                result: {
+                  ok: true,
+                  message:
+                    "Refreshed live DOM after SPA transition. Re-check `[Detected Stats]` and `Text:` in the observation below — if the requested info is now visible, call `finish_task` with the answer!"
+                }
+              });
+              warningText = null;
+              directiveText = null;
+              continue;
+            } catch {
+              // Fall through to normal fail_task if refresh fails
+            }
+          }
+          return this.finish({
+            success: false,
+            summary: reason,
+            stepsTaken: step,
+            elapsedSeconds: this.loopGuard.elapsedSeconds(),
+            terminationReason: "fail_task"
+          });
+        }
+
+        const isNonBrowserTool =
+          toolCall.name === "run_terminal_command" ||
+          toolCall.name === "understand_youtube_video" ||
+          toolCall.name === "web_search" ||
+          toolCall.name === "calculate" ||
+          toolCall.name === "create_document" ||
+          toolCall.name === "workspace_file";
+
+        if (!isNonBrowserTool) {
+          touchedBrowserInBatch = true;
+          if (!this.browser.isStarted) {
+            await this.browser.start();
           }
         }
-        return this.finish({
-          success: false,
-          summary: reason,
-          stepsTaken: step,
-          elapsedSeconds: this.loopGuard.elapsedSeconds(),
-          terminationReason: "fail_task"
+
+        const execResult = await executeTool(toolCall.name, toolCall.input, this.browser);
+        pendingToolOutputs.push({ id: toolCall.id, result: execResult });
+
+        // Capture browser state only on the last browser tool in the batch (or if the next tool depends on fresh markIds)
+        const nextCall = toolCalls[i + 1];
+        const nextNeedsFreshMarks =
+          nextCall && (nextCall.name === "click_mark" || nextCall.name === "type_mark");
+
+        if (!isNonBrowserTool && this.browser.isStarted && (i === toolCalls.length - 1 || nextNeedsFreshMarks)) {
+          try {
+            state = await this.browser.captureState();
+          } catch (err) {
+            pendingToolOutputs[pendingToolOutputs.length - 1].result = {
+              ok: false,
+              message: `${execResult.message} (post-action observation failed: ${(err as Error).message})`
+            };
+          }
+        }
+
+        const isNonVisualTool = isNonBrowserTool || toolCall.name === "extract_page_data";
+        const postHash = state?.stateHash ?? "none";
+        const supervision = this.loopGuard.supervise(
+          step,
+          toolCall.name,
+          toolCall.input,
+          preHash,
+          isNonVisualTool ? `${postHash}_${step}` : postHash
+        );
+        warningText = !isNonVisualTool && supervision.zeroDeltaWarning && execResult.ok ? ZERO_DELTA_WARNING : null;
+        directiveText = supervision.directive;
+
+        this.emit({
+          type: "step",
+          step,
+          toolName: toolCall.name,
+          toolInput: toolCall.input,
+          ok: execResult.ok,
+          message: execResult.message.split("\n")[0].slice(0, 180),
+          artifactUrl: execResult.artifactUrl,
+          terminalEntry: execResult.terminalEntry,
+          url: isNonBrowserTool ? undefined : state?.url,
+          title: isNonBrowserTool ? undefined : state?.title,
+          screenshotB64: isNonBrowserTool ? undefined : state?.screenshotB64,
+          warning: warningText,
+          directive: directiveText
         });
       }
 
-      const isNonBrowserTool =
-        toolCall.name === "run_terminal_command" ||
-        toolCall.name === "understand_youtube_video" ||
-        toolCall.name === "web_search" ||
-        toolCall.name === "calculate" ||
-        toolCall.name === "create_document" ||
-        toolCall.name === "workspace_file";
-
-      if (!isNonBrowserTool && !this.browser.isStarted) {
-        await this.browser.start();
-      }
-
-      const preHash = state?.stateHash ?? "none";
-      let execResult = await executeTool(toolCall.name, toolCall.input, this.browser);
-
-      if (!isNonBrowserTool && this.browser.isStarted) {
-        try {
-          state = await this.browser.captureState();
-        } catch (err) {
-          execResult = {
-            ok: false,
-            message: `${execResult.message} (post-action observation failed: ${(err as Error).message})`
-          };
-        }
-      }
-
-      const isNonVisualTool = isNonBrowserTool || toolCall.name === "extract_page_data";
-      const postHash = state?.stateHash ?? "none";
-      const supervision = this.loopGuard.supervise(
-        step,
-        toolCall.name,
-        toolCall.input,
-        preHash,
-        isNonVisualTool ? `${postHash}_${step}` : postHash
-      );
-      warningText = !isNonVisualTool && supervision.zeroDeltaWarning && execResult.ok ? ZERO_DELTA_WARNING : null;
-      directiveText = supervision.directive;
-      this.emit({
-        type: "step",
-        step,
-        toolName: toolCall.name,
-        toolInput: toolCall.input,
-        ok: execResult.ok,
-        message: execResult.message.split("\n")[0].slice(0, 180),
-        artifactUrl: execResult.artifactUrl,
-        terminalEntry: execResult.terminalEntry,
-        url: isNonBrowserTool ? undefined : state?.url,
-        title: isNonBrowserTool ? undefined : state?.title,
-        screenshotB64: isNonBrowserTool ? undefined : state?.screenshotB64,
-        warning: warningText,
-        directive: directiveText
-      });
-      lastToolCallId = toolCall.id;
-      lastExecResult = execResult;
-
-      if (state?.requiresHumanVerification) {
+      if (touchedBrowserInBatch && state?.requiresHumanVerification) {
         state = await this.handleHumanVerification(state);
       }
     }
@@ -536,23 +667,27 @@ export class AgentOrchestrator {
 
   private appendObservation(
     step: number,
+    isFirstTurn: boolean,
     state: PageState | null,
-    lastToolCallId: string | null,
-    lastExecResult: ToolExecutionResult | null,
+    pendingToolOutputs: Array<{ id: string; result: ToolExecutionResult }>,
     warningText: string | null,
-    directiveText: string | null
+    directiveText: string | null,
+    preExecutedContext: string | null
   ): void {
-    if (lastToolCallId !== null && lastExecResult !== null) {
+    for (const item of pendingToolOutputs) {
       this.messages.push({
         role: "tool",
-        tool_call_id: lastToolCallId,
-        content: lastExecResult.message
+        tool_call_id: item.id,
+        content: item.result.message
       });
     }
 
     const lines: string[] = [];
-    if (step === 1) {
+    if (isFirstTurn) {
       lines.push(`TASK: ${this.task}`);
+      if (preExecutedContext) {
+        lines.push(preExecutedContext);
+      }
     }
     if (state) {
       lines.push(`Step ${step} | URL: ${state.url} | Title: ${state.title}`);
@@ -567,7 +702,7 @@ export class AgentOrchestrator {
         });
         lines.push(`Elements: ${compactEls.join(" | ")}`);
       }
-    } else if (step === 1) {
+    } else if (isFirstTurn && !preExecutedContext) {
       lines.push("(Browser not needed unless you call a browser tool.)");
     }
     if (warningText) lines.push(warningText);
@@ -603,7 +738,7 @@ export class AgentOrchestrator {
           max_tokens: MAX_TOKENS,
           tools: TOOLS,
           tool_choice: "auto",
-          parallel_tool_calls: false,
+          parallel_tool_calls: true,
           messages: this.messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
         });
       } catch (err) {
@@ -614,12 +749,12 @@ export class AgentOrchestrator {
         if (attempt === this.maxApiRetries) {
           break;
         }
-        const backoffMs = Math.min(2 ** attempt, 10) * 1000;
+        const backoffMs = Math.min(400 * attempt, 2000);
         // eslint-disable-next-line no-console
         console.warn(
           `LLM API call failed (attempt ${attempt}/${this.maxApiRetries}): ${
             (err as Error).message
-          }. Retrying in ${backoffMs / 1000}s.`
+          }. Retrying in ${backoffMs}ms.`
         );
         await sleep(backoffMs);
       }
@@ -628,15 +763,15 @@ export class AgentOrchestrator {
   }
 
   private serializeAssistantMessage(
-    message: OpenAI.Chat.Completions.ChatCompletionMessage
+    message: OpenAI.Chat.Completions.ChatCompletionMessage,
+    maxCalls = 4
   ): ChatMessage {
     const serialized: { role: "assistant"; content: string | null; tool_calls?: unknown[] } = {
       role: "assistant",
       content: message.content
     };
-    if (message.tool_calls && message.tool_calls.length > 0) {
-      // Only serialize the single tool call we actually execute so OpenAI/xAI never errors on unresponded tool_call_ids
-      serialized.tool_calls = message.tool_calls.slice(0, 1).map((call) => ({
+    if (message.tool_calls && message.tool_calls.length > 0 && maxCalls > 0) {
+      serialized.tool_calls = message.tool_calls.slice(0, maxCalls).map((call) => ({
         id: call.id,
         type: "function",
         function: { name: call.function.name, arguments: call.function.arguments }
@@ -645,17 +780,18 @@ export class AgentOrchestrator {
     return serialized;
   }
 
-  private extractToolCall(message: OpenAI.Chat.Completions.ChatCompletionMessage): ExtractedToolCall | null {
+  private extractToolCalls(message: OpenAI.Chat.Completions.ChatCompletionMessage): ExtractedToolCall[] {
     if (!message.tool_calls || message.tool_calls.length === 0) {
-      return null;
+      return [];
     }
-    const call = message.tool_calls[0];
-    let input: Record<string, unknown> = {};
-    try {
-      input = call.function.arguments ? JSON.parse(call.function.arguments) : {};
-    } catch {
-      input = {};
-    }
-    return { id: call.id, name: call.function.name, input };
+    return message.tool_calls.slice(0, 4).map((call) => {
+      let input: Record<string, unknown> = {};
+      try {
+        input = call.function.arguments ? JSON.parse(call.function.arguments) : {};
+      } catch {
+        input = {};
+      }
+      return { id: call.id, name: call.function.name, input };
+    });
   }
 }
