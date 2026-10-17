@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { BrowserContext, Page, chromium, errors as playwrightErrors } from "playwright";
+import { BrowserContext, CDPSession, Page, chromium, errors as playwrightErrors } from "playwright";
 
 /**
  * Default on-disk profile directory. Using a persistent Chromium profile (cookies, local
@@ -192,9 +192,14 @@ export class BrowserController {
   private readonly config: BrowserConfig;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
+  private cdpSession: CDPSession | null = null;
 
   constructor(config: Partial<BrowserConfig> = {}) {
     this.config = defaultBrowserConfig(config);
+  }
+
+  get viewportSize(): { width: number; height: number } {
+    return { width: this.config.viewportWidth, height: this.config.viewportHeight };
   }
 
   async start(): Promise<void> {
@@ -219,6 +224,7 @@ export class BrowserController {
   }
 
   async close(): Promise<void> {
+    await this.stopScreencast();
     if (this.context !== null) {
       try {
         await this.context.close();
@@ -228,6 +234,80 @@ export class BrowserController {
     }
     this.page = null;
     this.context = null;
+  }
+
+  /**
+   * Streams a live JPEG screencast of the page via Chrome DevTools Protocol, so a caller (the
+   * web UI) can render the real browser inline instead of opening a separate OS window.
+   */
+  async startScreencast(onFrame: (base64Jpeg: string) => void): Promise<void> {
+    const page = this.requirePage();
+    if (this.cdpSession !== null) {
+      throw new BrowserActionError("A screencast is already running.");
+    }
+    try {
+      const session = await page.context().newCDPSession(page);
+      this.cdpSession = session;
+      session.on("Page.screencastFrame", (payload) => {
+        onFrame(payload.data);
+        void session.send("Page.screencastFrameAck", { sessionId: payload.sessionId }).catch(() => undefined);
+      });
+      await session.send("Page.startScreencast", {
+        format: "jpeg",
+        quality: 70,
+        maxWidth: this.config.viewportWidth,
+        maxHeight: this.config.viewportHeight,
+        everyNthFrame: 1
+      });
+    } catch (err) {
+      this.cdpSession = null;
+      throw new BrowserActionError(`Failed to start screencast: ${(err as Error).message}`);
+    }
+  }
+
+  async stopScreencast(): Promise<void> {
+    if (this.cdpSession === null) {
+      return;
+    }
+    const session = this.cdpSession;
+    this.cdpSession = null;
+    try {
+      await session.send("Page.stopScreencast");
+    } catch {
+      // best-effort
+    }
+    try {
+      await session.detach();
+    } catch {
+      // best-effort
+    }
+  }
+
+  // ---- Remote-control primitives for the embedded live view. These forward raw input from a
+  // viewer's click/keyboard events into the real page, for interactive flows like signing in.
+
+  async remoteMouseMove(x: number, y: number): Promise<void> {
+    await this.requirePage().mouse.move(x, y);
+  }
+
+  async remoteClick(x: number, y: number): Promise<void> {
+    await this.requirePage().mouse.click(x, y);
+  }
+
+  async remoteType(text: string): Promise<void> {
+    if (!text) return;
+    await this.requirePage().keyboard.type(text, { delay: 10 });
+  }
+
+  async remoteKeyPress(key: string): Promise<void> {
+    if (!key) return;
+    await this.requirePage().keyboard.press(key);
+  }
+
+  async remoteScroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
+    const page = this.requirePage();
+    await page.mouse.move(x, y);
+    await page.mouse.wheel(deltaX, deltaY);
   }
 
   private requirePage(): Page {

@@ -76,6 +76,9 @@ interface RunRequestBody {
 
 interface LoginSession {
   controller: BrowserController;
+  frameQueue: AsyncQueue<string | null>;
+  viewportWidth: number;
+  viewportHeight: number;
 }
 
 let currentRun: RunState | null = null;
@@ -167,23 +170,34 @@ function startRun(body: RunRequestBody): void {
   })();
 }
 
-async function openLoginSession(url: string): Promise<void> {
+async function openLoginSession(url: string): Promise<{ viewportWidth: number; viewportHeight: number }> {
   if (loginSession) {
     throw new Error("A login session is already open.");
   }
   if (currentRun && currentRun.isRunning) {
     throw new Error("A task run is in progress. Wait for it to finish first.");
   }
-  const controller = new BrowserController(defaultBrowserConfig({ headless: false }));
-  loginSession = { controller };
+  // Always headless under the hood: the embedded live view (CDP screencast) is what renders the
+  // page inside the web UI tab, instead of popping a separate OS browser window.
+  const controller = new BrowserController(defaultBrowserConfig({ headless: true }));
+  const { width, height } = controller.viewportSize;
+  const session: LoginSession = {
+    controller,
+    frameQueue: new AsyncQueue<string | null>(),
+    viewportWidth: width,
+    viewportHeight: height
+  };
+  loginSession = session;
   try {
     await controller.start();
     await controller.navigate(url);
+    await controller.startScreencast((frame) => session.frameQueue.push(frame));
   } catch (err) {
     loginSession = null;
     await controller.close().catch(() => undefined);
     throw err;
   }
+  return { viewportWidth: width, viewportHeight: height };
 }
 
 async function closeLoginSession(): Promise<boolean> {
@@ -192,6 +206,7 @@ async function closeLoginSession(): Promise<boolean> {
   }
   const session = loginSession;
   loginSession = null;
+  session.frameQueue.push(null);
   await session.controller.close();
   return true;
 }
@@ -297,8 +312,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     try {
       const body = (await readJsonBody(req)) as Record<string, unknown>;
       const loginUrl = typeof body.url === "string" && body.url.trim() ? body.url.trim() : "about:blank";
-      await openLoginSession(loginUrl);
-      sendJson(res, 200, { status: "opened", profileDir: DEFAULT_PROFILE_DIR });
+      const { viewportWidth, viewportHeight } = await openLoginSession(loginUrl);
+      sendJson(res, 200, { status: "opened", profileDir: DEFAULT_PROFILE_DIR, viewportWidth, viewportHeight });
     } catch (err) {
       const message = (err as Error).message;
       const conflict = message.includes("already open") || message.includes("in progress");
@@ -313,6 +328,71 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       sendJson(res, 200, { status: "closed" });
     } else {
       sendJson(res, 409, { detail: "No login session is currently open." });
+    }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/login/screencast") {
+    if (!loginSession) {
+      sendJson(res, 404, { detail: "No login session is currently open." });
+      return;
+    }
+    const session = loginSession;
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive"
+    });
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const frame = await session.frameQueue.next();
+      if (frame === null) break;
+      res.write(`data: ${frame}\n\n`);
+    }
+    res.end();
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/login/input") {
+    if (!loginSession) {
+      sendJson(res, 404, { detail: "No login session is currently open." });
+      return;
+    }
+    const controller = loginSession.controller;
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const inputType = String(body.type ?? "");
+      switch (inputType) {
+        case "navigate":
+          await controller.navigate(String(body.url ?? ""));
+          break;
+        case "click":
+          await controller.remoteClick(Number(body.x), Number(body.y));
+          break;
+        case "move":
+          await controller.remoteMouseMove(Number(body.x), Number(body.y));
+          break;
+        case "type":
+          await controller.remoteType(String(body.text ?? ""));
+          break;
+        case "key":
+          await controller.remoteKeyPress(String(body.key ?? ""));
+          break;
+        case "scroll":
+          await controller.remoteScroll(
+            Number(body.x),
+            Number(body.y),
+            Number(body.deltaX ?? 0),
+            Number(body.deltaY ?? 0)
+          );
+          break;
+        default:
+          sendJson(res, 400, { detail: `Unknown input type '${inputType}'.` });
+          return;
+      }
+      sendJson(res, 200, { status: "ok" });
+    } catch (err) {
+      sendJson(res, 400, { detail: (err as Error).message });
     }
     return;
   }
