@@ -948,6 +948,13 @@ button { color: inherit; }
   width: 28px;
   height: 28px;
 }
+@media (min-width: 768px) {
+  .msg-bot-avatar { width: 30px; flex-basis: 30px; }
+  .msg-bot-avatar svg.bot-char-svg { width: 30px; height: 30px; }
+  .message.agent .message-body { max-width: calc(100% - 42px); }
+  .run-presence .agent-avatar { width: 28px; height: 28px; flex-basis: 28px; }
+  .run-presence .agent-avatar svg.bot-char-svg { width: 28px; height: 28px; }
+}
 .message-body { max-width: 86%; min-width: 0; }
 .message.agent .message-body { flex: 1; max-width: calc(100% - 40px); }
 .message-label {
@@ -2267,36 +2274,36 @@ dialog.modal-dialog::backdrop {
           <h1>What should your bot do?</h1>
           <p>Pick a specialized bot, create a custom bot, or type any task below.</p>
           <div class="template-grid">
-            <button type="button" class="template-card" data-name="YouTube Concept & Code Learner" data-desc="Extract full transcripts, chapters, and concepts from any YouTube video headlessly (like Codex) and apply them to write code, tutorials, or notes." data-shape="play-blob" data-color="#ff2d3b">
-              <div class="template-avatar" data-shape="play-blob" data-color="#ff2d3b"></div>
+            <button type="button" class="template-card" data-name="YouTube Concept & Code Learner" data-desc="Extract full transcripts, chapters, and concepts from any YouTube video headlessly (like Codex) and apply them to write code, tutorials, or notes." data-shape="circle" data-color="#ff2d3b">
+              <div class="template-avatar" data-shape="circle" data-color="#ff2d3b"></div>
               <div class="template-copy">
                 <strong>YouTube Concept Learner</strong>
                 <span>Understand any YouTube video headlessly &amp; turn concepts into code or notes.</span>
               </div>
             </button>
-            <button type="button" class="template-card" data-name="Local Terminal & DevOps Bot" data-desc="Execute local shell/terminal commands (git, node, python3, npm, tests), inspect files, and automate workflows directly behind the browser." data-shape="gear" data-color="#10b981">
-              <div class="template-avatar" data-shape="gear" data-color="#10b981"></div>
+            <button type="button" class="template-card" data-name="Local Terminal & DevOps Bot" data-desc="Execute local shell/terminal commands (git, node, python3, npm, tests), inspect files, and automate workflows directly behind the browser." data-shape="circle" data-color="#10b981">
+              <div class="template-avatar" data-shape="circle" data-color="#10b981"></div>
               <div class="template-copy">
                 <strong>Local Terminal &amp; DevOps</strong>
                 <span>Run `git`, `node`, `python3` &amp; shell commands locally with zero cloud.</span>
               </div>
             </button>
-            <button type="button" class="template-card" data-name="Instagram Follower Growth" data-desc="Audit your signed-in Instagram profile, check follower count, and build an organic growth plan." data-shape="heart" data-color="#ec4899">
-              <div class="template-avatar" data-shape="heart" data-color="#ec4899"></div>
+            <button type="button" class="template-card" data-name="Instagram Follower Growth" data-desc="Audit your signed-in Instagram profile, check follower count, and build an organic growth plan." data-shape="circle" data-color="#ec4899">
+              <div class="template-avatar" data-shape="circle" data-color="#ec4899"></div>
               <div class="template-copy">
                 <strong>Instagram Follower Growth</strong>
                 <span>Audit your signed-in profile, check followers &amp; build a growth plan.</span>
               </div>
             </button>
-            <button type="button" class="template-card" data-name="X / Grok Trend Researcher" data-desc="Monitor real-time conversations, analyze viral posts, and synthesize key takeaways with Grok speed." data-shape="starburst" data-color="#000000">
-              <div class="template-avatar" data-shape="starburst" data-color="#000000"></div>
+            <button type="button" class="template-card" data-name="X / Grok Trend Researcher" data-desc="Monitor real-time conversations, analyze viral posts, and synthesize key takeaways with Grok speed." data-shape="circle" data-color="#000000">
+              <div class="template-avatar" data-shape="circle" data-color="#000000"></div>
               <div class="template-copy">
                 <strong>X / Grok Researcher</strong>
                 <span>Monitor real-time discussions, viral threads &amp; breaking news.</span>
               </div>
             </button>
-            <button type="button" class="template-card" data-name="Competitor Intelligence" data-desc="Research competitor websites, compare pricing & features, and synthesize executive comparisons." data-shape="pentagon" data-color="#1677ff">
-              <div class="template-avatar" data-shape="pentagon" data-color="#1677ff"></div>
+            <button type="button" class="template-card" data-name="Competitor Intelligence" data-desc="Research competitor websites, compare pricing & features, and synthesize executive comparisons." data-shape="circle" data-color="#1677ff">
+              <div class="template-avatar" data-shape="circle" data-color="#1677ff"></div>
               <div class="template-copy">
                 <strong>Competitor Intelligence</strong>
                 <span>Compare competitor pricing, features &amp; market positioning.</span>
@@ -2771,9 +2778,29 @@ dialog.modal-dialog::backdrop {
     "#10b981", "#14b8a6", "#1677ff", "#8b5cf6", "#ec4899", "#8e8e93"
   ];
 
-  var selectedBotShape = "play-blob";
+  var selectedBotShape = "circle";
   var selectedBotColor = "#ff2d3b";
   var editingBotId = null;
+
+  // Normalize older, untouched starter avatars to the circular default. Shapes that users
+  // deliberately selected through the customizer are left alone.
+  var starterDefaultShapes = {
+    "YouTube Concept & Code Learner": "play-blob",
+    "YouTube Concept Learner": "play-blob",
+    "Local Terminal & DevOps Bot": "gear",
+    "Instagram Follower Growth": "heart",
+    "X / Grok Trend Researcher": "starburst",
+    "Competitor Intelligence": "pentagon"
+  };
+  var normalizedStarterShapes = false;
+  agents.forEach(function(agent) {
+    var priorDefault = starterDefaultShapes[agent.name];
+    if (!agent.shapeCustomized && priorDefault && agent.shape === priorDefault) {
+      agent.shape = "circle";
+      normalizedStarterShapes = true;
+    }
+  });
+  if (normalizedStarterShapes) saveAgents();
 
   function renderBotSvg(shapeId, color) {
     var shape = BOT_SHAPES.find(function(s) { return s.id === shapeId; }) || BOT_SHAPES[0];
@@ -2796,19 +2823,18 @@ dialog.modal-dialog::backdrop {
     if (agent && (agent.shape || agent.color)) {
       el.classList.add("custom-bot");
       el.style.setProperty("--bot-color", agent.color || "#ff2d3b");
-      el.innerHTML = renderBotSvg(agent.shape || "play-blob", agent.color || "#ff2d3b");
+      el.innerHTML = renderBotSvg(agent.shape || "circle", agent.color || "#ff2d3b");
     } else if (!agent || agent.name === "New Bot" || agent.name === "New Agent") {
       el.classList.add("custom-bot");
       el.style.setProperty("--bot-color", "#ff2d3b");
-      el.innerHTML = renderBotSvg("play-blob", "#ff2d3b");
+      el.innerHTML = renderBotSvg("circle", "#ff2d3b");
     } else {
       // Deterministic Grok Bot character fallback for legacy agents
       var idx = Math.abs(agent.name.split("").reduce(function(acc, c) { return acc + c.charCodeAt(0); }, 0));
-      var autoShape = BOT_SHAPES[idx % BOT_SHAPES.length].id;
       var autoColor = BOT_COLORS[idx % BOT_COLORS.length];
       el.classList.add("custom-bot");
       el.style.setProperty("--bot-color", autoColor);
-      el.innerHTML = renderBotSvg(autoShape, autoColor);
+      el.innerHTML = renderBotSvg("circle", autoColor);
     }
     el.classList.toggle("is-working", Boolean(working));
   }
@@ -3242,7 +3268,8 @@ dialog.modal-dialog::backdrop {
       name: name,
       description: desc,
       summary: desc || intent.summary,
-      shape: shapeId || BOT_SHAPES[idx % BOT_SHAPES.length].id,
+      shape: shapeId || "circle",
+      shapeCustomized: Boolean(shapeId && shapeId !== "circle"),
       color: colorHex || BOT_COLORS[idx % BOT_COLORS.length],
       intent: intent,
       transcript: []
@@ -3315,7 +3342,7 @@ dialog.modal-dialog::backdrop {
       submitBtn.textContent = "Save";
       nameInput.value = ag.name || "";
       descInput.value = ag.description || ag.summary || "";
-      selectedBotShape = ag.shape || "play-blob";
+      selectedBotShape = ag.shape || "circle";
       selectedBotColor = ag.color || "#ff2d3b";
     } else {
       editingBotId = null;
@@ -3323,7 +3350,7 @@ dialog.modal-dialog::backdrop {
       submitBtn.textContent = "Create";
       nameInput.value = (prefill && prefill.name) || "";
       descInput.value = (prefill && prefill.description) || "";
-      selectedBotShape = (prefill && prefill.shape) || "play-blob";
+      selectedBotShape = (prefill && prefill.shape) || "circle";
       selectedBotColor = (prefill && prefill.color) || "#ff2d3b";
     }
 
@@ -3347,6 +3374,7 @@ dialog.modal-dialog::backdrop {
         existing.description = descVal;
         existing.summary = descVal || existing.summary;
         existing.shape = selectedBotShape;
+        existing.shapeCustomized = selectedBotShape !== "circle";
         existing.color = selectedBotColor;
         existing.intent = inferredIntent(nameVal, descVal);
         saveAgents();
@@ -4165,7 +4193,7 @@ dialog.modal-dialog::backdrop {
           : isTerm
           ? "Execute local shell/terminal commands behind the browser with zero cloud needed."
           : "Autonomous local terminal, Codex & on-demand browser specialist.";
-        createAgent(autoName, autoDesc, isYt ? "play-blob" : isTerm ? "gear" : "starburst", isYt ? "#ff2d3b" : isTerm ? "#10b981" : "#1677ff");
+        createAgent(autoName, autoDesc, "circle", isYt ? "#ff2d3b" : isTerm ? "#10b981" : "#1677ff");
         quickStarts.hidden = true;
         // Fall through to execute the user's message immediately!
       } else {
@@ -4930,20 +4958,20 @@ dialog.modal-dialog::backdrop {
 
   var welcomeAvatarEl = document.getElementById("welcome-avatar");
   if (welcomeAvatarEl) {
-    welcomeAvatarEl.innerHTML = renderBotSvg("play-blob", "#ff2d3b");
+    welcomeAvatarEl.innerHTML = renderBotSvg("circle", "#ff2d3b");
   }
 
   document.querySelectorAll(".template-card").forEach(function(card) {
     var avatarHolder = card.querySelector(".template-avatar[data-shape]");
     if (avatarHolder) {
-      var s = avatarHolder.getAttribute("data-shape") || "play-blob";
+      var s = avatarHolder.getAttribute("data-shape") || "circle";
       var c = avatarHolder.getAttribute("data-color") || "#ff2d3b";
       avatarHolder.innerHTML = renderBotSvg(s, c);
     }
     card.addEventListener("click", function() {
       var name = card.getAttribute("data-name");
       var desc = card.getAttribute("data-desc") || "";
-      var shape = card.getAttribute("data-shape") || "play-blob";
+      var shape = card.getAttribute("data-shape") || "circle";
       var color = card.getAttribute("data-color") || "#ff2d3b";
       if (name) createAgent(name, desc, shape, color);
     });
