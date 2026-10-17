@@ -74,8 +74,11 @@ export function requiresInitialBrowserState(task: string, browserUrl: string): b
   if (/youtube\.com|youtu\.be|\byoutube\b|understand_youtube_video/.test(lower) && !/\b(open in browser|watch in browser)\b/.test(lower)) {
     return false;
   }
-  // Explicit headless Codex tool requests never need initial browser state
-  if (/\b(web_search|workspace_file|create_document|calculate)\b/.test(lower) && !/\b(click|instagram|x\.com|twitter|linkedin|current page|on this page)\b/.test(lower)) {
+  // Explicit headless Codex & Local Terminal tool requests never need initial browser state
+  if (
+    /\b(run_terminal_command|terminal|shell|bash|zsh|git status|git log|npm |npx |python3? |node |ls |grep |web_search|workspace_file|create_document|calculate)\b/.test(lower) &&
+    !/\b(click|instagram|x\.com|twitter|linkedin|current page|on this page)\b/.test(lower)
+  ) {
     return false;
   }
   const explicitBrowserIntent =
@@ -97,6 +100,7 @@ export class AgentOrchestrator {
   private readonly browser: BrowserController;
   private readonly client: OpenAI;
   private readonly model: string;
+  private readonly useLocalEngine: boolean;
   private readonly keepRecentImages: number;
   private readonly maxApiRetries: number;
   private readonly onEvent?: OnEvent;
@@ -119,26 +123,36 @@ export class AgentOrchestrator {
       throw new Error("maxApiRetries must be a positive integer");
     }
 
-    const isGrokModel = Boolean(options.model && options.model.toLowerCase().startsWith("grok"));
-    const resolvedKey =
+    const rawModel = (options.model || DEFAULT_MODEL).trim();
+    const isLocalEngineRequested = rawModel === "local-engine";
+    const isOllamaModel = rawModel.startsWith("ollama:");
+    const isGrokModel = rawModel.toLowerCase().startsWith("grok");
+
+    const cloudKey =
       options.apiKey ??
       (isGrokModel ? process.env.XAI_API_KEY || process.env.OPENAI_API_KEY : process.env.OPENAI_API_KEY);
-    if (!resolvedKey) {
-      throw new Error("API key is not set. Configure OPENAI_API_KEY (or XAI_API_KEY) in Settings.");
-    }
+
+    this.useLocalEngine = isLocalEngineRequested || (!isOllamaModel && !cloudKey);
+
+    const resolvedKey = isOllamaModel ? "ollama-local" : cloudKey || "local-no-cloud-key";
     const resolvedBaseURL =
-      options.baseURL ?? (isGrokModel ? process.env.XAI_BASE_URL || "https://api.x.ai/v1" : process.env.OPENAI_BASE_URL);
+      options.baseURL ??
+      (isOllamaModel
+        ? process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434/v1"
+        : isGrokModel
+        ? process.env.XAI_BASE_URL || "https://api.x.ai/v1"
+        : process.env.OPENAI_BASE_URL);
 
     this.task = task;
-    this.botName = options.botName?.trim() || "Browser Agent";
-    this.expertise = options.expertise?.trim() || "general research and execution";
+    this.botName = options.botName?.trim() || "Open Bot";
+    this.expertise = options.expertise?.trim() || "autonomous local terminal, Codex, and browser execution";
     this.collaborationContext = options.collaborationContext?.trim() || "";
     this.browser = options.browser;
     this.client = new OpenAI({
       apiKey: resolvedKey,
       ...(resolvedBaseURL ? { baseURL: resolvedBaseURL } : {})
     });
-    this.model = options.model || DEFAULT_MODEL;
+    this.model = isOllamaModel ? rawModel.slice("ollama:".length) || "llama3.2" : rawModel;
     this.keepRecentImages = keepRecentImages;
     this.maxApiRetries = maxApiRetries;
     this.onEvent = options.onEvent;
@@ -150,14 +164,17 @@ export class AgentOrchestrator {
   private buildSystemPrompt(): string {
     return (
       `You are ${this.botName}. Role & Purpose: ${this.expertise}.\n` +
-      "You operate like Codex + Grok with two execution modes:\n" +
+      "Everything runs locally on the user's machine behind the browser (no cloud sandbox required).\n" +
+      "You have three local execution modes:\n" +
+      "- LOCAL TERMINAL (`run_terminal_command`): Execute real local shell commands (`node`, `python3`, `git`, `npm`, `ls`, `grep`, `curl`, tests, scripts) directly in the project workspace.\n" +
       "- CODEX HEADLESS TOOLS (Fast & Low-Token, NO Browser Needed): `understand_youtube_video` (extracts YouTube title, description, chapters & full spoken transcript over HTTP and lets you apply its concepts), `web_search`, `calculate`, `create_document`, `workspace_file`.\n" +
-      "- LIVE BROWSER TOOLS (When interacting with a webpage or signed-in account): `navigate`, `click_mark`, `type_mark`, `click_element`, `click_coords`, `type_text`, `extract_page_data`, `scroll_page`, `go_back`, `key_press`, `wait`.\n" +
+      "- LOCAL HEADLESS BROWSER TOOLS (Runs behind the browser UI when interacting with a live webpage or signed-in account): `navigate`, `click_mark`, `type_mark`, `click_element`, `click_coords`, `type_text`, `extract_page_data`, `scroll_page`, `go_back`, `key_press`, `wait`.\n" +
       "Rules:\n" +
-      "1. Check `[Detected Stats: ...]` and `Text:` in the observation FIRST! If the requested numbers (e.g. posts, followers, following, bio, prices) are already present in `[Detected Stats]` or `Text:`, immediately call `finish_task` (or reply directly) with the exact numbers.\n" +
-      "2. After clicking a profile/navigation link on a Single-Page App (like Instagram or X), if the stats haven't appeared yet, call `extract_page_data` (with `selector: \"header\"` or `mode: \"text\"`) or `wait` (2 seconds) — NEVER call `fail_task` on the first try.\n" +
-      "3. For YouTube links or video learning requests, ALWAYS call `understand_youtube_video` instead of `navigate`, then synthesize and apply the concepts.\n" +
-      "4. Never expose credentials. Ask before financial transactions or public posting/deleting unless approved.\n" +
+      "1. Use `run_terminal_command` whenever the user asks to run terminal/shell commands, inspect system/git state, run code/scripts, or verify builds locally.\n" +
+      "2. Check `[Detected Stats: ...]` and `Text:` in browser observations FIRST! If requested numbers (e.g. posts, followers, following, bio, prices) are already present, immediately call `finish_task` (or reply directly) with the exact numbers.\n" +
+      "3. After clicking a profile/navigation link on a Single-Page App (like Instagram or X), if stats haven't appeared yet, call `extract_page_data` (with `selector: \"header\"` or `mode: \"text\"`) or `wait` (2 seconds) — NEVER call `fail_task` on the first try.\n" +
+      "4. For YouTube links or video learning requests, ALWAYS call `understand_youtube_video` instead of `navigate`, then synthesize and apply the concepts.\n" +
+      "5. Never expose credentials. Ask before financial transactions or public posting/deleting unless approved.\n" +
       (this.collaborationContext ? `\nCONTEXT:\n${this.collaborationContext}\n` : "")
     );
   }
@@ -221,7 +238,102 @@ export class AgentOrchestrator {
     return resolvedState;
   }
 
+  private extractUserRequestCore(): string {
+    const marker = "User request:";
+    const idx = this.task.lastIndexOf(marker);
+    return idx >= 0 ? this.task.slice(idx + marker.length).trim() : this.task.trim();
+  }
+
+  private async runLocalEngine(): Promise<AgentResult> {
+    const rawRequest = this.extractUserRequestCore();
+    const outputs: string[] = [];
+    let steps = 0;
+
+    const emitLocalStep = (
+      toolName: string,
+      toolInput: Record<string, unknown>,
+      res: ToolExecutionResult,
+      state?: PageState | null
+    ) => {
+      steps += 1;
+      this.emit({
+        type: "step",
+        step: steps,
+        toolName,
+        toolInput,
+        ok: res.ok,
+        message: res.message.split("\n")[0].slice(0, 180),
+        artifactUrl: res.artifactUrl,
+        terminalEntry: res.terminalEntry,
+        url: state?.url,
+        title: state?.title,
+        screenshotB64: state?.screenshotB64
+      });
+    };
+
+    // 1. Check for explicit terminal / shell command requests
+    const cmdMatch =
+      /(?:^\$\s*(.+)$)|(?:run\s+(?:the\s+)?(?:terminal\s+|shell\s+)?command\s+[`"']?([^`"'\n]+)[`"']?)|(?:`((?:git|ls|pwd|node|npm|npx|python3?|pip|cat|grep|find|uname|whoami|date|echo|curl)\b[^`]+)`)/im.exec(
+        rawRequest
+      );
+    if (cmdMatch || /^(?:git|ls|pwd|node|npm|npx|python3?|uname|whoami|date|echo)\b/i.test(rawRequest)) {
+      const cmd = (cmdMatch ? cmdMatch[1] || cmdMatch[2] || cmdMatch[3] : rawRequest).trim();
+      const res = await executeTool("run_terminal_command", { command: cmd }, this.browser);
+      emitLocalStep("run_terminal_command", { command: cmd }, res);
+      outputs.push(
+        `### Local Terminal Execution\nCommand: \`$ ${cmd}\`\n\`\`\`text\n${
+          (res.terminalEntry?.stdout || res.terminalEntry?.stderr || res.message).trim()
+        }\n\`\`\``
+      );
+    }
+
+    // 2. Check for YouTube video understanding
+    const ytMatch = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=[^\s&]+|youtu\.be\/[^\s?&]+|youtube\.com\/shorts\/[^\s?&]+))/i.exec(
+      rawRequest
+    );
+    if (ytMatch || /\byoutube\b/i.test(rawRequest)) {
+      const target = ytMatch ? ytMatch[1] : rawRequest;
+      const res = await executeTool("understand_youtube_video", { urlOrQuery: target }, this.browser);
+      emitLocalStep("understand_youtube_video", { urlOrQuery: target }, res);
+      outputs.push(`### YouTube Video Analysis (Local Headless)\n${res.message.slice(0, 3500)}`);
+    }
+
+    // 3. Check for live browser navigation / scraping behind the browser
+    const urlMatch = /(https?:\/\/[^\s)]+)/i.exec(rawRequest);
+    if (urlMatch && !ytMatch) {
+      const targetUrl = urlMatch[1];
+      if (!this.browser.isStarted) {
+        await this.browser.start();
+      }
+      const navRes = await executeTool("navigate", { url: targetUrl }, this.browser);
+      const state = await this.browser.captureState().catch(() => null);
+      emitLocalStep("navigate", { url: targetUrl }, navRes, state);
+      const extRes = await executeTool("extract_page_data", { mode: "text" }, this.browser);
+      emitLocalStep("extract_page_data", { mode: "text" }, extRes, state);
+      outputs.push(`### Local Headless Browser Extraction (${targetUrl})\n${extRes.message.slice(0, 2500)}`);
+    }
+
+    // 4. Fallback to local web search + workspace summary if no other tool matched
+    if (outputs.length === 0) {
+      const searchRes = await executeTool("web_search", { query: rawRequest.slice(0, 120) }, this.browser);
+      emitLocalStep("web_search", { query: rawRequest.slice(0, 120) }, searchRes);
+      outputs.push(`### Local Research Results (Zero Cloud)\n${searchRes.message}`);
+    }
+
+    return this.finish({
+      success: true,
+      summary: outputs.join("\n\n"),
+      stepsTaken: Math.max(1, steps),
+      elapsedSeconds: this.loopGuard.elapsedSeconds(),
+      terminationReason: "finish_task"
+    });
+  }
+
   async run(): Promise<AgentResult> {
+    if (this.useLocalEngine) {
+      return this.runLocalEngine();
+    }
+
     let step = 0;
     let lastToolCallId: string | null = null;
     let lastExecResult: ToolExecutionResult | null = null;
@@ -286,10 +398,14 @@ export class AgentOrchestrator {
       let response: OpenAI.Chat.Completions.ChatCompletion;
       try {
         response = await this.callLlm();
-      } catch (err) {
+      } catch {
+        // If cloud API or local Ollama is unreachable on step 1, automatically fall back to our zero-cloud local engine!
+        if (step === 1) {
+          return this.runLocalEngine();
+        }
         return this.finish({
           success: false,
-          summary: `LLM call failed: ${(err as Error).message}`,
+          summary: "LLM endpoint unreachable; switch to 'Local Engine (Zero Cloud)' in Settings or check your connection.",
           stepsTaken: step - 1,
           elapsedSeconds: this.loopGuard.elapsedSeconds(),
           terminationReason: "llm_error"
@@ -358,6 +474,7 @@ export class AgentOrchestrator {
       }
 
       const isNonBrowserTool =
+        toolCall.name === "run_terminal_command" ||
         toolCall.name === "understand_youtube_video" ||
         toolCall.name === "web_search" ||
         toolCall.name === "calculate" ||
@@ -401,6 +518,7 @@ export class AgentOrchestrator {
         ok: execResult.ok,
         message: execResult.message.split("\n")[0].slice(0, 180),
         artifactUrl: execResult.artifactUrl,
+        terminalEntry: execResult.terminalEntry,
         url: isNonBrowserTool ? undefined : state?.url,
         title: isNonBrowserTool ? undefined : state?.title,
         screenshotB64: isNonBrowserTool ? undefined : state?.screenshotB64,

@@ -1295,6 +1295,164 @@ button { color: inherit; }
 }
 #signed-in-button:hover { background: var(--blue-hover); }
 
+/* Local Terminal View inside Right Panel */
+.panel-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  background: #e2e8f0;
+  border-radius: 7px;
+  padding: 2px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.panel-mode-btn {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.12s ease;
+}
+.panel-mode-btn.active {
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+#terminal-view {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  background: #0b0f19;
+  color: #e2e8f0;
+  font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+#browser-panel.terminal-mode #browser-viewport,
+#browser-panel.terminal-mode #browser-tabs,
+#browser-panel.terminal-mode #browser-footer {
+  display: none !important;
+}
+#browser-panel.terminal-mode #terminal-view {
+  display: flex;
+}
+.terminal-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 12px;
+  background: #111827;
+  border-bottom: 1px solid #1e293b;
+  font-size: 11px;
+  color: #94a3b8;
+}
+.terminal-local-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  font-weight: 600;
+  font-size: 10.5px;
+}
+.terminal-clear-btn {
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #cbd5e1;
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.terminal-clear-btn:hover {
+  background: #334155;
+  color: #fff;
+}
+#terminal-output {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.term-entry {
+  border-left: 2px solid #334155;
+  padding-left: 9px;
+}
+.term-entry.ok { border-left-color: #10b981; }
+.term-entry.err { border-left-color: #ef4444; }
+.term-cmd-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #38bdf8;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.term-meta {
+  font-size: 10.5px;
+  color: #64748b;
+  font-weight: 400;
+}
+.term-stdout {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #e2e8f0;
+  line-height: 1.45;
+}
+.term-stderr {
+  margin: 3px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #fca5a5;
+  line-height: 1.45;
+}
+#terminal-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #111827;
+  border-top: 1px solid #1e293b;
+}
+.term-prompt-char {
+  color: #10b981;
+  font-weight: 700;
+  font-size: 13px;
+}
+#terminal-input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  color: #f8fafc;
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+#terminal-run-btn {
+  border: 0;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  padding: 5px 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#terminal-run-btn:hover { background: #1d4ed8; }
+
 /* Modals (<dialog>) */
 dialog.modal-dialog {
   border: 1px solid var(--border);
@@ -1637,10 +1795,13 @@ dialog.modal-dialog::backdrop {
         <button id="header-schedule-btn" class="header-pill-btn" title="Scheduled Tasks" aria-label="Scheduled Tasks">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
         </button>
-        <button id="header-settings-btn" class="header-pill-btn" title="Model & Low-Token Settings" aria-label="Model & Low-Token Settings">
+        <button id="header-settings-btn" class="header-pill-btn" title="Model & Local / Zero-Cloud Settings" aria-label="Model & Local Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
-        <button id="toggle-browser-btn" class="header-pill-btn" title="Toggle Live Browser Panel" aria-label="Toggle Live Browser Panel">
+        <button id="toggle-terminal-btn" class="header-pill-btn" title="Toggle Local Terminal (Runs behind the browser — no cloud required)" aria-label="Toggle Local Terminal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        </button>
+        <button id="toggle-browser-btn" class="header-pill-btn" title="Toggle Local Headless Browser Panel" aria-label="Toggle Local Browser Panel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h20"/></svg>
         </button>
       </div>
@@ -1651,11 +1812,15 @@ dialog.modal-dialog::backdrop {
         <div id="welcome">
           <div id="welcome-avatar" class="agent-avatar welcome-mark" style="cursor:pointer;" title="Click to create a custom bot"><span class="spark"></span></div>
           <h1>Welcome to Open Bots</h1>
-          <p>Create specialized bots with custom roles &amp; icons. Understands YouTube videos, searches the web, writes code, and generates documents headlessly — opening the live browser only when needed.</p>
+          <p>100% local runtime behind your browser — no cloud sandbox required. Executes local terminal commands, understands YouTube videos headlessly, writes code, and drives a background Chromium browser on demand.</p>
           <div style="margin-bottom: 18px; display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;">
             <button type="button" id="welcome-create-bot-btn" class="btn-primary" style="display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:9px 18px;font-size:13px;box-shadow:var(--shadow-sm);">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
               <span>Create Custom Bot (Name, Role &amp; Icon)</span>
+            </button>
+            <button type="button" id="welcome-terminal-btn" class="btn-secondary" style="display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:8px 15px;font-size:12.5px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+              <span>Open Local Terminal</span>
             </button>
             <button type="button" id="welcome-session-btn" class="btn-secondary" style="display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:8px 15px;font-size:12.5px;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -1663,6 +1828,10 @@ dialog.modal-dialog::backdrop {
             </button>
           </div>
           <div class="template-grid">
+            <button class="template-card" data-name="Local Terminal & DevOps Bot" data-desc="Execute local shell/terminal commands (git, node, python3, npm, tests), inspect files, and automate workflows directly behind the browser with zero cloud needed." data-shape="gear" data-color="#10b981">
+              <strong>&gt;_ Local Terminal &amp; DevOps Bot</strong>
+              <span>Run shell commands (`git`, `node`, `python3`, tests) locally behind the browser — no cloud required.</span>
+            </button>
             <button class="template-card" data-name="YouTube Concept & Code Learner" data-desc="Extract full transcripts, chapters, and concepts from any YouTube video headlessly (like Codex) and apply them to write code, tutorials, or notes without opening the browser." data-shape="play-blob" data-color="#ff2d3b">
               <strong>▶ YouTube Concept &amp; Code Learner</strong>
               <span>Understand any YouTube video headlessly (Codex-style) &amp; apply its concepts into working code or docs.</span>
@@ -1679,13 +1848,9 @@ dialog.modal-dialog::backdrop {
               <strong>Competitor Intelligence</strong>
               <span>Research competitor offerings, compare pricing &amp; features, and summarize findings.</span>
             </button>
-            <button class="template-card" data-name="GitHub Issue & PR Reviewer" data-desc="Senior software engineering bot for repository architecture, pull request reviews, and writing clean code." data-shape="gear" data-color="#8b5cf6">
+            <button class="template-card" data-name="GitHub Issue & PR Reviewer" data-desc="Senior software engineering bot for repository architecture, pull request reviews, and writing clean code." data-shape="hexagon" data-color="#8b5cf6">
               <strong>GitHub Issue &amp; PR Reviewer</strong>
               <span>Inspect repositories, review open pull requests, and draft actionable engineering notes.</span>
-            </button>
-            <button class="template-card" data-name="Lead & Sales Prospecting" data-desc="Research target companies, qualify decision-makers, and draft high-conversion outreach strategies." data-shape="clover" data-color="#10b981">
-              <strong>Lead &amp; Sales Prospecting</strong>
-              <span>Research target companies, qualify decision-makers, and draft outreach strategies.</span>
             </button>
           </div>
         </div>
@@ -1698,7 +1863,7 @@ dialog.modal-dialog::backdrop {
             <input id="attachment-input" type="file" multiple hidden accept=".txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.py,.html,.css,.yaml,.yml,.xml,.sql,.sh"/>
             <button id="attach-button" class="composer-action" aria-label="Attach files" title="Attach text, code, CSV, or JSON files">+</button>
             <button id="schedule-button" class="composer-action" aria-label="Schedule task" title="Schedule a recurring or future task">◷</button>
-            <textarea id="prompt" rows="1" placeholder="Paste a YouTube URL, ask a coding/research question, or command the browser…"></textarea>
+            <textarea id="prompt" rows="1" placeholder="Run a terminal command ($ git status), paste a YouTube URL, or command the local browser…"></textarea>
             <button id="send-button" aria-label="Send message">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
             </button>
@@ -1711,13 +1876,17 @@ dialog.modal-dialog::backdrop {
         </div>
       </section>
 
-      <section id="browser-panel" aria-label="Agent browser">
+      <section id="browser-panel" aria-label="Local Browser and Terminal">
         <button id="browser-restore-chrome" type="button" title="Show browser URL bar">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>
           <span>URL Bar</span>
         </button>
         <div id="browser-tabs" class="browser-tabs" hidden></div>
         <div class="browser-toolbar">
+          <div class="panel-mode-switch" role="tablist" aria-label="Switch between Local Browser and Local Terminal">
+            <button type="button" id="panel-mode-browser" class="panel-mode-btn active" title="Headless Browser running behind the UI">Browser</button>
+            <button type="button" id="panel-mode-terminal" class="panel-mode-btn" title="Local Terminal running behind the browser (No cloud required)">&gt;_ Terminal</button>
+          </div>
           <button id="browser-back" class="browser-nav-btn" title="Back" aria-label="Back">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
           </button>
@@ -1735,21 +1904,41 @@ dialog.modal-dialog::backdrop {
           <button id="browser-chrome-toggle" type="button" class="browser-nav-btn" title="Collapse URL bar" aria-label="Collapse URL bar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg>
           </button>
-          <button id="browser-expand-btn" type="button" class="browser-nav-btn" title="Expand browser / collapse chat section" aria-label="Expand browser">
+          <button id="browser-expand-btn" type="button" class="browser-nav-btn" title="Expand panel / collapse chat section" aria-label="Expand panel">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
           </button>
-          <button id="browser-collapse-btn" type="button" class="browser-nav-btn" title="Collapse live browser section" aria-label="Collapse live browser section">
+          <button id="browser-collapse-btn" type="button" class="browser-nav-btn" title="Collapse right panel" aria-label="Collapse right panel">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m13 17 5-5-5-5M6 17l5-5-5-5"/></svg>
           </button>
         </div>
         <div id="browser-viewport">
           <div id="browser-placeholder">
             <div>
-              <strong>Interactive Live Browser</strong>
-              Click "Go" or send a browser task to launch the Chromium session.
+              <strong>Local Headless Browser (Behind Your Browser)</strong>
+              Runs locally on your machine — no cloud required. Click "Go" or send a browser task to start.
             </div>
           </div>
           <img id="browser-screen" alt="Live agent browser" draggable="false"/>
+        </div>
+        <div id="terminal-view">
+          <div class="terminal-header-bar">
+            <span id="terminal-cwd">Local Workspace Terminal</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="terminal-local-badge">● Local · No Cloud Required</span>
+              <button type="button" id="terminal-clear-btn" class="terminal-clear-btn">Clear</button>
+            </div>
+          </div>
+          <div id="terminal-output">
+            <div class="term-entry ok">
+              <div class="term-cmd-line"><span>Open Bots Local Terminal</span><span class="term-meta">ready</span></div>
+              <pre class="term-stdout">Connected to local shell behind the browser (127.0.0.1). Run commands directly below or ask any bot to run terminal tasks.</pre>
+            </div>
+          </div>
+          <form id="terminal-form">
+            <span class="term-prompt-char">$</span>
+            <input id="terminal-input" type="text" placeholder="Run a local command (e.g. git status -s, node -v, python3 --version, ls -la)…" autocomplete="off" spellcheck="false" />
+            <button type="submit" id="terminal-run-btn">Run</button>
+          </form>
         </div>
         <input id="keyboard-capture" autocomplete="off" spellcheck="false"/>
         <div id="browser-footer">
@@ -1906,23 +2095,26 @@ dialog.modal-dialog::backdrop {
 <dialog id="settings-modal" class="modal-dialog" closedby="any" aria-labelledby="settings-modal-title">
   <div class="modal-inner">
     <div class="modal-header">
-      <h2 id="settings-modal-title">Model &amp; Low-Token Settings</h2>
+      <h2 id="settings-modal-title">Model, Local Engine &amp; Low-Token Settings</h2>
       <button type="button" class="modal-close" data-close-modal="settings-modal" aria-label="Close">✕</button>
     </div>
     <p style="margin:0 0 12px;color:var(--muted);font-size:12.5px;">
-      Low-Token Mode is active by default: direct text replies skip browser screenshots, and vision steps use compressed 85-token low-detail frames.
+      All terminal commands, file operations, YouTube analysis, and Chromium browser sessions run 100% locally behind your browser. Select <strong>Local Engine</strong> or <strong>Ollama</strong> to run with zero cloud API required.
     </p>
     <form id="settings-form">
       <div class="form-field">
-        <label for="model-select">Active AI Model</label>
+        <label for="model-select">Active Execution Engine / Model</label>
         <select id="model-select" class="header-select" style="width:100%;height:38px;" aria-label="Select AI model">
           <option value="gpt-4o-mini">⚡ GPT-4o Mini (Low Token — Recommended)</option>
+          <option value="local-engine">🖥 Local Engine (Zero Cloud · Terminal + Browser + Codex)</option>
+          <option value="ollama:llama3.2">🦙 Ollama Llama 3.2 (Local 127.0.0.1:11434 · No Cloud)</option>
+          <option value="ollama:qwen2.5-coder">🦙 Ollama Qwen 2.5 Coder (Local · No Cloud)</option>
           <option value="gpt-4o">GPT-4o (High Precision)</option>
           <option value="grok-2-vision-1212">Grok 2 Vision (xAI)</option>
         </select>
       </div>
       <div class="form-field">
-        <label for="settings-openai-key">OpenAI API Key (optional if already set in environment)</label>
+        <label for="settings-openai-key">OpenAI API Key (optional — not needed for Local Engine or Ollama)</label>
         <input id="settings-openai-key" type="password" placeholder="sk-..." autocomplete="off" />
       </div>
       <div class="form-field">
@@ -1930,7 +2122,7 @@ dialog.modal-dialog::backdrop {
         <input id="settings-xai-key" type="password" placeholder="xai-..." autocomplete="off" />
       </div>
       <div class="form-field">
-        <label for="settings-base-url">Custom OpenAI-Compatible Base URL (optional)</label>
+        <label for="settings-base-url">Custom / Local OpenAI-Compatible Base URL (e.g. http://127.0.0.1:11434/v1)</label>
         <input id="settings-base-url" type="url" placeholder="https://api.openai.com/v1" />
       </div>
       <div id="settings-status" style="font-size:12px;color:var(--green);min-height:18px;"></div>
@@ -2330,18 +2522,45 @@ dialog.modal-dialog::backdrop {
     renderSidebar();
   }
 
+  var toggleTerminalBtn = document.getElementById("toggle-terminal-btn");
+  var browserPanelEl = document.getElementById("browser-panel");
+  var panelModeBrowserBtn = document.getElementById("panel-mode-browser");
+  var panelModeTerminalBtn = document.getElementById("panel-mode-terminal");
+
+  function setPanelMode(mode) {
+    var isTerm = mode === "terminal";
+    browserPanelEl.classList.toggle("terminal-mode", isTerm);
+    if (panelModeBrowserBtn) panelModeBrowserBtn.classList.toggle("active", !isTerm);
+    if (panelModeTerminalBtn) panelModeTerminalBtn.classList.toggle("active", isTerm);
+    if (toggleTerminalBtn) toggleTerminalBtn.classList.toggle("active", isTerm && workspace.classList.contains("has-browser"));
+    toggleBrowserBtn.classList.toggle("active", !isTerm && workspace.classList.contains("has-browser"));
+    if (isTerm) {
+      setTimeout(function() {
+        var inp = document.getElementById("terminal-input");
+        if (inp) inp.focus();
+      }, 40);
+    }
+  }
+
   function showBrowser() {
     workspace.classList.remove("empty");
     workspace.classList.add("has-browser");
-    toggleBrowserBtn.classList.add("active");
+    setPanelMode("browser");
+  }
+
+  function showTerminal() {
+    workspace.classList.remove("empty");
+    workspace.classList.add("has-browser");
+    setPanelMode("terminal");
   }
 
   function toggleBrowserPanel() {
-    if (workspace.classList.contains("has-browser")) {
+    if (workspace.classList.contains("has-browser") && !browserPanelEl.classList.contains("terminal-mode")) {
       workspace.classList.remove("has-browser");
       workspace.classList.remove("chat-collapsed");
       document.getElementById("browser-expand-btn").classList.remove("active");
       toggleBrowserBtn.classList.remove("active");
+      if (toggleTerminalBtn) toggleTerminalBtn.classList.remove("active");
       if (!activeAgentId) workspace.classList.add("empty");
     } else {
       showBrowser();
@@ -2352,6 +2571,63 @@ dialog.modal-dialog::backdrop {
         openInteractiveBrowser(targetUrl, false);
       }
     }
+  }
+
+  function toggleTerminalPanel() {
+    if (workspace.classList.contains("has-browser") && browserPanelEl.classList.contains("terminal-mode")) {
+      workspace.classList.remove("has-browser");
+      workspace.classList.remove("chat-collapsed");
+      document.getElementById("browser-expand-btn").classList.remove("active");
+      toggleBrowserBtn.classList.remove("active");
+      if (toggleTerminalBtn) toggleTerminalBtn.classList.remove("active");
+      if (!activeAgentId) workspace.classList.add("empty");
+    } else {
+      showTerminal();
+      loadTerminalHistory();
+    }
+  }
+
+  function appendTerminalEntry(entry) {
+    if (!entry) return;
+    var out = document.getElementById("terminal-output");
+    if (!out) return;
+    var div = document.createElement("div");
+    div.className = "term-entry " + (entry.exitCode === 0 ? "ok" : "err");
+    var badge = entry.source === "agent" ? "[bot]" : "[you]";
+    var meta = "exit " + entry.exitCode + " · " + (entry.durationMs || 0) + "ms";
+    var stdoutHtml = entry.stdout ? '<pre class="term-stdout">' + esc(entry.stdout.trimEnd()) + "</pre>" : "";
+    var stderrHtml = entry.stderr ? '<pre class="term-stderr">' + esc(entry.stderr.trimEnd()) + "</pre>" : "";
+    if (!stdoutHtml && !stderrHtml) {
+      stdoutHtml = '<pre class="term-stdout" style="color:#64748b;">(no output)</pre>';
+    }
+    div.innerHTML =
+      '<div class="term-cmd-line"><span>' + esc(badge + " $ " + entry.command) + '</span><span class="term-meta">' + esc(meta) + "</span></div>" +
+      stdoutHtml +
+      stderrHtml;
+    out.appendChild(div);
+    out.scrollTop = out.scrollHeight;
+  }
+
+  function loadTerminalHistory() {
+    fetch("/api/terminal")
+      .then(readResponse)
+      .then(function(body) {
+        if (body.cwd) {
+          var cwdEl = document.getElementById("terminal-cwd");
+          if (cwdEl) cwdEl.textContent = "Local: " + body.cwd;
+        }
+        var out = document.getElementById("terminal-output");
+        if (!out) return;
+        out.innerHTML =
+          '<div class="term-entry ok">' +
+            '<div class="term-cmd-line"><span>Open Bots Local Terminal</span><span class="term-meta">ready</span></div>' +
+            '<pre class="term-stdout">Connected to local shell behind the browser (127.0.0.1). Run commands directly below or ask any bot to run terminal tasks.</pre>' +
+          "</div>";
+        (body.history || []).forEach(function(item) {
+          appendTerminalEntry(item);
+        });
+      })
+      .catch(function() {});
   }
 
   function createAgent(name, customDescription, shapeId, colorHex) {
@@ -2750,6 +3026,9 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "step") {
+      if (e.terminalEntry) {
+        appendTerminalEntry(e.terminalEntry);
+      }
       if (e.url && e.url !== "about:blank") {
         browserAddress.value = e.url;
       }
@@ -2987,14 +3266,21 @@ dialog.modal-dialog::backdrop {
     if (!activeAgentId) {
       var looksLikeTaskOrQuestion =
         value.length > 36 ||
-        /https?:\/\/|youtu\.?be|youtube\.com|\?|\b(understand|summarize|explain|write|build|create|search|find|analyze|calculate|open|go to|how|what|why)\b/i.test(value);
+        /^\$\s+|https?:\/\/|youtu\.?be|youtube\.com|\?|\b(understand|summarize|explain|write|build|create|search|find|analyze|calculate|open|go to|how|what|why|run|terminal|shell|git|ls|node|python|npm)\b/i.test(value);
       if (looksLikeTaskOrQuestion) {
         var isYt = /youtu\.?be|youtube\.com|youtube|video/i.test(value);
-        var autoName = isYt ? "YouTube Concept Learner" : "Codex & Browser Agent";
+        var isTerm = /^\$\s+|\b(terminal|shell|git |ls |node |python3? |npm |npx )\b/i.test(value);
+        var autoName = isYt
+          ? "YouTube Concept Learner"
+          : isTerm
+          ? "Local Terminal & DevOps Bot"
+          : "Codex & Browser Agent";
         var autoDesc = isYt
           ? "Understand YouTube videos headlessly (like Codex) and apply their concepts into code, notes, or answers."
-          : "Autonomous Codex & on-demand browser specialist.";
-        createAgent(autoName, autoDesc, isYt ? "play-blob" : "starburst", isYt ? "#ff2d3b" : "#1677ff");
+          : isTerm
+          ? "Execute local shell/terminal commands behind the browser with zero cloud needed."
+          : "Autonomous local terminal, Codex & on-demand browser specialist.";
+        createAgent(autoName, autoDesc, isYt ? "play-blob" : isTerm ? "gear" : "starburst", isYt ? "#ff2d3b" : isTerm ? "#10b981" : "#1677ff");
         // Fall through to execute the user's message immediately!
       } else {
         openCreateBotModal({ name: value });
@@ -3195,7 +3481,14 @@ dialog.modal-dialog::backdrop {
   document.getElementById("browser-forward").onclick = function() { remoteInput({ type: "forward" }); };
   document.getElementById("browser-reload").onclick = function() { remoteInput({ type: "reload" }); };
   document.getElementById("browser-new-tab").onclick = function() { remoteInput({ type: "new_tab", url: "https://www.google.com/" }); };
-  document.getElementById("browser-collapse-btn").onclick = toggleBrowserPanel;
+  document.getElementById("browser-collapse-btn").onclick = function() {
+    workspace.classList.remove("has-browser");
+    workspace.classList.remove("chat-collapsed");
+    document.getElementById("browser-expand-btn").classList.remove("active");
+    toggleBrowserBtn.classList.remove("active");
+    if (toggleTerminalBtn) toggleTerminalBtn.classList.remove("active");
+    if (!activeAgentId) workspace.classList.add("empty");
+  };
   document.getElementById("browser-expand-btn").onclick = function() {
     var maximized = workspace.classList.toggle("chat-collapsed");
     document.getElementById("browser-expand-btn").classList.toggle("active", maximized);
@@ -3210,6 +3503,62 @@ dialog.modal-dialog::backdrop {
   document.getElementById("header-schedule-btn").onclick = openScheduleModal;
   stopRunBtn.onclick = stopRun;
   toggleBrowserBtn.onclick = toggleBrowserPanel;
+  if (toggleTerminalBtn) toggleTerminalBtn.onclick = toggleTerminalPanel;
+  var welcomeTerminalBtn = document.getElementById("welcome-terminal-btn");
+  if (welcomeTerminalBtn) welcomeTerminalBtn.onclick = toggleTerminalPanel;
+  if (panelModeBrowserBtn) {
+    panelModeBrowserBtn.onclick = function() {
+      showBrowser();
+      var a = activeAgent();
+      var targetUrl = browserAddress.value.trim() || (a && a.intent && a.intent.url) || "https://www.google.com/";
+      if (!browserScreen.src) {
+        openInteractiveBrowser(targetUrl, false);
+      }
+    };
+  }
+  if (panelModeTerminalBtn) {
+    panelModeTerminalBtn.onclick = function() {
+      showTerminal();
+      loadTerminalHistory();
+    };
+  }
+  document.getElementById("terminal-form").addEventListener("submit", function(e) {
+    e.preventDefault();
+    var inp = document.getElementById("terminal-input");
+    var cmd = (inp.value || "").trim();
+    if (!cmd) return;
+    inp.value = "";
+    var runBtn = document.getElementById("terminal-run-btn");
+    runBtn.disabled = true;
+    fetch("/api/terminal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: cmd })
+    })
+      .then(readResponse)
+      .then(function(body) {
+        if (body.entry) appendTerminalEntry(body.entry);
+      })
+      .catch(function(err) {
+        appendTerminalEntry({
+          command: cmd,
+          stdout: "",
+          stderr: err.message || "Command failed",
+          exitCode: 1,
+          durationMs: 0,
+          source: "user"
+        });
+      })
+      .finally(function() {
+        runBtn.disabled = false;
+        inp.focus();
+      });
+  });
+  document.getElementById("terminal-clear-btn").onclick = function() {
+    fetch("/api/terminal/clear", { method: "POST" })
+      .then(function() { loadTerminalHistory(); })
+      .catch(function() {});
+  };
 
   function toggleSidebar() {
     var collapsed = appEl.classList.toggle("sidebar-collapsed");

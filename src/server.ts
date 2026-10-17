@@ -6,7 +6,13 @@ import { IncomingMessage, ServerResponse, createServer } from "node:http";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { BrowserController, DEFAULT_PROFILE_DIR, PageState, defaultBrowserConfig } from "./browserController";
-import { ARTIFACTS_DIR } from "./agentTools";
+import {
+  ARTIFACTS_DIR,
+  WORKSPACE_ROOT,
+  clearTerminalHistory,
+  getTerminalHistory,
+  runTerminalCommand
+} from "./agentTools";
 import { AgentEvent, AgentOrchestrator, DEFAULT_MODEL, requiresInitialBrowserState } from "./promptLoop";
 import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
 
@@ -610,11 +616,44 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  if (req.method === "POST" && url.pathname === "/api/run") {
-    if (!process.env.OPENAI_API_KEY && !process.env.XAI_API_KEY) {
-      sendJson(res, 400, { detail: "No API key is set. Click Settings in the header to configure your OpenAI or xAI Grok key." });
-      return;
+  if (req.method === "GET" && url.pathname === "/api/terminal") {
+    sendJson(res, 200, {
+      ok: true,
+      cwd: WORKSPACE_ROOT,
+      history: getTerminalHistory()
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/terminal") {
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const command = typeof body.command === "string" ? body.command.trim() : "";
+      const cwd = typeof body.cwd === "string" ? body.cwd.trim() : undefined;
+      if (!command) {
+        sendJson(res, 400, { detail: "command is required." });
+        return;
+      }
+      const risk = assessTaskRisk(command);
+      if (risk.blocked) {
+        sendJson(res, 403, { detail: risk.reason, code: "credential_exposure_blocked" });
+        return;
+      }
+      const entry = await runTerminalCommand(command, cwd, 20_000, "user");
+      sendJson(res, 200, { ok: entry.exitCode === 0, entry });
+    } catch (err) {
+      sendJson(res, 400, { detail: (err as Error).message });
     }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/terminal/clear") {
+    clearTerminalHistory();
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/run") {
     try {
       const body = validateRunRequest(await readJsonBody(req));
       const risk = assessTaskRisk(body.task);

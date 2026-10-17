@@ -1,9 +1,11 @@
 /** OpenAI function-calling tool schemas for the browser agent, plus local dispatch. */
 
+import { exec } from "node:child_process";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import OpenAI from "openai";
 import { BrowserActionError, BrowserController } from "./browserController";
+import { redactSecrets } from "./security";
 
 export const ARTIFACTS_DIR = join(__dirname, "..", "artifacts");
 export const WORKSPACE_ROOT = resolve(__dirname, "..", "..", "..");
@@ -209,6 +211,32 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "run_terminal_command",
+      description:
+        "Execute a local shell/terminal command directly on the machine behind the browser (no cloud required). Use for running scripts (node, python3, bash), git commands, tests, package checks, file searches (grep/find), or local automation.",
+      parameters: {
+        type: "object",
+        properties: {
+          command: {
+            type: "string",
+            description: "The shell command to run locally (e.g. 'git status -s', 'node -e \"...\"', 'python3 -c \"...\"', 'ls -la')."
+          },
+          cwd: {
+            type: "string",
+            description: "Optional working directory relative to the project workspace."
+          },
+          timeoutMs: {
+            type: "integer",
+            description: "Optional timeout in milliseconds (default 15000, max 60000)."
+          }
+        },
+        required: ["command"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "scroll_page",
       description: "Scroll the page up or down.",
       parameters: {
@@ -283,12 +311,104 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   }
 ];
 
+export interface TerminalCommandEntry {
+  id: string;
+  command: string;
+  cwd: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  durationMs: number;
+  source: "agent" | "user";
+  timestamp: string;
+}
+
 export interface ToolExecutionResult {
   ok: boolean;
   message: string;
   data?: string;
   artifactUrl?: string;
+  terminalEntry?: TerminalCommandEntry;
   terminal?: "finish" | "fail";
+}
+
+const terminalHistory: TerminalCommandEntry[] = [];
+const MAX_TERMINAL_HISTORY = 80;
+
+export function getTerminalHistory(): TerminalCommandEntry[] {
+  return [...terminalHistory];
+}
+
+export function clearTerminalHistory(): void {
+  terminalHistory.length = 0;
+}
+
+const BLOCKED_TERMINAL_PATTERNS = [
+  /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f?\s+\/(?:\s|$)/i,
+  /\b(?:mkfs|shutdown|reboot|halt|poweroff)\b/i,
+  /\bdd\s+if=/i,
+  /:\(\)\s*\{\s*:\|:\s*&\s*\}\s*;/
+];
+
+export async function runTerminalCommand(
+  command: string,
+  cwdInput?: string,
+  timeoutMs = 15_000,
+  source: "agent" | "user" = "agent"
+): Promise<TerminalCommandEntry> {
+  const trimmed = command.trim();
+  if (!trimmed) {
+    throw new Error("Command must be a non-empty string.");
+  }
+  if (BLOCKED_TERMINAL_PATTERNS.some((pattern) => pattern.test(trimmed))) {
+    throw new Error("Command blocked by local terminal safety policy.");
+  }
+  const resolvedCwd = cwdInput && cwdInput.trim() ? safeResolveWorkspacePath(cwdInput) : WORKSPACE_ROOT;
+  const clampedTimeout = Math.min(Math.max(Number(timeoutMs) || 15_000, 1_000), 60_000);
+  const startedAt = Date.now();
+
+  const entry = await new Promise<TerminalCommandEntry>((resolvePromise) => {
+    exec(
+      trimmed,
+      {
+        cwd: resolvedCwd,
+        timeout: clampedTimeout,
+        maxBuffer: 2 * 1024 * 1024,
+        env: { ...process.env, PAGER: "cat", GIT_PAGER: "cat" }
+      },
+      (error, stdout, stderr) => {
+        const durationMs = Date.now() - startedAt;
+        const rawCode =
+          error && typeof (error as NodeJS.ErrnoException & { code?: unknown }).code === "number"
+            ? Number((error as NodeJS.ErrnoException & { code?: unknown }).code)
+            : error
+            ? 1
+            : 0;
+        const safeStdout = redactSecrets(String(stdout ?? "")).slice(0, 8000);
+        const safeStderr = redactSecrets(
+          String(stderr ?? "") || (error && !stdout && !stderr ? error.message : "")
+        ).slice(0, 4000);
+
+        resolvePromise({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          command: trimmed,
+          cwd: resolvedCwd,
+          stdout: safeStdout,
+          stderr: safeStderr,
+          exitCode: rawCode,
+          durationMs,
+          source,
+          timestamp: new Date().toISOString()
+        });
+      }
+    );
+  });
+
+  terminalHistory.push(entry);
+  if (terminalHistory.length > MAX_TERMINAL_HISTORY) {
+    terminalHistory.splice(0, terminalHistory.length - MAX_TERMINAL_HISTORY);
+  }
+  return entry;
 }
 
 async function runWebSearch(query: string): Promise<string> {
@@ -816,6 +936,18 @@ export async function executeTool(
           return { ok: true, message: `Appended ${content.length} chars to ${targetPath}.` };
         }
         return { ok: false, message: `Unsupported workspace_file action: ${action}` };
+      }
+      case "run_terminal_command": {
+        const command = String(toolInput.command ?? "");
+        const cwd = typeof toolInput.cwd === "string" ? toolInput.cwd : undefined;
+        const timeoutMs = toolInput.timeoutMs === undefined ? 15_000 : Number(toolInput.timeoutMs);
+        const entry = await runTerminalCommand(command, cwd, timeoutMs, "agent");
+        const combinedOutput = [entry.stdout.trim(), entry.stderr.trim()].filter(Boolean).join("\n") || "(no output)";
+        return {
+          ok: entry.exitCode === 0,
+          terminalEntry: entry,
+          message: `Terminal ($ ${entry.command}) exited with code ${entry.exitCode} in ${entry.durationMs}ms:\n${combinedOutput}`
+        };
       }
       case "scroll_page": {
         const direction = String(toolInput.direction) as "up" | "down";
