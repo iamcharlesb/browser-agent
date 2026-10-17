@@ -415,70 +415,82 @@ async function runWebSearch(query: string): Promise<string> {
   const results: string[] = [];
   const q = query.trim();
 
-  // 1. DuckDuckGo HTML Lite real web search (returns top organic web titles, URLs, and snippets headlessly)
-  try {
-    const htmlRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9"
-      }
-    });
-    if (htmlRes.ok) {
-      const html = await htmlRes.text();
-      const blocks = html.split(/class="result__body"/i).slice(1, 8);
-      for (const block of blocks) {
-        const titleMatch = /class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i.exec(block);
-        const snippetMatch = /class="result__snippet"[^>]*>([\s\S]*?)<\/a>|class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i.exec(block);
-        if (titleMatch) {
-          let href = titleMatch[1];
-          const uddg = /[?&]uddg=([^&]+)/.exec(href);
-          if (uddg) {
-            try {
-              href = decodeURIComponent(uddg[1]);
-            } catch {
-              // ignore
+  const ddgHtmlTask = (async () => {
+    const out: string[] = [];
+    try {
+      const htmlRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
+        signal: AbortSignal.timeout(3500),
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "Accept-Language": "en-US,en;q=0.9"
+        }
+      });
+      if (htmlRes.ok) {
+        const html = await htmlRes.text();
+        const blocks = html.split(/class="result__body"/i).slice(1, 8);
+        for (const block of blocks) {
+          const titleMatch = /class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i.exec(block);
+          const snippetMatch =
+            /class="result__snippet"[^>]*>([\s\S]*?)<\/a>|class="result__snippet"[^>]*>([\s\S]*?)<\/div>/i.exec(block);
+          if (titleMatch) {
+            let href = titleMatch[1];
+            const uddg = /[?&]uddg=([^&]+)/.exec(href);
+            if (uddg) {
+              try {
+                href = decodeURIComponent(uddg[1]);
+              } catch {
+                // ignore
+              }
+            }
+            const title = decodeHtmlEntities(titleMatch[2].replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
+            const rawSnippet = (snippetMatch?.[1] || snippetMatch?.[2] || "").replace(/<[^>]+>/g, "");
+            const snippet = decodeHtmlEntities(rawSnippet).replace(/\s+/g, " ").trim();
+            if (title) {
+              out.push(`- **${title}** (${href})\n  ${snippet}`);
             }
           }
-          const title = decodeHtmlEntities(titleMatch[2].replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
-          const rawSnippet = (snippetMatch?.[1] || snippetMatch?.[2] || "").replace(/<[^>]+>/g, "");
-          const snippet = decodeHtmlEntities(rawSnippet).replace(/\s+/g, " ").trim();
-          if (title) {
-            results.push(`- **${title}** (${href})\n  ${snippet}`);
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return out;
+  })();
+
+  const wikiTask = (async () => {
+    const out: string[] = [];
+    try {
+      const wikiSearchRes = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&utf8=&format=json&srlimit=3`,
+        { signal: AbortSignal.timeout(3000), headers: { "User-Agent": "OpenBots/1.0" } }
+      );
+      if (wikiSearchRes.ok) {
+        const wikiData = (await wikiSearchRes.json()) as {
+          query?: { search?: Array<{ title?: string; snippet?: string }> };
+        };
+        for (const item of wikiData.query?.search ?? []) {
+          if (item.title && item.snippet) {
+            const cleanSnippet = decodeHtmlEntities(item.snippet.replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
+            out.push(`- Wikipedia (${item.title}): ${cleanSnippet}`);
           }
         }
       }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
-  }
+    return out;
+  })();
 
-  // 2. Wikipedia Search API for authoritative encyclopedic/technical summaries
-  try {
-    const wikiSearchRes = await fetch(
-      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&utf8=&format=json&srlimit=3`,
-      { headers: { "User-Agent": "OpenBots/1.0" } }
-    );
-    if (wikiSearchRes.ok) {
-      const wikiData = (await wikiSearchRes.json()) as {
-        query?: { search?: Array<{ title?: string; snippet?: string }> };
-      };
-      for (const item of wikiData.query?.search ?? []) {
-        if (item.title && item.snippet) {
-          const cleanSnippet = decodeHtmlEntities(item.snippet.replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
-          results.push(`- Wikipedia (${item.title}): ${cleanSnippet}`);
-        }
-      }
-    }
-  } catch {
-    // ignore
-  }
+  const [ddgItems, wikiItems] = await Promise.all([ddgHtmlTask, wikiTask]);
+  results.push(...ddgItems, ...wikiItems);
 
   // 3. DuckDuckGo Instant Answer API fallback
   if (results.length < 2) {
     try {
       const ddgRes = await fetch(
-        `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`
+        `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`,
+        { signal: AbortSignal.timeout(2500) }
       );
       if (ddgRes.ok) {
         const ddg = (await ddgRes.json()) as {
@@ -574,6 +586,7 @@ async function resolveYouTubeVideoId(urlOrQuery: string): Promise<string | null>
     const searchRes = await fetch(
       `https://www.youtube.com/results?search_query=${encodeURIComponent(input)}`,
       {
+        signal: AbortSignal.timeout(4000),
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -605,71 +618,77 @@ async function understandYouTubeVideo(urlOrQuery: string): Promise<string> {
   let shortDescription = "";
   let captionTracks: Array<{ baseUrl?: string; languageCode?: string; name?: { simpleText?: string } }> = [];
 
-  // 1. Fast oEmbed lookup
-  try {
-    const oembedRes = await fetch(
-      `https://www.youtube.com/oembed?url=${encodeURIComponent(watchUrl)}&format=json`
-    );
-    if (oembedRes.ok) {
-      const oembed = (await oembedRes.json()) as { title?: string; author_name?: string };
-      title = oembed.title ?? "";
-      author = oembed.author_name ?? "";
-    }
-  } catch {
-    // ignore
-  }
-
-  // 2. Fetch watch page HTML for ytInitialPlayerResponse (description, metadata, captionTracks)
-  try {
-    const pageRes = await fetch(watchUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9"
-      }
-    });
-    if (pageRes.ok) {
-      const html = await pageRes.text();
-      const playerMatch = /ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*(?:var\s|window\[|<\/script>)/s.exec(html);
-      if (playerMatch) {
-        try {
-          const player = JSON.parse(playerMatch[1]);
-          const details = player?.videoDetails ?? {};
-          title = details.title || title;
-          author = details.author || author;
-          lengthSeconds = Number(details.lengthSeconds || 0);
-          viewCount = details.viewCount || "";
-          shortDescription = details.shortDescription || "";
-          captionTracks =
-            player?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
-        } catch {
-          // fallback regex extraction if JSON.parse fails on large script
+  // Run oEmbed and watch page fetch concurrently
+  await Promise.all([
+    (async () => {
+      try {
+        const oembedRes = await fetch(
+          `https://www.youtube.com/oembed?url=${encodeURIComponent(watchUrl)}&format=json`,
+          { signal: AbortSignal.timeout(3500) }
+        );
+        if (oembedRes.ok) {
+          const oembed = (await oembedRes.json()) as { title?: string; author_name?: string };
+          if (!title && oembed.title) title = oembed.title;
+          if (!author && oembed.author_name) author = oembed.author_name;
         }
+      } catch {
+        // ignore
       }
-      if (!shortDescription) {
-        const descMatch = /"shortDescription":"((?:\\.|[^"\\])*)"/.exec(html);
-        if (descMatch) {
-          try {
-            shortDescription = JSON.parse(`"${descMatch[1]}"`);
-          } catch {
-            shortDescription = descMatch[1];
+    })(),
+    (async () => {
+      try {
+        const pageRes = await fetch(watchUrl, {
+          signal: AbortSignal.timeout(5000),
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9"
+          }
+        });
+        if (pageRes.ok) {
+          const html = await pageRes.text();
+          const playerMatch = /ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*(?:var\s|window\[|<\/script>)/s.exec(html);
+          if (playerMatch) {
+            try {
+              const player = JSON.parse(playerMatch[1]);
+              const details = player?.videoDetails ?? {};
+              title = details.title || title;
+              author = details.author || author;
+              lengthSeconds = Number(details.lengthSeconds || 0);
+              viewCount = details.viewCount || "";
+              shortDescription = details.shortDescription || "";
+              captionTracks =
+                player?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
+            } catch {
+              // fallback regex extraction if JSON.parse fails on large script
+            }
+          }
+          if (!shortDescription) {
+            const descMatch = /"shortDescription":"((?:\\.|[^"\\])*)"/.exec(html);
+            if (descMatch) {
+              try {
+                shortDescription = JSON.parse(`"${descMatch[1]}"`);
+              } catch {
+                shortDescription = descMatch[1];
+              }
+            }
+          }
+          if (!captionTracks.length) {
+            const tracksMatch = /"captionTracks":(\[[^\]]+\])/.exec(html);
+            if (tracksMatch) {
+              try {
+                captionTracks = JSON.parse(tracksMatch[1]);
+              } catch {
+                // ignore
+              }
+            }
           }
         }
+      } catch {
+        // ignore
       }
-      if (!captionTracks.length) {
-        const tracksMatch = /"captionTracks":(\[[^\]]+\])/.exec(html);
-        if (tracksMatch) {
-          try {
-            captionTracks = JSON.parse(tracksMatch[1]);
-          } catch {
-            // ignore
-          }
-        }
-      }
-    }
-  } catch {
-    // ignore
-  }
+    })()
+  ]);
 
   // 3. Fallback to InnerTube player API if captionTracks were not found in watch HTML
   if (!captionTracks.length) {
