@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "cli": "node dist/cli.js",
-    "server": "node dist/server.js"
+    "server": "node dist/server.js",
+    "dev": "node scripts/dev.js"
   },
   "engines": {
     "node": ">=18.0.0"
