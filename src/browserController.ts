@@ -40,10 +40,24 @@ function extractInteractiveElements(selector: string): RawElement[] {
       el.getAttribute("aria-label") ||
       el.getAttribute("placeholder") ||
       el.getAttribute("title") ||
+      el.getAttribute("alt") ||
       (el as HTMLElement).innerText ||
       (el as HTMLInputElement).value ||
       "";
-    label = label.trim().replace(/\s+/g, " ").slice(0, 80);
+    if (!label) {
+      const img = el.querySelector("img[alt]");
+      if (img) label = img.getAttribute("alt") || "";
+    }
+    if (!label) {
+      const svgTitle = el.querySelector("svg title, svg[aria-label]");
+      if (svgTitle) label = svgTitle.getAttribute("aria-label") || svgTitle.textContent || "";
+    }
+    const href = el.getAttribute("href") || "";
+    label = label.trim().replace(/\s+/g, " ").slice(0, 90);
+    if (href && !href.startsWith("javascript:") && href !== "#" && label.length < 60) {
+      const shortHref = href.length > 45 ? href.slice(0, 42) + "..." : href;
+      label = label ? `${label} -> ${shortHref}` : shortHref;
+    }
     results.push({
       tag: el.tagName.toLowerCase(),
       elementType: el.getAttribute("type") || "",
@@ -58,6 +72,55 @@ function extractInteractiveElements(selector: string): RawElement[] {
   return results;
 }
 
+/** Extracts visible readable text and key stats from the current viewport/page so the agent can read counts, metrics, and content directly. */
+function extractPageTextSummary(): string {
+  const body = document.body;
+  if (!body) return "";
+  const metaDesc =
+    document
+      .querySelector('meta[name="description"], meta[property="og:description"]')
+      ?.getAttribute("content") || "";
+
+  // Extract main/header/article content first so left-sidebar navigation links don't drown out profile stats
+  const priorityNodes = Array.from(document.querySelectorAll("main, header, article, [role='main']"));
+  const priorityText = priorityNodes
+    .map((el) => ((el as HTMLElement).innerText || "").trim())
+    .filter(Boolean)
+    .join("\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+
+  // Also explicitly surface any visible numeric stat badges (e.g. "12 posts", "39 followers", "184 following", prices, counts)
+  const statMatches: string[] = [];
+  const statEls = Array.from(document.querySelectorAll("header li, header span, header a, main li, main span, main a, h1, h2, h3"));
+  for (const el of statEls) {
+    const t = ((el as HTMLElement).innerText || el.getAttribute("title") || "").replace(/\s+/g, " ").trim();
+    if (
+      t.length >= 2 &&
+      t.length <= 65 &&
+      /\b\d[\d,.]*[kmbKMB]?\s*(followers?|following|posts?|subscribers?|views?|likes?|stars?|forks?|reviews?|items?|results?)\b/i.test(t)
+    ) {
+      if (!statMatches.includes(t)) statMatches.push(t);
+    }
+  }
+
+  const rawBodyText = (body.innerText || "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+
+  const parts: string[] = [];
+  if (metaDesc) parts.push(`[Meta: ${metaDesc}]`);
+  if (statMatches.length > 0) parts.push(`[Detected Stats: ${statMatches.slice(0, 12).join(" | ")}]`);
+  if (priorityText) {
+    parts.push(priorityText.slice(0, 2200));
+  } else {
+    parts.push(rawBodyText.slice(0, 2200));
+  }
+  return parts.join("\n").slice(0, 2800);
+}
+
 const VERIFICATION_TITLE_KEYWORDS = [
   "are you a human",
   "verify you are human",
@@ -68,10 +131,6 @@ const VERIFICATION_TITLE_KEYWORDS = [
   "captcha",
   "robot check",
   "attention required",
-  "sign in",
-  "sign up",
-  "log in",
-  "login",
   "verify it's you",
   "two-factor",
   "two factor",
@@ -83,22 +142,36 @@ const VERIFICATION_TITLE_KEYWORDS = [
 
 /**
  * Executed inside the page via page.evaluate — must be a real function, see note above.
- * Flags CAPTCHA/bot-check widgets AND generic login/sign-in/MFA forms. The agent never fills
- * these in itself (it has no credentials and must not attempt to); it only uses this signal to
- * pause and hand off to a real human via the human-verification flow.
+ * Flags active CAPTCHA/bot-check widgets AND blocking login/MFA walls.
  */
 function detectVerificationChallenge(): boolean {
-  const selectors = [
+  const captchaSelectors = [
     'iframe[src*="recaptcha"]',
     'iframe[src*="hcaptcha"]',
     'iframe[title*="captcha" i]',
     'div[class*="cf-turnstile"]',
     "div#challenge-form",
-    'input[type="password"]',
     'input[autocomplete="one-time-code"]'
   ];
-  for (const selector of selectors) {
-    if (document.querySelector(selector)) return true;
+  for (const selector of captchaSelectors) {
+    const el = document.querySelector(selector);
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) return true;
+    }
+  }
+  // Only flag password inputs if the page is predominantly a login/auth screen (not a full content page with a hidden or header login input)
+  const pwd = document.querySelector('input[type="password"]');
+  if (pwd) {
+    const rect = pwd.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      const urlPath = window.location.pathname.toLowerCase();
+      const isAuthUrl = /\/(login|signin|sign-in|accounts\/login|auth|session|challenge)/.test(urlPath);
+      const mainLinks = document.querySelectorAll("a[href]").length;
+      if (isAuthUrl || mainLinks < 25) {
+        return true;
+      }
+    }
   }
   return false;
 }
@@ -122,6 +195,8 @@ export interface BrowserConfig {
   /** Persistent on-disk Chromium profile directory. Same directory across runs = same cookies,
    * local storage, and signed-in sessions, so logins and MFA only have to happen once. */
   userDataDir: string;
+  /** When true, launches an isolated ephemeral Guest browser context without saving cookies/sessions to disk. */
+  guestMode?: boolean;
 }
 
 export function defaultBrowserConfig(overrides: Partial<BrowserConfig> = {}): BrowserConfig {
@@ -131,9 +206,10 @@ export function defaultBrowserConfig(overrides: Partial<BrowserConfig> = {}): Br
     headless: true,
     navigationTimeoutMs: 30_000,
     actionTimeoutMs: 10_000,
-    idleTimeoutMs: 4_000,
-    maxElements: 50,
+    idleTimeoutMs: 2_500,
+    maxElements: 40,
     userDataDir: DEFAULT_PROFILE_DIR,
+    guestMode: false,
     ...overrides
   };
   if (config.viewportWidth <= 0 || config.viewportHeight <= 0) {
@@ -165,9 +241,17 @@ export interface PageState {
   title: string;
   screenshotB64: string;
   elements: InteractiveElement[];
+  pageText: string;
   stateHash: string;
   requiresHumanVerification: boolean;
   capturedAt: number;
+}
+
+export interface BrowserTabInfo {
+  index: number;
+  title: string;
+  url: string;
+  active: boolean;
 }
 
 interface RawElement {
@@ -181,9 +265,9 @@ interface RawElement {
   height?: number;
 }
 
-function computeStateHash(url: string, title: string, interactiveCount: number): string {
+function computeStateHash(url: string, title: string, interactiveCount: number, textSnippet: string): string {
   return createHash("sha256")
-    .update(`${url}|${title}|${interactiveCount}`, "utf8")
+    .update(`${url}|${title}|${interactiveCount}|${textSnippet.slice(0, 400)}`, "utf8")
     .digest("hex")
     .slice(0, 16);
 }
@@ -193,13 +277,93 @@ export class BrowserController {
   private context: BrowserContext | null = null;
   private page: Page | null = null;
   private cdpSession: CDPSession | null = null;
+  private lastScreencastFrame: string | null = null;
+  private screencastCallback: ((base64Jpeg: string) => void) | null = null;
+  private lastElements: InteractiveElement[] = [];
 
   constructor(config: Partial<BrowserConfig> = {}) {
     this.config = defaultBrowserConfig(config);
   }
 
+  get isGuestMode(): boolean {
+    return Boolean(this.config.guestMode);
+  }
+
   get viewportSize(): { width: number; height: number } {
     return { width: this.config.viewportWidth, height: this.config.viewportHeight };
+  }
+
+  get latestFrame(): string | null {
+    return this.lastScreencastFrame;
+  }
+
+  get isStarted(): boolean {
+    return this.page !== null;
+  }
+
+  currentUrl(): string {
+    return this.page ? this.page.url() : "about:blank";
+  }
+
+  getElementByMark(markId: number): InteractiveElement | undefined {
+    return this.lastElements.find((el) => el.markId === markId);
+  }
+
+  async getTabs(): Promise<BrowserTabInfo[]> {
+    if (!this.context) return [];
+    const pages = this.context.pages();
+    const tabs: BrowserTabInfo[] = [];
+    for (let i = 0; i < pages.length; i += 1) {
+      const p = pages[i];
+      const title = await p.title().catch(() => "");
+      tabs.push({
+        index: i,
+        title: title || p.url() || "New Tab",
+        url: p.url(),
+        active: p === this.page
+      });
+    }
+    return tabs;
+  }
+
+  async switchTab(index: number): Promise<void> {
+    if (!this.context) return;
+    const pages = this.context.pages();
+    if (index < 0 || index >= pages.length) return;
+    const target = pages[index];
+    if (target === this.page) return;
+    this.page = target;
+    await target.bringToFront().catch(() => undefined);
+    if (this.screencastCallback) {
+      await this.startScreencast(this.screencastCallback).catch(() => undefined);
+    }
+  }
+
+  async newTab(url = "https://www.google.com/"): Promise<void> {
+    if (!this.context) await this.start();
+    if (!this.context) return;
+    const newPage = await this.context.newPage();
+    newPage.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
+    this.page = newPage;
+    if (this.screencastCallback) {
+      await this.startScreencast(this.screencastCallback).catch(() => undefined);
+    }
+    if (url && url !== "about:blank") {
+      await this.navigate(url);
+    }
+  }
+
+  async closeTab(index: number): Promise<void> {
+    if (!this.context) return;
+    const pages = this.context.pages();
+    if (pages.length <= 1 || index < 0 || index >= pages.length) return;
+    const target = pages[index];
+    await target.close().catch(() => undefined);
+    const remaining = this.context.pages();
+    this.page = remaining[remaining.length - 1] ?? null;
+    if (this.page && this.screencastCallback) {
+      await this.startScreencast(this.screencastCallback).catch(() => undefined);
+    }
   }
 
   async start(): Promise<void> {
@@ -207,16 +371,36 @@ export class BrowserController {
       return;
     }
     try {
-      mkdirSync(this.config.userDataDir, { recursive: true });
-      this.context = await chromium.launchPersistentContext(this.config.userDataDir, {
-        headless: this.config.headless,
-        viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
-        deviceScaleFactor: 1,
-        userAgent: this.config.userAgent
-      });
+      const ua =
+        this.config.userAgent ??
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+      if (this.config.guestMode) {
+        const browser = await chromium.launch({ headless: this.config.headless });
+        this.context = await browser.newContext({
+          viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
+          deviceScaleFactor: 1,
+          userAgent: ua
+        });
+      } else {
+        mkdirSync(this.config.userDataDir, { recursive: true });
+        this.context = await chromium.launchPersistentContext(this.config.userDataDir, {
+          headless: this.config.headless,
+          viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
+          deviceScaleFactor: 1,
+          userAgent: ua
+        });
+      }
       this.context.setDefaultTimeout(this.config.actionTimeoutMs);
       this.page = this.context.pages()[0] ?? (await this.context.newPage());
       this.page.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
+      // Automatically adopt popups/new tabs opened by target="_blank" links
+      this.context.on("page", (newPage) => {
+        newPage.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
+        this.page = newPage;
+        if (this.screencastCallback) {
+          void this.startScreencast(this.screencastCallback).catch(() => undefined);
+        }
+      });
     } catch (err) {
       await this.close();
       throw new BrowserActionError(`Failed to start the browser: ${(err as Error).message}`);
@@ -227,13 +411,19 @@ export class BrowserController {
     await this.stopScreencast();
     if (this.context !== null) {
       try {
+        const browser = this.context.browser();
         await this.context.close();
+        if (browser) {
+          await browser.close().catch(() => undefined);
+        }
       } catch {
         // best-effort cleanup
       }
     }
     this.page = null;
     this.context = null;
+    this.lastScreencastFrame = null;
+    this.screencastCallback = null;
   }
 
   /**
@@ -242,19 +432,22 @@ export class BrowserController {
    */
   async startScreencast(onFrame: (base64Jpeg: string) => void): Promise<void> {
     const page = this.requirePage();
+    this.screencastCallback = onFrame;
     if (this.cdpSession !== null) {
-      throw new BrowserActionError("A screencast is already running.");
+      await this.stopScreencast();
+      this.screencastCallback = onFrame;
     }
     try {
       const session = await page.context().newCDPSession(page);
       this.cdpSession = session;
       session.on("Page.screencastFrame", (payload) => {
+        this.lastScreencastFrame = payload.data;
         onFrame(payload.data);
         void session.send("Page.screencastFrameAck", { sessionId: payload.sessionId }).catch(() => undefined);
       });
       await session.send("Page.startScreencast", {
         format: "jpeg",
-        quality: 70,
+        quality: 72,
         maxWidth: this.config.viewportWidth,
         maxHeight: this.config.viewportHeight,
         everyNthFrame: 1
@@ -296,7 +489,12 @@ export class BrowserController {
 
   async remoteType(text: string): Promise<void> {
     if (!text) return;
-    await this.requirePage().keyboard.type(text, { delay: 10 });
+    await this.requirePage().keyboard.type(text, { delay: 8 });
+  }
+
+  async remotePaste(text: string): Promise<void> {
+    if (!text) return;
+    await this.requirePage().keyboard.insertText(text);
   }
 
   async remoteKeyPress(key: string): Promise<void> {
@@ -310,6 +508,24 @@ export class BrowserController {
     await page.mouse.wheel(deltaX, deltaY);
   }
 
+  async goBack(): Promise<void> {
+    const page = this.requirePage();
+    await page.goBack({ waitUntil: "domcontentloaded", timeout: this.config.navigationTimeoutMs }).catch(() => null);
+    await this.waitForIdle();
+  }
+
+  async goForward(): Promise<void> {
+    const page = this.requirePage();
+    await page.goForward({ waitUntil: "domcontentloaded", timeout: this.config.navigationTimeoutMs }).catch(() => null);
+    await this.waitForIdle();
+  }
+
+  async reload(): Promise<void> {
+    const page = this.requirePage();
+    await page.reload({ waitUntil: "domcontentloaded", timeout: this.config.navigationTimeoutMs }).catch(() => null);
+    await this.waitForIdle();
+  }
+
   private requirePage(): Page {
     if (this.page === null) {
       throw new BrowserActionError("Browser has not been started. Call start() first.");
@@ -317,8 +533,11 @@ export class BrowserController {
     return this.page;
   }
 
-  async waitForIdle(timeoutMs?: number): Promise<void> {
+  async waitForIdle(timeoutMs?: number, minSettleMs = 0): Promise<void> {
     const page = this.requirePage();
+    if (minSettleMs > 0) {
+      await page.waitForTimeout(minSettleMs).catch(() => undefined);
+    }
     try {
       await page.waitForLoadState("networkidle", { timeout: timeoutMs ?? this.config.idleTimeoutMs });
     } catch {
@@ -332,14 +551,21 @@ export class BrowserController {
     if (!target) {
       throw new BrowserActionError("navigate requires a non-empty url");
     }
-    const resolved = target.includes("://") ? target : `https://${target}`;
+    let resolved = target;
+    if (target !== "about:blank" && !target.includes("://")) {
+      if (target.includes(".") && !target.includes(" ")) {
+        resolved = `https://${target}`;
+      } else {
+        resolved = `https://www.google.com/search?q=${encodeURIComponent(target)}`;
+      }
+    }
     try {
       await page.goto(resolved, { waitUntil: "domcontentloaded", timeout: this.config.navigationTimeoutMs });
     } catch (err) {
       const prefix = err instanceof playwrightErrors.TimeoutError ? "Timed out navigating to" : "Failed to navigate to";
       throw new BrowserActionError(`${prefix} ${resolved}: ${(err as Error).message}`);
     }
-    await this.waitForIdle();
+    await this.waitForIdle(undefined, 700);
   }
 
   private validateCoords(x: number, y: number): void {
@@ -358,25 +584,48 @@ export class BrowserController {
     } catch (err) {
       throw new BrowserActionError(`Failed to click at (${x}, ${y}): ${(err as Error).message}`);
     }
-    await this.waitForIdle();
+    // Give SPAs (Instagram, X, GitHub, etc.) 850ms to fire GraphQL/API requests and mount the new route DOM
+    await this.waitForIdle(undefined, 850);
   }
 
-  async typeText(x: number, y: number, text: string, clear = true): Promise<void> {
+  async clickMark(markId: number): Promise<InteractiveElement> {
+    const el = this.getElementByMark(markId);
+    if (!el) {
+      throw new BrowserActionError(`Mark #${markId} not found in current viewport elements. Check the latest element list.`);
+    }
+    await this.click(el.x, el.y);
+    return el;
+  }
+
+  async typeMark(markId: number, text: string, clear = true, pressEnter = false): Promise<InteractiveElement> {
+    const el = this.getElementByMark(markId);
+    if (!el) {
+      throw new BrowserActionError(`Mark #${markId} not found in current viewport elements. Check the latest element list.`);
+    }
+    await this.typeText(el.x, el.y, text, clear, pressEnter);
+    return el;
+  }
+
+  async typeText(x: number, y: number, text: string, clear = true, pressEnter = false): Promise<void> {
     const page = this.requirePage();
     this.validateCoords(x, y);
     try {
       await page.mouse.click(x, y);
       if (clear) {
-        await page.keyboard.press("Control+A");
+        const selectAll = process.platform === "darwin" ? "Meta+A" : "Control+A";
+        await page.keyboard.press(selectAll);
         await page.keyboard.press("Backspace");
       }
       if (text) {
-        await page.keyboard.type(text, { delay: 15 });
+        await page.keyboard.type(text, { delay: 12 });
+      }
+      if (pressEnter) {
+        await page.keyboard.press("Enter");
       }
     } catch (err) {
       throw new BrowserActionError(`Failed to type at (${x}, ${y}): ${(err as Error).message}`);
     }
-    await this.waitForIdle();
+    await this.waitForIdle(undefined, pressEnter ? 800 : 150);
   }
 
   async scroll(direction: "up" | "down", amount = 600): Promise<void> {
@@ -391,7 +640,7 @@ export class BrowserController {
     const delta = normalized === "down" ? amount : -amount;
     try {
       await page.mouse.wheel(0, delta);
-      await page.waitForTimeout(150);
+      await page.waitForTimeout(180);
     } catch (err) {
       throw new BrowserActionError(`Failed to scroll ${normalized}: ${(err as Error).message}`);
     }
@@ -420,17 +669,172 @@ export class BrowserController {
     }
   }
 
+  /**
+   * Extracts structured content (tables, lists, headings, links, or text matching a CSS selector)
+   * directly from the live DOM so any agent can scrape, audit, or analyze page data reliably.
+   */
+  async extractPageData(selector?: string, mode: "text" | "links" | "tables" | "headings" | "html" = "text"): Promise<string> {
+    const page = this.requirePage();
+    try {
+      return await page.evaluate(
+        ({ sel, extractMode }) => {
+          const root = sel ? document.querySelector(sel) : document.body;
+          if (!root) return `No element found matching selector: ${sel}`;
+          if (extractMode === "links") {
+            const anchors = Array.from(root.querySelectorAll("a[href]")).slice(0, 50);
+            return anchors
+              .map((a, i) => {
+                const text = (a.textContent || a.getAttribute("aria-label") || "").trim().replace(/\s+/g, " ").slice(0, 70);
+                const href = (a as HTMLAnchorElement).href;
+                return `${i + 1}. ${text || "[link]"} -> ${href}`;
+              })
+              .join("\n");
+          }
+          if (extractMode === "headings") {
+            const headings = Array.from(root.querySelectorAll("h1, h2, h3, h4")).slice(0, 45);
+            return headings
+              .map((h) => `${h.tagName}: ${(h.textContent || "").trim().replace(/\s+/g, " ")}`)
+              .join("\n");
+          }
+          if (extractMode === "tables") {
+            const tables = Array.from(root.querySelectorAll("table")).slice(0, 4);
+            if (!tables.length) return "No <table> elements found on page.";
+            return tables
+              .map((t, idx) => {
+                const rows = Array.from(t.querySelectorAll("tr")).slice(0, 30);
+                const csv = rows
+                  .map((r) =>
+                    Array.from(r.querySelectorAll("th, td"))
+                      .map((c) => (c.textContent || "").trim().replace(/\s+/g, " "))
+                      .join(" | ")
+                  )
+                  .join("\n");
+                return `Table ${idx + 1}:\n${csv}`;
+              })
+              .join("\n\n");
+          }
+          if (extractMode === "html") {
+            return root.innerHTML.slice(0, 3500);
+          }
+          return ((root as HTMLElement).innerText || root.textContent || "").trim().replace(/\n{3,}/g, "\n\n").slice(0, 3500);
+        },
+        { sel: selector?.trim() || "", extractMode: mode }
+      );
+    } catch (err) {
+      throw new BrowserActionError(`Failed to extract page data: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Clicks the first visible element on the page matching a text substring, aria-label, or CSS selector.
+   * Gives agents a fast, reliable fallback when pixel coordinates are small or shifting.
+   */
+  async clickBySelectorOrText(target: string): Promise<string> {
+    const page = this.requirePage();
+    const query = target.trim();
+    if (!query) {
+      throw new BrowserActionError("clickBySelectorOrText requires a non-empty target");
+    }
+    try {
+      const clickedLabel = await page.evaluate((q) => {
+        const lower = q.toLowerCase();
+        // Special handling for "profile" on Instagram/X where the sidebar link only has an <img alt="...'s profile picture">
+        if (lower === "profile" || lower === "my profile") {
+          const sidebarProfile = Array.from(document.querySelectorAll('a[href]')).find((a) => {
+            const rect = a.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0 || rect.left > 280) return false;
+            const imgAlt = a.querySelector("img[alt]")?.getAttribute("alt") || "";
+            const txt = ((a as HTMLElement).innerText || a.getAttribute("aria-label") || "").trim();
+            return /profile picture/i.test(imgAlt) || /^profile$/i.test(txt);
+          });
+          if (sidebarProfile) {
+            (sidebarProfile as HTMLElement).click();
+            return (sidebarProfile.getAttribute("href") || "Profile").trim();
+          }
+        }
+        const candidates = Array.from(
+          document.querySelectorAll('a, button, input, [role="button"], [role="link"], [role="tab"], [role="menuitem"], span, div')
+        );
+        for (const el of candidates) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) continue;
+          const imgAlt = el.querySelector("img[alt]")?.getAttribute("alt") || "";
+          const label = (
+            el.getAttribute("aria-label") ||
+            el.getAttribute("title") ||
+            el.getAttribute("placeholder") ||
+            (el as HTMLElement).innerText ||
+            imgAlt ||
+            ""
+          )
+            .trim()
+            .replace(/\s+/g, " ");
+          if (label && label.toLowerCase() === lower) {
+            (el as HTMLElement).click();
+            return label;
+          }
+        }
+        for (const el of candidates) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) continue;
+          const imgAlt = el.querySelector("img[alt]")?.getAttribute("alt") || "";
+          const label = (
+            el.getAttribute("aria-label") ||
+            el.getAttribute("title") ||
+            (el as HTMLElement).innerText ||
+            imgAlt ||
+            ""
+          )
+            .trim()
+            .replace(/\s+/g, " ");
+          if (label && label.length < 100 && label.toLowerCase().includes(lower)) {
+            (el as HTMLElement).click();
+            return label;
+          }
+        }
+        try {
+          const selEl = document.querySelector(q) as HTMLElement | null;
+          if (selEl) {
+            selEl.click();
+            return q;
+          }
+        } catch {
+          // ignore invalid CSS selector
+        }
+        return null;
+      }, query);
+
+      if (!clickedLabel) {
+        throw new BrowserActionError(`Could not find a visible element matching "${query}".`);
+      }
+      await this.waitForIdle(undefined, 850);
+      return clickedLabel;
+    } catch (err) {
+      if (err instanceof BrowserActionError) throw err;
+      throw new BrowserActionError(`Failed to click "${query}": ${(err as Error).message}`);
+    }
+  }
+
   async captureState(): Promise<PageState> {
     const page = this.requirePage();
     let screenshotBuffer: Buffer;
     let url: string;
     let title: string;
     let rawElements: RawElement[];
+    let pageText = "";
     try {
-      screenshotBuffer = await page.screenshot({ type: "png" });
+      // Use compressed JPEG (quality 60) instead of PNG to cut image payload & vision tokens by ~70%
+      screenshotBuffer = await page.screenshot({ type: "jpeg", quality: 60 });
+      this.lastScreencastFrame = screenshotBuffer.toString("base64");
       url = page.url();
-      title = await page.title();
-      rawElements = await page.evaluate(extractInteractiveElements, INTERACTIVE_SELECTOR);
+      title = await page.title().catch(() => "");
+      try {
+        rawElements = await page.evaluate(extractInteractiveElements, INTERACTIVE_SELECTOR);
+      } catch {
+        await page.waitForTimeout(500).catch(() => undefined);
+        rawElements = await page.evaluate(extractInteractiveElements, INTERACTIVE_SELECTOR).catch(() => []);
+      }
+      pageText = await page.evaluate(extractPageTextSummary).catch(() => "");
     } catch (err) {
       throw new BrowserActionError(`Failed to capture page state: ${(err as Error).message}`);
     }
@@ -458,13 +862,15 @@ export class BrowserController {
       width: Math.trunc(Number(item.width ?? 0)),
       height: Math.trunc(Number(item.height ?? 0))
     }));
+    this.lastElements = elements;
 
     return {
       url,
       title,
       screenshotB64: screenshotBuffer.toString("base64"),
       elements,
-      stateHash: computeStateHash(url, title, elements.length),
+      pageText,
+      stateHash: computeStateHash(url, title, elements.length, pageText),
       requiresHumanVerification,
       capturedAt: Date.now()
     };

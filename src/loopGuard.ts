@@ -203,6 +203,17 @@ export class LoopGuard {
     for (const { msgIdx, blockIdx, stepLabel } of toPrune) {
       const content = messages[msgIdx].content as ContentBlock[];
       content[blockIdx] = { type: "text", text: `[Screenshot archived at Step ${stepLabel}]` };
+      // Also compact the verbose Elements/Text list from older steps (> 2 steps ago) to keep multi-step token usage low
+      const firstBlock = content[0];
+      if (firstBlock && firstBlock.type === "text" && typeof firstBlock.text === "string" && firstBlock.text.length > 500) {
+        const lines = firstBlock.text.split("\n");
+        const headerLines = lines.filter(
+          (l) => l.startsWith("TASK:") || l.startsWith("Step ") || l.startsWith("[Meta:") || l.startsWith("[Detected Stats:")
+        );
+        if (headerLines.length > 0) {
+          firstBlock.text = `${headerLines.join("\n")}\n[Older DOM text & elements compacted]`;
+        }
+      }
     }
     return toPrune.length;
   }
