@@ -300,26 +300,17 @@ button { color: inherit; }
 /* Only the eyes move while the bot is working, so the mascot keeps its friendly shape. */
 .agent-avatar.is-working svg.bot-char-svg .bot-eyes,
 .agent-row.is-working .agent-avatar svg.bot-char-svg .bot-eyes {
-  animation: botEyeScan 1.55s ease-in-out infinite;
+  animation: botEyeScan 2.25s ease-in-out infinite;
   transform-origin: center;
   transform-box: fill-box;
 }
-.agent-row.is-working {
-  background: color-mix(in srgb, var(--bot-color, #1677ff) 9%, var(--sidebar));
-}
-.agent-row.is-working .agent-name::after {
-  content: " · working";
-  color: var(--bot-color, #1677ff);
-  font-size: 11px;
-  font-weight: 600;
-}
 @keyframes botEyeScan {
-  0%, 100% { transform: rotate(-20deg) translate(0, 0) scaleY(1); }
-  22% { transform: rotate(-20deg) translate(-4px, -1px) scaleY(1); }
-  48% { transform: rotate(-20deg) translate(4px, -1px) scaleY(1); }
-  56% { transform: rotate(-20deg) translate(4px, 0) scaleY(0.12); }
-  64% { transform: rotate(-20deg) translate(0, 0) scaleY(1); }
-  82% { transform: rotate(-20deg) translate(-2px, 1px) scaleY(0.9); }
+  0%, 14%, 100% { transform: rotate(-20deg) translate(0, 0) scaleY(1); }
+  30% { transform: rotate(-20deg) translate(-7px, -1px) scaleY(1); }
+  54% { transform: rotate(-20deg) translate(7px, -1px) scaleY(1); }
+  59% { transform: rotate(-20deg) translate(7px, 0) scaleY(0.12); }
+  64% { transform: rotate(-20deg) translate(7px, 0) scaleY(1); }
+  83% { transform: rotate(-20deg) translate(-3px, 1px) scaleY(1); }
 }
 
 /* Create Bot Modal (Grok Bots Shape & Color Customizer) */
@@ -986,6 +977,30 @@ button { color: inherit; }
 }
 .message.agent .bubble {
   border-top-left-radius: 5px;
+}
+.run-presence {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: fit-content;
+  max-width: min(740px, 100%);
+  margin: 2px auto 18px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  animation: presenceAppear 180ms ease-out both;
+}
+.run-presence .agent-avatar {
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.run-presence .agent-avatar svg.bot-char-svg { width: 26px; height: 26px; }
+@keyframes presenceAppear {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .bubble.error {
   color: #991b1b;
@@ -2154,7 +2169,8 @@ dialog.modal-dialog::backdrop {
   .agent-avatar.is-working svg.bot-char-svg .bot-eyes,
   .agent-row.is-working .agent-avatar svg.bot-char-svg .bot-eyes,
   .status-badge.running .status-dot,
-  #voice-button.is-listening { animation: none !important; }
+  #voice-button.is-listening,
+  .run-presence { animation: none !important; }
 }
 </style>
 </head>
@@ -2637,6 +2653,8 @@ dialog.modal-dialog::backdrop {
   var agents = loadAgents();
   var activeAgentId = null;
   var isRunning = false;
+  var botIsWorking = false;
+  var runPresenceEl = null;
   var runningAgentId = null;
   var runningAgentName = "";
   var setupSessionOpen = false;
@@ -2797,11 +2815,40 @@ dialog.modal-dialog::backdrop {
 
   function setStatusState(state, text) {
     var running = state === "running";
+    botIsWorking = running && !/waiting for|approval/i.test(text || "");
     statusBadge.className = "status-badge " + (running ? "running" : "ready");
     statusBadgeText.textContent = text || (running ? "Working" : "Ready");
     stopRunBtn.hidden = !running;
-    chipAvatar.classList.toggle("is-working", running && activeAgentId === runningAgentId);
+    chipAvatar.classList.toggle("is-working", botIsWorking && activeAgentId === runningAgentId);
     renderSidebar();
+    if (!botIsWorking) setRunPresence(null);
+  }
+
+  function setRunPresence(text) {
+    if (!text || !isRunning) {
+      if (runPresenceEl) runPresenceEl.remove();
+      runPresenceEl = null;
+      return;
+    }
+    var bot = agents.find(function(item) { return item.id === runningAgentId; }) ||
+      (activeAgent() || { name: runningAgentName || "Bot" });
+    if (!runPresenceEl) {
+      runPresenceEl = document.createElement("div");
+      runPresenceEl.className = "run-presence";
+      runPresenceEl.setAttribute("role", "status");
+      runPresenceEl.setAttribute("aria-live", "polite");
+      var avatar = document.createElement("span");
+      avatar.className = "agent-avatar custom-bot is-working";
+      runPresenceEl.appendChild(avatar);
+      var label = document.createElement("span");
+      label.className = "run-presence-label";
+      runPresenceEl.appendChild(label);
+      messages.appendChild(runPresenceEl);
+    }
+    var avatarEl = runPresenceEl.querySelector(".agent-avatar");
+    applyAvatarElement(avatarEl, bot, true);
+    runPresenceEl.querySelector(".run-presence-label").textContent = text;
+    messages.scrollTop = messages.scrollHeight;
   }
 
   function inferredIntent(name, customDescription) {
@@ -2946,7 +2993,7 @@ dialog.modal-dialog::backdrop {
     });
     filtered.forEach(function(agent) {
       var isCurrent = agent.id === activeAgentId;
-      var isAgentWorking = agent.id === runningAgentId && isRunning;
+      var isAgentWorking = agent.id === runningAgentId && botIsWorking;
       var row = document.createElement("div");
       row.className = "agent-row" + (isCurrent ? " active" : "") + (isAgentWorking ? " is-working" : "");
       row.style.setProperty("--bot-color", agent.color || "#1677ff");
@@ -3588,6 +3635,7 @@ dialog.modal-dialog::backdrop {
     status.textContent = "Agent is thinking (low-token mode)…";
     stepCounter.textContent = "";
     liveStepFeedBubble = null;
+    setRunPresence("Thinking it through");
 
     var rosterContext = buildWorkspaceBotsContext(agent);
     var historyContext = buildConversationHistory(agent);
@@ -3625,6 +3673,7 @@ dialog.modal-dialog::backdrop {
         isRunning = false;
         sendButton.disabled = false;
         if (err.status === 409) {
+          setRunPresence(null);
           fetch("/api/status")
             .then(readResponse)
             .then(function(serverState) {
@@ -3648,6 +3697,7 @@ dialog.modal-dialog::backdrop {
               isRunning = true;
               sendButton.disabled = true;
               setStatusState("running", "Another Run Active");
+              setRunPresence("Working through the current task");
               status.textContent = "Your task is queued and will start when the current run finishes.";
               if (approvalBubble) {
                 var queuedButton = approvalBubble.querySelector(".approve-task-btn");
@@ -3664,6 +3714,7 @@ dialog.modal-dialog::backdrop {
           return;
         }
         if (err.status === 428 && err.body) {
+          setRunPresence(null);
           runningAgentId = null;
           runningAgentName = "";
           setStatusState("ready", "Waiting for Approval");
@@ -3693,6 +3744,7 @@ dialog.modal-dialog::backdrop {
         }
         runningAgentId = null;
         runningAgentName = "";
+        setRunPresence(null);
         setStatusState("ready", "Ready");
         status.textContent = "";
         stepCounter.textContent = "";
@@ -3708,6 +3760,7 @@ dialog.modal-dialog::backdrop {
       .then(readResponse)
       .then(function() {
         isRunning = false;
+        setRunPresence(null);
         runningAgentId = null;
         runningAgentName = "";
         sendButton.disabled = false;
@@ -3780,6 +3833,7 @@ dialog.modal-dialog::backdrop {
       }
       var stepText = e.message || e.toolName || "working";
       status.textContent = "Step " + e.step + ": " + stepText;
+      setRunPresence(stepText);
       stepCounter.textContent = "Step " + e.step;
       var artifactIsImage = e.artifactUrl && /\.(png|jpe?g|webp|gif)$/i.test(e.artifactUrl);
       var artifactLink = e.artifactUrl
@@ -3824,6 +3878,7 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "human_verification") {
+      setRunPresence(null);
       status.textContent = "Action required: sign in or verify in the live browser.";
       setStatusState("running", "Waiting for Sign-In");
       var bubble = appendMessage(
@@ -3849,9 +3904,11 @@ dialog.modal-dialog::backdrop {
     if (e.type === "human_verification_resolved") {
       status.textContent = "Verification resolved. Agent is continuing…";
       setStatusState("running", "Agent Running");
+      setRunPresence("Back at it");
       return;
     }
     if (e.type === "privileged_approval_required") {
+      setRunPresence(null);
       status.textContent = "Action required: approve or deny the request below.";
       setStatusState("running", "Waiting for Approval");
       var approvalBubble = appendMessage(
@@ -3886,6 +3943,7 @@ dialog.modal-dialog::backdrop {
       if (resolvedButton) resolvedButton.textContent = e.approved ? "Approved" : "Denied";
       status.textContent = e.approved ? "Approved. Agent is continuing…" : "Denied. Agent is continuing…";
       setStatusState("running", "Agent Running");
+      setRunPresence("Back at it");
       return;
     }
     if (e.type === "terminal") {
@@ -3900,6 +3958,7 @@ dialog.modal-dialog::backdrop {
         e.success ? "" : "error"
       );
       isRunning = false;
+      setRunPresence(null);
       runningAgentId = null;
       runningAgentName = "";
       sendButton.disabled = false;
