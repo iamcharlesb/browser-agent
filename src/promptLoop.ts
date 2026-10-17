@@ -7,6 +7,7 @@ import { CircuitBreakerTriggered, LoopGuard, PrunableMessage } from "./loopGuard
 
 export const DEFAULT_MODEL = "gpt-6-luna";
 const MAX_TOKENS = 1200;
+const GPT6_REASONING_EFFORT = "low" as const;
 const ZERO_DELTA_WARNING =
   "Warning: Last action produced zero visual or DOM changes. Choose an alternate element or approach.";
 const MAX_API_RETRIES_DEFAULT = 3;
@@ -65,6 +66,8 @@ export interface AgentOrchestratorOptions {
   collaborationContext?: string;
   browser: BrowserController;
   apiKey?: string;
+  /** Injectable transport for deterministic API tests; production uses the SDK default fetch. */
+  fetch?: typeof fetch;
   baseURL?: string;
   model?: string;
   maxSteps?: number;
@@ -133,10 +136,9 @@ export class AgentOrchestrator {
   private readonly browser: BrowserController;
   private readonly client: OpenAI;
   private readonly model: string;
-  /** gpt-6-family models reject `max_tokens` (need `max_completion_tokens`) and only support
-   * tool calling on Chat Completions when `reasoning_effort` is explicitly "none". Verified
-   * directly against the API before wiring this in - not inferred from docs alone. */
-  private readonly isGpt6Family: boolean;
+  private readonly useResponsesApi: boolean;
+  private responsesPreviousId: string | undefined;
+  private responsesMessageIndex = 0;
   private readonly useLocalEngine: boolean;
   private readonly keepRecentImages: number;
   private readonly maxApiRetries: number;
@@ -190,10 +192,11 @@ export class AgentOrchestrator {
     this.browser = options.browser;
     this.client = new OpenAI({
       apiKey: resolvedKey,
+      ...(options.fetch ? { fetch: options.fetch } : {}),
       ...(resolvedBaseURL ? { baseURL: resolvedBaseURL } : {})
     });
     this.model = isOllamaModel ? rawModel.slice("ollama:".length) || "llama3.2" : rawModel;
-    this.isGpt6Family = this.model.startsWith("gpt-6");
+    this.useResponsesApi = this.model.startsWith("gpt-6") && !isGrokModel && !isOllamaModel;
     this.keepRecentImages = keepRecentImages;
     this.maxApiRetries = maxApiRetries;
     this.onEvent = options.onEvent;
@@ -215,7 +218,7 @@ export class AgentOrchestrator {
       "- Text the user back the way a smart, warm, trusted friend texts in iMessage or Grok: casual, direct, human, and specific.\n" +
       "- NEVER use stiff corporate filler like 'To [do X], we can implement several strategies:', 'Certainly!', 'Here are some strategies:', or 'In conclusion'.\n" +
       "- NEVER dump textbook walls of bold-titled bullet points (e.g. '• **Create Engaging Content**: Share high-quality...') unless the user explicitly asks for a checklist or table.\n" +
-      "- Write in 1 to 3 short, natural chat messages/paragraphs (1–2 sentences each, separated by a blank line `\\n\\n` so the UI renders them as natural back-to-back chat bubbles). Share your real take immediately, suggest 1–2 concrete moves you can run for them right now, and end with a quick, natural question like a friend would.\n" +
+      "- Match the answer depth to the ask: stay brief for simple questions, but for complex or multi-step requests, carefully identify the goal and constraints, compare viable options, make a clear recommendation, and explain the key reasons, assumptions, and uncertainties. Give a concise user-facing rationale, never private chain-of-thought. Use short paragraphs or a compact checklist when that makes the next steps clearer; don't force a follow-up question when the request is already clear.\n" +
       "You have four capabilities:\n" +
       "- MULTI-BOT COLLABORATION (`delegate_to_bot` & `OPEN BOTS WORKSPACE ROSTER` in CONTEXT): You know all other bots in the user's workspace (their names, roles, expertise, and recent conversation outputs). When the user asks about 'other bots', 'my bots', 'which bots do I have', or refers to another specialist bot (e.g. Instagram bot, YouTube bot, Social Media bot, DevOps bot), ALWAYS refer to the actual bots listed in `OPEN BOTS WORKSPACE ROSTER` below — NEVER give generic encyclopedia definitions of internet bots/web crawlers! Use `delegate_to_bot` whenever the user wants another bot to perform a task or when handing off work to a peer bot.\n" +
       "- LOCAL TERMINAL (`run_terminal_command`): Execute real local shell commands (`node`, `python3`, `git`, `npm`, `ls`, `grep`, `curl`, tests, scripts) directly in the project workspace.\n" +
@@ -240,6 +243,17 @@ export class AgentOrchestrator {
       "not the research itself. This never overrides rule 7: researching and drafting has no side effects, " +
       "so do it freely, but still never follow, like, comment, message, or post for real until the user " +
       "approves the specific targets and wording you found.\n" +
+      "9. PACE BULK SOCIAL ENGAGEMENT - DON'T BLAST IT ALL AT ONCE: Real platforms flag or ban accounts for " +
+      "following/liking/commenting too many things back-to-back - approval to engage with several accounts " +
+      "is not approval to do it as fast as possible. Do at most 5-8 engagement actions (follows, likes, " +
+      "comments) in a single run, call `wait` for a few seconds between each one, and stop there even if " +
+      "more targets were approved. Tell the user in your summary exactly how many you did and that the rest " +
+      "are intentionally left for a later session, rather than doing everything in one burst.\n" +
+      "10. CONFIRM BEFORE YOU CLAIM SUCCESS: After any action that's supposed to change something (follow, " +
+      "like, comment, post, submit, save), look at the resulting page state before calling finish_task - a " +
+      "button changing from 'Follow' to 'Following', a confirmation toast, the new content actually visible, " +
+      "etc. If you can't see clear confirmation it worked, say exactly that ('I clicked Follow but couldn't " +
+      "confirm it went through - can you check?') instead of assuming and reporting success anyway.\n" +
       (this.collaborationContext ? `\nCONTEXT:\n${this.collaborationContext}\n` : "")
     );
   }
@@ -669,14 +683,16 @@ export class AgentOrchestrator {
             totalTokens: response.usage.total_tokens ?? 0
           });
         }
-      } catch {
-        // If cloud API or local Ollama is unreachable on first turn, automatically fall back to our zero-cloud local engine!
-        if (step <= 2) {
-          return this.runLocalEngine();
-        }
+      } catch (err) {
+        // A heuristic local search is not an LLM fallback: silently substituting it masks
+        // authentication/model/API errors and makes the agent appear to have reasoned.
+        const detail = (err instanceof Error ? err.message : String(err))
+          .replace(/\b(?:sk|xai)-[A-Za-z0-9_-]{12,}\b/g, "[redacted key]")
+          .replace(/Incorrect API key provided:\s*\S+/gi, "Incorrect API key provided: [redacted]")
+          .slice(0, 280);
         return this.finish({
           success: false,
-          summary: "LLM endpoint unreachable; switch to 'Local Engine (Zero Cloud)' in Settings or check your connection.",
+          summary: `I couldn't reach the selected model, so I haven't substituted a local heuristic answer. ${detail || "Check the model, API key, and connection in Settings."}`,
           stepsTaken: step - 1,
           elapsedSeconds: this.loopGuard.elapsedSeconds(),
           terminationReason: "llm_error"
@@ -686,6 +702,7 @@ export class AgentOrchestrator {
       const message = response.choices[0].message;
       const toolCalls = this.extractToolCalls(message);
       this.messages.push(this.serializeAssistantMessage(message, toolCalls.length));
+      if (this.useResponsesApi) this.responsesMessageIndex = this.messages.length;
 
       if (toolCalls.length === 0) {
         const directReply = (message.content ?? "").trim();
@@ -935,21 +952,62 @@ export class AgentOrchestrator {
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= this.maxApiRetries; attempt += 1) {
       try {
+        if (this.useResponsesApi) {
+          const response = await this.client.responses.create({
+            model: this.model,
+            instructions: this.systemPrompt,
+            input: this.responsesInputFromMessages(),
+            ...(this.responsesPreviousId ? { previous_response_id: this.responsesPreviousId } : {}),
+            tools: this.toolsForModel.map((tool) => ({
+              type: "function" as const,
+              name: tool.function.name,
+              description: tool.function.description,
+              parameters: (tool.function.parameters ?? {}) as Record<string, unknown>,
+              strict: false
+            })),
+            tool_choice: "auto",
+            parallel_tool_calls: true,
+            max_output_tokens: MAX_TOKENS,
+            reasoning: { effort: GPT6_REASONING_EFFORT }
+          });
+          this.responsesPreviousId = response.id;
+          const calls = response.output
+            .filter((item): item is OpenAI.Responses.ResponseFunctionToolCall => item.type === "function_call")
+            .slice(0, 4)
+            .map((call) => ({
+              id: call.call_id,
+              type: "function" as const,
+              function: { name: call.name, arguments: call.arguments }
+            }));
+          const content = response.output_text?.trim() || null;
+          const inputTokens = response.usage?.input_tokens ?? 0;
+          const outputTokens = response.usage?.output_tokens ?? 0;
+          return {
+            id: response.id,
+            object: "chat.completion",
+            created: Math.floor(Date.now() / 1000),
+            model: response.model,
+            choices: [{
+              index: 0,
+              finish_reason: calls.length ? "tool_calls" : "stop",
+              logprobs: null,
+              message: { role: "assistant", content, tool_calls: calls.length ? calls : undefined }
+            }],
+            usage: {
+              prompt_tokens: inputTokens,
+              completion_tokens: outputTokens,
+              total_tokens: response.usage?.total_tokens ?? inputTokens + outputTokens
+            }
+          } as OpenAI.Chat.Completions.ChatCompletion;
+        }
+
         return await this.client.chat.completions.create({
           model: this.model,
           tools: this.toolsForModel,
           tool_choice: "auto",
           parallel_tool_calls: true,
           messages: this.messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-          // The installed openai SDK's bundled types predate gpt-6 and don't list "none" as a
-          // valid reasoning_effort value, but the live API accepts and requires it for tool
-          // calling on this model family (verified directly against the API before adding this).
-          ...(this.isGpt6Family
-            ? {
-                max_completion_tokens: MAX_TOKENS,
-                reasoning_effort: "none" as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParams["reasoning_effort"]
-              }
-            : { max_tokens: MAX_TOKENS })
+          max_tokens: MAX_TOKENS
         });
       } catch (err) {
         if (!isRetryableOpenAIError(err)) {
@@ -970,6 +1028,61 @@ export class AgentOrchestrator {
       }
     }
     throw new Error(`Exhausted retries calling the LLM API: ${(lastErr as Error)?.message ?? lastErr}`);
+  }
+
+  /** Convert the orchestrator's existing conversation/tool history into Responses API input.
+   * GPT-6 function calling with reasoning is supported on Responses; Chat Completions only
+   * permits tool calling with reasoning disabled for this model family. */
+  private responsesInputFromMessages(): OpenAI.Responses.ResponseInput {
+    const fromIndex = this.responsesPreviousId ? this.responsesMessageIndex : 0;
+    const items: OpenAI.Responses.ResponseInputItem[] = [];
+    for (const raw of this.messages.slice(fromIndex)) {
+      const message = raw as Record<string, any>;
+      if (message.role === "system") continue; // supplied via `instructions` on every response
+      if (message.role === "tool") {
+        items.push({
+          type: "function_call_output",
+          call_id: String(message.tool_call_id ?? ""),
+          output: typeof message.content === "string" ? message.content : JSON.stringify(message.content ?? "")
+        });
+        continue;
+      }
+      if (message.role === "assistant" && Array.isArray(message.tool_calls)) {
+        if (typeof message.content === "string" && message.content.trim()) {
+          items.push({ role: "assistant", content: message.content });
+        }
+        for (const call of message.tool_calls) {
+          items.push({
+            type: "function_call",
+            call_id: String(call.id),
+            name: String(call.function?.name ?? ""),
+            arguments: String(call.function?.arguments ?? "{}")
+          });
+        }
+        continue;
+      }
+
+      const role = message.role === "assistant" ? "assistant" : "user";
+      if (typeof message.content === "string" || message.content == null) {
+        items.push({ role, content: message.content ?? "" });
+        continue;
+      }
+      if (Array.isArray(message.content)) {
+        const content = (message.content as any[]).reduce((parts: any[], part: any) => {
+          if (part.type === "text") parts.push({ type: "input_text", text: String(part.text ?? "") });
+          if (part.type === "image_url" && part.image_url?.url) {
+            parts.push({
+              type: "input_image" as const,
+              image_url: String(part.image_url.url),
+              detail: part.image_url.detail === "low" ? "low" as const : "auto" as const
+            });
+          }
+          return parts;
+        }, []);
+        items.push({ role, content } as OpenAI.Responses.ResponseInputItem);
+      }
+    }
+    return items;
   }
 
   private serializeAssistantMessage(

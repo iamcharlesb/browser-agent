@@ -19,6 +19,11 @@ const EXTERNAL_SIDE_EFFECT_PATTERN =
 // explicit social-media targets, so bot descriptions don't accidentally require approval.
 const SOCIAL_LIKE_PATTERN =
   /\b(?:like|react to)\s+(?:(?:this|that|the|a|an)\s+)?(?:post|posts|photo|photos|image|images|video|videos|reel|reels|tweet|tweets|comment|comments)\b/i;
+// Account/moderation changes that are real, visible side effects but don't match the
+// publish/follow/delete wording above: blocking, muting, reporting, archiving, and editing
+// profile fields (bio, picture, username, password, privacy/visibility settings).
+const ACCOUNT_CHANGE_PATTERN =
+  /\b(?:block|mute|report|archive|unarchive)\s+(?:(?:this|that|the|a|an|my|our)\s+)?(?:[a-z]+\s+){0,2}?(?:user|users|account|accounts|person|people|post|posts|profile|page)\b|\b(?:change|update|edit|set|swap)\s+(?:my\s+)?(?:bio|profile\s+picture|avatar|username|password|handle|display\s+name|privacy\s+settings?|visibility)\b/i;
 
 export function assessTaskRisk(task: string): RiskAssessment {
   if (SECRET_PATTERNS.some((pattern) => pattern.test(task))) {
@@ -30,7 +35,11 @@ export function assessTaskRisk(task: string): RiskAssessment {
   }
   const approvalsRequired: ApprovalCategory[] = [];
   if (MONEY_PATTERN.test(task)) approvalsRequired.push("financial_transaction");
-  if (EXTERNAL_SIDE_EFFECT_PATTERN.test(task) || SOCIAL_LIKE_PATTERN.test(task)) {
+  if (
+    EXTERNAL_SIDE_EFFECT_PATTERN.test(task) ||
+    SOCIAL_LIKE_PATTERN.test(task) ||
+    ACCOUNT_CHANGE_PATTERN.test(task)
+  ) {
     approvalsRequired.push("external_side_effect");
   }
   return { blocked: false, approvalsRequired };
