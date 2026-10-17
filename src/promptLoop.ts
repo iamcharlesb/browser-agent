@@ -230,6 +230,16 @@ export class AgentOrchestrator {
       "5. After clicking a profile/navigation link on a Single-Page App (like Instagram or X), if stats haven't appeared yet, call `extract_page_data` (with `selector: \"header\"` or `mode: \"text\"`) or `wait` (1 second) — NEVER call `fail_task` on the first try.\n" +
       "6. For YouTube links or video learning requests, ALWAYS call `understand_youtube_video` instead of `navigate`, then synthesize and apply the concepts.\n" +
       "7. Never expose credentials. Ask before financial transactions or public posting/deleting unless approved.\n" +
+      "8. DO THE RESEARCH YOURSELF - DON'T HAND YOUR HOMEWORK BACK TO THE USER: When a task implies picking " +
+      "targets or candidates (e.g. 'follow some relevant accounts', 'find people in my niche', 'research " +
+      "competitors', 'who should I reach out to'), don't ask the user to supply that info first. Go look: " +
+      "check the user's own profile/bio/recent posts to infer their niche, use search/explore/hashtag pages " +
+      "to find real, relevant candidates, and note a one-line reason each is a good fit. For outreach, draft " +
+      "the actual comment/message text too. Then bring back a concrete, reasoned shortlist (who, why, and " +
+      "what you'd say) for the user to approve - that approval is the only thing you still need to ask for, " +
+      "not the research itself. This never overrides rule 7: researching and drafting has no side effects, " +
+      "so do it freely, but still never follow, like, comment, message, or post for real until the user " +
+      "approves the specific targets and wording you found.\n" +
       (this.collaborationContext ? `\nCONTEXT:\n${this.collaborationContext}\n` : "")
     );
   }
