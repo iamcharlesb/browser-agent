@@ -5,6 +5,7 @@ import { existsSync, readFileSync, watch } from "node:fs";
 import { IncomingMessage, ServerResponse, createServer } from "node:http";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { OAuth2Client } from "google-auth-library";
 import { BrowserController, DEFAULT_PROFILE_DIR, PageState, defaultBrowserConfig } from "./browserController";
 import {
   ARTIFACTS_DIR,
@@ -40,6 +41,48 @@ if (existsSync(ENV_FILE)) {
 
 const PORT = Number(process.env.BROWSER_AGENT_UI_PORT ?? 8765);
 const HOST = process.env.BROWSER_AGENT_UI_HOST ?? "127.0.0.1";
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+const GOOGLE_SESSION_COOKIE = "openbots_google_session";
+const googleOAuthClient = new OAuth2Client();
+
+function cookieValue(req: IncomingMessage, name: string): string | null {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return null;
+  for (const item of cookieHeader.split(";")) {
+    const separator = item.indexOf("=");
+    if (separator < 0 || item.slice(0, separator).trim() !== name) continue;
+    try {
+      return decodeURIComponent(item.slice(separator + 1).trim());
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function setGoogleSessionCookie(res: ServerResponse, value: string, maxAge: number): void {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  res.setHeader(
+    "Set-Cookie",
+    `${GOOGLE_SESSION_COOKIE}=${encodeURIComponent(value)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure}`
+  );
+}
+
+function isSameOriginRequest(req: IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  const host = req.headers.host;
+  if (!origin || !host) return false;
+  try {
+    const originUrl = new URL(origin);
+    const forwardedProtocol = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0].trim();
+    const expectedProtocol = forwardedProtocol === "https" || Boolean((req.socket as typeof req.socket & { encrypted?: boolean }).encrypted)
+      ? "https:"
+      : "http:";
+    return originUrl.host === host && originUrl.protocol === expectedProtocol;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Dev-only live reload: this tool is explicitly local/single-user, so it's safe to always run
@@ -652,6 +695,79 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/auth/google/config") {
+    sendJson(res, 200, { enabled: Boolean(GOOGLE_CLIENT_ID), clientId: GOOGLE_CLIENT_ID || null });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/auth/google") {
+    if (!isSameOriginRequest(req)) {
+      sendJson(res, 403, { detail: "Google sign-in requests must come from this app." });
+      return;
+    }
+    if (!GOOGLE_CLIENT_ID) {
+      sendJson(res, 503, { detail: "Google sign-in is not configured. Set GOOGLE_CLIENT_ID in .env." });
+      return;
+    }
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const credential = typeof body.credential === "string" ? body.credential : "";
+      const nonce = typeof body.nonce === "string" ? body.nonce : "";
+      if (!credential || credential.length > 16_000 || !nonce) {
+        sendJson(res, 400, { detail: "A valid Google sign-in credential is required." });
+        return;
+      }
+
+      const ticket = await googleOAuthClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+      const payload = ticket.getPayload();
+      if (!payload?.sub || !payload.email || payload.email_verified !== true || payload.nonce !== nonce) {
+        sendJson(res, 401, { detail: "Google did not return a verified account for this sign-in." });
+        return;
+      }
+
+      const maxAge = Math.max(1, Math.min(3600, (payload.exp ?? 0) - Math.floor(Date.now() / 1000)));
+      setGoogleSessionCookie(res, credential, maxAge);
+      sendJson(res, 200, {
+        authenticated: true,
+        user: { id: payload.sub, name: payload.name ?? "Google user", email: payload.email, picture: payload.picture ?? null }
+      });
+    } catch {
+      sendJson(res, 401, { detail: "Google sign-in could not be verified. Please try again." });
+    }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/auth/google/session") {
+    const credential = cookieValue(req, GOOGLE_SESSION_COOKIE);
+    if (!credential || !GOOGLE_CLIENT_ID) {
+      sendJson(res, 200, { authenticated: false });
+      return;
+    }
+    try {
+      const ticket = await googleOAuthClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+      const payload = ticket.getPayload();
+      if (!payload?.sub || !payload.email || payload.email_verified !== true) throw new Error("Invalid Google session.");
+      sendJson(res, 200, {
+        authenticated: true,
+        user: { id: payload.sub, name: payload.name ?? "Google user", email: payload.email, picture: payload.picture ?? null }
+      });
+    } catch {
+      setGoogleSessionCookie(res, "", 0);
+      sendJson(res, 200, { authenticated: false });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/auth/google/logout") {
+    if (!isSameOriginRequest(req)) {
+      sendJson(res, 403, { detail: "Sign-out requests must come from this app." });
+      return;
+    }
+    setGoogleSessionCookie(res, "", 0);
+    sendJson(res, 200, { authenticated: false });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/status") {
     const tabs = activeSession ? await activeSession.controller.getTabs() : [];
     sendJson(res, 200, {
@@ -870,7 +986,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (req.method === "POST" && url.pathname === "/api/login") {
     try {
       const body = (await readJsonBody(req)) as Record<string, unknown>;
-      const loginUrl = typeof body.url === "string" && body.url.trim() ? body.url.trim() : "https://www.google.com/";
+      const loginUrl = typeof body.url === "string" && body.url.trim() ? body.url.trim() : "about:blank";
       const botName = typeof body.botName === "string" ? body.botName : undefined;
       const requestedMode =
         body.mode === "guest" ? "guest" : body.mode === "persistent" ? "persistent" : undefined;
