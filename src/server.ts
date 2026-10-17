@@ -16,6 +16,7 @@ import {
 } from "./agentTools";
 import { AgentEvent, AgentOrchestrator, DEFAULT_MODEL, requiresInitialBrowserState } from "./promptLoop";
 import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
+import { nextDailyOccurrence } from "./scheduler";
 
 const STATIC_DIR = join(__dirname, "..", "static");
 const ENV_FILE = join(__dirname, "..", ".env");
@@ -185,6 +186,7 @@ interface RunRequestBody {
   /** Opt-in for lower-risk tool approvals. Financial actions always need task-specific approval. */
   autoApprove?: boolean;
   scheduleId?: string;
+  scheduleTimeZone?: string;
   headless?: boolean;
   maxSteps?: number;
   maxDurationSeconds?: number;
@@ -198,6 +200,9 @@ interface ScheduledTask {
   task: string;
   nextRunAt: string;
   recurrenceMinutes: number | null;
+  recurrenceType?: "interval" | "daily";
+  timeZone?: string;
+  localTime?: string;
   status: "scheduled" | "queued" | "running" | "completed" | "failed";
   lastResult?: string;
   lastRunAt?: string;
@@ -315,12 +320,57 @@ function validateRunRequest(body: unknown): RunRequestBody {
       typeof record.collaborationContext === "string" ? record.collaborationContext.slice(0, 10_000) : undefined,
     approvedCategories,
     autoApprove: Boolean(record.autoApprove),
-    scheduleId: typeof record.scheduleId === "string" ? record.scheduleId : undefined
+    scheduleId: typeof record.scheduleId === "string" ? record.scheduleId : undefined,
+    scheduleTimeZone: typeof record.scheduleTimeZone === "string" ? record.scheduleTimeZone.slice(0, 100) : undefined
   };
 }
 
 async function saveSchedules(): Promise<void> {
   await writeFile(SCHEDULE_FILE, `${JSON.stringify(schedules, null, 2)}\n`, { mode: 0o600 });
+}
+
+function buildScheduledTask(input: Record<string, unknown>): ScheduledTask {
+  const task = typeof input.task === "string" ? input.task.trim() : "";
+  const botName = typeof input.botName === "string" ? input.botName.trim().slice(0, 120) : "Scheduled Agent";
+  const expertise = typeof input.expertise === "string" ? input.expertise.trim().slice(0, 500) : "general research";
+  const recurrenceMinutes = input.recurrenceMinutes == null ? null : Number(input.recurrenceMinutes);
+  const recurrenceType: "daily" | "interval" = input.scheduleType === "daily" ? "daily" : "interval";
+  const timeZone = typeof input.timeZone === "string" ? input.timeZone : "UTC";
+  try { new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date()); }
+  catch { throw new Error("Use a valid IANA timezone, such as America/Los_Angeles."); }
+  if (input.scheduleType === "interval" && recurrenceMinutes === null) throw new Error("Enter a repeat interval in minutes.");
+  if (!task || task.length > 200_000) throw new Error("task is required and must be at most 200000 characters.");
+  const risk = assessTaskRisk(task);
+  if (risk.blocked || risk.approvalsRequired.length > 0) {
+    throw new Error(risk.reason ?? "Scheduled tasks cannot include financial transactions or unapproved external side effects.");
+  }
+  if ((input.scheduleType === "daily" || recurrenceMinutes !== null) && input.costApproved !== true) {
+    throw new Error("Recurring schedules may consume paid model tokens. Ask the user to explicitly approve recurring API usage before creating one.");
+  }
+  let nextRunAt: Date;
+  if (recurrenceType === "daily") {
+    const localTime = typeof input.localTime === "string" ? input.localTime : "";
+    nextRunAt = nextDailyOccurrence(timeZone, localTime);
+    return {
+      id: randomUUID(), botName, expertise, task, nextRunAt: nextRunAt.toISOString(),
+      recurrenceMinutes: null, recurrenceType, timeZone, localTime, status: "scheduled"
+    };
+  }
+  nextRunAt = new Date(String(input.runAt ?? ""));
+  if (!Number.isFinite(nextRunAt.getTime()) || nextRunAt.getTime() <= Date.now()) throw new Error("runAt must be a future date.");
+  if (recurrenceMinutes !== null && (!Number.isFinite(recurrenceMinutes) || recurrenceMinutes < 5)) {
+    throw new Error("recurrenceMinutes must be at least 5 minutes.");
+  }
+  return {
+    id: randomUUID(), botName, expertise, task, nextRunAt: nextRunAt.toISOString(), recurrenceMinutes,
+    recurrenceType: recurrenceMinutes ? "interval" : undefined, timeZone, status: "scheduled"
+  };
+}
+
+async function persistAndArmSchedule(schedule: ScheduledTask): Promise<void> {
+  schedules.push(schedule);
+  await saveSchedules();
+  armSchedule(schedule);
 }
 
 function armSchedule(schedule: ScheduledTask): void {
@@ -357,6 +407,7 @@ async function executeSchedule(id: string): Promise<void> {
     maxDurationSeconds: 14_400,
     model: DEFAULT_MODEL,
     approvedCategories: [],
+    scheduleTimeZone: schedule.timeZone,
     scheduleId: schedule.id
   });
 }
@@ -506,7 +557,11 @@ function startRun(body: RunRequestBody): void {
             if (schedule) {
               schedule.lastResult = redactSecrets(String(event.summary ?? ""));
               const success = Boolean(event.success);
-              if (schedule.recurrenceMinutes) {
+              if (schedule.recurrenceType === "daily" && schedule.localTime && schedule.timeZone) {
+                schedule.status = "scheduled";
+                schedule.nextRunAt = nextDailyOccurrence(schedule.timeZone, schedule.localTime).toISOString();
+                armSchedule(schedule);
+              } else if (schedule.recurrenceMinutes) {
                 schedule.status = "scheduled";
                 schedule.nextRunAt = new Date(Date.now() + schedule.recurrenceMinutes * 60_000).toISOString();
                 armSchedule(schedule);
@@ -524,6 +579,25 @@ function startRun(body: RunRequestBody): void {
         // Scheduled/unattended runs never get run_terminal_command or workspace_file write/append
         // at all (filtered out of the model's tool list below) - nobody is present to approve them.
         allowPrivilegedTools: !body.scheduleId,
+        allowBrowserInteraction: !body.scheduleId,
+        scheduleTimeZone: body.scheduleTimeZone,
+        onScheduleTask: async (input) => {
+          try {
+            const scheduled = buildScheduledTask({
+              ...input,
+              botName: body.botName || "Scheduled Agent",
+              expertise: body.expertise || "general research",
+              timeZone: typeof input.timeZone === "string" ? input.timeZone : body.scheduleTimeZone || "UTC"
+            });
+            await persistAndArmSchedule(scheduled);
+            return {
+              ok: true,
+              message: `${scheduled.botName} scheduled for ${new Date(scheduled.nextRunAt).toLocaleString("en-US", { timeZone: scheduled.timeZone })}${scheduled.recurrenceType === "daily" ? ` daily (${scheduled.timeZone})` : ""}.`
+            };
+          } catch (error) {
+            return { ok: false, message: (error as Error).message };
+          }
+        },
         onTerminalApproval: body.scheduleId ? undefined : body.autoApprove ? () => true : () => onTerminalApproval(run)
       });
       await orchestrator.run();
@@ -965,34 +1039,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (req.method === "POST" && url.pathname === "/api/schedules") {
     try {
       const body = (await readJsonBody(req)) as Record<string, unknown>;
-      const task = typeof body.task === "string" ? body.task.trim() : "";
-      const botName = typeof body.botName === "string" ? body.botName.trim().slice(0, 120) : "Scheduled Agent";
-      const expertise = typeof body.expertise === "string" ? body.expertise.trim().slice(0, 500) : "general research";
-      const runAt = new Date(String(body.runAt ?? ""));
-      const recurrenceMinutes = body.recurrenceMinutes == null ? null : Number(body.recurrenceMinutes);
-      if (!task || task.length > 200_000) throw new Error("task is required and must be at most 200000 characters.");
-      if (!Number.isFinite(runAt.getTime()) || runAt.getTime() <= Date.now()) throw new Error("runAt must be a future date.");
-      if (recurrenceMinutes !== null && (!Number.isFinite(recurrenceMinutes) || recurrenceMinutes < 5)) {
-        throw new Error("recurrenceMinutes must be at least 5 minutes.");
-      }
-      const risk = assessTaskRisk(task);
-      if (risk.blocked || risk.approvalsRequired.length > 0) {
-        throw new Error(
-          risk.reason ?? "Scheduled tasks cannot include financial transactions or unapproved external side effects."
-        );
-      }
-      const schedule: ScheduledTask = {
-        id: randomUUID(),
-        botName,
-        expertise,
-        task,
-        nextRunAt: runAt.toISOString(),
-        recurrenceMinutes,
-        status: "scheduled"
-      };
-      schedules.push(schedule);
-      await saveSchedules();
-      armSchedule(schedule);
+      const schedule = buildScheduledTask(body);
+      await persistAndArmSchedule(schedule);
       sendJson(res, 201, { schedule });
     } catch (err) {
       sendJson(res, 400, { detail: (err as Error).message });
