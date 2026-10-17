@@ -350,89 +350,164 @@ button { color: inherit; }
   65% { transform: translate(0, 1px) scaleY(1); }
 }
 
-/* Create Bot Modal (Shape & Color Customizer) */
+/* Create Bot Modal (Grok Bots Shape & Color Customizer) */
+#create-bot-modal .modal-inner {
+  padding: 0;
+}
+#create-bot-modal .modal-header {
+  padding: 16px 20px;
+  margin-bottom: 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+#create-bot-modal .modal-close {
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+}
+#create-bot-modal .modal-close:hover {
+  background: #f1f5f9;
+  color: var(--text);
+}
+#create-bot-form {
+  padding: 18px 24px 0;
+}
 .bot-preview-stage {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 10px 0 18px;
+  padding: 6px 0 18px;
 }
 #bot-modal-preview {
-  width: 84px;
-  height: 84px;
+  width: 96px;
+  height: 96px;
   display: grid;
   place-items: center;
   position: relative;
 }
 #bot-modal-preview svg.bot-char-svg {
-  width: 84px;
-  height: 84px;
-  filter: drop-shadow(0 8px 18px rgba(15, 23, 42, 0.18));
-  animation: grokBotFloat 2.4s ease-in-out infinite;
+  width: 96px;
+  height: 96px;
+  filter: drop-shadow(0 8px 18px rgba(15, 23, 42, 0.14));
+  animation: grokBotFloat 2.6s ease-in-out infinite;
+}
+.bot-modal-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.bot-modal-inputs input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0 14px;
+  font-size: 14px;
+  text-align: center;
+  color: var(--text);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.bot-modal-inputs input::placeholder {
+  color: #94a3b8;
+}
+.bot-modal-inputs input:focus {
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.05);
+}
+.bot-Modal-role-input {
+  font-size: 12.5px !important;
+  height: 36px !important;
+  background: #f8fafc !important;
 }
 .bot-picker-box {
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 14px;
-  background: #fafbfc;
-  margin-top: 10px;
+  border: 0;
+  padding: 4px 0 10px;
+  background: transparent;
+  margin-top: 2px;
 }
 .bot-shape-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
-  justify-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 280px;
+  margin: 0 auto;
+  gap: 8px 10px;
+  justify-content: center;
 }
 .bot-shape-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  border: 2px solid transparent;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 0;
   background: transparent;
   padding: 5px;
   cursor: pointer;
   display: grid;
   place-items: center;
-  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .bot-shape-btn:hover {
   transform: scale(1.08);
-  background: #fff;
 }
 .bot-shape-btn.selected {
-  border-color: var(--text);
-  background: #fff;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px #d1d5db;
 }
 .bot-shape-btn svg {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
+  filter: none;
 }
 .bot-color-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  max-width: 240px;
+  gap: 11px 13px;
   justify-content: center;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-subtle);
+  margin: 18px auto 6px;
+  padding-top: 0;
+  border-top: 0;
 }
 .bot-color-btn {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  border: 2px solid transparent;
+  border: 0;
   cursor: pointer;
   padding: 0;
   transition: transform 0.14s ease, box-shadow 0.14s ease;
 }
 .bot-color-btn:hover {
-  transform: scale(1.15);
+  transform: scale(1.14);
 }
 .bot-color-btn.selected {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--text);
-  transform: scale(1.1);
+  box-shadow: 0 0 0 2.5px #fff, 0 0 0 4px #cbd5e1;
+  transform: scale(1.06);
+}
+#create-bot-modal .modal-actions {
+  margin: 16px -24px 0;
+  padding: 14px 20px;
+  border-top: 1px solid #f1f5f9;
+  background: #fff;
+}
+#create-bot-modal .btn-secondary {
+  border-radius: 999px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  color: #111827;
+  padding: 8px 18px;
+  font-size: 13.5px;
+}
+#create-bot-modal .btn-primary {
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  padding: 8px 20px;
+  font-size: 13.5px;
+}
+#create-bot-modal .btn-primary:hover {
+  background: #000;
 }
 
 .spark {
@@ -750,112 +825,193 @@ button { color: inherit; }
   display: none;
 }
 
-/* Welcome Screen */
+/* Welcome Screen (Grok Bots Hub) */
 #welcome {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 28px 24px;
+  padding: 24px 24px 12px;
   text-align: center;
   overflow-y: auto;
 }
 #welcome .welcome-mark {
-  width: 58px;
-  height: 58px;
-  margin-bottom: 16px;
-  box-shadow: 0 12px 28px rgba(22, 119, 255, 0.25);
+  width: 76px;
+  height: 76px;
+  margin-bottom: 14px;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 22px;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#welcome .welcome-mark:hover {
+  transform: scale(1.07) rotate(-3deg);
+}
+#welcome .welcome-mark svg.bot-char-svg {
+  width: 76px;
+  height: 76px;
+  filter: drop-shadow(0 10px 22px rgba(255, 45, 59, 0.22));
+  animation: grokBotFloat 2.8s ease-in-out infinite;
 }
 #welcome h1 {
   color: var(--text);
-  font-size: 24px;
+  font-size: 25px;
   letter-spacing: -0.025em;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   font-weight: 700;
 }
 #welcome p {
-  margin: 0 0 24px;
-  max-width: 480px;
+  margin: 0 0 22px;
+  max-width: 440px;
   color: var(--muted);
-  font-size: 14.5px;
+  font-size: 14px;
+  line-height: 1.45;
 }
 .template-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(235px, 1fr));
   gap: 10px;
-  width: min(100%, 720px);
+  width: min(100%, 740px);
   text-align: left;
 }
 .template-card {
   background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 13px 15px;
+  border: 1px solid #eaecf0;
+  border-radius: 16px;
+  padding: 12px 14px;
   cursor: pointer;
-  transition: all 0.16s ease;
-  box-shadow: var(--shadow-sm);
+  transition: all 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
 }
 .template-card:hover {
-  border-color: #93c5fd;
+  border-color: #cbd5e1;
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+.template-card .template-avatar {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+}
+.template-card .template-avatar svg.bot-char-svg {
+  width: 38px;
+  height: 38px;
+  transition: transform 0.2s ease;
+}
+.template-card:hover .template-avatar svg.bot-char-svg {
+  transform: scale(1.1) rotate(-4deg);
+}
+.template-card .template-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 .template-card strong {
   font-size: 13.5px;
+  font-weight: 600;
   color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .template-card span {
   font-size: 12px;
   color: var(--muted);
-  line-height: 1.4;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.template-card.create-custom-card {
+  border-style: dashed;
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+.template-card.create-custom-card:hover {
+  border-style: solid;
+  border-color: var(--text);
+  background: #fff;
+}
+.template-plus-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #111827;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  font-weight: 500;
 }
 
-/* Messages */
+/* Messages (Clean Grok Bot Conversation Stream) */
 #messages {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 24px 24px 16px;
+  padding: 24px 24px 12px;
 }
 .message {
   display: flex;
-  gap: 10px;
-  margin: 0 auto 16px;
+  align-items: flex-start;
+  gap: 11px;
+  margin: 0 auto 18px;
   max-width: 740px;
 }
 .message.user { justify-content: flex-end; }
-.message-body { max-width: 85%; min-width: 0; }
+.msg-bot-avatar {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  margin-top: 2px;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.msg-bot-avatar svg.bot-char-svg {
+  width: 28px;
+  height: 28px;
+}
+.message-body { max-width: 86%; min-width: 0; }
+.message.agent .message-body { flex: 1; max-width: calc(100% - 40px); }
 .message-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 4px 2px;
 }
-.message.user .message-label { text-align: right; margin-right: 2px; }
+.message.user .message-label { display: none; }
 .bubble {
-  border-radius: 16px;
-  padding: 11px 15px;
+  border-radius: 18px;
+  padding: 12px 16px;
   background: #fff;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid #eaecf0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
   word-wrap: break-word;
-  line-height: 1.5;
+  line-height: 1.58;
+  color: var(--text);
+  font-size: 14px;
 }
 .message.user .bubble {
-  background: var(--blue);
+  background: #111827;
   color: #fff;
-  border-color: var(--blue);
-  border-bottom-right-radius: 4px;
+  border-color: #111827;
+  border-bottom-right-radius: 5px;
+  padding: 10px 15px;
 }
 .message.agent .bubble {
-  border-bottom-left-radius: 4px;
+  border-top-left-radius: 5px;
 }
 .bubble.error {
   color: #991b1b;
@@ -863,9 +1019,9 @@ button { color: inherit; }
   border-color: #fecaca;
 }
 .bubble.success {
-  color: #166534;
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  color: var(--text);
+  background: #fff;
+  border-color: #eaecf0;
 }
 .bubble.step-feed {
   background: #f8fafc;
@@ -1071,65 +1227,88 @@ button { color: inherit; }
 .resume-button:hover { background: var(--blue-hover); }
 
 /* Composer */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 #composer-wrap {
   flex: 0 0 auto;
-  padding: 8px 20px 16px;
+  padding: 6px 20px 16px;
 }
 #quick-starts {
   display: flex;
   gap: 6px;
   justify-content: center;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
+  margin: 0 auto 8px;
+  max-width: 740px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+}
+#quick-starts::-webkit-scrollbar {
+  display: none;
 }
 .quick-start {
-  border: 1px solid var(--border);
+  border: 1px solid #e2e8f0;
   border-radius: 999px;
   background: #fff;
   color: var(--text-secondary);
-  padding: 5px 11px;
+  padding: 5px 12px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
+  white-space: nowrap;
+  flex: 0 0 auto;
   transition: all 0.14s ease;
 }
 .quick-start:hover {
-  border-color: #93c5fd;
-  color: var(--blue);
-  background: var(--blue-soft);
+  border-color: #cbd5e1;
+  color: var(--text);
+  background: #f8fafc;
+}
+#composer-form {
+  margin: 0;
 }
 #composer {
   width: min(100%, 740px);
-  min-height: 56px;
+  min-height: 52px;
   margin: 0 auto;
   display: flex;
-  align-items: flex-end;
-  gap: 7px;
+  align-items: center;
+  gap: 6px;
   border: 1px solid #d8dce5;
-  border-radius: 20px;
-  padding: 7px 8px;
+  border-radius: 24px;
+  padding: 6px 8px;
   background: #fff;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 #composer:focus-within {
-  border-color: #93c5fd;
-  box-shadow: 0 8px 28px rgba(22, 119, 255, 0.12);
+  border-color: #94a3b8;
+  box-shadow: 0 8px 26px rgba(15, 23, 42, 0.09);
 }
 #composer textarea {
   flex: 1;
-  min-height: 38px;
+  min-height: 36px;
   max-height: 130px;
   resize: none;
   border: 0;
   outline: 0;
-  padding: 8px 4px;
+  padding: 7px 6px;
   background: transparent;
   font-size: 14px;
+  line-height: 1.4;
 }
 .composer-action {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   flex: 0 0 auto;
   border: 0;
   border-radius: 50%;
@@ -1138,7 +1317,7 @@ button { color: inherit; }
   display: grid;
   place-items: center;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 15px;
   transition: all 0.14s ease;
 }
 .composer-action:hover {
@@ -1146,17 +1325,17 @@ button { color: inherit; }
   color: var(--text);
 }
 #send-button {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   flex: 0 0 auto;
   border: 0;
   border-radius: 50%;
-  background: var(--blue);
+  background: #111827;
   color: #fff;
   display: grid;
   place-items: center;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, transform 0.12s ease;
 }
 #send-button:hover { background: var(--blue-hover); }
 #send-button:disabled { background: #cbd5e1; cursor: not-allowed; }
@@ -1882,47 +2061,51 @@ dialog.modal-dialog::backdrop {
     <section id="workspace" class="empty">
       <section id="conversation">
         <div id="welcome">
-          <div id="welcome-avatar" class="agent-avatar welcome-mark" style="cursor:pointer;" title="Click to create a custom bot"><span class="spark"></span></div>
-          <h1>Welcome to Open Bots</h1>
-          <p>100% local runtime behind your browser — no cloud sandbox required. Executes local terminal commands, understands YouTube videos headlessly, writes code, and drives a background Chromium browser on demand.</p>
-          <div style="margin-bottom: 18px; display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;">
-            <button type="button" id="welcome-create-bot-btn" class="btn-primary" style="display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:9px 18px;font-size:13px;box-shadow:var(--shadow-sm);">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-              <span>Create Custom Bot (Name, Role &amp; Icon)</span>
-            </button>
-            <button type="button" id="welcome-terminal-btn" class="btn-secondary" style="display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:8px 15px;font-size:12.5px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-              <span>Open Local Terminal</span>
-            </button>
-            <button type="button" id="welcome-session-btn" class="btn-secondary" style="display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:8px 15px;font-size:12.5px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <span id="welcome-session-label">Sign in with Gmail or Guest</span>
-            </button>
-          </div>
+          <div id="welcome-avatar" class="agent-avatar welcome-mark" style="cursor:pointer;" title="Click to create a custom bot"></div>
+          <h1>What should your bot do?</h1>
+          <p>Pick a specialized bot, create a custom bot, or type any task below.</p>
           <div class="template-grid">
-            <button class="template-card" data-name="Local Terminal & DevOps Bot" data-desc="Execute local shell/terminal commands (git, node, python3, npm, tests), inspect files, and automate workflows directly behind the browser with zero cloud needed." data-shape="gear" data-color="#10b981">
-              <strong>&gt;_ Local Terminal &amp; DevOps Bot</strong>
-              <span>Run shell commands (`git`, `node`, `python3`, tests) locally behind the browser — no cloud required.</span>
+            <button type="button" class="template-card" data-name="YouTube Concept & Code Learner" data-desc="Extract full transcripts, chapters, and concepts from any YouTube video headlessly (like Codex) and apply them to write code, tutorials, or notes." data-shape="play-blob" data-color="#ff2d3b">
+              <div class="template-avatar" data-shape="play-blob" data-color="#ff2d3b"></div>
+              <div class="template-copy">
+                <strong>YouTube Concept Learner</strong>
+                <span>Understand any YouTube video headlessly &amp; turn concepts into code or notes.</span>
+              </div>
             </button>
-            <button class="template-card" data-name="YouTube Concept & Code Learner" data-desc="Extract full transcripts, chapters, and concepts from any YouTube video headlessly (like Codex) and apply them to write code, tutorials, or notes without opening the browser." data-shape="play-blob" data-color="#ff2d3b">
-              <strong>▶ YouTube Concept &amp; Code Learner</strong>
-              <span>Understand any YouTube video headlessly (Codex-style) &amp; apply its concepts into working code or docs.</span>
+            <button type="button" class="template-card" data-name="Local Terminal & DevOps Bot" data-desc="Execute local shell/terminal commands (git, node, python3, npm, tests), inspect files, and automate workflows directly behind the browser." data-shape="gear" data-color="#10b981">
+              <div class="template-avatar" data-shape="gear" data-color="#10b981"></div>
+              <div class="template-copy">
+                <strong>Local Terminal &amp; DevOps</strong>
+                <span>Run `git`, `node`, `python3` &amp; shell commands locally with zero cloud.</span>
+              </div>
             </button>
-            <button class="template-card" data-name="Instagram Follower Growth" data-desc="Audit your signed-in Instagram profile, check follower count, and build an organic growth plan." data-shape="heart" data-color="#ec4899">
-              <strong>Instagram Follower Growth</strong>
-              <span>Audit your signed-in profile, check follower count, and build an organic growth plan.</span>
+            <button type="button" class="template-card" data-name="Instagram Follower Growth" data-desc="Audit your signed-in Instagram profile, check follower count, and build an organic growth plan." data-shape="heart" data-color="#ec4899">
+              <div class="template-avatar" data-shape="heart" data-color="#ec4899"></div>
+              <div class="template-copy">
+                <strong>Instagram Follower Growth</strong>
+                <span>Audit your signed-in profile, check followers &amp; build a growth plan.</span>
+              </div>
             </button>
-            <button class="template-card" data-name="X / Grok Trend Researcher" data-desc="Monitor real-time conversations, analyze viral posts, and synthesize key takeaways with Grok speed." data-shape="starburst" data-color="#000000">
-              <strong>X / Grok Trend Researcher</strong>
-              <span>Browse real-time discussions, analyze viral posts, and synthesize key takeaways.</span>
+            <button type="button" class="template-card" data-name="X / Grok Trend Researcher" data-desc="Monitor real-time conversations, analyze viral posts, and synthesize key takeaways with Grok speed." data-shape="starburst" data-color="#000000">
+              <div class="template-avatar" data-shape="starburst" data-color="#000000"></div>
+              <div class="template-copy">
+                <strong>X / Grok Researcher</strong>
+                <span>Monitor real-time discussions, viral threads &amp; breaking news.</span>
+              </div>
             </button>
-            <button class="template-card" data-name="Competitor Intelligence" data-desc="Research competitor websites, compare pricing & features, and synthesize executive comparisons." data-shape="pentagon" data-color="#1677ff">
-              <strong>Competitor Intelligence</strong>
-              <span>Research competitor offerings, compare pricing &amp; features, and summarize findings.</span>
+            <button type="button" class="template-card" data-name="Competitor Intelligence" data-desc="Research competitor websites, compare pricing & features, and synthesize executive comparisons." data-shape="pentagon" data-color="#1677ff">
+              <div class="template-avatar" data-shape="pentagon" data-color="#1677ff"></div>
+              <div class="template-copy">
+                <strong>Competitor Intelligence</strong>
+                <span>Compare competitor pricing, features &amp; market positioning.</span>
+              </div>
             </button>
-            <button class="template-card" data-name="GitHub Issue & PR Reviewer" data-desc="Senior software engineering bot for repository architecture, pull request reviews, and writing clean code." data-shape="hexagon" data-color="#8b5cf6">
-              <strong>GitHub Issue &amp; PR Reviewer</strong>
-              <span>Inspect repositories, review open pull requests, and draft actionable engineering notes.</span>
+            <button type="button" id="welcome-create-bot-btn" class="template-card create-custom-card">
+              <div class="template-avatar"><span class="template-plus-circle">+</span></div>
+              <div class="template-copy">
+                <strong>Create Custom Bot</strong>
+                <span>Customize name, role instructions, Grok shape &amp; color.</span>
+              </div>
             </button>
           </div>
         </div>
@@ -1931,15 +2114,18 @@ dialog.modal-dialog::backdrop {
 
         <div id="composer-wrap">
           <div id="quick-starts" hidden></div>
-          <div id="composer">
-            <input id="attachment-input" type="file" multiple hidden accept=".txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.py,.html,.css,.yaml,.yml,.xml,.sql,.sh"/>
-            <button id="attach-button" class="composer-action" aria-label="Attach files" title="Attach text, code, CSV, or JSON files">+</button>
-            <button id="schedule-button" class="composer-action" aria-label="Schedule task" title="Schedule a recurring or future task">◷</button>
-            <textarea id="prompt" rows="1" placeholder="Run a terminal command ($ git status), paste a YouTube URL, or command the local browser…"></textarea>
-            <button id="send-button" aria-label="Send message">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
-            </button>
-          </div>
+          <form id="composer-form">
+            <div id="composer">
+              <input id="attachment-input" type="file" multiple hidden accept=".txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.py,.html,.css,.yaml,.yml,.xml,.sql,.sh"/>
+              <button type="button" id="attach-button" class="composer-action" aria-label="Attach files" title="Attach text, code, CSV, or JSON files">+</button>
+              <button type="button" id="schedule-button" class="composer-action" aria-label="Schedule task" title="Schedule a recurring or future task">◷</button>
+              <label for="prompt" class="sr-only">Message or command</label>
+              <textarea id="prompt" rows="1" placeholder="Ask anything, run $ command, or paste a URL…"></textarea>
+              <button type="submit" id="send-button" aria-label="Send message">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+              </button>
+            </div>
+          </form>
           <div id="attachment-list"></div>
           <div id="status-bar">
             <span id="status"></span>
@@ -2024,10 +2210,10 @@ dialog.modal-dialog::backdrop {
   </main>
 </div>
 
-<!-- Create / Customize Bot Modal -->
-<dialog id="create-bot-modal" class="modal-dialog" closedby="any" aria-labelledby="create-bot-modal-title" style="width:min(92vw, 460px);">
+<!-- Create / Customize Bot Modal (Grok Bots Customizer) -->
+<dialog id="create-bot-modal" class="modal-dialog" closedby="any" aria-labelledby="create-bot-modal-title" style="width:min(92vw, 420px);">
   <div class="modal-inner">
-    <div class="modal-header" style="margin-bottom:6px;">
+    <div class="modal-header">
       <h2 id="create-bot-modal-title">Create New Bot</h2>
       <button type="button" class="modal-close" data-close-modal="create-bot-modal" aria-label="Close">✕</button>
     </div>
@@ -2035,13 +2221,11 @@ dialog.modal-dialog::backdrop {
       <div class="bot-preview-stage">
         <div id="bot-modal-preview"></div>
       </div>
-      <div class="form-field">
-        <label for="bot-name-input">Name your Bot</label>
-        <input id="bot-name-input" type="text" required placeholder="e.g. YouTube Concept Architect, Growth Hacker…" autocomplete="off" />
-      </div>
-      <div class="form-field">
-        <label for="bot-desc-input">Role &amp; Purpose (Description)</label>
-        <textarea id="bot-desc-input" rows="3" placeholder="Describe this bot's role, expertise, and instructions (e.g. 'Understand technical YouTube videos and turn their concepts into clean TypeScript implementations')."></textarea>
+      <div class="bot-modal-inputs">
+        <label for="bot-name-input" class="sr-only">Name your Bot</label>
+        <input id="bot-name-input" type="text" required placeholder="Name your Bot" autocomplete="off" />
+        <label for="bot-desc-input" class="sr-only">Role and instructions (optional)</label>
+        <input id="bot-desc-input" type="text" class="bot-Modal-role-input" placeholder="Role &amp; instructions (optional)" autocomplete="off" />
       </div>
       <div class="bot-picker-box">
         <div id="bot-shape-grid" class="bot-shape-grid" role="radiogroup" aria-label="Choose bot shape"></div>
@@ -2049,7 +2233,7 @@ dialog.modal-dialog::backdrop {
       </div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" data-close-modal="create-bot-modal">Cancel</button>
-        <button type="submit" id="create-bot-submit-btn" class="btn-primary">Create Bot</button>
+        <button type="submit" id="create-bot-submit-btn" class="btn-primary">Create</button>
       </div>
     </form>
   </div>
@@ -2321,15 +2505,15 @@ dialog.modal-dialog::backdrop {
 
   function renderBotSvg(shapeId, color) {
     var shape = BOT_SHAPES.find(function(s) { return s.id === shapeId; }) || BOT_SHAPES[0];
-    var fill = color || "#1677ff";
+    var fill = color || "#ff2d3b";
     var ex = shape.eyeX || 50;
     var ey = shape.eyeY || 48;
     return (
       '<svg class="bot-char-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
         '<g fill="' + esc(fill) + '">' + shape.path + '</g>' +
-        '<g class="bot-eyes" fill="#ffffff">' +
-          '<rect x="' + (ex - 11) + '" y="' + (ey - 9) + '" width="6.5" height="17" rx="3.25"/>' +
-          '<rect x="' + (ex + 4.5) + '" y="' + (ey - 9) + '" width="6.5" height="17" rx="3.25"/>' +
+        '<g class="bot-eyes" fill="#ffffff" transform="rotate(-20 ' + ex + ' ' + ey + ')">' +
+          '<rect x="' + (ex - 10.5) + '" y="' + (ey - 9.5) + '" width="6.5" height="18" rx="3.25"/>' +
+          '<rect x="' + (ex + 4) + '" y="' + (ey - 9.5) + '" width="6.5" height="18" rx="3.25"/>' +
         '</g>' +
       '</svg>'
     );
@@ -2339,14 +2523,14 @@ dialog.modal-dialog::backdrop {
     if (!el) return;
     if (agent && (agent.shape || agent.color)) {
       el.classList.add("custom-bot");
-      el.style.setProperty("--bot-color", agent.color || "#1677ff");
-      el.innerHTML = renderBotSvg(agent.shape || "circle", agent.color || "#1677ff");
-    } else if (!agent || agent.name === "New Agent") {
-      el.classList.remove("custom-bot");
-      el.style.setProperty("--bot-color", "#1677ff");
-      el.innerHTML = '<span class="spark"></span>';
+      el.style.setProperty("--bot-color", agent.color || "#ff2d3b");
+      el.innerHTML = renderBotSvg(agent.shape || "play-blob", agent.color || "#ff2d3b");
+    } else if (!agent || agent.name === "New Bot" || agent.name === "New Agent") {
+      el.classList.add("custom-bot");
+      el.style.setProperty("--bot-color", "#ff2d3b");
+      el.innerHTML = renderBotSvg("play-blob", "#ff2d3b");
     } else {
-      // Deterministic cute bot character fallback for legacy agents
+      // Deterministic Grok Bot character fallback for legacy agents
       var idx = Math.abs(agent.name.split("").reduce(function(acc, c) { return acc + c.charCodeAt(0); }, 0));
       var autoShape = BOT_SHAPES[idx % BOT_SHAPES.length].id;
       var autoColor = BOT_COLORS[idx % BOT_COLORS.length];
@@ -2375,23 +2559,23 @@ dialog.modal-dialog::backdrop {
         expertise: roleText || "Codex-style YouTube video transcript extraction, concept understanding, and code/document application without needing the live browser",
         url: "",
         needsBrowserOnInit: false,
-        summary: roleText || "Understand YouTube videos headlessly (like Codex) and apply their concepts into working code, notes, or documents.",
+        summary: roleText || "Understand YouTube videos headlessly and turn their concepts into working code or notes.",
         suggestions: [
-          "Paste a YouTube link and summarize key concepts",
-          "Extract code & architecture from a YouTube tutorial",
-          "Find a YouTube video on React Server Components and build a demo"
+          "Summarize a YouTube video",
+          "Extract code from a tutorial",
+          "Turn a talk into study notes"
         ],
         task: "Act as " + name + (roleText ? " (" + roleText + ")" : "") + ". Use the headless understand_youtube_video tool (Codex mode) to fetch transcripts and metadata without opening the browser, and apply the video's concepts."
       };
-    if (/developer|coding|code|engineer|debug|software|github|codex|typescript|python/.test(lower))
+    if (/developer|coding|code|engineer|debug|software|github|codex|typescript|python|terminal|devops|shell/.test(lower))
       return {
         kind: "coding",
-        expertise: roleText || "software engineering, debugging, architecture, YouTube technical concept application, and clean code implementation",
+        expertise: roleText || "local terminal execution, software engineering, debugging, architecture, and clean code implementation",
         url: "https://github.com/",
         needsBrowserOnInit: false,
-        summary: roleText || "Solve coding problems, apply concepts from YouTube/docs, and write files in the workspace (opens browser only when needed).",
-        suggestions: ["Understand a YouTube coding video & write code", "Search GitHub trending repositories", "Create a project file in the workspace"],
-        task: "Act as " + name + ", a senior software engineer" + (roleText ? " (" + roleText + ")" : "") + ". Use headless tools (understand_youtube_video, web_search, workspace_file, create_document) by default, and use the live browser only when interactive browsing is needed."
+        summary: roleText || "Run local shell commands, inspect repositories, and write clean code behind the browser.",
+        suggestions: ["$ git status -s", "Inspect workspace files", "Run project tests"],
+        task: "Act as " + name + ", a senior software engineer" + (roleText ? " (" + roleText + ")" : "") + ". Use headless tools (run_terminal_command, understand_youtube_video, web_search, workspace_file, create_document) by default, and use the live browser only when interactive browsing is needed."
       };
     if (/instagram|follower|social|audience|creator|engagement|marketing/.test(lower))
       return {
@@ -2400,7 +2584,7 @@ dialog.modal-dialog::backdrop {
         url: "https://www.instagram.com/",
         needsBrowserOnInit: true,
         summary: roleText || "Grow an audience with authentic, policy-compliant content, engagement, and performance analysis.",
-        suggestions: ["How many followers do I have?", "Audit my profile bio & recent posts", "Research trending niche hashtags"],
+        suggestions: ["How many followers do I have?", "Audit my profile bio & posts", "Research niche hashtags"],
         task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", a social media marketing agent on Instagram") + ". First check if an account is signed in on https://www.instagram.com/ (look for the Profile link in the sidebar and click it to read the username, follower count, following count, and recent posts). Summarize the account status and propose a safe growth workflow."
       };
     if (/grok|twitter|\bx\b|trend|viral|news/.test(lower))
@@ -2410,7 +2594,7 @@ dialog.modal-dialog::backdrop {
         url: "https://x.com/explore",
         needsBrowserOnInit: false,
         summary: roleText || "Monitor real-time conversations, viral threads, and breaking news.",
-        suggestions: ["What are today's top AI trends?", "Summarize breaking tech news", "Open X.com in the live browser"],
+        suggestions: ["Top AI trends today", "Summarize breaking tech news", "Open X.com in browser"],
         task: "Act as " + name + (roleText ? " (" + roleText + ")" : "") + ". Synthesize real-time trends and key insights clearly, using web_search or understand_youtube_video first and opening the live browser only when needed."
       };
     if (/sales|revenue|lead|pipeline|crm|linkedin/.test(lower))
@@ -2420,7 +2604,7 @@ dialog.modal-dialog::backdrop {
         url: "https://www.google.com/",
         needsBrowserOnInit: false,
         summary: roleText || "Research prospects and build an ethical, evidence-based sales plan.",
-        suggestions: ["Research top AI startups", "Draft value-based cold outreach", "Build a prospect qualification checklist"],
+        suggestions: ["Research top AI startups", "Draft value-based cold outreach", "Build a prospect checklist"],
         task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", a senior sales strategist") + ". Research and qualify opportunities, develop evidence-based messaging, and ask for approval before contacting anyone."
       };
     if (/research|competitor|market|intelligence/.test(lower))
@@ -2429,8 +2613,8 @@ dialog.modal-dialog::backdrop {
         expertise: roleText || "web research, YouTube video analysis, source comparison, fact checking, and concise synthesis",
         url: "https://www.google.com/",
         needsBrowserOnInit: false,
-        summary: roleText || "Research the web & YouTube headlessly, compare reliable sources, and turn findings into clear recommendations.",
-        suggestions: ["Compare top 3 competitors", "Summarize market pricing tiers", "Analyze a YouTube product keynote"],
+        summary: roleText || "Compare competitors, pricing, and market positioning from live sources.",
+        suggestions: ["Compare top 3 competitors", "Summarize market pricing tiers", "Analyze a product keynote"],
         task: "Act as " + name + (roleText ? " (" + roleText + ")" : "") + ". Research relevant current information, compare reliable sources, and return an actionable summary."
       };
     if (/content|calendar|post|copy|writer/.test(lower))
@@ -2440,26 +2624,33 @@ dialog.modal-dialog::backdrop {
         url: "https://www.google.com/",
         needsBrowserOnInit: false,
         summary: roleText || "Plan useful content around the brand’s audience and goals.",
-        suggestions: ["Create a 7-day content calendar", "Turn a YouTube video into a blog & thread", "Draft 3 post ideas"],
+        suggestions: ["7-day content calendar", "Turn a video into a blog post", "Draft 3 post ideas"],
         task: "Act as " + name + (roleText ? " (" + roleText + ")" : "") + ". Research relevant topics and create an actionable content plan."
       };
     return {
       kind: "general",
-      expertise: roleText || "autonomous reasoning, YouTube concept understanding, web research, coding, and on-demand browser execution",
+      expertise: roleText || "autonomous reasoning, local terminal execution, YouTube concept understanding, web research, and on-demand browser execution",
       url: "https://www.google.com/",
       needsBrowserOnInit: false,
-      summary: roleText || ("Role: " + name + " — headless Codex tools + on-demand live browser."),
-      suggestions: ["Understand a YouTube video & apply its concepts", "Research this topic on the web", "Open the live browser"],
-      task: "You are an agent named '" + name + "'" + (roleText ? " whose role and purpose is: " + roleText : "") + ". Use headless tools (understand_youtube_video, web_search, calculate, workspace_file, create_document) whenever possible, and use the live browser only when interactive browsing is needed."
+      summary: roleText || "Autonomous local terminal, Codex & browser bot.",
+      suggestions: ["Summarize a YouTube video", "Search the web", "$ git status -s"],
+      task: "You are an agent named '" + name + "'" + (roleText ? " whose role and purpose is: " + roleText : "") + ". Use headless tools (run_terminal_command, understand_youtube_video, web_search, calculate, workspace_file, create_document) whenever possible, and use the live browser only when interactive browsing is needed."
     };
   }
 
   function renderQuickStarts(agent) {
     quickStarts.innerHTML = "";
+    var hasUserMessages = Boolean(
+      agent && Array.isArray(agent.transcript) && agent.transcript.some(function(m) { return m.role === "user"; })
+    );
+    if (!agent || hasUserMessages) {
+      quickStarts.hidden = true;
+      return;
+    }
     var items = (agent && agent.intent && agent.intent.suggestions) || [
-      "Understand a YouTube video & apply concepts",
-      "Search the web for latest news",
-      "Open the live browser"
+      "Summarize a YouTube video",
+      "Search the web",
+      "$ git status -s"
     ];
     items.forEach(function(label) {
       var btn = document.createElement("button");
@@ -2472,7 +2663,7 @@ dialog.modal-dialog::backdrop {
       };
       quickStarts.appendChild(btn);
     });
-    quickStarts.hidden = !agent;
+    quickStarts.hidden = false;
   }
 
   function renderSidebar() {
@@ -2490,8 +2681,8 @@ dialog.modal-dialog::backdrop {
       row.innerHTML =
         '<span class="agent-avatar small"></span>' +
         '<span class="agent-copy"><span class="agent-name">' + esc(agent.name) + '</span>' +
-        '<span class="agent-subtitle">' + esc(agent.summary || "Agent") + '</span></span>' +
-        '<button type="button" class="agent-delete" title="Delete agent" aria-label="Delete agent">✕</button>';
+        '<span class="agent-subtitle">' + esc(agent.summary || "Bot") + '</span></span>' +
+        '<button type="button" class="agent-delete" title="Delete bot" aria-label="Delete bot">✕</button>';
       applyAvatarElement(row.querySelector(".agent-avatar"), agent, isAgentWorking);
       row.onclick = function(e) {
         if (e.target.closest(".agent-delete")) return;
@@ -2518,7 +2709,7 @@ dialog.modal-dialog::backdrop {
 
   function setChip(name, subtitle, agentObj) {
     chipName.textContent = name;
-    chipMeta.textContent = subtitle || (name === "New Bot" || name === "New Agent" ? "Open Bots · Codex & Live Browser" : "Autonomous Specialist");
+    chipMeta.textContent = subtitle || (name === "New Bot" || name === "New Agent" ? "Pick or create a bot" : "Autonomous Bot");
     applyAvatarElement(chipAvatar, agentObj || (name === "New Bot" || name === "New Agent" ? null : { name: name }), isRunning);
   }
 
@@ -2533,9 +2724,15 @@ dialog.modal-dialog::backdrop {
   function appendMessage(role, html, cls, persist) {
     var row = document.createElement("div");
     row.className = "message " + role;
+    var a = activeAgent();
+    if (role === "agent") {
+      var av = document.createElement("div");
+      av.className = "agent-avatar msg-bot-avatar";
+      applyAvatarElement(av, a, false);
+      row.appendChild(av);
+    }
     var body = document.createElement("div");
     body.className = "message-body";
-    var a = activeAgent();
     body.innerHTML =
       '<div class="message-label">' + (role === "user" ? "You" : esc(a ? a.name : "Bot")) + '</div>' +
       '<div class="bubble ' + (cls || "") + '">' + html + '</div>';
@@ -2563,12 +2760,12 @@ dialog.modal-dialog::backdrop {
     appEl.classList.add("sidebar-collapsed");
     welcome.hidden = true;
     messages.hidden = false;
-    var roleLabel = a.description || a.summary || (a.intent.expertise ? a.intent.expertise.split(",")[0] : "Autonomous Specialist");
+    var roleLabel = a.description || a.summary || (a.intent.expertise ? a.intent.expertise.split(",")[0] : "Autonomous Bot");
     setChip(a.name, roleLabel, a);
     renderTranscript();
     renderSidebar();
     renderQuickStarts(a);
-    prompt.placeholder = "Message " + a.name + " (paste a YouTube URL, ask a question, or run a task)…";
+    prompt.placeholder = "Message " + a.name + "…";
     if (a.intent && a.intent.url && (!browserAddress.value || browserAddress.value === "about:blank")) {
       browserAddress.value = a.intent.url;
     }
@@ -2588,9 +2785,9 @@ dialog.modal-dialog::backdrop {
     welcome.hidden = false;
     messages.hidden = true;
     messages.innerHTML = "";
-    setChip("New Bot", "Open Bots · Codex & Live Browser", null);
+    setChip("New Bot", "Pick or create a bot", null);
     prompt.value = "";
-    prompt.placeholder = "Paste a YouTube URL, ask a coding/research question, or command the browser…";
+    prompt.placeholder = "Ask anything, run $ command, or paste a URL…";
     quickStarts.hidden = true;
     status.textContent = "";
     stepCounter.textContent = "";
@@ -2724,11 +2921,7 @@ dialog.modal-dialog::backdrop {
     selectAgent(a.id);
     appendMessage(
       "agent",
-      "<strong>" + esc(a.name) + "</strong> initialized.<br>" +
-      "<strong>Role &amp; Purpose:</strong> " + esc(a.summary) + "<br><br>" +
-      (intent.needsBrowserOnInit
-        ? "I’ve opened the live browser on the right so you can sign in if needed, or send any instruction below."
-        : "Running in <strong>Codex low-token mode</strong> (understands YouTube videos, searches the web, writes code, and generates documents without opening the browser — and launches the live browser automatically only when needed).")
+      "<strong>" + esc(a.name) + "</strong> ready — " + esc(a.summary)
     );
     if (intent.needsBrowserOnInit && intent.url) {
       openInteractiveBrowser(intent.url, true);
@@ -2786,8 +2979,8 @@ dialog.modal-dialog::backdrop {
     if (prefill && prefill.editAgent) {
       var ag = prefill.editAgent;
       editingBotId = ag.id;
-      titleEl.textContent = "Customize Bot Role & Icon";
-      submitBtn.textContent = "Save Changes";
+      titleEl.textContent = "Customize Bot";
+      submitBtn.textContent = "Save";
       nameInput.value = ag.name || "";
       descInput.value = ag.description || ag.summary || "";
       selectedBotShape = ag.shape || "play-blob";
@@ -2795,7 +2988,7 @@ dialog.modal-dialog::backdrop {
     } else {
       editingBotId = null;
       titleEl.textContent = "Create New Bot";
-      submitBtn.textContent = "Create Bot";
+      submitBtn.textContent = "Create";
       nameInput.value = (prefill && prefill.name) || "";
       descInput.value = (prefill && prefill.description) || "";
       selectedBotShape = (prefill && prefill.shape) || "play-blob";
@@ -3184,19 +3377,17 @@ dialog.modal-dialog::backdrop {
     }
     if (e.type === "terminal") {
       var isDirectReply = e.reason === "direct_reply";
-      var prefix = e.success
-        ? (isDirectReply ? "" : "<strong>Done.</strong> ")
-        : "<strong>Requires follow-up.</strong> ";
+      var prefix = e.success ? "" : "<strong>Requires follow-up.</strong> ";
       appendMessage(
         "agent",
         prefix + formatMarkdown(e.summary || ""),
-        e.success ? (isDirectReply ? "" : "success") : "error"
+        e.success ? "" : "error"
       );
       isRunning = false;
       sendButton.disabled = false;
       setStatusState("ready", "Ready");
       status.textContent = e.success
-        ? (isDirectReply ? "Answered directly (0 browser tokens)" : "Completed in " + (e.stepsTaken || 0) + " step(s)")
+        ? (isDirectReply ? "Answered directly" : "Completed in " + (e.stepsTaken || 0) + " step(s)")
         : "Ready for your next instruction";
       stepCounter.textContent = "";
       liveStepFeedBubble = null;
@@ -3343,6 +3534,7 @@ dialog.modal-dialog::backdrop {
     if (!value || isRunning) return;
     prompt.value = "";
     prompt.style.height = "auto";
+    quickStarts.hidden = true;
 
     if (!activeAgentId) {
       var looksLikeTaskOrQuestion =
@@ -3362,6 +3554,7 @@ dialog.modal-dialog::backdrop {
           ? "Execute local shell/terminal commands behind the browser with zero cloud needed."
           : "Autonomous local terminal, Codex & on-demand browser specialist.";
         createAgent(autoName, autoDesc, isYt ? "play-blob" : isTerm ? "gear" : "starburst", isYt ? "#ff2d3b" : isTerm ? "#10b981" : "#1677ff");
+        quickStarts.hidden = true;
         // Fall through to execute the user's message immediately!
       } else {
         openCreateBotModal({ name: value });
@@ -3524,18 +3717,29 @@ dialog.modal-dialog::backdrop {
       });
   });
 
-  // Event Listeners
+  // Event Listeners (IME-safe Enter submit)
+  var lastCompositionEndAt = 0;
+  prompt.addEventListener("compositionend", function(e) {
+    lastCompositionEndAt = e.timeStamp;
+  });
   prompt.addEventListener("keydown", function(e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      submitPrompt();
-    }
+    if (e.key !== "Enter" || e.shiftKey) return;
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.timeStamp - lastCompositionEndAt < 50) return;
+    e.preventDefault();
+    submitPrompt();
   });
   prompt.addEventListener("input", function() {
     prompt.style.height = "auto";
     prompt.style.height = Math.min(prompt.scrollHeight, 130) + "px";
   });
-  sendButton.onclick = submitPrompt;
+  var composerFormEl = document.getElementById("composer-form");
+  if (composerFormEl) {
+    composerFormEl.addEventListener("submit", function(e) {
+      e.preventDefault();
+      submitPrompt();
+    });
+  }
   newAgentButton.onclick = function() {
     openCreateBotModal();
   };
@@ -3927,7 +4131,18 @@ dialog.modal-dialog::backdrop {
     });
   });
 
+  var welcomeAvatarEl = document.getElementById("welcome-avatar");
+  if (welcomeAvatarEl) {
+    welcomeAvatarEl.innerHTML = renderBotSvg("play-blob", "#ff2d3b");
+  }
+
   document.querySelectorAll(".template-card").forEach(function(card) {
+    var avatarHolder = card.querySelector(".template-avatar[data-shape]");
+    if (avatarHolder) {
+      var s = avatarHolder.getAttribute("data-shape") || "play-blob";
+      var c = avatarHolder.getAttribute("data-color") || "#ff2d3b";
+      avatarHolder.innerHTML = renderBotSvg(s, c);
+    }
     card.addEventListener("click", function() {
       var name = card.getAttribute("data-name");
       var desc = card.getAttribute("data-desc") || "";
@@ -3991,7 +4206,7 @@ dialog.modal-dialog::backdrop {
     .catch(function() {});
 
   renderSidebar();
-  setChip("New Bot", "Open Bots · Codex & Live Browser");
+  setChip("New Bot", "Pick or create a bot");
   prompt.focus();
 })();
 </script>
