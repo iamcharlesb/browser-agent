@@ -1,5 +1,7 @@
 /** Local web UI for the browser agent: a chat-style task box with a live step feed. */
 
+import { randomUUID } from "node:crypto";
+import { watch } from "node:fs";
 import { IncomingMessage, ServerResponse, createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -9,6 +11,28 @@ import { AgentEvent, AgentOrchestrator, DEFAULT_MODEL } from "./promptLoop";
 const STATIC_DIR = join(__dirname, "..", "static");
 const PORT = Number(process.env.BROWSER_AGENT_UI_PORT ?? 8765);
 const HOST = process.env.BROWSER_AGENT_UI_HOST ?? "127.0.0.1";
+
+/**
+ * Dev-only live reload: this tool is explicitly local/single-user, so it's safe to always run
+ * this. `buildId` changes on every process start (so a backend restart under `node --watch`
+ * triggers a reload) and whenever a static file changes (so frontend-only edits reload too)
+ * without needing a build step for the static assets themselves.
+ */
+let buildId = randomUUID();
+const liveReloadClients = new Set<ServerResponse>();
+
+function notifyLiveReload(): void {
+  buildId = randomUUID();
+  for (const client of liveReloadClients) {
+    client.write(`data: ${buildId}\n\n`);
+  }
+}
+
+try {
+  watch(STATIC_DIR, { recursive: true }, () => notifyLiveReload());
+} catch (err) {
+  console.warn(`Live reload file watch failed to start: ${(err as Error).message}`);
+}
 
 /** A minimal async pull-queue used to fan a run's events out over SSE. */
 class AsyncQueue<T> {
@@ -252,6 +276,20 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const alreadyRunning = message.includes("already in progress");
       sendJson(res, alreadyRunning ? 409 : 400, { detail: message });
     }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/livereload") {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive"
+    });
+    res.write(`data: ${buildId}\n\n`);
+    liveReloadClients.add(res);
+    req.on("close", () => {
+      liveReloadClients.delete(res);
+    });
     return;
   }
 

@@ -706,5 +706,30 @@
   });
 })();
 </script>
+<script>
+// Dev-only live reload: this tool is local/single-user, so it's safe to always run this.
+// Reloads whenever the server reports a different build id than the one this page loaded with
+// (a static file changed, or the backend process itself restarted under `node --watch`).
+(function () {
+  var initialBuildId = null;
+  function connect() {
+    var source = new EventSource("/api/livereload");
+    source.onmessage = function (msg) {
+      if (initialBuildId === null) {
+        initialBuildId = msg.data;
+        return;
+      }
+      if (msg.data !== initialBuildId) {
+        location.reload();
+      }
+    };
+    source.onerror = function () {
+      source.close();
+      setTimeout(connect, 500);
+    };
+  }
+  connect();
+})();
+</script>
 </body>
 </html>
