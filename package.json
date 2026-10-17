@@ -6,9 +6,11 @@
   "main": "dist/promptLoop.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:production": "tsc -p tsconfig.json --outDir build",
     "cli": "node dist/cli.js",
     "server": "node dist/server.js",
-    "dev": "node scripts/dev.js"
+    "dev": "node scripts/dev.js",
+    "built": "node scripts/built.js"
   },
   "engines": {
     "node": ">=18.0.0"
