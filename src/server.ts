@@ -1,14 +1,35 @@
 /** Local web UI for the browser agent: a chat-style task box with a live step feed. */
 
 import { randomUUID } from "node:crypto";
-import { watch } from "node:fs";
+import { existsSync, readFileSync, watch } from "node:fs";
 import { IncomingMessage, ServerResponse, createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { BrowserController, DEFAULT_PROFILE_DIR, PageState, defaultBrowserConfig } from "./browserController";
 import { AgentEvent, AgentOrchestrator, DEFAULT_MODEL } from "./promptLoop";
+import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
 
 const STATIC_DIR = join(__dirname, "..", "static");
+const ENV_FILE = join(__dirname, "..", ".env");
+const SCHEDULE_FILE = join(__dirname, "..", ".browser-agent-schedules.json");
+
+// Keep local setup dependency-free. Values already provided by the shell always win.
+if (existsSync(ENV_FILE)) {
+  for (const rawLine of readFileSync(ENV_FILE, "utf8").split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const separator = line.indexOf("=");
+    if (separator < 1) continue;
+    const key = line.slice(0, separator).trim();
+    if (process.env[key] !== undefined) continue;
+    let value = line.slice(separator + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
+
 const PORT = Number(process.env.BROWSER_AGENT_UI_PORT ?? 8765);
 const HOST = process.env.BROWSER_AGENT_UI_HOST ?? "127.0.0.1";
 
@@ -63,15 +84,36 @@ interface RunState {
   headless: boolean;
   isRunning: boolean;
   queue: AsyncQueue<AgentEvent | null>;
+  frameQueue: AsyncQueue<string | null>;
+  controller: BrowserController | null;
+  viewportWidth: number;
+  viewportHeight: number;
   resolveVerification: (() => void) | null;
 }
 
 interface RunRequestBody {
   task: string;
+  botName?: string;
+  expertise?: string;
+  collaborationContext?: string;
+  approvedCategories?: ApprovalCategory[];
+  scheduleId?: string;
   headless?: boolean;
   maxSteps?: number;
   maxDurationSeconds?: number;
   model?: string;
+}
+
+interface ScheduledTask {
+  id: string;
+  botName: string;
+  expertise: string;
+  task: string;
+  nextRunAt: string;
+  recurrenceMinutes: number | null;
+  status: "scheduled" | "queued" | "running" | "completed" | "failed";
+  lastResult?: string;
+  lastRunAt?: string;
 }
 
 interface LoginSession {
@@ -83,6 +125,8 @@ interface LoginSession {
 
 let currentRun: RunState | null = null;
 let loginSession: LoginSession | null = null;
+let schedules: ScheduledTask[] = [];
+const scheduleTimers = new Map<string, NodeJS.Timeout>();
 
 function validateRunRequest(body: unknown): RunRequestBody {
   if (typeof body !== "object" || body === null) {
@@ -90,20 +134,91 @@ function validateRunRequest(body: unknown): RunRequestBody {
   }
   const record = body as Record<string, unknown>;
   const task = typeof record.task === "string" ? record.task.trim() : "";
-  if (!task || task.length > 2000) {
-    throw new Error("task must be a non-empty string of at most 2000 characters.");
+  if (!task || task.length > 200_000) {
+    throw new Error("task must be a non-empty string of at most 200000 characters.");
   }
   const headless = record.headless === undefined ? false : Boolean(record.headless);
-  const maxSteps = record.maxSteps === undefined ? 20 : Number(record.maxSteps);
-  if (!Number.isFinite(maxSteps) || maxSteps < 1 || maxSteps > 100) {
-    throw new Error("maxSteps must be a number between 1 and 100.");
+  const maxSteps = record.maxSteps === undefined ? 120 : Number(record.maxSteps);
+  if (!Number.isFinite(maxSteps) || maxSteps < 1 || maxSteps > 500) {
+    throw new Error("maxSteps must be a number between 1 and 500.");
   }
-  const maxDurationSeconds = record.maxDurationSeconds === undefined ? 900 : Number(record.maxDurationSeconds);
-  if (!Number.isFinite(maxDurationSeconds) || maxDurationSeconds <= 0 || maxDurationSeconds > 3600) {
-    throw new Error("maxDurationSeconds must be a number between 0 and 3600.");
+  const maxDurationSeconds = record.maxDurationSeconds === undefined ? 14_400 : Number(record.maxDurationSeconds);
+  if (!Number.isFinite(maxDurationSeconds) || maxDurationSeconds <= 0 || maxDurationSeconds > 86_400) {
+    throw new Error("maxDurationSeconds must be a number between 1 and 86400.");
   }
   const model = record.model === undefined ? DEFAULT_MODEL : String(record.model);
-  return { task, headless, maxSteps, maxDurationSeconds, model };
+  const approvedCategories = Array.isArray(record.approvedCategories)
+    ? record.approvedCategories.filter(
+        (value): value is ApprovalCategory => value === "financial_transaction" || value === "external_side_effect"
+      )
+    : [];
+  return {
+    task,
+    headless,
+    maxSteps,
+    maxDurationSeconds,
+    model,
+    botName: typeof record.botName === "string" ? record.botName.slice(0, 120) : undefined,
+    expertise: typeof record.expertise === "string" ? record.expertise.slice(0, 500) : undefined,
+    collaborationContext:
+      typeof record.collaborationContext === "string" ? record.collaborationContext.slice(0, 10_000) : undefined,
+    approvedCategories,
+    scheduleId: typeof record.scheduleId === "string" ? record.scheduleId : undefined
+  };
+}
+
+async function saveSchedules(): Promise<void> {
+  await writeFile(SCHEDULE_FILE, `${JSON.stringify(schedules, null, 2)}\n`, { mode: 0o600 });
+}
+
+function armSchedule(schedule: ScheduledTask): void {
+  const existing = scheduleTimers.get(schedule.id);
+  if (existing) clearTimeout(existing);
+  const delay = Math.max(0, new Date(schedule.nextRunAt).getTime() - Date.now());
+  const timer = setTimeout(() => void executeSchedule(schedule.id), Math.min(delay, 2_147_000_000));
+  scheduleTimers.set(schedule.id, timer);
+}
+
+async function executeSchedule(id: string): Promise<void> {
+  const schedule = schedules.find((item) => item.id === id);
+  if (!schedule) return;
+  if (new Date(schedule.nextRunAt).getTime() > Date.now() + 1000) {
+    armSchedule(schedule);
+    return;
+  }
+  if ((currentRun && currentRun.isRunning) || loginSession) {
+    schedule.status = "queued";
+    schedule.nextRunAt = new Date(Date.now() + 60_000).toISOString();
+    await saveSchedules();
+    armSchedule(schedule);
+    return;
+  }
+  schedule.status = "running";
+  schedule.lastRunAt = new Date().toISOString();
+  await saveSchedules();
+  startRun({
+    task: schedule.task,
+    botName: schedule.botName,
+    expertise: schedule.expertise,
+    headless: true,
+    maxSteps: 120,
+    maxDurationSeconds: 14_400,
+    model: DEFAULT_MODEL,
+    approvedCategories: [],
+    scheduleId: schedule.id
+  });
+}
+
+try {
+  const stored = JSON.parse(readFileSync(SCHEDULE_FILE, "utf8")) as ScheduledTask[];
+  schedules = Array.isArray(stored) ? stored : [];
+  for (const schedule of schedules) {
+    if (schedule.status === "running") schedule.status = "queued";
+    if (new Date(schedule.nextRunAt).getTime() < Date.now()) schedule.nextRunAt = new Date(Date.now() + 1000).toISOString();
+    armSchedule(schedule);
+  }
+} catch {
+  schedules = [];
 }
 
 async function onHumanVerification(run: RunState, state: PageState): Promise<void> {
@@ -132,6 +247,10 @@ function startRun(body: RunRequestBody): void {
     headless: Boolean(body.headless),
     isRunning: true,
     queue: new AsyncQueue<AgentEvent | null>(),
+    frameQueue: new AsyncQueue<string | null>(),
+    controller: null,
+    viewportWidth: 1280,
+    viewportHeight: 800,
     resolveVerification: null
   };
   currentRun = run;
@@ -140,14 +259,41 @@ function startRun(body: RunRequestBody): void {
     const browser = new BrowserController(defaultBrowserConfig({ headless: run.headless }));
     try {
       await browser.start();
+      run.controller = browser;
+      const viewport = browser.viewportSize;
+      run.viewportWidth = viewport.width;
+      run.viewportHeight = viewport.height;
+      await browser.startScreencast((frame) => run.frameQueue.push(frame));
       try {
         const orchestrator = new AgentOrchestrator({
           task: body.task,
+          botName: body.botName,
+          expertise: body.expertise,
+          collaborationContext: body.collaborationContext,
           browser,
           model: body.model,
           maxSteps: body.maxSteps,
           maxDurationSeconds: body.maxDurationSeconds,
-          onEvent: (event) => run.queue.push(event),
+          onEvent: (event) => {
+            const safeEvent = { ...event };
+            if (typeof safeEvent.summary === "string") safeEvent.summary = redactSecrets(safeEvent.summary);
+            run.queue.push(safeEvent);
+            if (body.scheduleId && event.type === "terminal") {
+              const schedule = schedules.find((item) => item.id === body.scheduleId);
+              if (schedule) {
+                schedule.lastResult = redactSecrets(String(event.summary ?? ""));
+                const success = Boolean(event.success);
+                if (schedule.recurrenceMinutes) {
+                  schedule.status = "scheduled";
+                  schedule.nextRunAt = new Date(Date.now() + schedule.recurrenceMinutes * 60_000).toISOString();
+                  armSchedule(schedule);
+                } else {
+                  schedule.status = success ? "completed" : "failed";
+                }
+                void saveSchedules();
+              }
+            }
+          },
           onHumanVerification: (state) => onHumanVerification(run, state)
         });
         await orchestrator.run();
@@ -165,9 +311,29 @@ function startRun(body: RunRequestBody): void {
       });
     } finally {
       run.isRunning = false;
+      run.controller = null;
+      run.frameQueue.push(null);
       run.queue.push(null);
     }
   })();
+}
+
+function activeBrowserSession(): {
+  controller: BrowserController;
+  frameQueue: AsyncQueue<string | null>;
+  viewportWidth: number;
+  viewportHeight: number;
+} | null {
+  if (loginSession) return loginSession;
+  if (currentRun?.controller) {
+    return {
+      controller: currentRun.controller,
+      frameQueue: currentRun.frameQueue,
+      viewportWidth: currentRun.viewportWidth,
+      viewportHeight: currentRun.viewportHeight
+    };
+  }
+  return null;
 }
 
 async function openLoginSession(url: string): Promise<{ viewportWidth: number; viewportHeight: number }> {
@@ -284,6 +450,22 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     }
     try {
       const body = validateRunRequest(await readJsonBody(req));
+      const risk = assessTaskRisk(body.task);
+      if (risk.blocked) {
+        sendJson(res, 403, { detail: risk.reason, code: "credential_exposure_blocked" });
+        return;
+      }
+      const missingApprovals = risk.approvalsRequired.filter(
+        (category) => !body.approvedCategories?.includes(category)
+      );
+      if (missingApprovals.length > 0) {
+        sendJson(res, 428, {
+          detail: "This task can create an external or financial side effect and needs your approval before it runs.",
+          code: "approval_required",
+          approvalsRequired: missingApprovals
+        });
+        return;
+      }
       startRun(body);
       sendJson(res, 200, { status: "started" });
     } catch (err) {
@@ -291,6 +473,65 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const alreadyRunning = message.includes("already in progress");
       sendJson(res, alreadyRunning ? 409 : 400, { detail: message });
     }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/schedules") {
+    sendJson(res, 200, { schedules });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/schedules") {
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const task = typeof body.task === "string" ? body.task.trim() : "";
+      const botName = typeof body.botName === "string" ? body.botName.trim().slice(0, 120) : "Scheduled Agent";
+      const expertise = typeof body.expertise === "string" ? body.expertise.trim().slice(0, 500) : "general research";
+      const runAt = new Date(String(body.runAt ?? ""));
+      const recurrenceMinutes = body.recurrenceMinutes == null ? null : Number(body.recurrenceMinutes);
+      if (!task || task.length > 200_000) throw new Error("task is required and must be at most 200000 characters.");
+      if (!Number.isFinite(runAt.getTime()) || runAt.getTime() <= Date.now()) throw new Error("runAt must be a future date.");
+      if (recurrenceMinutes !== null && (!Number.isFinite(recurrenceMinutes) || recurrenceMinutes < 5)) {
+        throw new Error("recurrenceMinutes must be at least 5 minutes.");
+      }
+      const risk = assessTaskRisk(task);
+      if (risk.blocked || risk.approvalsRequired.length > 0) {
+        throw new Error(
+          risk.reason ?? "Scheduled tasks cannot include financial transactions or unapproved external side effects."
+        );
+      }
+      const schedule: ScheduledTask = {
+        id: randomUUID(),
+        botName,
+        expertise,
+        task,
+        nextRunAt: runAt.toISOString(),
+        recurrenceMinutes,
+        status: "scheduled"
+      };
+      schedules.push(schedule);
+      await saveSchedules();
+      armSchedule(schedule);
+      sendJson(res, 201, { schedule });
+    } catch (err) {
+      sendJson(res, 400, { detail: (err as Error).message });
+    }
+    return;
+  }
+
+  if (req.method === "DELETE" && url.pathname.startsWith("/api/schedules/")) {
+    const id = decodeURIComponent(url.pathname.slice("/api/schedules/".length));
+    const index = schedules.findIndex((schedule) => schedule.id === id);
+    if (index < 0) {
+      sendJson(res, 404, { detail: "Schedule not found." });
+      return;
+    }
+    const [removed] = schedules.splice(index, 1);
+    const timer = scheduleTimers.get(removed.id);
+    if (timer) clearTimeout(timer);
+    scheduleTimers.delete(removed.id);
+    await saveSchedules();
+    sendJson(res, 200, { status: "deleted" });
     return;
   }
 
@@ -333,11 +574,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (req.method === "GET" && url.pathname === "/api/login/screencast") {
-    if (!loginSession) {
-      sendJson(res, 404, { detail: "No login session is currently open." });
+    const session = activeBrowserSession();
+    if (!session) {
+      sendJson(res, 404, { detail: "No browser session is currently open." });
       return;
     }
-    const session = loginSession;
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
@@ -354,11 +595,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (req.method === "POST" && url.pathname === "/api/login/input") {
-    if (!loginSession) {
-      sendJson(res, 404, { detail: "No login session is currently open." });
+    const session = activeBrowserSession();
+    if (!session) {
+      sendJson(res, 404, { detail: "No browser session is currently open." });
       return;
     }
-    const controller = loginSession.controller;
+    const controller = session.controller;
     try {
       const body = (await readJsonBody(req)) as Record<string, unknown>;
       const inputType = String(body.type ?? "");
