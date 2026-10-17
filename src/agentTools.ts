@@ -195,6 +195,34 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "generate_image",
+      description:
+        "Generate an image from a text description (e.g. a social media graphic, icon, or illustration) " +
+        "using an AI image model. Costs real money per call - write one clear, detailed prompt rather than " +
+        "generating several variations unless the user specifically asked for options.",
+      parameters: {
+        type: "object",
+        properties: {
+          prompt: { type: "string", description: "Detailed description of the image to generate." },
+          size: {
+            type: "string",
+            enum: ["1024x1024", "1024x1536", "1536x1024"],
+            description: "Image dimensions. Defaults to 1024x1024 (square)."
+          },
+          quality: {
+            type: "string",
+            enum: ["low", "medium", "high"],
+            description: "Rendering quality/cost tier. Defaults to 'medium'."
+          },
+          filename: { type: "string", description: "Optional filename (without extension)." }
+        },
+        required: ["prompt"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "workspace_file",
       description: "Read, write, append, or list files in the project workspace.",
       parameters: {
@@ -361,6 +389,9 @@ export interface ToolExecutionResult {
   artifactUrl?: string;
   terminalEntry?: TerminalCommandEntry;
   terminal?: "finish" | "fail";
+  /** Set by generate_image so the caller can record real cost against a usage/pricing model
+   * distinct from the chat model's token usage. */
+  imageUsage?: { model: string; promptTokens: number; outputTokens: number; totalTokens: number };
 }
 
 const terminalHistory: TerminalCommandEntry[] = [];
@@ -965,6 +996,50 @@ export async function executeTool(
           ok: true,
           artifactUrl,
           message: `Created document "${safeFilename}" (Download: ${artifactUrl}).`
+        };
+      }
+      case "generate_image": {
+        const prompt = String(toolInput.prompt ?? "").trim();
+        if (!prompt) {
+          return { ok: false, message: "generate_image requires a non-empty prompt." };
+        }
+        const size = ["1024x1024", "1024x1536", "1536x1024"].includes(String(toolInput.size))
+          ? (toolInput.size as "1024x1024" | "1024x1536" | "1536x1024")
+          : "1024x1024";
+        const quality = ["low", "medium", "high"].includes(String(toolInput.quality))
+          ? (toolInput.quality as "low" | "medium" | "high")
+          : "medium";
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+          return { ok: false, message: "OPENAI_API_KEY is not set; image generation needs an OpenAI API key." };
+        }
+        const imageClient = new OpenAI({ apiKey });
+        const response = await imageClient.images.generate({ model: "gpt-image-2", prompt, size, quality, n: 1 });
+        const imageData = response.data?.[0]?.b64_json;
+        if (!imageData) {
+          return { ok: false, message: "Image generation returned no image data." };
+        }
+        const rawFilename =
+          typeof toolInput.filename === "string" && toolInput.filename.trim()
+            ? `${toolInput.filename.trim()}.png`
+            : `image-${Date.now()}.png`;
+        const safeFilename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, "_");
+        await mkdir(ARTIFACTS_DIR, { recursive: true });
+        await writeFile(join(ARTIFACTS_DIR, safeFilename), Buffer.from(imageData, "base64"));
+        const artifactUrl = `/api/artifacts/${encodeURIComponent(safeFilename)}`;
+        const usage = response.usage;
+        return {
+          ok: true,
+          artifactUrl,
+          message: `Generated image "${safeFilename}" (${size}, ${quality} quality): ${artifactUrl}`,
+          imageUsage: usage
+            ? {
+                model: "gpt-image-2",
+                promptTokens: usage.input_tokens ?? 0,
+                outputTokens: usage.output_tokens ?? 0,
+                totalTokens: usage.total_tokens ?? 0
+              }
+            : undefined
         };
       }
       case "workspace_file": {

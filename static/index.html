@@ -3716,8 +3716,12 @@ dialog.modal-dialog::backdrop {
       var stepText = e.message || e.toolName || "working";
       status.textContent = "Step " + e.step + ": " + stepText;
       stepCounter.textContent = "Step " + e.step;
+      var artifactIsImage = e.artifactUrl && /\.(png|jpe?g|webp|gif)$/i.test(e.artifactUrl);
       var artifactLink = e.artifactUrl
-        ? ' <a href="' + esc(e.artifactUrl) + '" download style="color:var(--blue);font-weight:600;margin-left:6px;">Download file</a>'
+        ? (artifactIsImage
+            ? '<div style="margin-top:6px;"><a href="' + esc(e.artifactUrl) + '" target="_blank" rel="noopener">' +
+              '<img src="' + esc(e.artifactUrl) + '" alt="Generated image" style="max-width:260px;max-height:260px;border-radius:8px;border:1px solid var(--border);display:block;"></a></div>'
+            : ' <a href="' + esc(e.artifactUrl) + '" download style="color:var(--blue);font-weight:600;margin-left:6px;">Download file</a>')
         : "";
       var stepRowHtml =
         '<div class="step-item"><span class="step-badge">Step ' + esc(e.step) + "</span><span>" + esc(stepText) + artifactLink + "</span></div>";

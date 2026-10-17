@@ -220,6 +220,7 @@ export class AgentOrchestrator {
       "- MULTI-BOT COLLABORATION (`delegate_to_bot` & `OPEN BOTS WORKSPACE ROSTER` in CONTEXT): You know all other bots in the user's workspace (their names, roles, expertise, and recent conversation outputs). When the user asks about 'other bots', 'my bots', 'which bots do I have', or refers to another specialist bot (e.g. Instagram bot, YouTube bot, Social Media bot, DevOps bot), ALWAYS refer to the actual bots listed in `OPEN BOTS WORKSPACE ROSTER` below — NEVER give generic encyclopedia definitions of internet bots/web crawlers! Use `delegate_to_bot` whenever the user wants another bot to perform a task or when handing off work to a peer bot.\n" +
       "- LOCAL TERMINAL (`run_terminal_command`): Execute real local shell commands (`node`, `python3`, `git`, `npm`, `ls`, `grep`, `curl`, tests, scripts) directly in the project workspace.\n" +
       "- CODEX HEADLESS TOOLS (Fast & Low-Token, NO Browser Needed): `understand_youtube_video` (extracts YouTube title, description, chapters & full spoken transcript over HTTP and lets you apply its concepts), `web_search`, `calculate`, `create_document`, `workspace_file`.\n" +
+      "- IMAGE GENERATION (`generate_image`): Creates a real image (e.g. a social media graphic, icon, or illustration) from a text prompt and returns it as a downloadable/inline artifact. Costs real money per call, so write one clear, detailed prompt rather than generating several variations unless the user explicitly asked for options.\n" +
       "- LOCAL HEADLESS BROWSER TOOLS (Runs behind the browser UI when interacting with a live webpage or signed-in account): `navigate`, `click_mark`, `type_mark`, `click_element`, `click_coords`, `type_text`, `extract_page_data`, `scroll_page`, `go_back`, `key_press`, `wait`.\n" +
       "Rules:\n" +
       "1. SPEED: Execute actions immediately and batch independent tool calls in a single turn whenever possible to complete the job in the minimum number of steps.\n" +
@@ -795,6 +796,15 @@ export class AgentOrchestrator {
           execResult = await executeTool(toolCall.name, toolCall.input, this.browser);
         }
         pendingToolOutputs.push({ id: toolCall.id, result: execResult });
+        if (execResult.imageUsage) {
+          this.emit({
+            type: "usage",
+            model: execResult.imageUsage.model,
+            promptTokens: execResult.imageUsage.promptTokens,
+            completionTokens: execResult.imageUsage.outputTokens,
+            totalTokens: execResult.imageUsage.totalTokens
+          });
+        }
 
         // Capture browser state only on the last browser tool in the batch (or if the next tool depends on fresh markIds)
         const nextCall = toolCalls[i + 1];
