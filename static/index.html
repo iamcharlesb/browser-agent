@@ -3438,8 +3438,18 @@ dialog.modal-dialog::backdrop {
     text = text.replace(/`([^`\n]+)`/g, "<code>$1</code>");
     // Bold
     text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    // Images ![alt](url) — before plain links so the leading ! is consumed
+    text = text.replace(
+      /!\[([^\]]*)\]\((https?:\/\/[^\s)]+|\/api\/artifacts\/[^\s)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener"><img src="$2" alt="$1"></a>'
+    );
     // Links [label](url)
     text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/api\/artifacts\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // Bare image artifact URLs (e.g. tool output that wasn't wrapped in markdown)
+    text = text.replace(
+      /(^|[^"'>=])(\/api\/artifacts\/[A-Za-z0-9._%-]+\.(?:png|jpe?g|webp|gif))\b/gi,
+      '$1<a href="$2" target="_blank" rel="noopener"><img src="$2" alt="Generated image"></a>'
+    );
     // Headings & line-by-line lists
     var lines = text.split("\n");
     var out = [];
@@ -3899,10 +3909,20 @@ dialog.modal-dialog::backdrop {
         : tool === "understand_youtube_video" ? "Understanding the video"
         : tool === "calculate" ? "Working through the numbers"
         : tool === "create_document" ? "Preparing your document"
+        : tool === "generate_image" ? "Creating an image"
         : (stepText && !/^(clicked|typed|waited|scrolled|navigated)\b/i.test(stepText) ? stepText : "Thinking");
       status.textContent = activity;
       setRunPresence(activity);
       stepCounter.textContent = "";
+      // Show generated images inline in chat (step-feed UI was removed; keep the preview).
+      if (e.ok !== false && e.artifactUrl && /\.(png|jpe?g|webp|gif)$/i.test(e.artifactUrl)) {
+        appendMessage(
+          "agent",
+          '<a href="' + esc(e.artifactUrl) + '" target="_blank" rel="noopener">' +
+            '<img src="' + esc(e.artifactUrl) + '" alt="Generated image">' +
+          "</a>"
+        );
+      }
       return;
     }
     if (e.type === "human_verification") {

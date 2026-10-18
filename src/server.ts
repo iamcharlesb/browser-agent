@@ -14,6 +14,7 @@ import {
   getTerminalHistory,
   runTerminalCommand
 } from "./agentTools";
+import { artifactContentType } from "./apiContract";
 import { AgentEvent, AgentOrchestrator, DEFAULT_MODEL, requiresInitialBrowserState } from "./promptLoop";
 import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
 import { nextDailyOccurrence } from "./scheduler";
@@ -1243,9 +1244,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const filename = decodeURIComponent(url.pathname.slice("/api/artifacts/".length)).replace(/[^a-zA-Z0-9._-]/g, "_");
     try {
       const data = await readFile(join(ARTIFACTS_DIR, filename));
+      const { contentType, inline } = artifactContentType(filename);
+      const forceDownload =
+        url.searchParams.get("download") === "1" || url.searchParams.get("download") === "true";
+      const disposition = forceDownload || !inline ? "attachment" : "inline";
       res.writeHead(200, {
-        "Content-Type": "application/octet-stream",
-        "Content-Disposition": `attachment; filename="${filename}"`
+        "Content-Type": contentType,
+        "Content-Disposition": `${disposition}; filename="${filename}"`,
+        "Cache-Control": "private, max-age=3600"
       });
       res.end(data);
     } catch {

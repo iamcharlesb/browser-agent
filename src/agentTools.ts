@@ -4,6 +4,7 @@ import { exec } from "node:child_process";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import OpenAI from "openai";
+import { artifactUrlFor } from "./apiContract";
 import { BrowserActionError, BrowserController } from "./browserController";
 import { redactSecrets } from "./security";
 
@@ -1011,7 +1012,7 @@ export async function executeTool(
           formatted = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:system-ui,sans-serif;max-width:820px;margin:2rem auto;padding:0 1rem;line-height:1.6}</style></head><body><h1>${title}</h1><div>${content.replace(/\n/g, "<br>")}</div></body></html>`;
         }
         await writeFile(fullPath, formatted, "utf8");
-        const artifactUrl = `/api/artifacts/${encodeURIComponent(safeFilename)}`;
+        const artifactUrl = artifactUrlFor(safeFilename);
         return {
           ok: true,
           artifactUrl,
@@ -1046,12 +1047,15 @@ export async function executeTool(
         const safeFilename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, "_");
         await mkdir(ARTIFACTS_DIR, { recursive: true });
         await writeFile(join(ARTIFACTS_DIR, safeFilename), Buffer.from(imageData, "base64"));
-        const artifactUrl = `/api/artifacts/${encodeURIComponent(safeFilename)}`;
+        const artifactUrl = artifactUrlFor(safeFilename);
         const usage = response.usage;
         return {
           ok: true,
           artifactUrl,
-          message: `Generated image "${safeFilename}" (${size}, ${quality} quality): ${artifactUrl}`,
+          message:
+            `Generated image "${safeFilename}" (${size}, ${quality} quality).\n` +
+            `![${safeFilename}](${artifactUrl})\n` +
+            `Download: ${artifactUrl}`,
           imageUsage: usage
             ? {
                 model: "gpt-image-2",
