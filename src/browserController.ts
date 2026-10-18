@@ -1,10 +1,31 @@
 /** Browser operations and state capture, backed by Playwright for Node. */
 
 import { createHash } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { BrowserContext, CDPSession, Page, chromium, errors as playwrightErrors } from "playwright";
+
+/**
+ * Chromium's own singleton-instance lock files for a profile directory. If the process that
+ * created them dies abruptly (crash, force-quit, OOM, killed parent process) instead of calling
+ * context.close(), these are left behind and block every future launch against that profile with
+ * an opaque "Target page, context or browser has been closed" error - Chromium doesn't reliably
+ * self-heal from this. Safe to clear unconditionally right before launching: this app already
+ * enforces at most one BrowserController using a given profile directory at a time (the server's
+ * single activeSession slot), so if we're here, we know nothing legitimate is really holding it.
+ */
+const CHROMIUM_SINGLETON_LOCK_FILES = ["SingletonLock", "SingletonCookie", "SingletonSocket"];
+
+function clearStaleSingletonLock(userDataDir: string): void {
+  for (const filename of CHROMIUM_SINGLETON_LOCK_FILES) {
+    try {
+      rmSync(join(userDataDir, filename), { force: true });
+    } catch {
+      // best-effort; a failed cleanup here just means the original launch error resurfaces
+    }
+  }
+}
 
 /**
  * Default on-disk profile directory. Using a persistent Chromium profile (cookies, local
@@ -383,12 +404,22 @@ export class BrowserController {
         });
       } else {
         mkdirSync(this.config.userDataDir, { recursive: true });
-        this.context = await chromium.launchPersistentContext(this.config.userDataDir, {
+        clearStaleSingletonLock(this.config.userDataDir);
+        const launchOptions = {
           headless: this.config.headless,
           viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
           deviceScaleFactor: 1,
           userAgent: ua
-        });
+        };
+        try {
+          this.context = await chromium.launchPersistentContext(this.config.userDataDir, launchOptions);
+        } catch (launchErr) {
+          // A lock can be recreated by the dying process between our cleanup and the launch
+          // attempt itself; one clear-and-retry resolves that window without masking a real,
+          // persistent failure (e.g. a genuinely different process actually using this profile).
+          clearStaleSingletonLock(this.config.userDataDir);
+          this.context = await chromium.launchPersistentContext(this.config.userDataDir, launchOptions);
+        }
       }
       this.context.setDefaultTimeout(this.config.actionTimeoutMs);
       this.page = this.context.pages()[0] ?? (await this.context.newPage());
