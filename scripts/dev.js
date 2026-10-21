@@ -7,6 +7,7 @@
 
 const { spawnSync, spawn } = require("node:child_process");
 const path = require("node:path");
+const { openWhenReady } = require("./openBrowser");
 
 const projectRoot = path.join(__dirname, "..");
 const tscBin = path.join(projectRoot, "node_modules", ".bin", process.platform === "win32" ? "tsc.cmd" : "tsc");
@@ -37,6 +38,11 @@ function spawnWatcher(name, command, args) {
 console.log("[dev] Watching TypeScript sources and the server process...");
 spawnWatcher("tsc --watch", tscBin, ["-w", "-p", "tsconfig.json", "--preserveWatchOutput"]);
 spawnWatcher("node --watch server", process.execPath, ["--watch", "dist/server.js"]);
+
+const host = process.env.BROWSER_AGENT_UI_HOST;
+const openHost = !host || host === "0.0.0.0" ? "127.0.0.1" : host;
+const port = process.env.BROWSER_AGENT_UI_PORT || "8765";
+openWhenReady(`http://${openHost}:${port}`);
 
 function shutdown() {
   for (const child of children) {
