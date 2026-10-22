@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:production": "tsc -p tsconfig.json --outDir build",
-    "test": "npm run build && node --test dist/security.test.js dist/promptLoop.test.js dist/scheduler.test.js dist/apiContract.test.js dist/claudeCli.test.js",
+    "test": "npm run build && node --test dist/security.test.js dist/promptLoop.test.js dist/scheduler.test.js dist/apiContract.test.js dist/claudeCli.test.js dist/learningStore.test.js",
     "cli": "node dist/cli.js",
     "server": "node dist/server.js",
     "dev": "node scripts/dev.js",

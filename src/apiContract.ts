@@ -60,3 +60,22 @@ export function artifactContentType(filename: string): Pick<ArtifactMeta, "conte
 export function artifactUrlFor(filename: string): string {
   return `/api/artifacts/${encodeURIComponent(filename)}`;
 }
+
+/**
+ * When the UI opens the live browser while a task may already own Chromium,
+ * reuse the active session instead of rejecting with a scary conflict error.
+ */
+export function resolveLoginDuringRun(opts: {
+  runIsActive: boolean;
+  hasActiveSession: boolean;
+  modeChanged?: boolean;
+}): "reuse" | "busy" | "open" {
+  if (!opts.runIsActive) return "open";
+  if (opts.hasActiveSession && !opts.modeChanged) return "reuse";
+  return "busy";
+}
+
+/** Shared busy-run detection for /api/run and /api/login conflict responses. */
+export function isRunInProgressMessage(message: string): boolean {
+  return /in progress/i.test(message || "");
+}

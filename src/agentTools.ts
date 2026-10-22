@@ -359,6 +359,34 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "learning_kb",
+      description:
+        "Read or update this bot's durable local knowledge base (intents/goals, mistakes/corrections, learnings that worked, hypotheses to check next). Use when the user corrects you, states a durable preference/niche, or you discover a playbook note worth remembering. Local only — never store passwords, API keys, or secrets.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: ["read", "list", "save"],
+            description: "read/list returns a distilled KB summary; save appends a short note."
+          },
+          kind: {
+            type: "string",
+            enum: ["intent", "mistake", "learning", "hypothesis"],
+            description: "Required for save. intent=goal/niche preference; mistake=correction to avoid; learning=what worked; hypothesis=check next time."
+          },
+          text: {
+            type: "string",
+            description: "Short note to save (≤160 chars after sanitize). Required for save."
+          }
+        },
+        required: ["action"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "finish_task",
       description:
         "Complete the task and text the user back like a close, sharp friend — casual, warm, direct, and human (1–3 short conversational paragraphs separated by blank lines; avoid robotic preambles or textbook bullet-point essays).",

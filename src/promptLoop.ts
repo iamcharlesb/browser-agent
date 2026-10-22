@@ -64,6 +64,7 @@ export type OnHumanVerification = (state: PageState) => Promise<void> | void;
 /** Returns true to run the command/write, false to deny it. Must default to deny if unset. */
 export type OnTerminalApproval = (details: { toolName: string; description: string }) => Promise<boolean> | boolean;
 export type OnScheduleTask = (input: Record<string, unknown>) => Promise<ToolExecutionResult>;
+export type OnLearningKb = (input: Record<string, unknown>) => Promise<ToolExecutionResult>;
 
 interface ExtractedToolCall {
   id: string;
@@ -90,6 +91,7 @@ export interface AgentOrchestratorOptions {
   onHumanVerification?: OnHumanVerification;
   onTerminalApproval?: OnTerminalApproval;
   onScheduleTask?: OnScheduleTask;
+  onLearningKb?: OnLearningKb;
   scheduleTimeZone?: string;
   /** Set false for scheduled/unattended runs: removes local writes and paid image generation. */
   allowPrivilegedTools?: boolean;
@@ -164,6 +166,7 @@ export class AgentOrchestrator {
   private readonly onTerminalApproval?: OnTerminalApproval;
   private readonly allowPrivilegedTools: boolean;
   private readonly onScheduleTask?: OnScheduleTask;
+  private readonly onLearningKb?: OnLearningKb;
   private readonly scheduleTimeZone: string;
   private readonly allowBrowserInteraction: boolean;
   private readonly toolsForModel: OpenAI.Chat.Completions.ChatCompletionTool[];
@@ -242,6 +245,7 @@ export class AgentOrchestrator {
     this.onTerminalApproval = options.onTerminalApproval;
     this.allowPrivilegedTools = options.allowPrivilegedTools ?? true;
     this.onScheduleTask = options.onScheduleTask;
+    this.onLearningKb = options.onLearningKb;
     this.scheduleTimeZone = options.scheduleTimeZone || "UTC";
     this.allowBrowserInteraction = options.allowBrowserInteraction ?? true;
     this.toolsForModel = TOOLS.filter((tool) => {
@@ -265,15 +269,15 @@ export class AgentOrchestrator {
       "- Finish as soon as you have the answer or a concrete next ask. Don't narrate every click.\n" +
       "- Batch independent tool calls. Prefer extract_page_data / Detected Stats over re-navigating.\n" +
       "- Skip screenshots mentally when Text/Detected Stats already answer the question.\n" +
-      "PLAN FIRST ON COMPLEX ASKS (marketing, growth, Reddit, multi-step work):\n" +
+      "PLAN FIRST ON COMPLEX ASKS (marketing, growth, Reddit, SEO, multi-step work):\n" +
       "- Before spraying tools, briefly reason: goal, niche signals, constraints (esp. ban/spam/karma risk), biggest leverage.\n" +
       "- Then give a compact actionable plan (≤8 short lines). Prefer structured labels over essays.\n" +
       "- ≤3 targeted research calls when needed; don't burn a step farm of generic searches before a plan.\n" +
       "- Start research/audit tools to ground the plan in their real account/site when signed in; don't wait to be spoon-fed niche details.\n" +
-      "- Stop for approval before follows/likes/comments/posts/publishes; research + drafting is free to do.\n" +
+      "- Stop for approval before follows/likes/comments/posts/publishes/GA-GTM edits; research + drafting is free to do.\n" +
       "SCHEDULING: schedule_task for one-time/daily jobs (tz=" + this.scheduleTimeZone + "). Schedules are read-only for engagement (research/monitor/draft only). Never like/follow/comment/post from a schedule. Ask before recurring paid model runs; set costApproved only after explicit yes.\n" +
       "VOICE: warm, direct, specific — like a sharp social-media co-founder texting. Never corporate filler ('Certainly!', 'Here are several strategies:', 'In conclusion').\n" +
-      "CAPABILITIES: delegate_to_bot (workspace roster in CONTEXT); run_terminal_command; headless web_search/calculate/create_document/workspace_file/understand_youtube_video; generate_image (one clear prompt); browser navigate/click_*/type_*/extract_page_data/scroll/wait.\n" +
+      "CAPABILITIES: delegate_to_bot (workspace roster in CONTEXT); learning_kb (durable local memory); run_terminal_command; headless web_search/calculate/create_document/workspace_file/understand_youtube_video; generate_image (one clear prompt); browser navigate/click_*/type_*/extract_page_data/scroll/wait.\n" +
       "Rules:\n" +
       "1. SPEED after the plan: batch tools; minimum steps; don't stall asking what the niche is if the profile can tell you.\n" +
       "2. PEER BOTS: answer from OPEN BOTS WORKSPACE ROSTER — never generic 'what is a bot' definitions.\n" +
@@ -285,6 +289,7 @@ export class AgentOrchestrator {
       "8. RESEARCH YOURSELF for niche targets: infer niche from profile, find real candidates, draft comments, return a shortlist for approval. Never follow/like/comment/message until they approve specific targets+wording.\n" +
       "9. PACE engagement: ≤5–8 likes/follows/comments per run with wait between; leave the rest for later.\n" +
       "10. CONFIRM UI state (Follow→Following, toast, visible comment) before claiming success.\n" +
+      "11. LEARNINGS/KB in CONTEXT: recall niche, prior mistakes, and what worked; when the user corrects you, call learning_kb save (mistake/intent) so the next run is smarter. For growth/SEO/Reddit, reuse prior niche and avoid repeating failed approaches.\n" +
       "INSTAGRAM / FOLLOWER GROWTH PLAYBOOK (be a proactive marketing specialist):\n" +
       "- On 'grow followers / increase engagement / help me market': do NOT dump generic tips and stop. Reason → plan → audit/research → propose concrete next actions for approval.\n" +
       "- Plan shape (keep lean): Goal & niche | Profile audit | Content angle (2–3 post ideas) | Engagement (who to like/comment + draft lines) | Follow targets (5–8 handles + why) | Pacing (≤5–8 actions/run) | Schedule (optional daily research-only check-in).\n" +
@@ -297,6 +302,14 @@ export class AgentOrchestrator {
       "- Risks to name briefly: subreddit rules, karma/min-age gates, spam filters, shadowbans, ban evasion, throwaway accounts, pacing, undisclosed self-promo.\n" +
       "- Value-first: helpful answers/teardowns/checklists before any product mention; soft disclosure; link only when rules allow and after trust is earned.\n" +
       "- Output: concrete shortlist + 1–2 draft posts/comments + proposed weekly cadence; ask what to approve. Never post/comment/upvote from a schedule without explicit per-item approval.\n" +
+      "SEO / AI VISIBILITY PLAYBOOK (research-oriented growth strategist):\n" +
+      "- On 'SEO / keywords / GA4 / GTM / organic / funnel / AI visibility / GEO / AEO': do NOT dump generic SEO tips and stop. Reason → compact labeled plan → research/audit (browser when signed in) → findings + measurement → ask approval before changes.\n" +
+      "- Plan shape (≤8–10 short labeled lines): Keywords/clusters (info vs commercial, long-tail, competitor gaps) | GA4 (traffic, conversions, landing pages, funnels) | GTM (events/tags/triggers — advise & inspect only unless approved) | Funnel (awareness → consider → convert) | On-page/tech checks | Content calendar / topic clusters | AI visibility (entity clarity, citations, FAQ, brand mentions) | Measurement plan | Approvals needed.\n" +
+      "- GA/GTM: open analytics.google.com / tagmanager.google.com / Search Console when signed in; read-only by default. Never invent private metrics or claim numbers you didn't see. Ask before creating/editing tags, triggers, goals, or property settings.\n" +
+      "- Keyword strategy variants: informational vs commercial intent, long-tail clusters, competitor gap themes — keep clusters tight and prioritized, not encyclopedic lists.\n" +
+      "- AI visibility / GEO / AEO: honest tactics only (clear entities, citable facts, FAQ structure, authoritative brand mentions). State limits of ChatGPT/Claude/Perplexity-style answer engines; never promise 'rank #1 in AI' or fake visibility scores.\n" +
+      "- SERP: prefer Search Console + user's own properties + careful web_search. Do NOT scrape Google SERP in ways that violate ToS.\n" +
+      "- Output: compact plan → grounded findings → prioritized next actions + what to approve. Stop before publishing content, changing tags, or editing analytics config.\n" +
       (this.collaborationContext ? `\nCONTEXT:\n${this.collaborationContext}\n` : "")
     );
   }
@@ -397,8 +410,10 @@ export class AgentOrchestrator {
       title: state.title,
       screenshotB64: state.screenshotB64,
       message:
-        "A human-verification or sign-in page was detected. Complete it in the live browser " +
-        "panel on the right, then click 'I've handled it — resume'."
+        "Human verification / CAPTCHA detected. Open Live Browser, solve the challenge yourself " +
+        "(do not ask the agent to click images), then click I've handled it — resume. " +
+        "If you need a different site (e.g. Instagram) while a captcha is up, use Go or + New Tab " +
+        "in the live browser — navigation will recover onto a fresh tab if the current one is stuck."
     });
 
     const waitStarted = Date.now();
@@ -809,6 +824,22 @@ export class AgentOrchestrator {
             type: "step",
             step,
             toolName: "schedule_task",
+            toolInput: toolCall.input,
+            ok: result.ok,
+            message: result.message.slice(0, 180)
+          });
+          continue;
+        }
+
+        if (toolCall.name === "learning_kb") {
+          const result = this.onLearningKb
+            ? await this.onLearningKb(toolCall.input)
+            : { ok: false, message: "Learning KB is unavailable in this app instance." };
+          pendingToolOutputs.push({ id: toolCall.id, result });
+          this.emit({
+            type: "step",
+            step,
+            toolName: "learning_kb",
             toolInput: toolCall.input,
             ok: result.ok,
             message: result.message.slice(0, 180)
