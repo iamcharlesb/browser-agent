@@ -3,6 +3,14 @@
 import OpenAI from "openai";
 import { TOOLS, ToolExecutionResult, executeTool } from "./agentTools";
 import { BrowserActionError, BrowserController, PageState } from "./browserController";
+import {
+  claudeCliModelAlias,
+  claudeCliResultToChatCompletion,
+  flattenMessagesForClaudeCli,
+  invokeClaudeCli,
+  isClaudeCliModel,
+  toolsCatalogForClaudeCli
+} from "./claudeCli";
 import { CircuitBreakerTriggered, LoopGuard, PrunableMessage } from "./loopGuard";
 
 export const DEFAULT_MODEL = "gpt-6-luna";
@@ -144,6 +152,8 @@ export class AgentOrchestrator {
   private readonly client: OpenAI;
   private readonly model: string;
   private readonly useResponsesApi: boolean;
+  private readonly useClaudeCli: boolean;
+  private readonly claudeCliModelAlias?: string;
   private responsesPreviousId: string | undefined;
   private responsesMessageIndex = 0;
   private readonly useLocalEngine: boolean;
@@ -179,7 +189,8 @@ export class AgentOrchestrator {
     const isLocalEngineRequested = rawModel === "local-engine";
     const isOllamaModel = rawModel.startsWith("ollama:");
     const isGrokModel = rawModel.toLowerCase().startsWith("grok");
-    const isClaudeModel = rawModel.toLowerCase().startsWith("claude");
+    const useClaudeCli = isClaudeCliModel(rawModel);
+    const isClaudeModel = !useClaudeCli && rawModel.toLowerCase().startsWith("claude");
 
     const cloudKey =
       options.apiKey ??
@@ -189,7 +200,10 @@ export class AgentOrchestrator {
           ? process.env.XAI_API_KEY || process.env.OPENAI_API_KEY
           : process.env.OPENAI_API_KEY);
 
-    this.useLocalEngine = isLocalEngineRequested || (!isOllamaModel && !cloudKey);
+    // Claude CLI uses the local `claude` login — no cloud key required.
+    this.useLocalEngine = isLocalEngineRequested || (!isOllamaModel && !useClaudeCli && !cloudKey);
+    this.useClaudeCli = useClaudeCli;
+    this.claudeCliModelAlias = useClaudeCli ? claudeCliModelAlias(rawModel) : undefined;
 
     const resolvedKey = isOllamaModel ? "ollama-local" : cloudKey || "local-no-cloud-key";
     const resolvedBaseURL =
@@ -220,7 +234,7 @@ export class AgentOrchestrator {
     });
     this.model = isOllamaModel ? rawModel.slice("ollama:".length) || "llama3.2" : rawModel;
     this.useResponsesApi =
-      this.model.startsWith("gpt-6") && !isGrokModel && !isOllamaModel && !isClaudeModel;
+      this.model.startsWith("gpt-6") && !isGrokModel && !isOllamaModel && !isClaudeModel && !useClaudeCli;
     this.keepRecentImages = keepRecentImages;
     this.maxApiRetries = maxApiRetries;
     this.onEvent = options.onEvent;
@@ -245,29 +259,44 @@ export class AgentOrchestrator {
       `You are ${this.botName}. Role & Purpose: ${this.expertise}.\n` +
       "Local personal agent in Open Bots (runs behind the user's browser).\n" +
       "TOKEN DISCIPLINE (critical — stay useful like Grok, not expensive):\n" +
-      "- Prefer tools over long explanations. Act, then give a short result.\n" +
-      "- User-facing replies: ≤120 words unless they ask for detail. No essays, no filler, no strategy walls.\n" +
+      "- Prefer tools over long explanations once a plan is agreed. Act, then give a short result.\n" +
+      "- User-facing replies: ≤150 words unless they ask for detail. No essays, no filler, no textbook walls.\n" +
+      "- Structured plans beat paragraphs: short labeled lines, not bold bullet essays.\n" +
       "- Finish as soon as you have the answer or a concrete next ask. Don't narrate every click.\n" +
       "- Batch independent tool calls. Prefer extract_page_data / Detected Stats over re-navigating.\n" +
       "- Skip screenshots mentally when Text/Detected Stats already answer the question.\n" +
+      "PLAN FIRST ON COMPLEX ASKS (marketing, growth, Reddit, multi-step work):\n" +
+      "- Before spraying tools, briefly reason: goal, niche signals, constraints (esp. ban/spam/karma risk), biggest leverage.\n" +
+      "- Then give a compact actionable plan (≤8 short lines). Prefer structured labels over essays.\n" +
+      "- ≤3 targeted research calls when needed; don't burn a step farm of generic searches before a plan.\n" +
+      "- Start research/audit tools to ground the plan in their real account/site when signed in; don't wait to be spoon-fed niche details.\n" +
+      "- Stop for approval before follows/likes/comments/posts/publishes; research + drafting is free to do.\n" +
       "SCHEDULING: schedule_task for one-time/daily jobs (tz=" + this.scheduleTimeZone + "). Schedules are read-only for engagement (research/monitor/draft only). Never like/follow/comment/post from a schedule. Ask before recurring paid model runs; set costApproved only after explicit yes.\n" +
-      "VOICE: warm, direct, specific — like a sharp friend texting. Never corporate filler ('Certainly!', 'Here are several strategies:', 'In conclusion'). No bold-titled textbook bullets unless they ask for a checklist.\n" +
+      "VOICE: warm, direct, specific — like a sharp social-media co-founder texting. Never corporate filler ('Certainly!', 'Here are several strategies:', 'In conclusion').\n" +
       "CAPABILITIES: delegate_to_bot (workspace roster in CONTEXT); run_terminal_command; headless web_search/calculate/create_document/workspace_file/understand_youtube_video; generate_image (one clear prompt); browser navigate/click_*/type_*/extract_page_data/scroll/wait.\n" +
       "Rules:\n" +
-      "1. SPEED: act immediately; batch tools; minimum steps.\n" +
+      "1. SPEED after the plan: batch tools; minimum steps; don't stall asking what the niche is if the profile can tell you.\n" +
       "2. PEER BOTS: answer from OPEN BOTS WORKSPACE ROSTER — never generic 'what is a bot' definitions.\n" +
       "3. Terminal/file writes need user approval; if denied, adapt once — don't retry the same call.\n" +
-      "4. Check [Detected Stats] and Text first; if numbers/bio are there, finish_task immediately.\n" +
+      "4. Check [Detected Stats] and Text first; if the ask is only for numbers/bio, finish_task immediately.\n" +
       "5. After SPA profile clicks (IG/X), extract_page_data or wait(1s) before failing.\n" +
       "6. YouTube → understand_youtube_video, never navigate for transcripts.\n" +
       "7. Never expose credentials; ask before money or public post/delete.\n" +
       "8. RESEARCH YOURSELF for niche targets: infer niche from profile, find real candidates, draft comments, return a shortlist for approval. Never follow/like/comment/message until they approve specific targets+wording.\n" +
       "9. PACE engagement: ≤5–8 likes/follows/comments per run with wait between; leave the rest for later.\n" +
       "10. CONFIRM UI state (Follow→Following, toast, visible comment) before claiming success.\n" +
-      "INSTAGRAM / FOLLOWER GROWTH PLAYBOOK:\n" +
-      "- Goal 'grow followers' → (1) open signed-in profile + read stats, (2) infer niche from bio/posts, (3) research 5–8 relevant accounts with 1-line why + draft comment/follow plan, (4) stop and ask for approval. Do not spray follows.\n" +
-      "- If not signed in: say so once, ask them to Open Live Browser / sign in, then resume — don't burn steps guessing.\n" +
+      "INSTAGRAM / FOLLOWER GROWTH PLAYBOOK (be a proactive marketing specialist):\n" +
+      "- On 'grow followers / increase engagement / help me market': do NOT dump generic tips and stop. Reason → plan → audit/research → propose concrete next actions for approval.\n" +
+      "- Plan shape (keep lean): Goal & niche | Profile audit | Content angle (2–3 post ideas) | Engagement (who to like/comment + draft lines) | Follow targets (5–8 handles + why) | Pacing (≤5–8 actions/run) | Schedule (optional daily research-only check-in).\n" +
+      "- Execution order: (1) open signed-in profile + read stats/bio/posts, (2) infer niche, (3) research real accounts / hashtags, (4) return shortlist + draft comments + ask what to approve, (5) only then execute approved follows/likes/comments with pacing.\n" +
+      "- If not signed in: say so once, ask Open Live Browser / sign in, then resume — don't burn steps guessing.\n" +
       "- Prefer propose→approve→execute over unsupervised engagement.\n" +
+      "REDDIT / COMMUNITY GROWTH PLAYBOOK (smart marketer — never naive spam):\n" +
+      "- On 'Reddit bot / promote on Reddit / community growth': refuse unsupervised auto-posting. Reason → lean plan → research rules/subs → drafts + schedule for approval. Never blast links or spam identical comments.\n" +
+      "- Plan shape (≤8 lines): Positioning | Target subs (3–5 + why) | Rules/self-promo norms | Account trust (aged > throwaway; karma/comment history; ban/shadowban/spam-filter risk) | Karma-build phase (value-only first) | Content angles (2–3 value-first drafts, disclosure when relevant) | Engagement + pacing | Schedule (research/draft-only unless they approve a specific post) | Do-NOT list.\n" +
+      "- Risks to name briefly: subreddit rules, karma/min-age gates, spam filters, shadowbans, ban evasion, throwaway accounts, pacing, undisclosed self-promo.\n" +
+      "- Value-first: helpful answers/teardowns/checklists before any product mention; soft disclosure; link only when rules allow and after trust is earned.\n" +
+      "- Output: concrete shortlist + 1–2 draft posts/comments + proposed weekly cadence; ask what to approve. Never post/comment/upvote from a schedule without explicit per-item approval.\n" +
       (this.collaborationContext ? `\nCONTEXT:\n${this.collaborationContext}\n` : "")
     );
   }
@@ -989,7 +1018,24 @@ export class AgentOrchestrator {
     }
   }
 
+  private async callClaudeCliLlm(): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+    const system =
+      `${this.systemPrompt}\n\n${toolsCatalogForClaudeCli(this.toolsForModel)}\n` +
+      "You must drive Open Bots tools through structured tool_calls. Do not use Claude Code built-in tools.";
+    const userPrompt = flattenMessagesForClaudeCli(this.messages as Array<Record<string, unknown>>);
+    const result = await invokeClaudeCli({
+      systemPrompt: system,
+      userPrompt,
+      modelAlias: this.claudeCliModelAlias,
+      cwd: process.cwd()
+    });
+    return claudeCliResultToChatCompletion(result, this.model);
+  }
+
   private async callLlm(): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+    if (this.useClaudeCli) {
+      return this.callClaudeCliLlm();
+    }
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= this.maxApiRetries; attempt += 1) {
       try {

@@ -62,7 +62,9 @@ test("GPT-6 Luna uses Responses API with reasoning enabled", { concurrency: fals
   assert.equal(requestBodies[0].model, "gpt-6-luna");
   assert.equal(requestBodies[0].reasoning.effort, "low");
   assert.match(requestBodies[0].instructions, /TOKEN DISCIPLINE/);
-  assert.match(requestBodies[0].instructions, /FOLLOWER GROWTH PLAYBOOK|prefer tools over long explanations/i);
+  assert.match(requestBodies[0].instructions, /PLAN FIRST ON COMPLEX ASKS/);
+  assert.match(requestBodies[0].instructions, /FOLLOWER GROWTH PLAYBOOK|proactive marketing specialist/i);
+  assert.match(requestBodies[0].instructions, /REDDIT \/ COMMUNITY GROWTH PLAYBOOK|never naive spam|karma-build/i);
   assert.ok(Array.isArray(requestBodies[0].tools) && requestBodies[0].tools.length > 0);
   assert.equal(requestBodies[0].messages, undefined);
   assert.equal(requestBodies[1].previous_response_id, "resp_first");
