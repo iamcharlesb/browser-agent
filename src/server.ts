@@ -223,6 +223,10 @@ const MODEL_PRICING_PER_MILLION: Record<string, { input: number; output: number 
   "gpt-6-luna": { input: 0.1, output: 0.5 },
   "gpt-4o-mini": { input: 0.15, output: 0.6 },
   "gpt-4o": { input: 2.5, output: 10.0 },
+  // Anthropic public list prices (approx; usage tracker is best-effort).
+  "claude-sonnet-4-5": { input: 3.0, output: 15.0 },
+  "claude-haiku-4-5": { input: 1.0, output: 5.0 },
+  "claude-opus-4-5": { input: 15.0, output: 75.0 },
   // Image generation: $5/1M text-input tokens, $30/1M image-output tokens (verified before use).
   // Doesn't account for image-input tokens (only relevant for image editing, not implemented).
   "gpt-image-2": { input: 5.0, output: 30.0 }
@@ -891,8 +895,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const tabs = activeSession ? await activeSession.controller.getTabs() : [];
     sendJson(res, 200, {
       ok: true,
-      hasApiKey: Boolean(process.env.OPENAI_API_KEY || process.env.XAI_API_KEY),
+      hasApiKey: Boolean(process.env.OPENAI_API_KEY || process.env.XAI_API_KEY || process.env.ANTHROPIC_API_KEY),
       hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
+      hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
       hasXaiKey: Boolean(process.env.XAI_API_KEY),
       defaultModel: DEFAULT_MODEL,
       isRunning: Boolean(currentRun?.isRunning),
@@ -938,6 +943,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       if (typeof body.xaiApiKey === "string" && body.xaiApiKey.trim()) {
         process.env.XAI_API_KEY = body.xaiApiKey.trim();
       }
+      if (typeof body.anthropicApiKey === "string" && body.anthropicApiKey.trim()) {
+        process.env.ANTHROPIC_API_KEY = body.anthropicApiKey.trim();
+      }
       if (typeof body.baseURL === "string") {
         if (body.baseURL.trim()) process.env.OPENAI_BASE_URL = body.baseURL.trim();
         else delete process.env.OPENAI_BASE_URL;
@@ -945,7 +953,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       sendJson(res, 200, {
         status: "saved",
         hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
-        hasXaiKey: Boolean(process.env.XAI_API_KEY)
+        hasXaiKey: Boolean(process.env.XAI_API_KEY),
+        hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY)
       });
     } catch (err) {
       sendJson(res, 400, { detail: (err as Error).message });

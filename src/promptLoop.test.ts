@@ -61,7 +61,8 @@ test("GPT-6 Luna uses Responses API with reasoning enabled", { concurrency: fals
   assert.equal(requestBodies.length, 2);
   assert.equal(requestBodies[0].model, "gpt-6-luna");
   assert.equal(requestBodies[0].reasoning.effort, "low");
-  assert.match(requestBodies[0].instructions, /complex or multi-step requests/);
+  assert.match(requestBodies[0].instructions, /TOKEN DISCIPLINE/);
+  assert.match(requestBodies[0].instructions, /FOLLOWER GROWTH PLAYBOOK|prefer tools over long explanations/i);
   assert.ok(Array.isArray(requestBodies[0].tools) && requestBodies[0].tools.length > 0);
   assert.equal(requestBodies[0].messages, undefined);
   assert.equal(requestBodies[1].previous_response_id, "resp_first");
@@ -130,8 +131,9 @@ test("daily scheduling tool creates a schedule and unattended tools are read-onl
   const result = await agent.run();
   assert.equal(result.success, true, result.summary);
   assert.equal((scheduledInput as Record<string, unknown> | null)?.scheduleType, "daily");
-  assert.match(requestBodies[0].instructions, /persistent one-time or daily tasks/);
+  assert.match(requestBodies[0].instructions, /schedule_task for one-time\/daily jobs/);
   assert.match(requestBodies[0].instructions, /America\/Los_Angeles/);
+  assert.match(requestBodies[0].instructions, /TOKEN DISCIPLINE/);
   const functionNames = requestBodies[0].tools.map((tool: any) => tool.name || tool.function?.name);
   assert.ok(functionNames.includes("schedule_task"));
   assert.ok(!functionNames.includes("click_element"));
