@@ -701,7 +701,7 @@ button { color: inherit; }
   transition: grid-template-columns 0.2s ease;
 }
 #workspace.has-browser {
-  grid-template-columns: var(--chat-width, 46%) minmax(240px, 1fr);
+  grid-template-columns: var(--chat-width, 38%) minmax(280px, 1fr);
 }
 #workspace.empty {
   grid-template-columns: 1fr;
@@ -798,6 +798,7 @@ button { color: inherit; }
   padding: 24px 24px 12px;
   text-align: center;
   overflow-y: auto;
+  min-height: 0;
 }
 #welcome .welcome-mark {
   width: 76px;
@@ -806,7 +807,7 @@ button { color: inherit; }
   background: transparent;
   box-shadow: none;
   border-radius: 22px;
-  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), width 0.18s ease, height 0.18s ease, margin 0.18s ease;
 }
 #welcome .welcome-mark:hover {
   transform: scale(1.07) rotate(-3deg);
@@ -815,6 +816,7 @@ button { color: inherit; }
   width: 76px;
   height: 76px;
   filter: drop-shadow(0 10px 22px rgba(255, 45, 59, 0.22));
+  transition: width 0.18s ease, height 0.18s ease;
 }
 #welcome h1 {
   color: var(--text);
@@ -839,6 +841,51 @@ button { color: inherit; }
 }
 #welcome.is-typing .template-grid {
   display: none;
+}
+/* When Browser/Terminal is open, shrink the marketing hero so chat + tool share the viewport */
+#workspace.has-browser #welcome {
+  flex: 0 1 auto;
+  justify-content: flex-start;
+  padding: 10px 16px 6px;
+}
+#workspace.has-browser #welcome .welcome-mark {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+}
+#workspace.has-browser #welcome .welcome-mark svg.bot-char-svg {
+  width: 40px;
+  height: 40px;
+  filter: drop-shadow(0 4px 10px rgba(255, 45, 59, 0.18));
+}
+#workspace.has-browser #welcome h1 {
+  font-size: 17px;
+  margin: 0 0 2px;
+}
+#workspace.has-browser #welcome p {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  max-width: 360px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+#workspace.has-browser .template-grid {
+  gap: 6px;
+  width: min(100%, 100%);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+#workspace.has-browser .template-card {
+  padding: 8px 10px;
+  border-radius: 12px;
+  gap: 8px;
+}
+#workspace.has-browser #composer-wrap {
+  padding-top: 4px;
+  padding-bottom: 8px;
 }
 .template-card {
   background: #fff;
@@ -1348,19 +1395,21 @@ button { color: inherit; }
   background: rgba(202, 138, 4, 0.26);
 }
 .approval-action {
-  width: auto;
-  max-width: 160px;
-  height: 34px;
-  min-width: 0;
-  padding: 0 8px;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  height: 36px;
+  padding: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 0;
   white-space: nowrap;
-  border-radius: 12px;
+  border-radius: 50%;
   background: transparent;
   font-size: 12px;
   overflow: hidden;
+  transition: max-width 0.16s ease, padding 0.16s ease, gap 0.16s ease, border-radius 0.16s ease, background 0.14s ease;
 }
 .approval-action:hover { background: #f1f3f7; }
 #auto-approve-icon {
@@ -1376,43 +1425,89 @@ button { color: inherit; }
   font-size: 12px;
   font-weight: 500;
   min-width: 0;
+  max-width: 0;
+  opacity: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: max-width 0.16s ease, opacity 0.12s ease, margin 0.16s ease;
 }
 .approval-action::after {
   content: "";
   flex: 0 0 auto;
-  width: 10px;
+  width: 0;
   height: 10px;
-  margin-left: 1px;
+  margin-left: 0;
   background: currentColor;
-  opacity: 0.55;
+  opacity: 0;
   clip-path: polygon(15% 20%, 50% 65%, 85% 20%, 100% 35%, 50% 90%, 0 35%);
   pointer-events: none;
+  transition: width 0.16s ease, opacity 0.12s ease, margin 0.16s ease;
+}
+/* Expand label + chevron when looking for options (hover / keyboard focus) */
+@media (hover: hover) and (min-width: 721px) {
+  .approval-action:hover,
+  .approval-action:focus-visible {
+    width: auto;
+    min-width: 0;
+    max-width: 160px;
+    height: 34px;
+    padding: 0 8px;
+    gap: 6px;
+    border-radius: 12px;
+    justify-content: flex-start;
+  }
+  .approval-action:hover .composer-action-label,
+  .approval-action:focus-visible .composer-action-label {
+    max-width: 110px;
+    opacity: 1;
+  }
+  .approval-action:hover::after,
+  .approval-action:focus-visible::after {
+    width: 10px;
+    margin-left: 1px;
+    opacity: 0.55;
+  }
 }
 .composer-model-wrap {
   position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
-  gap: 5px;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  height: 36px;
+  gap: 0;
   color: var(--text-secondary);
-  padding: 0 4px;
+  padding: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  transition: max-width 0.16s ease, padding 0.16s ease, gap 0.16s ease, border-radius 0.16s ease, background 0.14s ease;
 }
-.composer-model-wrap::before { content: "⚡"; color: #111827; font-size: 14px; flex: 0 0 auto; }
+.composer-model-wrap:hover { background: #f1f3f7; }
+.composer-model-wrap::before { content: "⚡"; color: #111827; font-size: 14px; flex: 0 0 auto; line-height: 1; }
 .composer-model-wrap::after {
   content: "";
   flex: 0 0 auto;
-  width: 10px;
+  width: 0;
   height: 10px;
-  margin-left: 2px;
+  margin-left: 0;
   background: currentColor;
-  opacity: 0.55;
+  opacity: 0;
   clip-path: polygon(15% 20%, 50% 65%, 85% 20%, 100% 35%, 50% 90%, 0 35%);
   pointer-events: none;
+  transition: width 0.16s ease, opacity 0.12s ease, margin 0.16s ease;
 }
 #composer-model-select {
-  max-width: 168px;
+  /* Invisible hit target over the ⚡ icon when collapsed */
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  opacity: 0;
   border: 0;
   outline: 0;
   background: transparent;
@@ -1423,13 +1518,73 @@ button { color: inherit; }
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  padding-right: 2px;
+  padding: 0;
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  z-index: 1;
 }
 #composer-model-select option { font-size: 12px; }
+/* Icon-first model control: expand label on hover/focus like Approvals */
+@media (hover: hover) and (min-width: 721px) {
+  .composer-model-wrap:hover,
+  .composer-model-wrap:focus-within {
+    width: auto;
+    min-width: 0;
+    max-width: 200px;
+    height: 34px;
+    padding: 0 8px;
+    gap: 5px;
+    border-radius: 12px;
+    justify-content: flex-start;
+  }
+  .composer-model-wrap:hover #composer-model-select,
+  .composer-model-wrap:focus-within #composer-model-select {
+    position: static;
+    inset: auto;
+    width: auto;
+    height: auto;
+    max-width: 150px;
+    opacity: 1;
+    z-index: auto;
+  }
+  .composer-model-wrap:hover::after,
+  .composer-model-wrap:focus-within::after {
+    width: 10px;
+    margin-left: 1px;
+    opacity: 0.55;
+  }
+}
+/* Touch / narrow: keep icon primary; expand label while the select is focused */
+@media (max-width: 720px), (hover: none) {
+  .composer-model-wrap:focus-within {
+    width: auto;
+    min-width: 0;
+    max-width: 190px;
+    height: 30px;
+    padding: 0 8px;
+    gap: 4px;
+    border-radius: 12px;
+    justify-content: flex-start;
+    background: #f1f3f7;
+  }
+  .composer-model-wrap:focus-within #composer-model-select {
+    position: static;
+    inset: auto;
+    width: auto;
+    height: auto;
+    max-width: 140px;
+    opacity: 1;
+    z-index: auto;
+  }
+  .composer-model-wrap:focus-within::after {
+    width: 10px;
+    margin-left: 1px;
+    opacity: 0.55;
+  }
+}
 #voice-button {
   width: 32px;
   height: 36px;
@@ -2146,11 +2301,20 @@ dialog.modal-dialog::backdrop {
 @media (max-width: 1024px) {
   #app:not(.sidebar-collapsed) { grid-template-columns: 240px minmax(0, 1fr); }
   #workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
-  #workspace.has-browser { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(240px, 0.85fr) minmax(280px, 1.15fr); }
+  /* Favor browser/terminal height when stacked; chat stays usable but not dominant */
+  #workspace.has-browser {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(160px, var(--chat-stack, 0.42fr)) minmax(340px, 1.58fr);
+  }
   #workspace.has-browser.chat-collapsed { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
   #workspace.has-browser.chat-collapsed #conversation { display: none; }
   #conversation { border-right: 0; border-bottom: 1px solid var(--border); }
   #workspace-resizer, #right-edge-resizer { display: none !important; }
+  #workspace.has-browser #welcome { padding: 8px 12px 4px; }
+  #workspace.has-browser #welcome .welcome-mark,
+  #workspace.has-browser #welcome .welcome-mark svg.bot-char-svg { width: 32px; height: 32px; }
+  #workspace.has-browser #welcome h1 { font-size: 15px; }
+  #workspace.has-browser #welcome p { margin-bottom: 6px; font-size: 12px; }
 }
 @media (max-width: 720px) {
   #app, #app.sidebar-collapsed, #app:not(.sidebar-collapsed) { grid-template-columns: minmax(0, 1fr); }
@@ -2188,14 +2352,14 @@ dialog.modal-dialog::backdrop {
     border-radius: 24px;
   }
   #composer textarea { grid-area: prompt; order: 0; flex: initial; width: 100%; min-width: 0; min-height: 34px; padding: 4px; font-size: 15px; }
-  #composer-model-select { max-width: 190px; font-size: 12px; }
-  .composer-model-wrap { grid-area: model; order: 0; margin: 0; justify-self: start; min-width: 0; }
+  #composer-model-select { font-size: 12px; }
+  .composer-model-wrap { grid-area: model; order: 0; margin: 0; justify-self: start; width: 32px; min-width: 32px; max-width: 32px; height: 32px; }
   .composer-action { width: 32px; height: 32px; font-size: 14px; }
   #attach-button { grid-area: attach; }
   #schedule-button { grid-area: schedule; }
-  .approval-action { grid-area: approval; order: 0; width: 32px; min-width: 32px; max-width: 32px; height: 32px; padding: 0; justify-content: center; gap: 0; }
+  .approval-action { grid-area: approval; order: 0; width: 32px; min-width: 32px; max-width: 32px; height: 32px; padding: 0; justify-content: center; gap: 0; border-radius: 50%; }
   .approval-action .composer-action-label,
-  .approval-action::after { display: none; }
+  .approval-action::after { display: none !important; max-width: 0; width: 0; opacity: 0; }
   #voice-button { grid-area: voice; order: 0; width: 30px; height: 30px; justify-self: end; }
   #send-button { grid-area: send; order: 0; width: 36px; height: 36px; }
   #send-button svg { width: 19px; height: 19px; }
@@ -2226,8 +2390,8 @@ dialog.modal-dialog::backdrop {
   .composer-action { width: 30px; height: 30px; font-size: 13px; }
   .approval-action { width: 30px; min-width: 30px; max-width: 30px; height: 30px; }
   #composer textarea { font-size: 14px; }
-  .composer-model-wrap { gap: 3px; padding: 0; }
-  #composer-model-select { max-width: 170px; font-size: 12px; }
+  .composer-model-wrap { gap: 0; padding: 0; width: 30px; min-width: 30px; max-width: 30px; height: 30px; }
+  #composer-model-select { font-size: 12px; }
   #voice-button { width: 28px; height: 28px; }
   #voice-button svg { width: 19px; height: 19px; }
   #send-button { width: 34px; height: 34px; }
@@ -2348,11 +2512,18 @@ dialog.modal-dialog::backdrop {
                 <span>Run `git`, `node`, `python3` &amp; shell commands locally with zero cloud.</span>
               </div>
             </button>
-            <button type="button" class="template-card" data-name="Instagram Follower Growth" data-desc="Lean Instagram growth: audit profile, research niche targets, propose follows/comments for approval, then execute only what you approve." data-shape="circle" data-color="#ec4899">
+            <button type="button" class="template-card" data-name="Instagram Follower Growth" data-desc="Proactive growth specialist: plan (audit → content → engagement → follows → pacing → schedule), research real targets, then execute only what you approve." data-shape="circle" data-color="#ec4899">
               <div class="template-avatar" data-shape="circle" data-color="#ec4899"></div>
               <div class="template-copy">
                 <strong>Instagram Follower Growth</strong>
-                <span>Audit → research targets → you approve → paced engagement.</span>
+                <span>Plan → audit → research → you approve → paced engagement.</span>
+              </div>
+            </button>
+            <button type="button" class="template-card" data-name="Reddit Community Growth" data-desc="Smart Reddit marketer: niche subs, rules/karma/ban risk, value-first drafts, schedule for approval — never unsupervised spam." data-shape="circle" data-color="#ff4500">
+              <div class="template-avatar" data-shape="circle" data-color="#ff4500"></div>
+              <div class="template-copy">
+                <strong>Reddit Community Growth</strong>
+                <span>Research → karma-build → value-first drafts → you approve.</span>
               </div>
             </button>
             <button type="button" class="template-card" data-name="X / Grok Trend Researcher" data-desc="Monitor real-time conversations, analyze viral posts, and synthesize key takeaways with Grok speed." data-shape="circle" data-color="#000000">
@@ -2388,12 +2559,15 @@ dialog.modal-dialog::backdrop {
               <input id="attachment-input" type="file" multiple hidden accept=".txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.py,.html,.css,.yaml,.yml,.xml,.sql,.sh"/>
               <button type="button" id="attach-button" class="composer-action" aria-label="Attach files" title="Attach text, code, CSV, or JSON files">+</button>
               <button type="button" id="schedule-button" class="composer-action" aria-label="Schedule task" title="Schedule a recurring or future task"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></button>
-              <button type="button" id="auto-approve-toggle" class="composer-action approval-action" aria-label="Toggle auto-approve for sensitive actions"><span id="auto-approve-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 19 6v5c0 4.4-2.7 7.8-7 10-4.3-2.2-7-5.6-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="composer-action-label">Approve for me</span></button>
+              <button type="button" id="auto-approve-toggle" class="composer-action approval-action" aria-label="Approve for me" title="Asking before sensitive actions (terminal commands, file writes, financial/external tasks). Click to auto-approve instead."><span id="auto-approve-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 19 6v5c0 4.4-2.7 7.8-7 10-4.3-2.2-7-5.6-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="composer-action-label" aria-hidden="true">Approve for me</span></button>
               <label for="prompt" class="sr-only">Message or command</label>
               <textarea id="prompt" rows="1" placeholder="Ask anything, run $ command, or paste a URL…"></textarea>
               <label class="sr-only" for="composer-model-select">Choose model</label>
-              <div class="composer-model-wrap"><select id="composer-model-select" aria-label="Choose model">
+              <div class="composer-model-wrap" title="Choose model"><select id="composer-model-select" aria-label="Choose model" title="Choose model">
                 <option value="gpt-6-luna">GPT-6 Luna · Reasoning</option>
+                <option value="claude-cli">Claude CLI (local)</option>
+                <option value="claude-cli:sonnet">Claude CLI · Sonnet</option>
+                <option value="claude-cli:opus">Claude CLI · Opus</option>
                 <option value="claude-sonnet-4-5">Claude Sonnet 4.5</option>
                 <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
                 <option value="claude-opus-4-5">Claude Opus 4.5</option>
@@ -2682,9 +2856,13 @@ dialog.modal-dialog::backdrop {
         <label for="model-select">Active Execution Engine / Model</label>
         <select id="model-select" class="header-select" style="width:100%;height:38px;" aria-label="Select AI model">
           <option value="gpt-6-luna">⚡ GPT-6 Luna (Reasoning · Low effort)</option>
-          <option value="claude-sonnet-4-5">🟠 Claude Sonnet 4.5 (Anthropic · strong agent)</option>
-          <option value="claude-haiku-4-5">🟠 Claude Haiku 4.5 (Anthropic · fast / cheaper)</option>
-          <option value="claude-opus-4-5">🟠 Claude Opus 4.5 (Anthropic · deepest)</option>
+          <option value="claude-cli">🟣 Claude CLI (local `claude` login · no API key)</option>
+          <option value="claude-cli:sonnet">🟣 Claude CLI · Sonnet</option>
+          <option value="claude-cli:opus">🟣 Claude CLI · Opus</option>
+          <option value="claude-cli:haiku">🟣 Claude CLI · Haiku</option>
+          <option value="claude-sonnet-4-5">🟠 Claude Sonnet 4.5 (Anthropic API key)</option>
+          <option value="claude-haiku-4-5">🟠 Claude Haiku 4.5 (Anthropic API key)</option>
+          <option value="claude-opus-4-5">🟠 Claude Opus 4.5 (Anthropic API key)</option>
           <option value="gpt-4o-mini">GPT-4o Mini</option>
           <option value="local-engine">🖥 Local Engine (Zero Cloud · Terminal + Browser + Codex)</option>
           <option value="ollama:llama3.2">🦙 Ollama Llama 3.2 (Local 127.0.0.1:11434 · No Cloud)</option>
@@ -2693,12 +2871,13 @@ dialog.modal-dialog::backdrop {
           <option value="grok-2-vision-1212">Grok 2 Vision (xAI)</option>
         </select>
       </div>
+      <p id="claude-cli-status" style="margin:0 0 10px;font-size:12px;color:var(--muted);"></p>
       <div class="form-field">
-        <label for="settings-openai-key">OpenAI API Key (optional — not needed for Local Engine or Ollama)</label>
+        <label for="settings-openai-key">OpenAI API Key (optional — not needed for Local Engine, Ollama, or Claude CLI)</label>
         <input id="settings-openai-key" type="password" placeholder="sk-..." autocomplete="off" />
       </div>
       <div class="form-field">
-        <label for="settings-anthropic-key">Anthropic API Key (for Claude Sonnet / Haiku / Opus)</label>
+        <label for="settings-anthropic-key">Anthropic API Key (for Claude API models — not needed for Claude CLI if `claude` is logged in)</label>
         <input id="settings-anthropic-key" type="password" placeholder="sk-ant-..." autocomplete="off" />
       </div>
       <div class="form-field">
@@ -2876,6 +3055,7 @@ dialog.modal-dialog::backdrop {
     "YouTube Concept Learner": "play-blob",
     "Local Terminal & DevOps Bot": "gear",
     "Instagram Follower Growth": "heart",
+    "Reddit Community Growth": "cloud",
     "X / Grok Trend Researcher": "starburst",
     "Competitor Intelligence": "pentagon"
   };
@@ -2985,19 +3165,33 @@ dialog.modal-dialog::backdrop {
         ],
         task: "Act as " + name + (roleText ? " (" + roleText + ")" : "") + ". Use the headless understand_youtube_video tool (Codex mode) to fetch transcripts and metadata without opening the browser, and apply the video's concepts."
       };
+    if (/reddit|subreddit|\br\/[a-z0-9_]+|community growth|karma|self-?promo|shadowban/.test(lower))
+      return {
+        kind: "reddit-growth",
+        expertise: roleText || "Proactive Reddit/community growth marketer: research niche subs, respect rules/karma/ban/shadowban risk, value-first content, never blast links — propose schedule + drafts for approval only",
+        url: "https://www.reddit.com/",
+        needsBrowserOnInit: false,
+        summary: roleText || "Plan → research rules/subs → karma-build → value-first drafts → you approve — never unsupervised spam.",
+        suggestions: [
+          "Create a Reddit plan to promote my product",
+          "Find 5 subs and draft value-first posts",
+          "Karma-build schedule for this week"
+        ],
+        task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", a smart Reddit/community growth marketer") + ". Stay lean. On Reddit/promote/community asks: (1) briefly reason about positioning, target subs, and ban/spam/karma risks, (2) propose a compact plan: Positioning | Target subs | Rules/norms | Account trust | Karma-build | Content angles + drafts | Pacing/schedule | Do-NOT, (3) research a few real subs/rules only as needed, (4) return drafts + weekly cadence for approval, (5) never unsupervised post/comment/upvote or blast links. Prefer aged accounts and value-first participation; disclose affiliation when relevant."
+      };
     if (/instagram|follower|social|meia|media|audience|creator|engagement|marketing|brand|influencer/.test(lower))
       return {
         kind: "instagram-growth",
-        expertise: roleText || "Lean Instagram growth: audit signed-in profile, research niche targets, propose paced follows/comments for approval, then execute only approved actions",
+        expertise: roleText || "Proactive Instagram growth specialist: reason about goals/niche, propose a lean plan (audit → content → engagement → follows → pacing → schedule), research concrete targets, then execute only approved actions",
         url: "https://www.instagram.com/",
         needsBrowserOnInit: false,
-        summary: roleText || "Grow followers with research → propose → approve → paced execute — not unsupervised spam.",
+        summary: roleText || "Plan first, then research → propose → approve → paced execute — not generic tips or unsupervised spam.",
         suggestions: [
           "Help me increase my follower base",
-          "Audit my profile and stats",
+          "Build me a growth plan for this week",
           "Find 5 accounts I should engage with"
         ],
-        task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", a lean Instagram growth agent") + ". Be functional and low-token: short replies, act with tools, finish fast. On follower-growth asks: (1) open https://www.instagram.com/ and open Profile if signed in, (2) read username/followers/following/bio/recent posts, (3) infer niche and research a shortlist of real accounts with why + draft comments, (4) stop for approval before any follow/like/comment. If not signed in, say so once and ask them to sign in via Open Live Browser."
+        task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", a proactive Instagram growth marketing specialist") + ". Stay lean (short structured replies). On follower/engagement/marketing asks: (1) briefly reason about goal, niche, and constraints, (2) propose a compact plan covering audit, content ideas, engagement, follow targets, pacing, and optional schedule, (3) open https://www.instagram.com/ Profile if signed in and read stats/bio/posts to ground the plan, (4) research a shortlist of real accounts with why + draft comments, (5) stop for approval before any follow/like/comment. Do not wait to be spoon-fed the niche if the profile can tell you. If not signed in, say so once and ask them to sign in via Open Live Browser."
       };
     if (/developer|coding|\bcode\b|engineer|debug|software|github|typescript|python|terminal|devops|shell/.test(lower))
       return {
@@ -3029,7 +3223,7 @@ dialog.modal-dialog::backdrop {
         suggestions: ["Research top AI startups", "Draft value-based cold outreach", "Build a prospect checklist"],
         task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", a senior sales strategist") + ". Research and qualify opportunities, develop evidence-based messaging, and ask for approval before contacting anyone."
       };
-    if (/research|competitor|market|intelligence/.test(lower))
+    if (/\bresearch\b|competitor|\bmarket\b|intelligence/.test(lower))
       return {
         kind: "research",
         expertise: roleText || "web research, YouTube video analysis, source comparison, fact checking, and concise synthesis",
@@ -3723,7 +3917,7 @@ dialog.modal-dialog::backdrop {
     }
     var peerBots = agents.filter(function(a) { return !currentAgent || a.id !== currentAgent.id; });
     if (peerBots.length === 0) {
-      lines.push("- (No other custom bots created in the sidebar yet. Built-in specialist bots available to spawn or delegate to via `delegate_to_bot`: \"YouTube Concept & Code Learner\", \"Local Terminal & DevOps Bot\", \"Instagram Follower Growth\", \"X / Grok Trend Researcher\", \"Competitor Intelligence\".)");
+      lines.push("- (No other custom bots created in the sidebar yet. Built-in specialist bots available to spawn or delegate to via `delegate_to_bot`: \"YouTube Concept & Code Learner\", \"Local Terminal & DevOps Bot\", \"Instagram Follower Growth\", \"Reddit Community Growth\", \"X / Grok Trend Researcher\", \"Competitor Intelligence\".)");
     } else {
       peerBots.forEach(function(b, idx) {
         var roleDesc = b.description || b.summary || (b.intent && b.intent.summary) || "Specialist Bot";
@@ -4502,9 +4696,11 @@ dialog.modal-dialog::backdrop {
   var autoApproveToggle = document.getElementById("auto-approve-toggle");
   var autoApproveEnabled = localStorage.getItem("agentFireworksAutoApprove") === "1";
   function renderAutoApproveToggle() {
+    var label = autoApproveEnabled ? "Approvals on" : "Approve for me";
     autoApproveToggle.classList.toggle("auto-approve-active", autoApproveEnabled);
     autoApproveToggle.setAttribute("aria-pressed", autoApproveEnabled ? "true" : "false");
-    autoApproveToggle.querySelector(".composer-action-label").textContent = autoApproveEnabled ? "Approvals on" : "Approve for me";
+    autoApproveToggle.querySelector(".composer-action-label").textContent = label;
+    autoApproveToggle.setAttribute("aria-label", label);
     autoApproveToggle.title = autoApproveEnabled
       ? "Auto-approving sensitive actions (terminal commands, file writes, financial/external tasks). Click to ask before them again."
       : "Asking before sensitive actions (terminal commands, file writes, financial/external tasks). Click to auto-approve instead.";
@@ -4561,6 +4757,16 @@ dialog.modal-dialog::backdrop {
     document.getElementById("settings-status").textContent = "";
     document.getElementById("settings-modal").showModal();
     loadUsage();
+    fetch("/api/status")
+      .then(readResponse)
+      .then(function(s) {
+        var el = document.getElementById("claude-cli-status");
+        if (!el) return;
+        el.textContent = s.hasClaudeCli
+          ? "Claude CLI: available — pick “Claude CLI” in the model menu (uses your local `claude` login)."
+          : "Claude CLI: not detected — install Claude Code and ensure `claude` is on PATH (or set CLAUDE_CLI_PATH).";
+      })
+      .catch(function() {});
   };
 
   document.getElementById("settings-form").addEventListener("submit", function(e) {
@@ -4865,8 +5071,8 @@ dialog.modal-dialog::backdrop {
     workspaceResizer.addEventListener("dblclick", function() {
       workspace.classList.remove("chat-collapsed");
       document.getElementById("browser-expand-btn").classList.remove("active");
-      workspace.style.setProperty("--chat-width", "46%");
-      localStorage.setItem("openBotsChatWidth", "46%");
+      workspace.style.setProperty("--chat-width", "38%");
+      localStorage.setItem("openBotsChatWidth", "38%");
     });
   }
 

@@ -7,7 +7,12 @@ npm install
 npm run desktop
 ```
 
-This builds TypeScript, starts the local agent server, and opens Open Bots in an Electron window. Pick **Claude Sonnet / Haiku / Opus** in Settings (or the composer model menu) and set `ANTHROPIC_API_KEY` in `.env` or paste it under **Anthropic API Key** in Settings.
+This builds TypeScript, starts the local agent server, and opens Open Bots in an Electron window.
+
+### Claude models
+
+- **Claude CLI (local)** — pick `Claude CLI` / `Claude CLI · Sonnet|Opus|Haiku` in the model menu. Uses your installed `claude` binary and local login (`claude` on PATH, or set `CLAUDE_CLI_PATH`). No Anthropic API key required when logged in.
+- **Claude API** — pick Claude Sonnet / Haiku / Opus and set `ANTHROPIC_API_KEY` in `.env` or Settings.
 
 ## Run in development and production (browser)
 

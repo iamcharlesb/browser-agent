@@ -15,6 +15,7 @@ import {
   runTerminalCommand
 } from "./agentTools";
 import { artifactContentType } from "./apiContract";
+import { resolveClaudeCliBinary } from "./claudeCli";
 import { AgentEvent, AgentOrchestrator, DEFAULT_MODEL, requiresInitialBrowserState } from "./promptLoop";
 import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
 import { nextDailyOccurrence } from "./scheduler";
@@ -899,6 +900,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
       hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
       hasXaiKey: Boolean(process.env.XAI_API_KEY),
+      hasClaudeCli: Boolean(resolveClaudeCliBinary()),
+      claudeCliPath: process.env.CLAUDE_CLI_PATH || resolveClaudeCliBinary(),
       defaultModel: DEFAULT_MODEL,
       isRunning: Boolean(currentRun?.isRunning),
       runBotName: currentRun?.botName ?? null,
