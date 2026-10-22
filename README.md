@@ -1,6 +1,15 @@
 # Open Bots (Browser Agent)
 
-## Run in development and production
+## Desktop app (Electron)
+
+```sh
+npm install
+npm run desktop
+```
+
+This builds TypeScript, starts the local agent server, and opens Open Bots in an Electron window. Pick **Claude Sonnet / Haiku / Opus** in Settings (or the composer model menu) and set `ANTHROPIC_API_KEY` in `.env` or paste it under **Anthropic API Key** in Settings.
+
+## Run in development and production (browser)
 
 Use two terminal windows from this directory:
 

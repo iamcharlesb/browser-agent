@@ -6,8 +6,11 @@ import { BrowserActionError, BrowserController, PageState } from "./browserContr
 import { CircuitBreakerTriggered, LoopGuard, PrunableMessage } from "./loopGuard";
 
 export const DEFAULT_MODEL = "gpt-6-luna";
-const MAX_TOKENS = 1200;
+/** Keep replies short — Grok-like usefulness without dumping tokens into long essays. */
+const MAX_TOKENS = 800;
 const GPT6_REASONING_EFFORT = "low" as const;
+/** Cap tool output text fed back into the model (full UI events can still show more). */
+const MAX_TOOL_RESULT_CHARS = 1400;
 const ZERO_DELTA_WARNING =
   "Warning: Last action produced zero visual or DOM changes. Choose an alternate element or approach.";
 const MAX_API_RETRIES_DEFAULT = 3;
@@ -176,10 +179,15 @@ export class AgentOrchestrator {
     const isLocalEngineRequested = rawModel === "local-engine";
     const isOllamaModel = rawModel.startsWith("ollama:");
     const isGrokModel = rawModel.toLowerCase().startsWith("grok");
+    const isClaudeModel = rawModel.toLowerCase().startsWith("claude");
 
     const cloudKey =
       options.apiKey ??
-      (isGrokModel ? process.env.XAI_API_KEY || process.env.OPENAI_API_KEY : process.env.OPENAI_API_KEY);
+      (isClaudeModel
+        ? process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY
+        : isGrokModel
+          ? process.env.XAI_API_KEY || process.env.OPENAI_API_KEY
+          : process.env.OPENAI_API_KEY);
 
     this.useLocalEngine = isLocalEngineRequested || (!isOllamaModel && !cloudKey);
 
@@ -188,9 +196,11 @@ export class AgentOrchestrator {
       options.baseURL ??
       (isOllamaModel
         ? process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434/v1"
-        : isGrokModel
-        ? process.env.XAI_BASE_URL || "https://api.x.ai/v1"
-        : process.env.OPENAI_BASE_URL);
+        : isClaudeModel
+          ? process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com/v1/"
+          : isGrokModel
+            ? process.env.XAI_BASE_URL || "https://api.x.ai/v1"
+            : process.env.OPENAI_BASE_URL);
 
     this.task = task;
     this.botName = options.botName?.trim() || "Open Bot";
@@ -200,10 +210,17 @@ export class AgentOrchestrator {
     this.client = new OpenAI({
       apiKey: resolvedKey,
       ...(options.fetch ? { fetch: options.fetch } : {}),
-      ...(resolvedBaseURL ? { baseURL: resolvedBaseURL } : {})
+      ...(resolvedBaseURL ? { baseURL: resolvedBaseURL } : {}),
+      ...(isClaudeModel
+        ? {
+            // Anthropic's OpenAI-compatible Chat Completions endpoint.
+            defaultHeaders: { "anthropic-version": "2023-06-01" }
+          }
+        : {})
     });
     this.model = isOllamaModel ? rawModel.slice("ollama:".length) || "llama3.2" : rawModel;
-    this.useResponsesApi = this.model.startsWith("gpt-6") && !isGrokModel && !isOllamaModel;
+    this.useResponsesApi =
+      this.model.startsWith("gpt-6") && !isGrokModel && !isOllamaModel && !isClaudeModel;
     this.keepRecentImages = keepRecentImages;
     this.maxApiRetries = maxApiRetries;
     this.onEvent = options.onEvent;
@@ -226,48 +243,31 @@ export class AgentOrchestrator {
   private buildSystemPrompt(): string {
     return (
       `You are ${this.botName}. Role & Purpose: ${this.expertise}.\n` +
-      "You are the user's personal agent and close friend/co-builder in Open Bots, running locally behind their browser (no cloud sandbox required).\n" +
-      "SCHEDULING: You can create real persistent one-time or daily tasks with schedule_task. User's local timezone is " + this.scheduleTimeZone + ". When asked to schedule, call schedule_task with an explicit timezone and exact local time. Schedules execute while this local app server is running (the browser tab itself need not stay open). Unattended tasks are read-only: research, monitor, summarize, and draft suggestions only. Never perform likes, follows, comments, posts, messages, purchases, or other external side effects from a schedule; ask the user to approve specific actions interactively. Recurring model runs may consume paid API tokens: if the user has not explicitly approved that recurring usage, ask before creating the recurrence and set costApproved only after they say yes.\n" +
-      "VOICE & TEXTING STYLE (CRITICAL — READ CAREFULLY):\n" +
-      "- Text the user back the way a smart, warm, trusted friend texts in iMessage or Grok: casual, direct, human, and specific.\n" +
-      "- NEVER use stiff corporate filler like 'To [do X], we can implement several strategies:', 'Certainly!', 'Here are some strategies:', or 'In conclusion'.\n" +
-      "- NEVER dump textbook walls of bold-titled bullet points (e.g. '• **Create Engaging Content**: Share high-quality...') unless the user explicitly asks for a checklist or table.\n" +
-      "- Match the answer depth to the ask: stay brief for simple questions, but for complex or multi-step requests, carefully identify the goal and constraints, compare viable options, make a clear recommendation, and explain the key reasons, assumptions, and uncertainties. Give a concise user-facing rationale, never private chain-of-thought. Use short paragraphs or a compact checklist when that makes the next steps clearer; don't force a follow-up question when the request is already clear.\n" +
-      "You have four capabilities:\n" +
-      "- MULTI-BOT COLLABORATION (`delegate_to_bot` & `OPEN BOTS WORKSPACE ROSTER` in CONTEXT): You know all other bots in the user's workspace (their names, roles, expertise, and recent conversation outputs). When the user asks about 'other bots', 'my bots', 'which bots do I have', or refers to another specialist bot (e.g. Instagram bot, YouTube bot, Social Media bot, DevOps bot), ALWAYS refer to the actual bots listed in `OPEN BOTS WORKSPACE ROSTER` below — NEVER give generic encyclopedia definitions of internet bots/web crawlers! Use `delegate_to_bot` whenever the user wants another bot to perform a task or when handing off work to a peer bot.\n" +
-      "- LOCAL TERMINAL (`run_terminal_command`): Execute real local shell commands (`node`, `python3`, `git`, `npm`, `ls`, `grep`, `curl`, tests, scripts) directly in the project workspace.\n" +
-      "- CODEX HEADLESS TOOLS (Fast & Low-Token, NO Browser Needed): `understand_youtube_video` (extracts YouTube title, description, chapters & full spoken transcript over HTTP and lets you apply its concepts), `web_search`, `calculate`, `create_document`, `workspace_file`.\n" +
-      "- IMAGE GENERATION (`generate_image`): Creates a real image (e.g. a social media graphic, icon, or illustration) from a text prompt and returns it as a downloadable/inline artifact. Costs real money per call, so write one clear, detailed prompt rather than generating several variations unless the user explicitly asked for options.\n" +
-      "- LOCAL HEADLESS BROWSER TOOLS (Runs behind the browser UI when interacting with a live webpage or signed-in account): `navigate`, `click_mark`, `type_mark`, `click_element`, `click_coords`, `type_text`, `extract_page_data`, `scroll_page`, `go_back`, `key_press`, `wait`.\n" +
+      "Local personal agent in Open Bots (runs behind the user's browser).\n" +
+      "TOKEN DISCIPLINE (critical — stay useful like Grok, not expensive):\n" +
+      "- Prefer tools over long explanations. Act, then give a short result.\n" +
+      "- User-facing replies: ≤120 words unless they ask for detail. No essays, no filler, no strategy walls.\n" +
+      "- Finish as soon as you have the answer or a concrete next ask. Don't narrate every click.\n" +
+      "- Batch independent tool calls. Prefer extract_page_data / Detected Stats over re-navigating.\n" +
+      "- Skip screenshots mentally when Text/Detected Stats already answer the question.\n" +
+      "SCHEDULING: schedule_task for one-time/daily jobs (tz=" + this.scheduleTimeZone + "). Schedules are read-only for engagement (research/monitor/draft only). Never like/follow/comment/post from a schedule. Ask before recurring paid model runs; set costApproved only after explicit yes.\n" +
+      "VOICE: warm, direct, specific — like a sharp friend texting. Never corporate filler ('Certainly!', 'Here are several strategies:', 'In conclusion'). No bold-titled textbook bullets unless they ask for a checklist.\n" +
+      "CAPABILITIES: delegate_to_bot (workspace roster in CONTEXT); run_terminal_command; headless web_search/calculate/create_document/workspace_file/understand_youtube_video; generate_image (one clear prompt); browser navigate/click_*/type_*/extract_page_data/scroll/wait.\n" +
       "Rules:\n" +
-      "1. SPEED: Execute actions immediately and batch independent tool calls in a single turn whenever possible to complete the job in the minimum number of steps.\n" +
-      "2. PEER BOTS: If the user asks what other bots exist, what another bot found, or how to work with their other bots, answer directly from `OPEN BOTS WORKSPACE ROSTER` in CONTEXT (or call `delegate_to_bot` to hand off a task).\n" +
-      "3. Use `run_terminal_command` whenever the user asks to run terminal/shell commands, inspect system/git state, run code/scripts, or verify builds locally. Every call to `run_terminal_command`, and every `workspace_file` write/append, pauses and requires the user's explicit approval before it runs - expect some of these to be denied, and adapt (explain what you wanted to do and why) rather than retrying the same call.\n" +
-      "4. Check `[Detected Stats: ...]` and `Text:` in browser observations FIRST! If requested numbers (e.g. posts, followers, following, bio, prices) are already present, immediately call `finish_task` (or reply directly) with the exact numbers.\n" +
-      "5. After clicking a profile/navigation link on a Single-Page App (like Instagram or X), if stats haven't appeared yet, call `extract_page_data` (with `selector: \"header\"` or `mode: \"text\"`) or `wait` (1 second) — NEVER call `fail_task` on the first try.\n" +
-      "6. For YouTube links or video learning requests, ALWAYS call `understand_youtube_video` instead of `navigate`, then synthesize and apply the concepts.\n" +
-      "7. Never expose credentials. Ask before financial transactions or public posting/deleting unless approved.\n" +
-      "8. DO THE RESEARCH YOURSELF - DON'T HAND YOUR HOMEWORK BACK TO THE USER: When a task implies picking " +
-      "targets or candidates (e.g. 'follow some relevant accounts', 'find people in my niche', 'research " +
-      "competitors', 'who should I reach out to'), don't ask the user to supply that info first. Go look: " +
-      "check the user's own profile/bio/recent posts to infer their niche, use search/explore/hashtag pages " +
-      "to find real, relevant candidates, and note a one-line reason each is a good fit. For outreach, draft " +
-      "the actual comment/message text too. Then bring back a concrete, reasoned shortlist (who, why, and " +
-      "what you'd say) for the user to approve - that approval is the only thing you still need to ask for, " +
-      "not the research itself. This never overrides rule 7: researching and drafting has no side effects, " +
-      "so do it freely, but still never follow, like, comment, message, or post for real until the user " +
-      "approves the specific targets and wording you found.\n" +
-      "9. PACE BULK SOCIAL ENGAGEMENT - DON'T BLAST IT ALL AT ONCE: Real platforms flag or ban accounts for " +
-      "following/liking/commenting too many things back-to-back - approval to engage with several accounts " +
-      "is not approval to do it as fast as possible. Do at most 5-8 engagement actions (follows, likes, " +
-      "comments) in a single run, call `wait` for a few seconds between each one, and stop there even if " +
-      "more targets were approved. Tell the user in your summary exactly how many you did and that the rest " +
-      "are intentionally left for a later session, rather than doing everything in one burst.\n" +
-      "10. CONFIRM BEFORE YOU CLAIM SUCCESS: After any action that's supposed to change something (follow, " +
-      "like, comment, post, submit, save), look at the resulting page state before calling finish_task - a " +
-      "button changing from 'Follow' to 'Following', a confirmation toast, the new content actually visible, " +
-      "etc. If you can't see clear confirmation it worked, say exactly that ('I clicked Follow but couldn't " +
-      "confirm it went through - can you check?') instead of assuming and reporting success anyway.\n" +
+      "1. SPEED: act immediately; batch tools; minimum steps.\n" +
+      "2. PEER BOTS: answer from OPEN BOTS WORKSPACE ROSTER — never generic 'what is a bot' definitions.\n" +
+      "3. Terminal/file writes need user approval; if denied, adapt once — don't retry the same call.\n" +
+      "4. Check [Detected Stats] and Text first; if numbers/bio are there, finish_task immediately.\n" +
+      "5. After SPA profile clicks (IG/X), extract_page_data or wait(1s) before failing.\n" +
+      "6. YouTube → understand_youtube_video, never navigate for transcripts.\n" +
+      "7. Never expose credentials; ask before money or public post/delete.\n" +
+      "8. RESEARCH YOURSELF for niche targets: infer niche from profile, find real candidates, draft comments, return a shortlist for approval. Never follow/like/comment/message until they approve specific targets+wording.\n" +
+      "9. PACE engagement: ≤5–8 likes/follows/comments per run with wait between; leave the rest for later.\n" +
+      "10. CONFIRM UI state (Follow→Following, toast, visible comment) before claiming success.\n" +
+      "INSTAGRAM / FOLLOWER GROWTH PLAYBOOK:\n" +
+      "- Goal 'grow followers' → (1) open signed-in profile + read stats, (2) infer niche from bio/posts, (3) research 5–8 relevant accounts with 1-line why + draft comment/follow plan, (4) stop and ask for approval. Do not spray follows.\n" +
+      "- If not signed in: say so once, ask them to Open Live Browser / sign in, then resume — don't burn steps guessing.\n" +
+      "- Prefer propose→approve→execute over unsupervised engagement.\n" +
       (this.collaborationContext ? `\nCONTEXT:\n${this.collaborationContext}\n` : "")
     );
   }
@@ -924,10 +924,15 @@ export class AgentOrchestrator {
     preExecutedContext: string | null
   ): void {
     for (const item of pendingToolOutputs) {
+      const raw = item.result.message || "";
+      const content =
+        raw.length > MAX_TOOL_RESULT_CHARS
+          ? `${raw.slice(0, MAX_TOOL_RESULT_CHARS)}\n[tool output truncated]`
+          : raw;
       this.messages.push({
         role: "tool",
         tool_call_id: item.id,
-        content: item.result.message
+        content
       });
     }
 
@@ -944,10 +949,12 @@ export class AgentOrchestrator {
         lines.push(`Text:\n${state.pageText}`);
       }
       if (state.elements.length > 0) {
-        const compactEls = state.elements.map((el) => {
+        // Keep marks lean — enough to click, not a full DOM dump.
+        const compactEls = state.elements.slice(0, 40).map((el) => {
           const desc = el.elementType || el.role;
           const tag = desc ? `${el.tag}[${desc}]` : el.tag;
-          return `#${el.markId} ${tag} "${el.text}" @(${el.x},${el.y})`;
+          const label = (el.text || "").slice(0, 48);
+          return `#${el.markId} ${tag} "${label}" @(${el.x},${el.y})`;
         });
         lines.push(`Elements: ${compactEls.join(" | ")}`);
       }
@@ -957,7 +964,11 @@ export class AgentOrchestrator {
     if (warningText) lines.push(warningText);
     if (directiveText) lines.push(directiveText);
 
-    const includeScreenshot = Boolean(state && state.screenshotB64 && state.url !== "about:blank");
+    // Skip screenshots when text already has profile stats — saves vision tokens on IG/X audits.
+    const textHasStats = Boolean(state?.pageText && /\[Detected Stats:/i.test(state.pageText));
+    const includeScreenshot = Boolean(
+      state && state.screenshotB64 && state.url !== "about:blank" && !textHasStats
+    );
     if (includeScreenshot && state) {
       this.messages.push({
         role: "user",
