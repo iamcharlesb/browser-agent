@@ -145,14 +145,21 @@ function extractPageTextSummary(): string {
 const VERIFICATION_TITLE_KEYWORDS = [
   "are you a human",
   "verify you are human",
+  "prove your humanity",
+  "prove you are human",
+  "human verification",
   "unusual traffic",
+  "unusual activity",
   "security check",
   "just a moment",
   "checking your browser",
   "captcha",
   "robot check",
+  "not a robot",
   "attention required",
   "verify it's you",
+  "select all images",
+  "checkpoint",
   "two-factor",
   "two factor",
   "2fa",
@@ -160,6 +167,21 @@ const VERIFICATION_TITLE_KEYWORDS = [
   "one time code",
   "verification code"
 ];
+
+export function titleRequiresHumanVerification(title: string): boolean {
+  const lower = title.toLowerCase();
+  return VERIFICATION_TITLE_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
+
+function isRecoverableNavigationError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    err instanceof playwrightErrors.TimeoutError ||
+    /has been closed|Target closed|Target page, context or browser has been closed|Execution context was destroyed|frame was detached|Browser has not been started/i.test(
+      msg
+    )
+  );
+}
 
 /**
  * Executed inside the page via page.evaluate — must be a real function, see note above.
@@ -169,9 +191,12 @@ function detectVerificationChallenge(): boolean {
   const captchaSelectors = [
     'iframe[src*="recaptcha"]',
     'iframe[src*="hcaptcha"]',
+    'iframe[src*="challenges.cloudflare"]',
     'iframe[title*="captcha" i]',
+    'iframe[title*="recaptcha" i]',
     'div[class*="cf-turnstile"]',
     "div#challenge-form",
+    'div[class*="g-recaptcha"]',
     'input[autocomplete="one-time-code"]'
   ];
   for (const selector of captchaSelectors) {
@@ -181,13 +206,21 @@ function detectVerificationChallenge(): boolean {
       if (rect.width > 0 && rect.height > 0) return true;
     }
   }
+  const bodyText = (document.body?.innerText || "").slice(0, 800).toLowerCase();
+  if (
+    /select all images with|i'?m not a robot|prove your humanity|prove you(?:'?re| are) human|unusual traffic|verify you are human|complete the security check/.test(
+      bodyText
+    )
+  ) {
+    return true;
+  }
   // Only flag password inputs if the page is predominantly a login/auth screen (not a full content page with a hidden or header login input)
   const pwd = document.querySelector('input[type="password"]');
   if (pwd) {
     const rect = pwd.getBoundingClientRect();
     if (rect.width > 0 && rect.height > 0) {
       const urlPath = window.location.pathname.toLowerCase();
-      const isAuthUrl = /\/(login|signin|sign-in|accounts\/login|auth|session|challenge)/.test(urlPath);
+      const isAuthUrl = /\/(login|signin|sign-in|accounts\/login|auth|session|challenge|checkpoint)/.test(urlPath);
       const mainLinks = document.querySelectorAll("a[href]").length;
       if (isAuthUrl || mainLinks < 25) {
         return true;
@@ -332,7 +365,7 @@ export class BrowserController {
 
   async getTabs(): Promise<BrowserTabInfo[]> {
     if (!this.context) return [];
-    const pages = this.context.pages();
+    const pages = this.context.pages().filter((p) => !p.isClosed());
     const tabs: BrowserTabInfo[] = [];
     for (let i = 0; i < pages.length; i += 1) {
       const p = pages[i];
@@ -348,9 +381,13 @@ export class BrowserController {
   }
 
   async switchTab(index: number): Promise<void> {
-    if (!this.context) return;
-    const pages = this.context.pages();
-    if (index < 0 || index >= pages.length) return;
+    if (!this.context) {
+      throw new BrowserActionError("Browser has not been started. Call start() first.");
+    }
+    const pages = this.context.pages().filter((p) => !p.isClosed());
+    if (index < 0 || index >= pages.length) {
+      throw new BrowserActionError(`Tab index ${index} is out of range (0–${Math.max(0, pages.length - 1)}).`);
+    }
     const target = pages[index];
     if (target === this.page) return;
     this.page = target;
@@ -362,7 +399,9 @@ export class BrowserController {
 
   async newTab(url = "https://www.google.com/"): Promise<void> {
     if (!this.context) await this.start();
-    if (!this.context) return;
+    if (!this.context) {
+      throw new BrowserActionError("Failed to open a new tab: browser context is unavailable.");
+    }
     const newPage = await this.context.newPage();
     newPage.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
     this.page = newPage;
@@ -370,18 +409,30 @@ export class BrowserController {
       await this.startScreencast(this.screencastCallback).catch(() => undefined);
     }
     if (url && url !== "about:blank") {
-      await this.navigate(url);
+      await this.gotoOnPage(newPage, url);
+      await this.waitForIdle(undefined, 140);
     }
   }
 
   async closeTab(index: number): Promise<void> {
-    if (!this.context) return;
-    const pages = this.context.pages();
-    if (pages.length <= 1 || index < 0 || index >= pages.length) return;
+    if (!this.context) {
+      throw new BrowserActionError("Browser has not been started. Call start() first.");
+    }
+    const pages = this.context.pages().filter((p) => !p.isClosed());
+    if (pages.length <= 1) {
+      throw new BrowserActionError("Cannot close the last open tab.");
+    }
+    if (index < 0 || index >= pages.length) {
+      throw new BrowserActionError(`Tab index ${index} is out of range (0–${pages.length - 1}).`);
+    }
     const target = pages[index];
+    const closingActive = target === this.page;
     await target.close().catch(() => undefined);
-    const remaining = this.context.pages();
-    this.page = remaining[remaining.length - 1] ?? null;
+    const remaining = this.context.pages().filter((p) => !p.isClosed());
+    this.page = closingActive ? remaining[remaining.length - 1] ?? null : this.page;
+    if (this.page && this.page.isClosed()) {
+      this.page = remaining[remaining.length - 1] ?? null;
+    }
     if (this.page && this.screencastCallback) {
       await this.startScreencast(this.screencastCallback).catch(() => undefined);
     }
@@ -558,14 +609,59 @@ export class BrowserController {
   }
 
   private requirePage(): Page {
-    if (this.page === null) {
+    if (this.page === null || this.page.isClosed()) {
       throw new BrowserActionError("Browser has not been started. Call start() first.");
     }
     return this.page;
   }
 
+  /** Prefer a live page; adopt another open tab or create one when the active page died. */
+  private async ensureActivePage(): Promise<Page> {
+    if (this.page && !this.page.isClosed()) {
+      return this.page;
+    }
+    if (!this.context) {
+      await this.start();
+      return this.requirePage();
+    }
+    const openPages = this.context.pages().filter((p) => !p.isClosed());
+    if (openPages.length > 0) {
+      this.page = openPages[openPages.length - 1];
+      await this.page.bringToFront().catch(() => undefined);
+      if (this.screencastCallback) {
+        await this.startScreencast(this.screencastCallback).catch(() => undefined);
+      }
+      return this.page;
+    }
+    const fresh = await this.context.newPage();
+    fresh.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
+    this.page = fresh;
+    if (this.screencastCallback) {
+      await this.startScreencast(this.screencastCallback).catch(() => undefined);
+    }
+    return fresh;
+  }
+
+  private resolveNavigateUrl(url: string): string {
+    const target = url.trim();
+    if (!target) {
+      throw new BrowserActionError("navigate requires a non-empty url");
+    }
+    if (target === "about:blank" || target.includes("://")) {
+      return target;
+    }
+    if (target.includes(".") && !target.includes(" ")) {
+      return `https://${target}`;
+    }
+    return `https://www.google.com/search?q=${encodeURIComponent(target)}`;
+  }
+
+  private async gotoOnPage(page: Page, resolvedUrl: string): Promise<void> {
+    await page.goto(resolvedUrl, { waitUntil: "domcontentloaded", timeout: this.config.navigationTimeoutMs });
+  }
+
   async waitForIdle(timeoutMs?: number, minSettleMs = 0): Promise<void> {
-    const page = this.requirePage();
+    const page = await this.ensureActivePage();
     try {
       await page.waitForLoadState("domcontentloaded", { timeout: timeoutMs ?? this.config.idleTimeoutMs });
     } catch {
@@ -576,25 +672,48 @@ export class BrowserController {
     }
   }
 
+  /**
+   * Navigate the active tab. If that tab is closed, stuck, or times out (common on captcha
+   * walls), soft-recover by retrying on the primary open page or opening a dedicated new tab.
+   */
   async navigate(url: string): Promise<void> {
-    const page = this.requirePage();
-    const target = url.trim();
-    if (!target) {
-      throw new BrowserActionError("navigate requires a non-empty url");
-    }
-    let resolved = target;
-    if (target !== "about:blank" && !target.includes("://")) {
-      if (target.includes(".") && !target.includes(" ")) {
-        resolved = `https://${target}`;
-      } else {
-        resolved = `https://www.google.com/search?q=${encodeURIComponent(target)}`;
-      }
-    }
+    const resolved = this.resolveNavigateUrl(url);
     try {
-      await page.goto(resolved, { waitUntil: "domcontentloaded", timeout: this.config.navigationTimeoutMs });
+      const page = await this.ensureActivePage();
+      await this.gotoOnPage(page, resolved);
     } catch (err) {
-      const prefix = err instanceof playwrightErrors.TimeoutError ? "Timed out navigating to" : "Failed to navigate to";
-      throw new BrowserActionError(`${prefix} ${resolved}: ${(err as Error).message}`);
+      if (!isRecoverableNavigationError(err)) {
+        throw new BrowserActionError(`Failed to navigate to ${resolved}: ${(err as Error).message}`);
+      }
+      try {
+        if (!this.context) await this.start();
+        const openPages = (this.context?.pages() ?? []).filter((p) => !p.isClosed());
+        const primary = openPages[0];
+        if (primary && (!this.page || primary !== this.page || this.page.isClosed())) {
+          this.page = primary;
+          await primary.bringToFront().catch(() => undefined);
+          if (this.screencastCallback) {
+            await this.startScreencast(this.screencastCallback).catch(() => undefined);
+          }
+          await this.gotoOnPage(primary, resolved);
+        } else if (this.context) {
+          const dedicated = await this.context.newPage();
+          dedicated.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
+          this.page = dedicated;
+          if (this.screencastCallback) {
+            await this.startScreencast(this.screencastCallback).catch(() => undefined);
+          }
+          await this.gotoOnPage(dedicated, resolved);
+        } else {
+          throw err;
+        }
+      } catch (retryErr) {
+        const prefix =
+          err instanceof playwrightErrors.TimeoutError || retryErr instanceof playwrightErrors.TimeoutError
+            ? "Timed out navigating to"
+            : "Failed to navigate to";
+        throw new BrowserActionError(`${prefix} ${resolved}: ${(retryErr as Error).message}`);
+      }
     }
     await this.waitForIdle(undefined, 140);
   }
@@ -872,8 +991,7 @@ export class BrowserController {
       throw new BrowserActionError(`Failed to capture page state: ${(err as Error).message}`);
     }
 
-    const requiresHumanVerification =
-      VERIFICATION_TITLE_KEYWORDS.some((keyword) => title.toLowerCase().includes(keyword)) || challengeDetected;
+    const requiresHumanVerification = titleRequiresHumanVerification(title) || challengeDetected;
 
     const limited = Array.isArray(rawElements) ? rawElements.slice(0, this.config.maxElements) : [];
     const elements: InteractiveElement[] = limited.map((item, index) => ({

@@ -297,23 +297,73 @@ button { color: inherit; }
   transition: transform 0.2s ease;
 }
 
-/* Only the eyes move while the bot is working, so the mascot keeps its friendly shape. */
-.agent-avatar.is-working svg.bot-char-svg .bot-eyes,
-.agent-row.is-working .agent-avatar svg.bot-char-svg .bot-eyes {
-  animation: botEyeScan 2.25s ease-in-out infinite;
-  transform-origin: center;
+/* Grok-like bot faces: snappy idle breath + blink; working = fast scan + punchy pulse.
+   CSS owns transforms (no SVG attr transform on .bot-eyes) so animation always applies. */
+svg.bot-char-svg .bot-body {
   transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: botBreath 1.75s ease-in-out infinite;
 }
-@keyframes botEyeScan {
-  0%, 14%, 100% { transform: rotate(-20deg) translate(0, 0) scaleY(1); }
-  30% { transform: rotate(-20deg) translate(-7px, -1px) scaleY(1); }
-  54% { transform: rotate(-20deg) translate(7px, -1px) scaleY(1); }
-  59% { transform: rotate(-20deg) translate(7px, 0) scaleY(0.12); }
-  64% { transform: rotate(-20deg) translate(7px, 0) scaleY(1); }
-  83% { transform: rotate(-20deg) translate(-3px, 1px) scaleY(1); }
+svg.bot-char-svg .bot-eyes {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transform: rotate(-20deg);
+  animation: botEyeBlink 2.1s ease-in-out infinite;
+}
+/* Desync surfaces so bots don't blink in lockstep */
+.msg-bot-avatar svg.bot-char-svg .bot-eyes { animation-delay: -0.7s; }
+.agent-row:nth-child(2n) .agent-avatar svg.bot-char-svg .bot-eyes { animation-delay: -1.1s; }
+.agent-row:nth-child(3n) .agent-avatar svg.bot-char-svg .bot-eyes { animation-delay: -0.35s; }
+.template-avatar svg.bot-char-svg .bot-eyes { animation-delay: -0.9s; }
+#welcome-avatar svg.bot-char-svg .bot-eyes { animation-delay: -0.2s; }
+#welcome-avatar svg.bot-char-svg .bot-body { animation-delay: -0.45s; }
+
+.agent-avatar.is-working svg.bot-char-svg .bot-body,
+.agent-row.is-working .agent-avatar svg.bot-char-svg .bot-body,
+.run-presence .agent-avatar svg.bot-char-svg .bot-body {
+  animation: botPulseWork 0.72s ease-in-out infinite;
+}
+.agent-avatar.is-working svg.bot-char-svg .bot-eyes,
+.agent-row.is-working .agent-avatar svg.bot-char-svg .bot-eyes,
+.run-presence .agent-avatar svg.bot-char-svg .bot-eyes {
+  animation: botEyeWork 0.8s ease-in-out infinite;
+  animation-delay: 0s;
+}
+
+@keyframes botBreath {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+@keyframes botPulseWork {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+/* ~2.1s cycle; each blink ~100ms (≈5% of cycle) */
+@keyframes botEyeBlink {
+  0%, 58%, 100% { transform: rotate(-20deg) scaleY(1); }
+  63% { transform: rotate(-20deg) scaleY(0.06); }
+  68% { transform: rotate(-20deg) scaleY(1); }
+  84% { transform: rotate(-20deg) scaleY(1); }
+  89% { transform: rotate(-20deg) scaleY(0.06); }
+  94% { transform: rotate(-20deg) scaleY(1); }
+}
+@keyframes botEyeWork {
+  0%, 100% { transform: rotate(-20deg) translate(0, 0) scaleY(1); }
+  18% { transform: rotate(-20deg) translate(-9px, -2px) scaleY(1); }
+  36% { transform: rotate(-20deg) translate(9px, -1px) scaleY(1); }
+  48% { transform: rotate(-20deg) translate(8px, 0) scaleY(0.08); }
+  55% { transform: rotate(-20deg) translate(6px, 1px) scaleY(1); }
+  72% { transform: rotate(-20deg) translate(-6px, 2px) scaleY(1); }
+  85% { transform: rotate(-20deg) translate(3px, -2px) scaleY(0.1); }
+  92% { transform: rotate(-20deg) translate(0, 0) scaleY(1); }
 }
 
 /* Create Bot Modal (Grok Bots Shape & Color Customizer) */
+/* Static previews in the shape/color picker — keep idle/work animations elsewhere */
+#create-bot-modal .bot-char-svg .bot-body,
+#create-bot-modal .bot-char-svg .bot-eyes {
+  animation: none !important;
+}
 #create-bot-modal .modal-inner {
   padding: 0;
 }
@@ -352,7 +402,6 @@ button { color: inherit; }
   width: 96px;
   height: 96px;
   filter: drop-shadow(0 8px 18px rgba(15, 23, 42, 0.14));
-  animation: grokBotFloat 2.6s ease-in-out infinite;
 }
 .bot-modal-inputs {
   display: flex;
@@ -2397,11 +2446,19 @@ dialog.modal-dialog::backdrop {
   #send-button { width: 34px; height: 34px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  svg.bot-char-svg .bot-body,
+  svg.bot-char-svg .bot-eyes,
+  .agent-avatar.is-working svg.bot-char-svg .bot-body,
   .agent-avatar.is-working svg.bot-char-svg .bot-eyes,
+  .agent-row.is-working .agent-avatar svg.bot-char-svg .bot-body,
   .agent-row.is-working .agent-avatar svg.bot-char-svg .bot-eyes,
+  .run-presence .agent-avatar svg.bot-char-svg .bot-body,
+  .run-presence .agent-avatar svg.bot-char-svg .bot-eyes,
   .status-badge.running .status-dot,
   #voice-button.is-listening,
-  .run-presence { animation: none !important; }
+  .run-presence,
+  .run-presence-label { animation: none !important; }
+  .run-presence-label { color: var(--text-secondary); background: none; }
 }
 </style>
 </head>
@@ -2524,6 +2581,13 @@ dialog.modal-dialog::backdrop {
               <div class="template-copy">
                 <strong>Reddit Community Growth</strong>
                 <span>Research → karma-build → value-first drafts → you approve.</span>
+              </div>
+            </button>
+            <button type="button" class="template-card" data-name="SEO Specialist" data-desc="Intensive research-oriented growth agent: keywords, GA4/GTM, funnels, on-page/technical SEO, content clusters, and AI visibility (GEO/AEO) — plan first, measure, ask before changes." data-shape="circle" data-color="#0ea5e9">
+              <div class="template-avatar" data-shape="circle" data-color="#0ea5e9"></div>
+              <div class="template-copy">
+                <strong>SEO Specialist</strong>
+                <span>Keywords → GA4/GTM → funnels → AI visibility — plan first.</span>
               </div>
             </button>
             <button type="button" class="template-card" data-name="X / Grok Trend Researcher" data-desc="Monitor real-time conversations, analyze viral posts, and synthesize key takeaways with Grok speed." data-shape="circle" data-color="#000000">
@@ -2896,6 +2960,16 @@ dialog.modal-dialog::backdrop {
     </form>
     <div class="form-field" style="margin-top:4px;border-top:1px solid var(--border);padding-top:14px;">
       <label style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Bot memory (local learnings)</span>
+        <button type="button" id="memory-refresh-btn" class="btn-secondary" style="padding:4px 10px;font-size:11px;">Refresh</button>
+      </label>
+      <div id="memory-summary" style="font-size:12.5px;color:var(--muted);margin:8px 0;white-space:pre-wrap;max-height:140px;overflow:auto;">Open settings to load the active bot’s distilled KB.</div>
+      <p style="margin:0 0 8px;font-size:11px;color:var(--muted);">
+        Stored only on this machine under <code>.browser-agent-learnings/</code>. Injected into CONTEXT on each run (≤~1k chars). Secrets are redacted.
+      </p>
+    </div>
+    <div class="form-field" style="margin-top:4px;border-top:1px solid var(--border);padding-top:14px;">
+      <label style="display:flex;align-items:center;justify-content:space-between;">
         <span>Usage &amp; Estimated Cost</span>
         <button type="button" id="usage-refresh-btn" class="btn-secondary" style="padding:4px 10px;font-size:11px;">Refresh</button>
       </label>
@@ -2939,6 +3013,8 @@ dialog.modal-dialog::backdrop {
   var searchQuery = "";
   var liveStepFeedBubble = null;
   var queuedRunAfterActive = null;
+  var startRunLock = false;
+  var lastSubmitAt = 0;
   var runEventCursorKey = "openBotsRunEventCursor";
   var currentSessionMode = localStorage.getItem("openBotsSessionMode") === "guest" ? "guest" : "persistent";
   var gmailAccount = localStorage.getItem("openBotsGmailAccount") || "";
@@ -3041,7 +3117,7 @@ dialog.modal-dialog::backdrop {
 
   var BOT_COLORS = [
     "#000000", "#8b5a2b", "#ff2d3b", "#ff6b00", "#f59e0b",
-    "#10b981", "#14b8a6", "#1677ff", "#8b5cf6", "#ec4899", "#8e8e93"
+    "#10b981", "#14b8a6", "#0ea5e9", "#1677ff", "#8b5cf6", "#ec4899", "#8e8e93"
   ];
 
   var selectedBotShape = "circle";
@@ -3056,6 +3132,7 @@ dialog.modal-dialog::backdrop {
     "Local Terminal & DevOps Bot": "gear",
     "Instagram Follower Growth": "heart",
     "Reddit Community Growth": "cloud",
+    "SEO Specialist": "hexagon",
     "X / Grok Trend Researcher": "starburst",
     "Competitor Intelligence": "pentagon"
   };
@@ -3076,8 +3153,8 @@ dialog.modal-dialog::backdrop {
     var ey = shape.eyeY || 48;
     return (
       '<svg class="bot-char-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
-        '<g fill="' + esc(fill) + '">' + shape.path + '</g>' +
-        '<g class="bot-eyes" fill="#ffffff" transform="rotate(-20 ' + ex + ' ' + ey + ')">' +
+        '<g class="bot-body" fill="' + esc(fill) + '">' + shape.path + '</g>' +
+        '<g class="bot-eyes" fill="#ffffff">' +
           '<rect x="' + (ex - 10.5) + '" y="' + (ey - 9.5) + '" width="6.5" height="18" rx="3.25"/>' +
           '<rect x="' + (ex + 4) + '" y="' + (ey - 9.5) + '" width="6.5" height="18" rx="3.25"/>' +
         '</g>' +
@@ -3178,6 +3255,20 @@ dialog.modal-dialog::backdrop {
           "Karma-build schedule for this week"
         ],
         task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", a smart Reddit/community growth marketer") + ". Stay lean. On Reddit/promote/community asks: (1) briefly reason about positioning, target subs, and ban/spam/karma risks, (2) propose a compact plan: Positioning | Target subs | Rules/norms | Account trust | Karma-build | Content angles + drafts | Pacing/schedule | Do-NOT, (3) research a few real subs/rules only as needed, (4) return drafts + weekly cadence for approval, (5) never unsupervised post/comment/upvote or blast links. Prefer aged accounts and value-first participation; disclose affiliation when relevant."
+      };
+    if (/\bseo\b|analytics|tag manager|\bgtm\b|\bga4\b|keywords?|\bserp\b|organic|search console|\bgeo\b|\baeo\b|ai visibility|funnel/.test(lower))
+      return {
+        kind: "seo-specialist",
+        expertise: roleText || "Intensive research-oriented SEO/growth strategist: keyword research & clustering, GA4/GTM inspection, funnel analysis, on-page/technical SEO, content calendars/topic clusters, and AI visibility (GEO/AEO) — plan first, measure, never invent private analytics, ask approval before changes",
+        url: "https://analytics.google.com/",
+        needsBrowserOnInit: false,
+        summary: roleText || "Keywords → GA4/GTM → funnels → on-page/tech → content clusters → AI visibility — plan first, you approve changes.",
+        suggestions: [
+          "Audit my SEO and keyword gaps",
+          "Review GA4 funnels for magicsite.ai",
+          "Plan AI-search visibility strategy"
+        ],
+        task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", an intensive research-oriented SEO and AI-visibility strategist") + ". Stay lean. On SEO/analytics/visibility asks: (1) briefly reason about goal, site/brand, and constraints, (2) propose a compact labeled plan: Keywords/clusters | GA4 metrics | GTM events | Funnel stages | On-page/tech checks | Content calendar | AI visibility (GEO/AEO) | Measurement | Approvals needed, (3) research and open analytics.google.com / tagmanager.google.com / Search Console / the site via browser when signed in — never invent private GA/GTM data, (4) return findings + next actions and ask what to approve before any tag/config/content publishes. Be honest about AI-answer visibility limits; no fake 'rank #1 in ChatGPT' claims."
       };
     if (/instagram|follower|social|meia|media|audience|creator|engagement|marketing|brand|influencer/.test(lower))
       return {
@@ -3288,6 +3379,7 @@ dialog.modal-dialog::backdrop {
       btn.className = "quick-start";
       btn.textContent = label;
       btn.onclick = function() {
+        if (isRunning || startRunLock) return;
         prompt.value = label;
         submitPrompt();
       };
@@ -3482,7 +3574,8 @@ dialog.modal-dialog::backdrop {
       var a = activeAgent();
       var targetUrl = browserAddress.value.trim() || (a && a.intent && a.intent.url) || "about:blank";
       if (!browserScreen.src) {
-        openInteractiveBrowser(targetUrl, false);
+        if (isRunning) connectBrowserFrames(true);
+        else openInteractiveBrowser(targetUrl, false);
       }
     }
   }
@@ -3769,21 +3862,42 @@ dialog.modal-dialog::backdrop {
     });
   }
 
+  function isRunBusyError(err) {
+    if (!err) return false;
+    if (err.status === 409) return true;
+    if (err.body && err.body.code === "run_in_progress") return true;
+    return /in progress/i.test(String(err.message || ""));
+  }
+
   function openInteractiveBrowser(url, showSetupBanner, modeOverride) {
     showBrowser();
-    setupSessionOpen = Boolean(showSetupBanner);
-    if (showSetupBanner) {
-      browserFooter.classList.add("visible");
+    // While a bot run owns Chromium, still call /api/login — the server reuses the same
+    // session and can navigate (or soft-recover onto a new tab) instead of failing silently.
+    if (isRunning) {
+      setupSessionOpen = false;
+      browserFooter.classList.remove("visible");
+      status.textContent = "Attaching to your bot’s live browser…";
+    } else {
+      setupSessionOpen = Boolean(showSetupBanner);
+      if (showSetupBanner) {
+        browserFooter.classList.add("visible");
+      }
     }
-    browserAddress.value = url === "about:blank" ? "" : url;
+    if (!isRunning) {
+      browserAddress.value = url === "about:blank" ? "" : url;
+    }
     if (!url || url === "about:blank") {
-      browserScreen.removeAttribute("src");
-      browserPlaceholder.style.display = "flex";
+      if (!isRunning) {
+        browserScreen.removeAttribute("src");
+        browserPlaceholder.style.display = "flex";
+      }
     }
     var requestedMode = modeOverride || currentSessionMode;
-    status.textContent = requestedMode === "guest"
-      ? "Launching isolated Guest Chromium session…"
-      : "Launching persistent Chromium session…";
+    if (!isRunning) {
+      status.textContent = requestedMode === "guest"
+        ? "Launching isolated Guest Chromium session…"
+        : "Launching persistent Chromium session…";
+    }
     var a = activeAgent();
     fetch("/api/login", {
       method: "POST",
@@ -3811,14 +3925,27 @@ dialog.modal-dialog::backdrop {
         }
         if (body.tabs) renderBrowserTabs(body.tabs);
         connectBrowserFrames(true);
-        status.textContent = showSetupBanner
-          ? (currentSessionMode === "guest"
-              ? "Guest browser ready (ephemeral — nothing saved after closing)."
-              : "Persistent browser ready — sign in once and your session stays saved.")
-          : "Live browser connected.";
+        if (body.navigationError) {
+          status.textContent = "Navigation issue: " + body.navigationError + " — try Go again or + New Tab.";
+        } else if (isRunning) {
+          status.textContent = "Showing your bot’s live browser.";
+        } else {
+          status.textContent = showSetupBanner
+            ? (currentSessionMode === "guest"
+                ? "Guest browser ready (ephemeral — nothing saved after closing)."
+                : "Persistent browser ready — sign in once and your session stays saved.")
+            : "Live browser connected.";
+        }
       })
       .catch(function(err) {
         setupSessionOpen = false;
+        if (isRunBusyError(err)) {
+          // Race: a task run started while /api/login was in flight. Soft-attach, no red error.
+          connectBrowserFrames(true);
+          syncBrowserFromStatus();
+          status.textContent = "Bot is browsing — live view will appear when ready.";
+          return;
+        }
         status.textContent = "";
         appendMessage("agent", esc(err.message), "error");
       });
@@ -3917,7 +4044,7 @@ dialog.modal-dialog::backdrop {
     }
     var peerBots = agents.filter(function(a) { return !currentAgent || a.id !== currentAgent.id; });
     if (peerBots.length === 0) {
-      lines.push("- (No other custom bots created in the sidebar yet. Built-in specialist bots available to spawn or delegate to via `delegate_to_bot`: \"YouTube Concept & Code Learner\", \"Local Terminal & DevOps Bot\", \"Instagram Follower Growth\", \"Reddit Community Growth\", \"X / Grok Trend Researcher\", \"Competitor Intelligence\".)");
+      lines.push("- (No other custom bots created in the sidebar yet. Built-in specialist bots available to spawn or delegate to via `delegate_to_bot`: \"YouTube Concept & Code Learner\", \"Local Terminal & DevOps Bot\", \"Instagram Follower Growth\", \"Reddit Community Growth\", \"SEO Specialist\", \"X / Grok Trend Researcher\", \"Competitor Intelligence\".)");
     } else {
       peerBots.forEach(function(b, idx) {
         var roleDesc = b.description || b.summary || (b.intent && b.intent.summary) || "Specialist Bot";
@@ -3947,10 +4074,47 @@ dialog.modal-dialog::backdrop {
     return "RECENT CONVERSATION HISTORY:\n" + recent.join("\n");
   }
 
+  function queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, softNotice) {
+    queuedRunAfterActive = {
+      task: task,
+      approvedCategories: approvedCategories || [],
+      collaborationContext: collaborationContext,
+      approvalBubble: approvalBubble,
+      runAgentOverride: runAgentOverride
+    };
+    isRunning = true;
+    startRunLock = false;
+    sendButton.disabled = true;
+    setStatusState("running", "Another Run Active");
+    setRunPresence("Working through the current task");
+    status.textContent = "Your task is queued and will start when the current run finishes.";
+    if (approvalBubble) {
+      var queuedButton = approvalBubble.querySelector(".approve-task-btn");
+      if (queuedButton) queuedButton.textContent = "Queued — starting next";
+    } else if (softNotice !== false) {
+      status.textContent = "Queued — will start when the current run finishes.";
+    }
+    connectRunEvents();
+  }
+
+  function clearRunClientState() {
+    isRunning = false;
+    startRunLock = false;
+    setRunPresence(null);
+    runningAgentId = null;
+    runningAgentName = "";
+    sendButton.disabled = false;
+  }
+
   function startRun(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride) {
+    if (startRunLock) {
+      queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, false);
+      return;
+    }
     var agent = runAgentOverride || activeAgent();
     setupSessionOpen = false;
     browserFooter.classList.remove("visible");
+    startRunLock = true;
     isRunning = true;
     runningAgentId = agent && agent.id || null;
     runningAgentName = agent && agent.name || "Bot";
@@ -3987,6 +4151,7 @@ dialog.modal-dialog::backdrop {
     })
       .then(readResponse)
       .then(function() {
+        startRunLock = false;
         localStorage.removeItem(runEventCursorKey);
         if (approvalBubble) {
           var approvedButton = approvalBubble.querySelector(".approve-task-btn");
@@ -3995,9 +4160,10 @@ dialog.modal-dialog::backdrop {
         connectRunEvents();
       })
       .catch(function(err) {
+        startRunLock = false;
         isRunning = false;
         sendButton.disabled = false;
-        if (err.status === 409) {
+        if (isRunBusyError(err)) {
           setRunPresence(null);
           fetch("/api/status")
             .then(readResponse)
@@ -4012,29 +4178,11 @@ dialog.modal-dialog::backdrop {
               var activeBot = agents.find(function(item) { return item.name === serverState.runBotName; });
               runningAgentId = activeBot ? activeBot.id : null;
               runningAgentName = serverState.runBotName || "Another bot";
-              queuedRunAfterActive = {
-                task: task,
-                approvedCategories: approvedCategories || [],
-                collaborationContext: collaborationContext,
-                approvalBubble: approvalBubble,
-                runAgentOverride: runAgentOverride
-              };
-              isRunning = true;
-              sendButton.disabled = true;
-              setStatusState("running", "Another Run Active");
-              setRunPresence("Working through the current task");
-              status.textContent = "Your task is queued and will start when the current run finishes.";
-              if (approvalBubble) {
-                var queuedButton = approvalBubble.querySelector(".approve-task-btn");
-                if (queuedButton) queuedButton.textContent = "Queued — starting next";
-              } else {
-                appendMessage("agent", "Another bot task is already running. I’ve queued this request and will continue automatically when it finishes.", "success");
-              }
-              connectRunEvents();
+              queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, true);
             })
             .catch(function() {
               setStatusState("ready", "Ready");
-              appendMessage("agent", "The server is busy with another task. Please wait for it to finish, then try again.", "error");
+              status.textContent = "Server is busy — try again in a moment.";
             });
           return;
         }
@@ -4067,9 +4215,7 @@ dialog.modal-dialog::backdrop {
           };
           return;
         }
-        runningAgentId = null;
-        runningAgentName = "";
-        setRunPresence(null);
+        clearRunClientState();
         setStatusState("ready", "Ready");
         status.textContent = "";
         stepCounter.textContent = "";
@@ -4081,18 +4227,18 @@ dialog.modal-dialog::backdrop {
   }
 
   function stopRun() {
+    queuedRunAfterActive = null;
     fetch("/api/stop", { method: "POST" })
       .then(readResponse)
       .then(function() {
-        isRunning = false;
-        setRunPresence(null);
-        runningAgentId = null;
-        runningAgentName = "";
-        sendButton.disabled = false;
+        clearRunClientState();
         setStatusState("ready", "Ready");
         status.textContent = "Run stopped.";
       })
-      .catch(function() {});
+      .catch(function() {
+        clearRunClientState();
+        setStatusState("ready", "Ready");
+      });
   }
 
   function connectRunEvents() {
@@ -4105,10 +4251,20 @@ dialog.modal-dialog::backdrop {
       try { handleRunEvent(JSON.parse(m.data)); } catch (_) {}
     };
     runEvents.onerror = function() {
-      if (runEvents === source && isRunning) {
-        status.textContent = "Reconnecting to your bot…";
-        // EventSource retries automatically; the server replays this run's recent events.
-      }
+      if (runEvents !== source || !isRunning) return;
+      status.textContent = "Reconnecting to your bot…";
+      // Confirm with the server so a dropped SSE after a finished run cannot leave a phantom isRunning.
+      fetch("/api/status")
+        .then(readResponse)
+        .then(function(serverState) {
+          if (runEvents !== source) return;
+          if (!serverState.isRunning && isRunning && !queuedRunAfterActive) {
+            clearRunClientState();
+            setStatusState("ready", "Ready");
+            status.textContent = "";
+          }
+        })
+        .catch(function() {});
     };
   }
 
@@ -4218,29 +4374,37 @@ dialog.modal-dialog::backdrop {
     }
     if (e.type === "human_verification") {
       setRunPresence(null);
-      status.textContent = "Action required: sign in or verify in the live browser.";
-      setStatusState("running", "Waiting for Sign-In");
+      status.textContent = "Action required: solve CAPTCHA / sign-in in the live browser.";
+      setStatusState("running", "Waiting for Verification");
+      setBrowserVerificationFooter(true, e.url);
       var bubble = appendMessage(
         "agent",
-        "<strong>Sign-in or verification needed.</strong> Click <em>Open Live Browser</em> below (or the browser icon in the header) to sign in, then click resume." +
+        "<strong>Human verification needed.</strong> " +
+        "Open Live Browser and solve the CAPTCHA or sign-in yourself (the agent will not click puzzle images). " +
+        "Address bar always shows the <em>real</em> page URL — if you need Instagram while stuck on another site, press <em>Go</em> or <em>+ New Tab</em>, then resume." +
         screenshotHtml(e.screenshotB64) +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">' +
           '<button type="button" class="btn-secondary open-verify-browser-btn" style="padding:6px 12px;font-size:12px;">Open Live Browser</button>' +
-          '<button type="button" class="resume-button" style="margin-top:0;">I’ve signed in — resume agent</button>' +
+          '<button type="button" class="resume-button" style="margin-top:0;">I’ve handled it — resume agent</button>' +
         "</div>"
       );
       var openBtn = bubble.querySelector(".open-verify-browser-btn");
       if (openBtn) {
-        openBtn.onclick = function() { showBrowser(); };
+        openBtn.onclick = function() {
+          showBrowser();
+          openInteractiveBrowser(e.url || "about:blank", false);
+        };
       }
       bubble.querySelector(".resume-button").onclick = function(ev) {
         ev.target.disabled = true;
         ev.target.textContent = "Resuming…";
+        setBrowserVerificationFooter(false);
         fetch("/api/resume", { method: "POST" });
       };
       return;
     }
     if (e.type === "human_verification_resolved") {
+      setBrowserVerificationFooter(false);
       status.textContent = "Verification resolved. Agent is continuing…";
       setStatusState("running", "Agent Running");
       setRunPresence("Back at it");
@@ -4296,11 +4460,7 @@ dialog.modal-dialog::backdrop {
         delegatedPrefix + prefix + formatMarkdown(e.summary || ""),
         e.success ? "" : "error"
       );
-      isRunning = false;
-      setRunPresence(null);
-      runningAgentId = null;
-      runningAgentName = "";
-      sendButton.disabled = false;
+      clearRunClientState();
       setStatusState("ready", "Ready");
       status.textContent = e.success ? (isDirectReply ? "Answered directly" : "Done") : "Ready for your next instruction";
       stepCounter.textContent = "";
@@ -4367,6 +4527,38 @@ dialog.modal-dialog::backdrop {
     };
   }
 
+  function syncBrowserFromStatus() {
+    fetch("/api/status")
+      .then(readResponse)
+      .then(function(body) {
+        if (body && body.currentUrl && document.activeElement !== browserAddress) {
+          browserAddress.value = body.currentUrl === "about:blank" ? "" : body.currentUrl;
+        }
+        if (body && body.tabs) renderBrowserTabs(body.tabs);
+        if (body && body.waitingForVerification) {
+          status.textContent = "Action required: solve the CAPTCHA / sign-in in this live browser, then resume.";
+          setBrowserVerificationFooter(true, body.currentUrl);
+        }
+      })
+      .catch(function() {});
+  }
+
+  function setBrowserVerificationFooter(visible, pageUrl) {
+    var footerText = document.getElementById("browser-footer-text");
+    var signedInBtn = document.getElementById("signed-in-button");
+    if (!browserFooter || !footerText) return;
+    if (!visible) {
+      if (!setupSessionOpen) browserFooter.classList.remove("visible");
+      if (signedInBtn) signedInBtn.hidden = false;
+      return;
+    }
+    browserFooter.classList.add("visible");
+    footerText.textContent =
+      "Human verification on " + (pageUrl || "this page") +
+      ". Solve the CAPTCHA here yourself, then click resume in chat. Use Go or + New Tab if you need another site.";
+    if (signedInBtn) signedInBtn.hidden = true;
+  }
+
   function remoteInput(payload) {
     fetch("/api/login/input", {
       method: "POST",
@@ -4383,7 +4575,15 @@ dialog.modal-dialog::backdrop {
         }
         if (!browserFrames) connectBrowserFrames(true);
       })
-      .catch(function() {});
+      .catch(function(err) {
+        var detail = (err && err.message) || "Browser action failed.";
+        status.textContent = detail;
+        // Soft UX: if Go/navigate failed (stuck captcha tab / closed page), open a dedicated tab.
+        if (payload && payload.type === "navigate" && payload.url && !payload._retriedAsNewTab) {
+          status.textContent = detail + " Opening a new tab…";
+          remoteInput({ type: "new_tab", url: payload.url, _retriedAsNewTab: true });
+        }
+      });
   }
 
   function screenCoords(e) {
@@ -4469,12 +4669,16 @@ dialog.modal-dialog::backdrop {
     var url = browserAddress.value.trim();
     if (!url) return;
     showBrowser();
+    status.textContent = "Navigating to " + url + "…";
     remoteInput({ type: "navigate", url: url });
   }
 
   function submitPrompt() {
     var value = prompt.value.trim();
-    if (!value || isRunning) return;
+    if (!value || isRunning || startRunLock) return;
+    var now = Date.now();
+    if (now - lastSubmitAt < 400) return;
+    lastSubmitAt = now;
     prompt.value = "";
     prompt.style.height = "auto";
     quickStarts.hidden = true;
@@ -4751,12 +4955,40 @@ dialog.modal-dialog::backdrop {
         summaryEl.textContent = "Couldn't load usage data.";
       });
   }
+  function loadBotMemory() {
+    var summaryEl = document.getElementById("memory-summary");
+    if (!summaryEl) return;
+    var agent = typeof activeAgent === "function" ? activeAgent() : null;
+    var botName = (agent && agent.name) || "default";
+    fetch("/api/learnings?bot=" + encodeURIComponent(botName))
+      .then(readResponse)
+      .then(function(data) {
+        var counts = data.counts || {};
+        var header =
+          "Bot: " + botName +
+          (data.niche ? " · niche: " + data.niche : "") +
+          " · " +
+          (counts.intents || 0) + " intents, " +
+          (counts.mistakes || 0) + " mistakes, " +
+          (counts.learnings || 0) + " learnings";
+        var distilled = (data.distilled || "").trim();
+        summaryEl.textContent = distilled
+          ? header + "\n\n" + distilled
+          : header + "\n\nNo learnings yet — they appear after runs and corrections.";
+      })
+      .catch(function() {
+        summaryEl.textContent = "Couldn't load bot memory.";
+      });
+  }
   document.getElementById("usage-refresh-btn").onclick = loadUsage;
+  var memoryRefreshBtn = document.getElementById("memory-refresh-btn");
+  if (memoryRefreshBtn) memoryRefreshBtn.onclick = loadBotMemory;
 
   document.getElementById("header-settings-btn").onclick = function() {
     document.getElementById("settings-status").textContent = "";
     document.getElementById("settings-modal").showModal();
     loadUsage();
+    loadBotMemory();
     fetch("/api/status")
       .then(readResponse)
       .then(function(s) {
@@ -4877,7 +5109,8 @@ dialog.modal-dialog::backdrop {
       var a = activeAgent();
       var targetUrl = browserAddress.value.trim() || (a && a.intent && a.intent.url) || "about:blank";
       if (!browserScreen.src) {
-        openInteractiveBrowser(targetUrl, false);
+        if (isRunning) connectBrowserFrames(true);
+        else openInteractiveBrowser(targetUrl, false);
       }
     };
   }

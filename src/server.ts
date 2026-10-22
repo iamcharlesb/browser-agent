@@ -14,8 +14,18 @@ import {
   getTerminalHistory,
   runTerminalCommand
 } from "./agentTools";
-import { artifactContentType } from "./apiContract";
+import { artifactContentType, isRunInProgressMessage, resolveLoginDuringRun } from "./apiContract";
 import { resolveClaudeCliBinary } from "./claudeCli";
+import {
+  applyApprovalDenial,
+  applyLearningKbTool,
+  applyRunOutcome,
+  botIdFromName,
+  distillLearningKb,
+  loadLearningKb,
+  saveLearningKb,
+  type LearningKind
+} from "./learningStore";
 import { AgentEvent, AgentOrchestrator, DEFAULT_MODEL, requiresInitialBrowserState } from "./promptLoop";
 import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
 import { nextDailyOccurrence } from "./scheduler";
@@ -24,6 +34,8 @@ const STATIC_DIR = join(__dirname, "..", "static");
 const ENV_FILE = join(__dirname, "..", ".env");
 const SCHEDULE_FILE = join(__dirname, "..", ".browser-agent-schedules.json");
 const USAGE_FILE = join(__dirname, "..", ".browser-agent-usage.json");
+/** Per-bot durable learning KB (intents / mistakes / learnings). Local JSON only. */
+const LEARNINGS_DIR = join(__dirname, "..", ".browser-agent-learnings");
 
 // Keep local setup dependency-free. Values already provided by the shell always win.
 if (existsSync(ENV_FILE)) {
@@ -523,11 +535,23 @@ function startRun(body: RunRequestBody): void {
         }
       }
 
+      const learningBotId = botIdFromName(body.botName || botKey);
+      let learningContext = "";
+      try {
+        const kb = await loadLearningKb(LEARNINGS_DIR, learningBotId);
+        learningContext = distillLearningKb(kb);
+      } catch (err) {
+        console.warn(`Learning KB load failed for ${learningBotId}:`, (err as Error).message);
+      }
+      const collaborationContext = [body.collaborationContext?.trim() || "", learningContext]
+        .filter(Boolean)
+        .join("\n\n");
+
       const orchestrator = new AgentOrchestrator({
         task: body.task,
         botName: body.botName,
         expertise: body.expertise,
-        collaborationContext: body.collaborationContext,
+        collaborationContext: collaborationContext || undefined,
         browser: controller,
         model: body.model,
         maxSteps: body.maxSteps,
@@ -558,6 +582,36 @@ function startRun(body: RunRequestBody): void {
           const safeEvent = { ...event };
           if (typeof safeEvent.summary === "string") safeEvent.summary = redactSecrets(safeEvent.summary);
           publishRunEvent(run, safeEvent);
+
+          if (event.type === "privileged_approval_resolved" && event.approved === false) {
+            const description = typeof event.description === "string" ? event.description : "privileged action";
+            void (async () => {
+              try {
+                const kb = await loadLearningKb(LEARNINGS_DIR, learningBotId);
+                await saveLearningKb(LEARNINGS_DIR, applyApprovalDenial(kb, description));
+              } catch (err) {
+                console.warn(`Learning KB approval denial save failed:`, (err as Error).message);
+              }
+            })();
+          }
+
+          if (event.type === "terminal") {
+            void (async () => {
+              try {
+                const kb = await loadLearningKb(LEARNINGS_DIR, learningBotId);
+                const next = applyRunOutcome(kb, {
+                  task: body.task,
+                  success: Boolean(event.success),
+                  summary: String(event.summary ?? ""),
+                  terminationReason: typeof event.terminationReason === "string" ? event.terminationReason : undefined
+                });
+                await saveLearningKb(LEARNINGS_DIR, next);
+              } catch (err) {
+                console.warn(`Learning KB run-outcome save failed:`, (err as Error).message);
+              }
+            })();
+          }
+
           if (body.scheduleId && event.type === "terminal") {
             const schedule = schedules.find((item) => item.id === body.scheduleId);
             if (schedule) {
@@ -600,6 +654,21 @@ function startRun(body: RunRequestBody): void {
               ok: true,
               message: `${scheduled.botName} scheduled for ${new Date(scheduled.nextRunAt).toLocaleString("en-US", { timeZone: scheduled.timeZone })}${scheduled.recurrenceType === "daily" ? ` daily (${scheduled.timeZone})` : ""}.`
             };
+          } catch (error) {
+            return { ok: false, message: (error as Error).message };
+          }
+        },
+        onLearningKb: async (input) => {
+          try {
+            const kb = await loadLearningKb(LEARNINGS_DIR, learningBotId);
+            const action = String(input.action ?? "read") as "read" | "list" | "save";
+            const kind = typeof input.kind === "string" ? (input.kind as LearningKind) : undefined;
+            const text = typeof input.text === "string" ? input.text : undefined;
+            const result = applyLearningKbTool(kb, { action, kind, text });
+            if (action === "save") {
+              await saveLearningKb(LEARNINGS_DIR, result.state);
+            }
+            return { ok: true, message: result.message };
           } catch (error) {
             return { ok: false, message: (error as Error).message };
           }
@@ -658,12 +727,56 @@ async function openLoginSession(
   url: string,
   botName?: string,
   requestedMode?: "persistent" | "guest"
-): Promise<{ viewportWidth: number; viewportHeight: number; url: string; sessionMode: "persistent" | "guest" }> {
-  if (currentRun && currentRun.isRunning) {
-    throw new Error("A task run is in progress. Wait for it to finish or stop it first.");
-  }
+): Promise<{
+  viewportWidth: number;
+  viewportHeight: number;
+  url: string;
+  sessionMode: "persistent" | "guest";
+  tabs: Awaited<ReturnType<BrowserController["getTabs"]>>;
+  navigationError: string | null;
+}> {
   const targetMode = requestedMode ?? activeSessionMode;
-  const modeChanged = activeSession && activeSession.controller.isGuestMode !== (targetMode === "guest");
+  const modeChanged = Boolean(
+    activeSession && activeSession.controller.isGuestMode !== (targetMode === "guest")
+  );
+
+  // During an active task run, never open/replace a second Chromium — reuse the bot's browser
+  // so the UI can stream frames without a scary conflict error.
+  const loginAction = resolveLoginDuringRun({
+    runIsActive: Boolean(currentRun && currentRun.isRunning),
+    hasActiveSession: Boolean(activeSession),
+    modeChanged
+  });
+  if (loginAction === "reuse" && activeSession) {
+    if (botName) activeSession.botKey = botName.trim();
+    let navigationError: string | null = null;
+    // Still honor an explicit navigate request on the live bot tab (or soft-recover via new tab).
+    if (url && url !== "about:blank") {
+      try {
+        await activeSession.controller.navigate(url);
+      } catch (err) {
+        navigationError = (err as Error).message;
+      }
+    }
+    return {
+      viewportWidth: activeSession.viewportWidth,
+      viewportHeight: activeSession.viewportHeight,
+      url: activeSession.controller.currentUrl(),
+      sessionMode: activeSessionMode,
+      tabs: await activeSession.controller.getTabs(),
+      navigationError
+    };
+  }
+  if (loginAction === "busy") {
+    const busy = new Error("A task run is in progress. Wait for it to finish or stop it first.") as Error & {
+      statusCode?: number;
+      code?: string;
+    };
+    busy.statusCode = 409;
+    busy.code = "run_in_progress";
+    throw busy;
+  }
+
   if (modeChanged && activeSession) {
     const oldSession = activeSession;
     activeSession = null;
@@ -675,18 +788,28 @@ async function openLoginSession(
   if (activeSession) {
     activeSession.kind = "login";
     if (botName) activeSession.botKey = botName.trim();
+    let navigationError: string | null = null;
     if (url && url !== "about:blank") {
-      await activeSession.controller.navigate(url).catch(() => undefined);
+      try {
+        await activeSession.controller.navigate(url);
+      } catch (err) {
+        // Soft path: keep the existing session alive and report the failure so the UI can
+        // retry via Go / new tab instead of failing the whole login open silently.
+        navigationError = (err as Error).message;
+      }
     }
     return {
       viewportWidth: activeSession.viewportWidth,
       viewportHeight: activeSession.viewportHeight,
       url: activeSession.controller.currentUrl(),
-      sessionMode: activeSessionMode
+      sessionMode: activeSessionMode,
+      tabs: await activeSession.controller.getTabs(),
+      navigationError
     };
   }
+  // Login / CAPTCHA needs a real visible window — screencast-only headless is painful for puzzles.
   const controller = new BrowserController(
-    defaultBrowserConfig({ headless: true, guestMode: activeSessionMode === "guest" })
+    defaultBrowserConfig({ headless: false, guestMode: activeSessionMode === "guest" })
   );
   const { width, height } = controller.viewportSize;
   const session: BrowserSession = {
@@ -713,7 +836,9 @@ async function openLoginSession(
     viewportWidth: width,
     viewportHeight: height,
     url: controller.currentUrl(),
-    sessionMode: activeSessionMode
+    sessionMode: activeSessionMode,
+    tabs: await controller.getTabs(),
+    navigationError: null as string | null
   };
 }
 
@@ -1033,8 +1158,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       sendJson(res, 200, { status: "started" });
     } catch (err) {
       const message = (err as Error).message;
-      const alreadyRunning = message.includes("already in progress");
-      sendJson(res, alreadyRunning ? 409 : 400, { detail: message });
+      const alreadyRunning = isRunInProgressMessage(message);
+      sendJson(res, alreadyRunning ? 409 : 400, {
+        detail: message,
+        code: alreadyRunning ? "run_in_progress" : undefined
+      });
     }
     return;
   }
@@ -1046,6 +1174,34 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   if (req.method === "GET" && url.pathname === "/api/usage") {
     sendJson(res, 200, usageSnapshot());
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/learnings") {
+    try {
+      const botName = url.searchParams.get("bot") || url.searchParams.get("botName") || "default";
+      const botId = botIdFromName(botName);
+      const kb = await loadLearningKb(LEARNINGS_DIR, botId);
+      const recent = [...kb.mistakes, ...kb.learnings, ...kb.intents, ...kb.hypotheses]
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .slice(-6)
+        .reverse();
+      sendJson(res, 200, {
+        botId,
+        niche: kb.niche,
+        counts: {
+          intents: kb.intents.length,
+          mistakes: kb.mistakes.length,
+          learnings: kb.learnings.length,
+          hypotheses: kb.hypotheses.length
+        },
+        distilled: distillLearningKb(kb),
+        recent,
+        updatedAt: kb.updatedAt
+      });
+    } catch (err) {
+      sendJson(res, 400, { detail: (err as Error).message });
+    }
     return;
   }
 
@@ -1098,12 +1254,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const botName = typeof body.botName === "string" ? body.botName : undefined;
       const requestedMode =
         body.mode === "guest" ? "guest" : body.mode === "persistent" ? "persistent" : undefined;
-      const { viewportWidth, viewportHeight, url: currentUrl, sessionMode } = await openLoginSession(
-        loginUrl,
-        botName,
-        requestedMode
-      );
-      const tabs = activeSession ? await activeSession.controller.getTabs() : [];
+      const {
+        viewportWidth,
+        viewportHeight,
+        url: currentUrl,
+        sessionMode,
+        tabs,
+        navigationError
+      } = await openLoginSession(loginUrl, botName, requestedMode);
       sendJson(res, 200, {
         status: "opened",
         sessionMode,
@@ -1111,12 +1269,17 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         viewportWidth,
         viewportHeight,
         url: currentUrl,
-        tabs
+        tabs,
+        navigationError
       });
     } catch (err) {
-      const message = (err as Error).message;
-      const conflict = message.includes("in progress");
-      sendJson(res, conflict ? 409 : 400, { detail: message });
+      const error = err as Error & { statusCode?: number; code?: string };
+      const message = error.message;
+      const conflict = error.statusCode === 409 || isRunInProgressMessage(message);
+      sendJson(res, conflict ? 409 : 400, {
+        detail: message,
+        code: error.code || (conflict ? "run_in_progress" : undefined)
+      });
     }
     return;
   }
@@ -1160,6 +1323,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (req.method === "POST" && url.pathname === "/api/login/input") {
     let session = activeBrowserSession();
     if (!session) {
+      if (currentRun && currentRun.isRunning) {
+        sendJson(res, 409, {
+          detail: "A task run is in progress. Wait for it to finish or stop it first.",
+          code: "run_in_progress"
+        });
+        return;
+      }
       await openLoginSession("https://www.google.com/");
       session = activeBrowserSession();
     }
@@ -1172,9 +1342,16 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const body = (await readJsonBody(req)) as Record<string, unknown>;
       const inputType = String(body.type ?? "");
       switch (inputType) {
-        case "navigate":
-          await controller.navigate(String(body.url ?? ""));
+        case "navigate": {
+          const targetUrl = String(body.url ?? "");
+          const useNewTab = Boolean(body.newTab) || body.mode === "new_tab";
+          if (useNewTab) {
+            await controller.newTab(targetUrl || "https://www.google.com/");
+          } else {
+            await controller.navigate(targetUrl);
+          }
           break;
+        }
         case "back":
           await controller.goBack();
           break;
