@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { AgentOrchestrator, AgentOrchestratorOptions, extractArithmeticExpression } from "./promptLoop";
 import { BrowserController } from "./browserController";
+import { WORKSPACE_ROOT } from "./agentTools";
 
 test("shell approval is reused only when explicitly granted for this task", async () => {
   const run = async (decision: boolean | { approved: boolean; scope: "task" }, standingApproval = false) => {
@@ -45,7 +46,7 @@ test("direct shell paths share the same inspection, denial and unattended policy
     };
     const inspected = await new AgentOrchestrator(options).run();
     assert.equal(inspected.success, true);
-    assert.match(inspected.summary, /agentfireworks/);
+    assert.ok(inspected.summary.includes(WORKSPACE_ROOT), inspected.summary);
     const denied = await new AgentOrchestrator({ ...options, task: "$ printf must_not_run", onTerminalApproval: () => false }).run();
     assert.equal(denied.success, false);
     assert.match(denied.summary, /not approved/);
