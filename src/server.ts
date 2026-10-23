@@ -29,6 +29,7 @@ import {
 } from "./learningStore";
 import { AgentEvent, AgentOrchestrator, AgentResult, DEFAULT_MODEL, requiresInitialBrowserState } from "./promptLoop";
 import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
+import { TerminalApprovalDecision } from "./approvalPolicy";
 import { nextDailyOccurrence } from "./scheduler";
 import { AgentHandoffRequest, TOPICS, localBus } from "./messageBus";
 import { MAX_HANDOFF_DEPTH, decideHandoff } from "./handoff";
@@ -190,7 +191,8 @@ interface RunState {
   events: SequencedRunEvent[];
   subscribers: Set<AsyncQueue<SequencedRunEvent | null>>;
   resolveVerification: (() => void) | null;
-  resolveApproval: ((approved: boolean) => void) | null;
+  resolveApproval: ((decision: TerminalApprovalDecision) => void) | null;
+  approvalId: string | null;
 }
 
 interface SequencedRunEvent {
@@ -494,19 +496,23 @@ async function onHumanVerification(run: RunState, _state: PageState): Promise<vo
 
 /** Pauses a run and waits for an explicit POST /api/approval before a shell command or file
  * write/append is allowed to execute. Only ever wired up for attended (non-scheduled) runs. */
-async function onTerminalApproval(run: RunState): Promise<boolean> {
-  const approved = await new Promise<boolean>((resolve) => {
+async function onTerminalApproval(run: RunState, approvalId: string): Promise<TerminalApprovalDecision> {
+  run.approvalId = approvalId;
+  const approved = await new Promise<TerminalApprovalDecision>((resolve) => {
     run.resolveApproval = resolve;
   });
   run.resolveApproval = null;
+  run.approvalId = null;
   return approved;
 }
 
-function resolvePendingApproval(approved: boolean): boolean {
-  if (!currentRun || !currentRun.isRunning || !currentRun.resolveApproval) {
+function resolvePendingApproval(decision: TerminalApprovalDecision, approvalId: unknown): boolean {
+  if (!currentRun || !currentRun.isRunning || !currentRun.resolveApproval || typeof approvalId !== "string" || currentRun.approvalId !== approvalId) {
     return false;
   }
-  currentRun.resolveApproval(approved);
+  const resolve = currentRun.resolveApproval;
+  currentRun.resolveApproval = null;
+  resolve(decision);
   return true;
 }
 
@@ -542,7 +548,8 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
     events: [],
     subscribers: new Set<AsyncQueue<SequencedRunEvent | null>>(),
     resolveVerification: null,
-    resolveApproval: null
+    resolveApproval: null,
+    approvalId: null
   };
   currentRun = run;
   const handoffDepth = options.handoffDepth ?? 0;
@@ -741,7 +748,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
             return { ok: false, message: (error as Error).message };
           }
         },
-        onTerminalApproval: body.scheduleId ? undefined : body.autoApprove ? () => true : () => onTerminalApproval(run),
+        onTerminalApproval: body.scheduleId ? undefined : body.autoApprove ? () => true : (details) => onTerminalApproval(run, details.approvalId),
         // "Stop" used to be cosmetic: it told the UI the run had ended while the loop kept calling
         // the model and clicking the page. The orchestrator now polls this before every step.
         shouldAbort: () => run.cancelled
@@ -1889,8 +1896,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (req.method === "POST" && url.pathname === "/api/approval") {
     try {
       const body = (await readJsonBody(req)) as Record<string, unknown>;
-      const approved = Boolean(body.approved);
-      if (resolvePendingApproval(approved)) {
+      if (typeof body.approved !== "boolean" || (body.scope !== undefined && body.scope !== "once" && body.scope !== "task")) {
+        sendJson(res, 400, { detail: "approved must be a boolean; scope must be once or task." });
+        return;
+      }
+      const approved = body.approved;
+      if (resolvePendingApproval({ approved, scope: body.scope === "task" ? "task" : "once" }, body.approvalId)) {
         sendJson(res, 200, { status: approved ? "approved" : "denied" });
       } else {
         sendJson(res, 409, { detail: "No command or file write is currently waiting for approval." });

@@ -1,7 +1,62 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AgentOrchestrator, extractArithmeticExpression } from "./promptLoop";
+import { AgentOrchestrator, AgentOrchestratorOptions, extractArithmeticExpression } from "./promptLoop";
 import { BrowserController } from "./browserController";
+
+test("shell approval is reused only when explicitly granted for this task", async () => {
+  const run = async (decision: boolean | { approved: boolean; scope: "task" }, standingApproval = false) => {
+    let requests = 0;
+    let prompts = 0;
+    const events: Array<Record<string, unknown>> = [];
+    const fetch: typeof globalThis.fetch = async () => {
+      requests++;
+      const output = requests < 3
+        ? [{ type: "function_call", call_id: `call_${requests}`, name: "run_terminal_command", arguments: JSON.stringify({ command: `printf approval_${requests}` }) }]
+        : [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Checked both commands." }] }];
+      return new Response(JSON.stringify(makeResponsesPayload(output, `resp_${requests}`)), { headers: { "content-type": "application/json" } });
+    };
+    const agent = new AgentOrchestrator({
+      task: "Use terminal tools to check two shell commands.", model: "gpt-6-luna", apiKey: "test-key",
+      browser: {} as BrowserController, fetch, standingApproval,
+      onEvent: event => events.push(event),
+      onTerminalApproval: () => { prompts++; return decision; }
+    });
+    assert.equal((await agent.run()).success, true);
+    return { prompts, events };
+  };
+  assert.equal((await run(true)).prompts, 2);
+  const scoped = await run({ approved: true, scope: "task" });
+  assert.equal(scoped.prompts, 1);
+  const required = scoped.events.find(event => event.type === "privileged_approval_required")!;
+  const resolved = scoped.events.find(event => event.type === "privileged_approval_resolved")!;
+  assert.equal(typeof required.approvalId, "string");
+  assert.equal(required.approvalId, resolved.approvalId);
+  assert.equal((await run({ approved: false, scope: "task" })).prompts, 2);
+  const automatic = await run(true, true);
+  assert.equal(automatic.prompts, 0);
+  assert.equal(automatic.events.some(event => event.type === "privileged_approval_required"), false);
+});
+
+test("direct shell paths share the same inspection, denial and unattended policy", async () => {
+  for (const model of ["local-engine", "gpt-6-luna"]) {
+    const options: AgentOrchestratorOptions = {
+      task: "$ pwd", model, apiKey: "test-key", browser: {} as BrowserController,
+      onTerminalApproval: () => { throw new Error("Read-only inspection must not ask"); }
+    };
+    const inspected = await new AgentOrchestrator(options).run();
+    assert.equal(inspected.success, true);
+    assert.match(inspected.summary, /agentfireworks/);
+    const denied = await new AgentOrchestrator({ ...options, task: "$ printf must_not_run", onTerminalApproval: () => false }).run();
+    assert.equal(denied.success, false);
+    assert.match(denied.summary, /not approved/);
+    // The local fallback must not regain shell access that scheduled runs explicitly disable.
+    if (model === "local-engine") {
+      const unattended = await new AgentOrchestrator({ ...options, allowPrivilegedTools: false, standingApproval: true }).run();
+      assert.equal(unattended.success, false);
+      assert.match(unattended.summary, /not approved/);
+    }
+  }
+});
 
 function makeResponsesPayload(output: unknown[], id = "resp_test") {
   return {
