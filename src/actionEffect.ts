@@ -183,6 +183,20 @@ const REVERSIBLE_PATTERNS: RegExp[] = [
 const COMPOSER_FIELD_PATTERN =
   /\b(?:comment|reply|message|post|tweet|caption|note|dm|chat|write|compose|say\s+something|add\s+a\s+comment)\b/;
 
+/**
+ * `click_element` takes either visible text or a CSS selector. A selector is not a label - reading
+ * verbs out of one is how `#post-list a` turns into "post" and prompts for a navigation click. When
+ * the target is a selector there is no label signal, so the model's declaration stands alone.
+ */
+export function isCssSelector(target: string): boolean {
+  const value = target.trim();
+  if (!value) return false;
+  if (/^[.#\[]/.test(value)) return true;
+  if (/[>~]|::|\[[^\]]*\]/.test(value)) return true;
+  // `div.card`, `a#main` - a tag name glued to a class/id, with no spaces to suggest prose.
+  return /^[a-z][a-z0-9]*[.#][\w-]+/i.test(value) && !/\s/.test(value);
+}
+
 export function normalizeLabel(label: string): string {
   return label
     .toLowerCase()
@@ -273,8 +287,10 @@ export function classifyBrowserAction(context: BrowserActionContext): EffectDeci
       : "element has no readable label (icon-only)";
   }
 
-  const baseline: ActionEffect = "reversible";
-  const effect = maxEffect(declared ?? baseline, observed ?? baseline);
+  // A known label stands on its own; the baseline is only for elements we could not read. The
+  // declaration is then layered on top, and can only push the level up.
+  const floor: ActionEffect = observed ?? "reversible";
+  const effect = declared ? maxEffect(declared, floor) : floor;
   return { effect, declared, observed, reason };
 }
 

@@ -1,10 +1,19 @@
 /** Browser operations and state capture, backed by Playwright for Node. */
 
+import { ensureManagedChrome, managedChromeEnabled } from "./managedChrome";
+import { desktopBrowserAvailable, desktopBrowserRequest } from "./desktopBrowser";
 import { createHash } from "node:crypto";
 import { mkdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { BrowserContext, CDPSession, Page, chromium, errors as playwrightErrors } from "playwright";
+import {
+  Browser,
+  BrowserContext,
+  CDPSession,
+  Page,
+  chromium,
+  errors as playwrightErrors
+} from "playwright";
 
 /**
  * Chromium's own singleton-instance lock files for a profile directory. If the process that
@@ -36,6 +45,17 @@ function clearStaleSingletonLock(userDataDir: string): void {
 export const DEFAULT_PROFILE_DIR = join(homedir(), ".browser-agent-profile");
 /** A dedicated Chrome profile; never open or copy the user's personal Chrome profile. */
 export const DEFAULT_CHROME_PROFILE_DIR = join(homedir(), ".buddy-bot-chrome-profile");
+/** Profile used when the user starts Chrome with remote debugging for CDP attach. */
+export const DEFAULT_CDP_PROFILE_DIR = join(homedir(), ".buddy-bot-chrome-cdp");
+export const DEFAULT_CDP_ENDPOINT = "http://127.0.0.1:9222";
+/** Electron remote-debugging port for the in-app Live Browser (not Connected Chrome's 9222). */
+export const DEFAULT_ELECTRON_CDP_PORT = 9333;
+export const DEFAULT_ELECTRON_CDP_ENDPOINT = `http://127.0.0.1:${DEFAULT_ELECTRON_CDP_PORT}`;
+/** User-agent marker set on Electron's Live Browser WebContents so Playwright can select it. */
+export const EMBEDDED_UA_MARKER = "OpenBotsLive/1";
+/** Informational path label for embedded mode (cookies actually live in Electron partition persist:open-bots). */
+export const DEFAULT_EMBEDDED_PROFILE_LABEL = "persist:open-bots";
+export type SessionMode = "persistent" | "guest" | "cdp" | "embedded";
 
 const INTERACTIVE_SELECTOR =
   'a[href], button, input, select, textarea, ' +
@@ -175,9 +195,23 @@ export function titleRequiresHumanVerification(title: string): boolean {
   return VERIFICATION_TITLE_KEYWORDS.some((keyword) => lower.includes(keyword));
 }
 
+/** A rejected OAuth browser cannot be recovered by solving a CAPTCHA. */
+export function googleSignInRejected(url: string, title = "", text = ""): boolean {
+  try {
+    const target = new URL(url);
+    if (target.hostname !== "accounts.google.com") return false;
+    return /\/signin\/rejected(?:\/|$)/i.test(target.pathname) ||
+      target.searchParams.get("error") === "disallowed_useragent" ||
+      /this browser or app may (?:not be secure|be insecure)|disallowed_useragent/i.test(text) ||
+      (/couldn[’']t sign you in/i.test(title) && /try using a different browser/i.test(text));
+  } catch {
+    return false;
+  }
+}
+
 export function pageAccessDenied(title: string, text: string): boolean {
   return /^(?:access denied|403 forbidden|request blocked)(?:\b|\s)/i.test(title.trim()) ||
-    /^(?:[\s\S]{0,100}?)(?:sorry,? you have been blocked|you are unable to access\s+\S+|error (?:code:?\s*)?1020\b)/i.test(text.trim());
+    /(?:^|\n)\s*(?:sorry,? you have been blocked|you are unable to access\s+\S+|error (?:code:?\s*)?1020\b)/i.test(text.trim());
 }
 
 function isRecoverableNavigationError(err: unknown): boolean {
@@ -259,6 +293,15 @@ export interface BrowserConfig {
   userDataDir: string;
   /** When true, launches an isolated ephemeral Guest browser context without saving cookies/sessions to disk. */
   guestMode?: boolean;
+  /**
+   * When set, attach to an already-running Chrome (or Electron) via CDP instead of launching
+   * Playwright's Chrome. Used by Connected Chrome and the in-app embedded browser.
+   */
+  cdpEndpoint?: string;
+  /** When true, CDP target is Electron's docked Live Browser — never focus-steal. */
+  embeddedMode?: boolean;
+  /** Open Bots UI origin (e.g. http://127.0.0.1:8765) so embedded attach can skip the app chrome. */
+  uiOrigin?: string;
 }
 
 export function defaultBrowserConfig(overrides: Partial<BrowserConfig> = {}): BrowserConfig {
@@ -286,15 +329,168 @@ export function defaultBrowserConfig(overrides: Partial<BrowserConfig> = {}): Br
   return config;
 }
 
+/** Shell one-liner to start Chrome with remote debugging for Connected Chrome mode. */
+export function chromeCdpLaunchCommand(
+  endpoint = DEFAULT_CDP_ENDPOINT,
+  profileDir = DEFAULT_CDP_PROFILE_DIR
+): { endpoint: string; profileDir: string; command: string; port: number } {
+  const portMatch = endpoint.match(/:(\d+)\s*$/);
+  const port = portMatch ? Number(portMatch[1]) : 9222;
+  const quotedProfile = profileDir.includes(" ") ? `"${profileDir}"` : profileDir;
+  const command =
+    process.platform === "darwin"
+      ? `open -na "Google Chrome" --args --remote-debugging-port=${port} --user-data-dir=${quotedProfile}`
+      : process.platform === "win32"
+        ? `start "" chrome.exe --remote-debugging-port=${port} --user-data-dir=${quotedProfile}`
+        : `google-chrome --remote-debugging-port=${port} --user-data-dir=${quotedProfile}`;
+  return { endpoint, profileDir, command, port };
+}
+
+export async function probeCdpEndpoint(endpoint = DEFAULT_CDP_ENDPOINT): Promise<boolean> {
+  try {
+    const res = await fetch(`${endpoint.replace(/\/$/, "")}/json/version`, {
+      signal: AbortSignal.timeout(1500)
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export function resolveEmbeddedCdpEndpoint(explicit?: string): string {
+  return (
+    explicit ||
+    process.env.BROWSER_AGENT_EMBEDDED_CDP_ENDPOINT ||
+    process.env.OPEN_BOTS_ELECTRON_CDP_ENDPOINT ||
+    `http://127.0.0.1:${process.env.OPEN_BOTS_ELECTRON_CDP_PORT || DEFAULT_ELECTRON_CDP_PORT}`
+  );
+}
+
+/** True when the desktop shell (Electron) advertised an in-app browser. */
+export function embeddedBrowserAvailable(): boolean {
+  return process.env.OPEN_BOTS_EMBEDDED === "1";
+}
+
 /** Attended saved sessions stay in visible Chrome from login through task execution. */
 export function browserSessionConfig(
-  mode: "persistent" | "guest",
-  options: { headless?: boolean; unattended?: boolean } = {}
+  mode: SessionMode,
+  options: { headless?: boolean; unattended?: boolean; cdpEndpoint?: string } = {}
 ): BrowserConfig {
-  if (mode === "guest" || options.unattended) {
+  // Scheduled/unattended runs stay on ephemeral headless Chromium (no Live Browser / no focus).
+  if (options.unattended && mode !== "cdp") {
     return defaultBrowserConfig({ headless: options.headless ?? true, guestMode: mode === "guest" });
   }
+  if (mode === "embedded") {
+    return defaultBrowserConfig({
+      headless: false,
+      userDataDir: DEFAULT_EMBEDDED_PROFILE_LABEL,
+      cdpEndpoint: resolveEmbeddedCdpEndpoint(options.cdpEndpoint),
+      embeddedMode: true,
+      uiOrigin: process.env.OPEN_BOTS_UI_ORIGIN
+    });
+  }
+  if (mode === "cdp") {
+    return defaultBrowserConfig({
+      channel: "chrome",
+      headless: false,
+      userDataDir: DEFAULT_CDP_PROFILE_DIR,
+      cdpEndpoint: options.cdpEndpoint || process.env.BROWSER_AGENT_CDP_ENDPOINT || DEFAULT_CDP_ENDPOINT
+    });
+  }
+  if (mode === "guest") {
+    return defaultBrowserConfig({ headless: options.headless ?? true, guestMode: true });
+  }
   return defaultBrowserConfig({ channel: "chrome", headless: false, userDataDir: DEFAULT_CHROME_PROFILE_DIR });
+}
+
+/** Sites that often block Playwright-launched Chrome; prefer Connected Chrome (CDP). */
+export function sitePrefersConnectedChrome(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return (
+      host.includes("reddit.com") ||
+      host.includes("google.com") ||
+      host.includes("googleapis.com") ||
+      host.includes("accounts.google.") ||
+      host.includes("youtube.com") ||
+      host.includes("cloudflare.com") ||
+      host.includes("medium.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function accessDeniedRecoveryHint(sessionMode: SessionMode, url: string, signInRejected = false): string {
+  if (signInRejected || googleSignInRejected(url)) {
+    return "Google rejected sign-in from this browser. This is a browser security restriction, not a CAPTCHA. " +
+      "Open the original website in a supported browser and complete sign-in yourself, or use the website’s email sign-in option if available. " +
+      (sessionMode === "cdp"
+        ? "Connected Chrome is already active; reconnecting does not guarantee Google will accept sign-in. "
+        : "Connect Apps → Connect my Chrome can reuse a dedicated Chrome session, but Google may still reject sign-in. ") +
+      "A login in your personal browser is not automatically shared with this app. Retry the task only after the site is signed in in the connected browser.";
+  }
+  if (sessionMode === "cdp") {
+    return (
+      `The website denied access to ${url}. You are already on Connected Chrome; solve any CAPTCHA in the Live Browser, ` +
+      `or use reddit_search / web_search for research instead of scraping. Signing in does not always guarantee automated access.`
+    );
+  }
+  if (sessionMode === "embedded") {
+    return (
+      `The website denied access to ${url}. The in-app browser was blocked (common for Reddit/Google OAuth). ` +
+      `Switch to Connect Apps → Connect my Chrome (external window), then retry. ` +
+      `For research, prefer reddit_search or web_search.`
+    );
+  }
+  return (
+    `The website denied access to ${url}. This is an access block, not a CAPTCHA to solve. ` +
+    `Switch to Connected Chrome (Connect Apps → Connect my Chrome): start Chrome with remote debugging, then retry. ` +
+    `Playwright-launched Chrome is often blocked by Reddit/Google. For research, prefer reddit_search or web_search.`
+  );
+}
+
+/** Pick Electron's Live Browser page — never the Open Bots UI webContents. */
+async function pickEmbeddedLivePage(
+  browser: Browser,
+  uiOrigin?: string
+): Promise<{ context: BrowserContext; page: Page }> {
+  const pages: Page[] = [];
+  for (const context of browser.contexts()) {
+    for (const page of context.pages()) {
+      if (!page.isClosed()) pages.push(page);
+    }
+  }
+
+  for (const page of pages) {
+    try {
+      const ua = await page.evaluate(() => navigator.userAgent);
+      if (ua.includes(EMBEDDED_UA_MARKER)) {
+        return { context: page.context(), page };
+      }
+    } catch {
+      // page may be mid-navigation
+    }
+  }
+
+  const origin = (uiOrigin || "").replace(/\/$/, "");
+  if (origin) {
+    for (const page of pages) {
+      const url = page.url();
+      if (url === origin || url.startsWith(`${origin}/`) || url.startsWith(`${origin}?`)) continue;
+      return { context: page.context(), page };
+    }
+  }
+
+  // Prefer a non-default context when Electron exposes the persist:open-bots partition separately.
+  const contexts = browser.contexts();
+  const ctx = contexts.length > 1 ? contexts[contexts.length - 1] : contexts[0];
+  if (!ctx) {
+    throw new BrowserActionError("No browser context available for the in-app browser.");
+  }
+  const existing = ctx.pages().find((p) => !p.isClosed());
+  const page = existing ?? (await ctx.newPage());
+  return { context: ctx, page };
 }
 
 export interface InteractiveElement {
@@ -318,6 +514,7 @@ export interface PageState {
   stateHash: string;
   requiresHumanVerification: boolean;
   accessDenied?: boolean;
+  signInRejected?: boolean;
   capturedAt: number;
 }
 
@@ -350,10 +547,14 @@ export class BrowserController {
   private readonly config: BrowserConfig;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
+  /** Kept for CDP attach so close() can disconnect without killing the user's Chrome. */
+  private attachedBrowser: Browser | null = null;
   private cdpSession: CDPSession | null = null;
   private lastScreencastFrame: string | null = null;
   private screencastCallback: ((base64Jpeg: string) => void) | null = null;
   private lastElements: InteractiveElement[] = [];
+  private startPromise: Promise<void> | null = null;
+  private desktopTargetIds = new WeakMap<Page, string>();
 
   constructor(config: Partial<BrowserConfig> = {}) {
     this.config = defaultBrowserConfig(config);
@@ -363,12 +564,41 @@ export class BrowserController {
     return Boolean(this.config.guestMode);
   }
 
-  get browserName(): "chrome" | "chromium" { return this.config.channel ?? "chromium"; }
+  get isCdpMode(): boolean {
+    return Boolean(this.config.cdpEndpoint) && !this.config.embeddedMode;
+  }
+
+  get isEmbeddedMode(): boolean {
+    return Boolean(this.config.embeddedMode);
+  }
+
+  get sessionMode(): SessionMode {
+    if (this.config.embeddedMode) return "embedded";
+    if (this.config.cdpEndpoint) return "cdp";
+    if (this.config.guestMode) return "guest";
+    return "persistent";
+  }
+
+  get cdpEndpoint(): string | undefined {
+    return this.config.cdpEndpoint;
+  }
+
+  get browserName(): "chrome" | "chromium" {
+    if (this.config.embeddedMode) return "chromium";
+    return this.config.channel ?? "chromium";
+  }
   get profileDir(): string { return this.config.userDataDir; }
 
+  /** No-op in embedded mode — never steal OS focus from the user's personal Chrome. */
   async showWindow(): Promise<void> {
+    if (this.config.embeddedMode || (this.isCdpMode && managedChromeEnabled())) return;
     const page = await this.ensureActivePage();
     await page.bringToFront();
+  }
+
+  private async maybeBringToFront(page: Page): Promise<void> {
+    if (this.config.embeddedMode || (this.isCdpMode && managedChromeEnabled())) return;
+    await page.bringToFront().catch(() => undefined);
   }
 
   get viewportSize(): { width: number; height: number } {
@@ -392,6 +622,10 @@ export class BrowserController {
   }
 
   async getTabs(): Promise<BrowserTabInfo[]> {
+    if (this.config.embeddedMode && desktopBrowserAvailable()) {
+      await this.syncEmbeddedPage();
+      return (await desktopBrowserRequest()).tabs;
+    }
     if (!this.context) return [];
     const pages = this.context.pages().filter((p) => !p.isClosed());
     const tabs: BrowserTabInfo[] = [];
@@ -409,6 +643,11 @@ export class BrowserController {
   }
 
   async switchTab(index: number): Promise<void> {
+    if (this.config.embeddedMode && desktopBrowserAvailable()) {
+      await desktopBrowserRequest({ type: "switch_tab", index });
+      await this.syncEmbeddedPage();
+      return;
+    }
     if (!this.context) {
       throw new BrowserActionError("Browser has not been started. Call start() first.");
     }
@@ -419,13 +658,23 @@ export class BrowserController {
     const target = pages[index];
     if (target === this.page) return;
     this.page = target;
-    await target.bringToFront().catch(() => undefined);
+    await this.maybeBringToFront(target);
     if (this.screencastCallback) {
       await this.startScreencast(this.screencastCallback).catch(() => undefined);
     }
   }
 
   async newTab(url = "https://www.google.com/"): Promise<void> {
+    if (this.config.embeddedMode && desktopBrowserAvailable()) {
+      await desktopBrowserRequest({ type: "new_tab", url });
+      await this.syncEmbeddedPage();
+      return;
+    }
+    // Compatibility for an older desktop without the workspace broker.
+    if (this.config.embeddedMode) {
+      await this.navigate(url || "about:blank");
+      return;
+    }
     if (!this.context) await this.start();
     if (!this.context) {
       throw new BrowserActionError("Failed to open a new tab: browser context is unavailable.");
@@ -443,6 +692,11 @@ export class BrowserController {
   }
 
   async closeTab(index: number): Promise<void> {
+    if (this.config.embeddedMode && desktopBrowserAvailable()) {
+      await desktopBrowserRequest({ type: "close_tab", index });
+      await this.syncEmbeddedPage();
+      return;
+    }
     if (!this.context) {
       throw new BrowserActionError("Browser has not been started. Call start() first.");
     }
@@ -467,12 +721,51 @@ export class BrowserController {
   }
 
   async start(): Promise<void> {
+    if (this.startPromise) return this.startPromise;
+    const pending = this.startInternal();
+    this.startPromise = pending;
+    try { await pending; } finally { if (this.startPromise === pending) this.startPromise = null; }
+  }
+
+  private async startInternal(): Promise<void> {
     if (this.isStarted) {
+      await this.syncEmbeddedPage();
       return;
     }
     try {
       const identity = this.config.userAgent ? { userAgent: this.config.userAgent } : {};
-      if (this.config.guestMode) {
+      if (this.config.cdpEndpoint) {
+        const endpoint = this.config.cdpEndpoint;
+        if (!this.config.embeddedMode && managedChromeEnabled()) {
+          await ensureManagedChrome(endpoint, this.config.userDataDir, probeCdpEndpoint);
+        }
+        const reachable = await probeCdpEndpoint(endpoint);
+        if (!reachable) {
+          if (this.config.embeddedMode) {
+            throw new BrowserActionError(
+              `In-app browser CDP is not reachable at ${endpoint}. Restart the desktop app (yarn desktop / yarn desktop:built).`
+            );
+          }
+          const { command } = chromeCdpLaunchCommand(endpoint, this.config.userDataDir);
+          throw new BrowserActionError(
+            `Connected Chrome is not running at ${endpoint}. Start it once, then retry:\n${command}`
+          );
+        }
+        const browser = await chromium.connectOverCDP(endpoint);
+        this.attachedBrowser = browser;
+        if (this.config.embeddedMode) {
+          const picked = await pickEmbeddedLivePage(browser, this.config.uiOrigin);
+          this.context = picked.context;
+          this.page = picked.page;
+          await this.syncEmbeddedPage();
+        } else {
+          this.context = browser.contexts()[0] ?? (await browser.newContext({
+            viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
+            deviceScaleFactor: 1,
+            ...identity
+          }));
+        }
+      } else if (this.config.guestMode) {
         const browser = await chromium.launch({ headless: this.config.headless, channel: this.config.channel });
         this.context = await browser.newContext({
           viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
@@ -481,11 +774,18 @@ export class BrowserController {
         });
       } else {
         mkdirSync(this.config.userDataDir, { recursive: true });
-        const launchOptions = {
+        // Soften automation fingerprints for dedicated Chrome. Best-effort — does not fix Google/Reddit;
+        // use Connected Chrome (CDP) for those sites.
+        const launchOptions: Parameters<typeof chromium.launchPersistentContext>[1] = {
           channel: this.config.channel,
           headless: this.config.headless,
           viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
           deviceScaleFactor: 1,
+          ignoreDefaultArgs: this.config.channel === "chrome" ? ["--enable-automation"] : undefined,
+          args:
+            this.config.channel === "chrome"
+              ? ["--disable-blink-features=AutomationControlled"]
+              : undefined,
           ...identity
         };
         if (this.config.channel === "chrome") {
@@ -503,6 +803,9 @@ export class BrowserController {
         }
       }
       const context = this.context;
+      if (!context) {
+        throw new BrowserActionError("Browser context failed to initialize.");
+      }
       context.on("close", () => {
         if (this.context !== context) return;
         this.context = null;
@@ -511,13 +814,17 @@ export class BrowserController {
         this.lastScreencastFrame = null;
       });
       this.context.setDefaultTimeout(this.config.actionTimeoutMs);
-      this.page = this.context.pages()[0] ?? (await this.context.newPage());
+      if (!this.page || this.page.isClosed()) {
+        this.page = this.context.pages()[0] ?? (await this.context.newPage());
+      }
       this.page.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
       for (const page of this.context.pages()) this.trackPageClose(page);
       // Automatically adopt popups/new tabs opened by target="_blank" links
       this.context.on("page", (newPage) => {
         newPage.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
         this.trackPageClose(newPage);
+        // In embedded mode keep driving the docked Live Browser page, not a detached CDP page.
+        if (this.config.embeddedMode) return;
         this.page = newPage;
         if (this.screencastCallback) {
           void this.startScreencast(this.screencastCallback).catch(() => undefined);
@@ -525,6 +832,18 @@ export class BrowserController {
       });
     } catch (err) {
       await this.close();
+      if (err instanceof BrowserActionError) throw err;
+      if (this.config.cdpEndpoint) {
+        if (this.config.embeddedMode) {
+          throw new BrowserActionError(
+            `Could not attach to the in-app browser at ${this.config.cdpEndpoint}. ${(err as Error).message}`
+          );
+        }
+        const { command } = chromeCdpLaunchCommand(this.config.cdpEndpoint, this.config.userDataDir);
+        throw new BrowserActionError(
+          `Could not attach to Connected Chrome at ${this.config.cdpEndpoint}. ${(err as Error).message}\nStart Chrome with:\n${command}`
+        );
+      }
       if (this.config.channel === "chrome") {
         throw new BrowserActionError(`Could not open Buddy Bot's Chrome session. Make sure Google Chrome is installed and this profile is not already open in another Buddy Bot instance. ${(err as Error).message}`);
       }
@@ -544,6 +863,20 @@ export class BrowserController {
 
   async close(): Promise<void> {
     await this.stopScreencast();
+    if (this.config.cdpEndpoint && this.attachedBrowser) {
+      // Disconnect Playwright from the user's Chrome; do not close their browser windows.
+      try {
+        await this.attachedBrowser.close();
+      } catch {
+        // best-effort
+      }
+      this.attachedBrowser = null;
+      this.page = null;
+      this.context = null;
+      this.lastScreencastFrame = null;
+      this.screencastCallback = null;
+      return;
+    }
     if (this.context !== null) {
       try {
         const browser = this.context.browser();
@@ -557,6 +890,7 @@ export class BrowserController {
     }
     this.page = null;
     this.context = null;
+    this.attachedBrowser = null;
     this.lastScreencastFrame = null;
     this.screencastCallback = null;
   }
@@ -566,6 +900,7 @@ export class BrowserController {
    * web UI) can render the real browser inline instead of opening a separate OS window.
    */
   async startScreencast(onFrame: (base64Jpeg: string) => void): Promise<void> {
+    if (this.config.embeddedMode && desktopBrowserAvailable()) return;
     const page = this.requirePage();
     this.screencastCallback = onFrame;
     if (this.cdpSession !== null) {
@@ -661,6 +996,34 @@ export class BrowserController {
     await this.waitForIdle();
   }
 
+  private async syncEmbeddedPage(): Promise<void> {
+    if (!this.config.embeddedMode || !this.attachedBrowser || !desktopBrowserAvailable()) return;
+    const state = await desktopBrowserRequest();
+    if (!state.activeTabId) throw new BrowserActionError("No active desktop browser tab.");
+    const targetId = state.tabs.find(tab => tab.id === state.activeTabId)?.targetId;
+    if (!targetId) throw new BrowserActionError("Desktop browser target is unavailable.");
+    for (const context of this.attachedBrowser.contexts()) {
+      for (const page of context.pages()) {
+        if (page.isClosed()) continue;
+        let pageTargetId = this.desktopTargetIds.get(page);
+        if (!pageTargetId) {
+          const probe = await context.newCDPSession(page);
+          try {
+            const result = await probe.send("Target.getTargetInfo");
+            pageTargetId = result.targetInfo.targetId;
+            this.desktopTargetIds.set(page, pageTargetId);
+          } finally { await probe.detach().catch(() => undefined); }
+        }
+        if (pageTargetId !== targetId) continue;
+        if (this.page !== page) this.lastElements = [];
+        this.context = context;
+        this.page = page;
+        return;
+      }
+    }
+    throw new BrowserActionError("The active desktop browser tab is still connecting. Retry shortly.");
+  }
+
   private requirePage(): Page {
     if (this.page === null || this.page.isClosed()) {
       throw new BrowserActionError("Browser has not been started. Call start() first.");
@@ -670,6 +1033,7 @@ export class BrowserController {
 
   /** Prefer a live page; adopt another open tab or create one when the active page died. */
   private async ensureActivePage(): Promise<Page> {
+    await this.syncEmbeddedPage();
     if (this.page && !this.page.isClosed()) {
       return this.page;
     }
@@ -680,7 +1044,7 @@ export class BrowserController {
     const openPages = this.context.pages().filter((p) => !p.isClosed());
     if (openPages.length > 0) {
       this.page = openPages[openPages.length - 1];
-      await this.page.bringToFront().catch(() => undefined);
+      await this.maybeBringToFront(this.page);
       if (this.screencastCallback) {
         await this.startScreencast(this.screencastCallback).catch(() => undefined);
       }
@@ -735,7 +1099,9 @@ export class BrowserController {
       const page = await this.ensureActivePage();
       await this.gotoOnPage(page, resolved);
     } catch (err) {
-      if (!isRecoverableNavigationError(err)) {
+      if (this.config.embeddedMode || !isRecoverableNavigationError(err)) {
+        // Native tab ownership belongs to the host; never recover onto an arbitrary
+        // CDP page (which could be the workspace UI).
         throw new BrowserActionError(`Failed to navigate to ${resolved}: ${(err as Error).message}`);
       }
       try {
@@ -744,12 +1110,12 @@ export class BrowserController {
         const primary = openPages[0];
         if (primary && (!this.page || primary !== this.page || this.page.isClosed())) {
           this.page = primary;
-          await primary.bringToFront().catch(() => undefined);
+          await this.maybeBringToFront(primary);
           if (this.screencastCallback) {
             await this.startScreencast(this.screencastCallback).catch(() => undefined);
           }
           await this.gotoOnPage(primary, resolved);
-        } else if (this.context) {
+        } else if (this.context && !this.config.embeddedMode) {
           const dedicated = await this.context.newPage();
           dedicated.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
           this.page = dedicated;
@@ -1017,9 +1383,11 @@ export class BrowserController {
     }
   }
 
-  async captureState(): Promise<PageState> {
+  async captureState(options: { includeScreenshot?: boolean } = {}): Promise<PageState> {
+    await this.syncEmbeddedPage();
     const page = this.requirePage();
-    let screenshotBuffer: Buffer;
+    const includeScreenshot = options.includeScreenshot !== false;
+    let screenshotB64 = "";
     let url: string;
     let title: string;
     let rawElements: RawElement[];
@@ -1028,14 +1396,18 @@ export class BrowserController {
     try {
       url = page.url();
       const [shotBuf, pageTitle, elementsRes, textRes, challengeRes] = await Promise.all([
-        page.screenshot({ type: "jpeg", quality: 55, animations: "disabled" }),
+        includeScreenshot
+          ? page.screenshot({ type: "jpeg", quality: 55, animations: "disabled" })
+          : Promise.resolve(null as Buffer | null),
         page.title().catch(() => ""),
         page.evaluate(extractInteractiveElements, INTERACTIVE_SELECTOR).catch(() => [] as RawElement[]),
         page.evaluate(extractPageTextSummary).catch(() => ""),
         page.evaluate(detectVerificationChallenge).catch(() => false)
       ]);
-      screenshotBuffer = shotBuf;
-      this.lastScreencastFrame = screenshotBuffer.toString("base64");
+      if (shotBuf) {
+        screenshotB64 = shotBuf.toString("base64");
+        this.lastScreencastFrame = screenshotB64;
+      }
       title = pageTitle;
       rawElements = elementsRes;
       pageText = textRes;
@@ -1044,7 +1416,8 @@ export class BrowserController {
       throw new BrowserActionError(`Failed to capture page state: ${(err as Error).message}`);
     }
 
-    const accessDenied = pageAccessDenied(title, pageText);
+    const signInRejected = googleSignInRejected(url, title, pageText);
+    const accessDenied = signInRejected || pageAccessDenied(title, pageText);
     const requiresHumanVerification = !accessDenied && (titleRequiresHumanVerification(title) || challengeDetected);
 
     const limited = Array.isArray(rawElements) ? rawElements.slice(0, this.config.maxElements) : [];
@@ -1064,12 +1437,13 @@ export class BrowserController {
     return {
       url,
       title,
-      screenshotB64: this.lastScreencastFrame,
+      screenshotB64,
       elements,
       pageText,
       stateHash: computeStateHash(url, title, elements.length, pageText),
       requiresHumanVerification,
       accessDenied,
+      signInRejected,
       capturedAt: Date.now()
     };
   }

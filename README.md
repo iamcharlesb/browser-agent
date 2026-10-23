@@ -23,50 +23,171 @@ Sending a new instruction while a run waits for browser verification or shell/fi
 approval stops that waiting run and starts the new request; it does not approve
 the pending action. The Stop button cancels the current run and its queued requests.
 
-## Sign in using Chrome
+## What gets gated, and how it generalises
 
-Install Google Chrome, then open **Connect Apps → Open Chrome to sign in**.
-Saved sessions launch a visible Chrome window with a dedicated Buddy Bot profile
-(`~/.buddy-bot-chrome-profile`). Navigate to the website and sign in yourself in
-that window. The app's browser panel shows that same browser session. Keep the
-window open and continue your task in the app; later saved-session runs reuse the
-profile's logins, subject to the website's session expiry rules.
+Approval is decided by what an action **does**, not by which site it happens on.
+Matching the task text against platform vocabulary ("connect with founders on
+LinkedIn", "launch the Instantly sequence") needs a new rule for every platform
+and lets every unlisted one through. Button verbs, on the other hand, are shared
+across the whole web: `Send`, `Follow`, `Publish`, `Delete`, and `Pay` mean the
+same thing everywhere, so classifying the button covers sites nobody wrote a rule
+for — including ones that did not exist when this was written.
 
-Your personal Chrome profile and the old Chromium profile are separate. No cookies
-or passwords are copied between them. Signing into Open Bots with Google is also
-separate from signing into a website through Chrome. Guest sessions remain
-temporary; unattended runs retain their existing browser defaults.
+`src/actionEffect.ts` sorts every click and keystroke into four levels:
 
-Only one app instance can use the saved Chrome profile at a time. If Chrome is
-missing or the profile is already in use, the app reports the problem rather than
-silently switching to a different browser or deleting Chrome's profile locks.
+| Effect | Meaning | Gated? |
+| --- | --- | --- |
+| `read` | only looks at the page | no |
+| `reversible` | only this user sees it, and it can be undone — filters, drafts, bookmarks | no |
+| `outward` | someone else sees it, or it goes out under the user's name — follow, connect, send, post, comment, like, endorse, apply, launch a campaign | yes, unless **Approve for me** is on |
+| `irreversible` | destroys something or moves money — delete, remove, pay, buy, place order, cancel a subscription | **always**, even with Approve for me |
 
-Some websites may still deny automated access. Access-denied pages end the run
-with an explanation; they are not presented as CAPTCHAs that can be solved by
-clicking Resume. This feature does not guarantee that Medium will accept the
-dedicated Chrome session.
+Two independent signals feed the decision and the stricter one wins:
+
+1. the model declares an `effect` on the tool call — it can see the screenshot and
+   knows that a bare `Save` on a profile-edit page makes the bio public;
+2. the gate independently reads the element's real label and role.
+
+The ratchet only turns one way. A model that declares `read` while clicking a
+button labelled `Delete account` is still stopped. Raising the level is always
+allowed, because over-declaring costs one question and under-declaring is how real
+damage happens.
+
+Known limit, stated rather than hidden: icon-only buttons (Instagram's heart,
+LinkedIn's connect icon) often carry no readable label, so the declaration is the
+only signal for them. The deterministic half is a floor that catches careless or
+false declarations — not a complete classifier on its own. Unlabelled elements fall
+back to `reversible` rather than prompting, because gating every unlabelled icon
+would train the user to click Approve without reading, which is worse than no gate.
+
+Approving an outward action "for this task" does **not** also grant shell or file
+access for that task; the two grants are tracked separately.
+
+The task-text patterns in `src/security.ts` still run, but only as an up-front
+heads-up when a run starts. Enforcement happens at the click.
+
+## Agent modes (Chat / Browse / Act)
+
+Above the composer:
+
+| Mode | What it can do | Token profile |
+| --- | --- | --- |
+| **Chat** | Text tools only (`web_search`, `reddit_search`, docs, shell read-only path) — no browser navigate/click | Cheapest |
+| **Browse** | Navigate, scroll, extract — no click/type | Low (text-first observations) |
+| **Act** | Full browser with effect-based approval gates | Same as before; still text-first by default |
+
+Observations default to **text-first** (marks + page text). Vision screenshots are sent only for CAPTCHA/access walls, icon-only UIs, or after consecutive click failures.
+
+## Auth modes (Google vs Guest)
+
+Open Bots supports two identity modes for open-source / local use:
+
+| Mode | How | Where bots & prefs live |
+| --- | --- | --- |
+| **Google Sign-In** | GIS button → verified ID token → HttpOnly session cookie | MongoDB when `MONGODB_URI` is set; otherwise local JSON under `.browser-agent-users/` |
+| **Guest** | Default when not signed in (no interstitial — header **Sign in** is optional) | **This device only** — `localStorage` (and ephemeral browser profile). Nothing is written to Mongo |
+
+### Google OAuth setup
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an **OAuth 2.0 Client ID** (application type: Web).
+2. Under **Authorized JavaScript origins**, add:
+   - `http://127.0.0.1:8765` (dev)
+   - `http://127.0.0.1:8766` (built / `desktop:built` — stable default port)
+   - plus any deployed origin you use
+3. Copy the client ID into `.env` as `GOOGLE_CLIENT_ID` (same pattern as SuperBuilder’s `GOOGLE_CLIENT_ID` / `NEXT_PUBLIC_GOOGLE_CLIENT_ID`). GIS Sign-In does **not** require a client secret.
+4. Restart the server (or `npm run desktop:built`). Unsigned visitors start as **Guest** automatically (no Sign in / Guest choice screen). Sign-in is available from:
+   - Top bar: **Sign in** (becomes **Account** when signed in)
+   - Sidebar: avatar / **Connect Apps** → Google button in the Account modal
+
+Do not commit `.env` or real client secrets. `.env.example` documents the keys only.
+
+### MongoDB (optional cloud persistence)
+
+Signed-in Google users can sync bot roster + key settings to MongoDB Atlas:
+
+```sh
+# .env — use your own Atlas connection string; never commit it
+MONGODB_URI=mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/openbots?retryWrites=true&w=majority
+MONGODB_DB=openbots
+```
+
+- Database default name: `openbots` (override with `MONGODB_DB`)
+- Collection: `users` (indexed on `googleSub`, `email`)
+- If `MONGODB_URI` is unset or unreachable, Google auth still works and data falls back to `.browser-agent-users/`
+- Guest explorers are never blocked by missing Mongo
+
+## Sign-in / browser sessions
+
+### In-app browser (desktop default)
+
+On the Electron desktop app (`yarn desktop` / `yarn desktop:built`), browsing
+defaults to **Chrome-backed browsing**: normal installed Google Chrome with a
+dedicated saved profile, displayed live inside the app. Chrome starts and connects
+automatically; no manual launch command is needed. Native Electron tabs remain an
+advanced option with app-owned cookies (`persist:open-bots`). Playwright attaches over Electron’s remote
+debugging port (default `9333`, override with `OPEN_BOTS_ELECTRON_CDP_PORT`).
+
+This does **not** open or focus your personal Chrome. Sign in to sites inside the
+Live Browser panel. The Open Bots UI window itself is never the automation target.
+
+Plain `npm run built` / `yarn built` in a normal browser (no Electron) falls back
+to Buddy Bot Chrome / guest as before.
+
+**Honest limit:** Google OAuth and some bot walls still fail inside embedded
+Chromium. That is expected — use Connected Chrome below, or `reddit_search` /
+`google_property` for research without scraping.
+
+### External Buddy Bot Chrome (legacy / non-desktop)
+
+**Connect Apps → Open Chrome to sign in** launches a dedicated Chrome window with
+profile `~/.buddy-bot-chrome-profile` (not your personal Chrome). Useful when you
+are not on the desktop shell, or want an external window. Playwright-launched
+Chrome still carries automation signals; Reddit/Google often block it.
+
+### Connected Chrome (CDP) — escape hatch for Reddit / Google
+
+Optional external window when the in-app browser is blocked:
+
+1. Open **Connect Apps → Connect my Chrome**.
+2. Copy and run the launch command (starts Chrome with remote debugging on a
+   dedicated profile `~/.buddy-bot-chrome-cdp`, not your daily Chrome profile).
+3. Click **Connect my Chrome** again so Open Bots attaches via CDP (port `9222`).
+4. Sign in to Reddit/Google in that Chrome window, then run the task.
+
+Optional: set `BROWSER_AGENT_CDP_ENDPOINT` (default `http://127.0.0.1:9222`).
+
+Access-denied pages suggest Connected Chrome when the in-app browser is blocked;
+they are not presented as CAPTCHAs. For Reddit research without browsing, prefer
+`reddit_search`. For GA/GTM/GSC guidance, prefer `google_property`.
 
 ## Desktop app (Electron)
 
 ```sh
 yarn install
-yarn desktop:built     # production copy (build/), learn mode on  <- the one you usually want
+yarn desktop           # production copy (build/), port 8766
+yarn desktop:dev       # dist/ + tsc --watch, port 8765
+yarn desktop:built     # production copy (build/), learn mode on, port 8766
 ```
 
-One line: compiles into `build/`, starts the agent server from it, and opens Open Bots in an
-Electron window. `/learn` works here.
+**Dev desktop** (`yarn desktop:dev`): compiles to `dist/`, watches TypeScript,
+starts Electron with `node --watch` on the server, UI at [http://127.0.0.1:8765](http://127.0.0.1:8765).
+Add that origin under Google Cloud → Credentials → Authorized JavaScript origins for sign-in.
+Code changes apply without a production `build/`.
+
+**Production desktop** (`yarn desktop` / `yarn desktop:built`): compiles into `build/`, starts the agent from it on
+**8766**, Electron window with the **in-app browser** (CDP on `9333`). `/learn` works here.
 
 | Command | Server it runs | Learn mode |
 | --- | --- | --- |
-| `yarn desktop:built` | compiles `build/`, Electron starts it on a free port | on |
-| `yarn desktop:attach` | attaches to a server already listening (default `8766`, override with `BROWSER_AGENT_UI_PORT`) | whatever that server has |
-| `yarn desktop` | compiles `dist/`, Electron starts it (dev output) | on |
+| `yarn desktop:dev` | `tsc --watch` → `dist/`, Electron on **8765** | off (override with `BROWSER_AGENT_LEARN_MODE=1`) |
+| `yarn desktop` / `desktop:built` | compiles `build/`, Electron starts it on **8766** | on |
+| `yarn desktop:attach` | attaches to a server already listening (default `8766`; use `BROWSER_AGENT_UI_PORT=8765` for `yarn dev`) | whatever that server has |
 
-`yarn desktop:attach` is for when `yarn built` is already running in another terminal — it opens the
-window against that server instead of starting a second one. Two servers would otherwise both want
-the same Chromium profile directory, and only one process can hold it.
+`yarn desktop:attach` is for when `yarn built` or `yarn dev` is already running in another terminal —
+it opens the window against that server instead of starting a second one. Two servers would otherwise
+both want the same Chromium profile directory, and only one process can hold it.
 
-npm works for all of these too (`npm run desktop:built`).
+npm works for all of these too (`npm run desktop`, `npm run desktop:built`).
 
 ### Claude models
 
@@ -214,3 +335,41 @@ When a tool produces a file, the `step` event may include:
 ```
 
 The chat UI renders image `artifactUrl` values inline; non-image artifacts remain download links in the agent summary.
+
+
+## Interactive browser architecture
+
+The browser and Electron share the same workspace and agent server. Run
+`npm run desktop` from either the repository root or this directory for the
+production desktop; use `npm run desktop:dev` for the watched desktop. For a
+regular browser, run `npm run built` here (`npm run bots:built` from the root).
+
+- **Native desktop workspace:** `electron/browserWorkspace.js` owns one sandboxed
+  `WebContentsView` per tab. Native tabs and in-page state survive UI refreshes and
+  agent-server restarts. Toolbar commands use preload IPC; native browsing does
+  not go through screenshot/input HTTP requests.
+- **Shared automation target:** the desktop's private browser broker supplies
+  active tab identity to `src/desktopBrowser.ts`; Playwright attaches to that tab.
+  The desktop emits URL/title/tab changes directly to the UI.
+- **Web interaction scheduler:** `static/browserRuntime.js` sends one browser
+  input request at a time. Adjacent wheel deltas and typed text are combined;
+  clicks, keys, and navigation preserve their order. A failed action reports
+  its error and lets subsequent actions proceed.
+- **Live frame delivery:** `src/frameStream.ts` fans frames out to independent
+  subscribers. Each viewer stores at most one pending frame, replacing stale
+  frames. The SSE handler waits for HTTP drain when a viewer is slow and
+  releases the subscription on disconnect or session shutdown.
+- **Display scheduling:** the UI presents the latest frame once per animation
+  frame and disconnects the frame feed while the tab is hidden. Returning to
+  the tab fetches current browser status and reconnects to the current frame.
+- **Run events:** chat steps and approvals keep their existing ordered,
+  replayable event stream; they do not use disposable frame delivery.
+
+This separates rendering and input pacing from workspace UI code without adding
+another frontend framework or changing the agent/tool API. Web browsing still
+uses a JPEG preview over SSE; it is not a native browser view. The focused
+runtime/frame tests run as part of `npm test`.
+
+
+See [Desktop workspace architecture](docs/desktop-architecture.md) for component
+ownership, reload behavior, the VS Code fork decision, and implementation limits.

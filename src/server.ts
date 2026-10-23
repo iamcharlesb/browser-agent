@@ -1,12 +1,28 @@
 /** Local web UI for the browser agent: a chat-style task box with a live step feed. */
 
+import { ensureManagedChrome, managedChromeEnabled } from "./managedChrome";
+import { FrameStream } from "./frameStream";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, watch } from "node:fs";
 import { IncomingMessage, ServerResponse, createServer } from "node:http";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { OAuth2Client } from "google-auth-library";
-import { BrowserController, PageState, browserSessionConfig } from "./browserController";
+import {
+  BrowserController,
+  PageState,
+  SessionMode,
+  browserSessionConfig,
+  chromeCdpLaunchCommand,
+  embeddedBrowserAvailable,
+  probeCdpEndpoint,
+  resolveEmbeddedCdpEndpoint,
+  DEFAULT_CDP_ENDPOINT,
+  DEFAULT_CDP_PROFILE_DIR,
+  DEFAULT_EMBEDDED_PROFILE_LABEL,
+  DEFAULT_ELECTRON_CDP_PORT
+} from "./browserController";
+import type { InteractionMode, ObserveMode } from "./promptLoop";
 import {
   ARTIFACTS_DIR,
   WORKSPACE_ROOT,
@@ -43,6 +59,15 @@ import {
 import { createDefaultVerifier } from "./selfFix";
 import { createPatchProposer } from "./patchProposer";
 import { FixApprovalGate } from "./fixApproval";
+import {
+  getUserByGoogleSub,
+  mongodbConfigured,
+  resolveAuthBackend,
+  saveUserBotsAndSettings,
+  upsertGoogleUser,
+  type BotRosterEntry,
+  type UserSettings
+} from "./userStore";
 
 const STATIC_DIR = join(__dirname, "..", "static");
 const ENV_FILE = join(__dirname, "..", ".env");
@@ -111,6 +136,42 @@ function setGoogleSessionCookie(res: ServerResponse, value: string, maxAge: numb
     "Set-Cookie",
     `${GOOGLE_SESSION_COOKIE}=${encodeURIComponent(value)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure}`
   );
+}
+
+type VerifiedGoogleUser = {
+  id: string;
+  name: string;
+  email: string;
+  picture: string | null;
+};
+
+async function verifyGoogleSession(req: IncomingMessage): Promise<VerifiedGoogleUser | null> {
+  const credential = cookieValue(req, GOOGLE_SESSION_COOKIE);
+  if (!credential || !GOOGLE_CLIENT_ID) return null;
+  try {
+    const ticket = await googleOAuthClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+    const payload = ticket.getPayload();
+    if (!payload?.sub || !payload.email || payload.email_verified !== true) return null;
+    return {
+      id: payload.sub,
+      name: payload.name ?? "Google user",
+      email: payload.email,
+      picture: typeof payload.picture === "string" ? payload.picture : null
+    };
+  } catch {
+    return null;
+  }
+}
+
+function persistenceMeta() {
+  return {
+    backend: resolveAuthBackend(),
+    mongodbConfigured: mongodbConfigured(),
+    note:
+      resolveAuthBackend() === "mongodb"
+        ? "Signed-in data syncs to MongoDB when reachable; otherwise falls back to local files."
+        : "Signed-in data persists under .browser-agent-users/ (set MONGODB_URI for Atlas)."
+  };
 }
 
 function isSameOriginRequest(req: IncomingMessage): boolean {
@@ -225,7 +286,7 @@ interface BrowserSession {
   kind: "conversation" | "login";
   botKey: string | null;
   controller: BrowserController;
-  frameQueue: AsyncQueue<string | null>;
+  frameQueue: FrameStream;
   viewportWidth: number;
   viewportHeight: number;
 }
@@ -245,6 +306,9 @@ interface RunRequestBody {
   maxSteps?: number;
   maxDurationSeconds?: number;
   model?: string;
+  /** chat = text tools only; browse = nav/read; act = full (default). */
+  interactionMode?: InteractionMode;
+  observeMode?: ObserveMode;
 }
 
 interface ScheduledTask {
@@ -266,7 +330,11 @@ let currentRun: RunState | null = null;
 /** Set while an orchestrator is still executing, which outlasts `currentRun.isRunning` on a stop. */
 let activeRunPromise: Promise<AgentResult> | null = null;
 let activeSession: BrowserSession | null = null;
-let activeSessionMode: "persistent" | "guest" = "persistent";
+/** Desktop prefers normal Chrome with an in-app live view; native tabs are an advanced option. */
+function resolveDefaultSessionMode(): SessionMode {
+  return managedChromeEnabled() ? "cdp" : embeddedBrowserAvailable() ? "embedded" : "persistent";
+}
+let activeSessionMode: SessionMode = resolveDefaultSessionMode();
 let schedules: ScheduledTask[] = [];
 const scheduleTimers = new Map<string, NodeJS.Timeout>();
 
@@ -488,10 +556,36 @@ async function onHumanVerification(run: RunState, _state: PageState): Promise<vo
   // Even when running headless, our embedded live screencast panel lets the user interact
   // directly with the page and click "I've handled it — resume". Only skip if this is an
   // unattended background schedule run with no UI viewer.
-  await new Promise<void>((resolve) => {
-    run.resolveVerification = resolve;
-  });
-  run.resolveVerification = null;
+  let checking = false;
+  let observedUrl = _state.url;
+  const session = activeSession;
+  const monitor = setInterval(async () => {
+    if (checking || !session || activeSession !== session || !run.resolveVerification) return;
+    checking = true;
+    try {
+      // A challenge can turn into a hard site block or browser sign-in rejection.
+      // End that wait so the orchestrator can report the access block accurately.
+      const state = await session.controller.captureState({ includeScreenshot: false });
+      if (!Boolean(run.resolveVerification) || activeSession !== session) return;
+      if (state.url !== observedUrl) {
+        observedUrl = state.url;
+        publishRunEvent(run, { type: "observe", url: state.url, title: state.title });
+      }
+      if (state.accessDenied) run.resolveVerification?.();
+    } catch {
+      // Navigations may invalidate page evaluation; leave explicit Resume available.
+    } finally {
+      checking = false;
+    }
+  }, 1500);
+  try {
+    await new Promise<void>((resolve) => {
+      run.resolveVerification = resolve;
+    });
+  } finally {
+    clearInterval(monitor);
+    run.resolveVerification = null;
+  }
 }
 
 /** Pauses a run and waits for an explicit POST /api/approval before a shell command or file
@@ -581,7 +675,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
           kind: "conversation",
           botKey,
           controller,
-          frameQueue: new AsyncQueue<string | null>(),
+          frameQueue: new FrameStream(),
           viewportWidth: viewport.width,
           viewportHeight: viewport.height
         };
@@ -619,6 +713,13 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
         .filter(Boolean)
         .join("\n\n");
 
+      const interactionMode: InteractionMode =
+        body.interactionMode === "chat" || body.interactionMode === "browse" || body.interactionMode === "act"
+          ? body.interactionMode
+          : "act";
+      const observeMode: ObserveMode =
+        body.observeMode === "vision" || body.observeMode === "text" ? body.observeMode : "text";
+
       const orchestrator = new AgentOrchestrator({
         task: body.task,
         botName: body.botName,
@@ -628,6 +729,8 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
         model: body.model,
         maxSteps: body.maxSteps,
         maxDurationSeconds: body.maxDurationSeconds,
+        interactionMode,
+        observeMode,
         onEvent: (event) => {
           if (event.type === "usage" && typeof event.model === "string") {
             recordUsage(
@@ -644,7 +747,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
               kind: "conversation",
               botKey,
               controller,
-              frameQueue: new AsyncQueue<string | null>(),
+              frameQueue: new FrameStream(),
               viewportWidth: viewport.width,
               viewportHeight: viewport.height
             };
@@ -1023,22 +1126,42 @@ function activeBrowserSession(): BrowserSession | null {
   return activeSession;
 }
 
+function parseSessionMode(value: unknown): SessionMode | undefined {
+  if (value === "guest" || value === "persistent" || value === "cdp" || value === "embedded") return value;
+  return undefined;
+}
+
+function profileDirForMode(mode: SessionMode): string {
+  if (mode === "guest") return "Ephemeral Guest Context";
+  if (mode === "cdp") return DEFAULT_CDP_PROFILE_DIR;
+  if (mode === "embedded") return DEFAULT_EMBEDDED_PROFILE_LABEL;
+  return activeSession?.controller.profileDir ?? browserSessionConfig(mode).userDataDir;
+}
+
+function cdpEndpointForMode(mode: SessionMode): string | null {
+  if (mode === "cdp") return process.env.BROWSER_AGENT_CDP_ENDPOINT || DEFAULT_CDP_ENDPOINT;
+  if (mode === "embedded") return resolveEmbeddedCdpEndpoint();
+  return null;
+}
+
+function sessionModeMismatch(controller: BrowserController, mode: SessionMode): boolean {
+  return controller.sessionMode !== mode;
+}
+
 async function openLoginSession(
   url: string,
   botName?: string,
-  requestedMode?: "persistent" | "guest"
+  requestedMode?: SessionMode
 ): Promise<{
   viewportWidth: number;
   viewportHeight: number;
   url: string;
-  sessionMode: "persistent" | "guest";
+  sessionMode: SessionMode;
   tabs: Awaited<ReturnType<BrowserController["getTabs"]>>;
   navigationError: string | null;
 }> {
   const targetMode = requestedMode ?? activeSessionMode;
-  const modeChanged = Boolean(
-    activeSession && activeSession.controller.isGuestMode !== (targetMode === "guest")
-  );
+  const modeChanged = Boolean(activeSession && sessionModeMismatch(activeSession.controller, targetMode));
 
   // During an active task run, never open/replace a second Chromium — reuse the bot's browser
   // so the UI can stream frames without a scary conflict error.
@@ -1124,7 +1247,7 @@ async function openLoginSession(
     kind: "login",
     botKey: botName ? botName.trim() : null,
     controller,
-    frameQueue: new AsyncQueue<string | null>(),
+    frameQueue: new FrameStream(),
     viewportWidth: width,
     viewportHeight: height
   };
@@ -1241,6 +1364,13 @@ async function handleEventsStream(req: IncomingMessage, res: ServerResponse): Pr
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
+  if (req.method === "GET" && url.pathname === "/browserRuntime.js") {
+    const script = await readFile(join(STATIC_DIR, "browserRuntime.js"), "utf8");
+    res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
+    res.end(script);
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/") {
     try {
       const html = await readFile(join(STATIC_DIR, "index.html"), "utf8");
@@ -1253,7 +1383,18 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (req.method === "GET" && url.pathname === "/api/auth/google/config") {
-    sendJson(res, 200, { enabled: Boolean(GOOGLE_CLIENT_ID), clientId: GOOGLE_CLIENT_ID || null });
+    const host = req.headers.host || `${HOST}:${PORT}`;
+    const forwardedProtocol = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0].trim();
+    const protocol = forwardedProtocol === "https" ? "https" : "http";
+    const googleEnabled = Boolean(GOOGLE_CLIENT_ID);
+    sendJson(res, 200, {
+      enabled: googleEnabled,
+      googleEnabled,
+      clientId: GOOGLE_CLIENT_ID || null,
+      /** Exact origin the GIS button needs in Google Cloud Authorized JavaScript origins. */
+      authorizedOrigin: `${protocol}://${host}`,
+      ...persistenceMeta()
+    });
     return;
   }
 
@@ -1282,11 +1423,25 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
 
+      const user = {
+        id: payload.sub,
+        name: payload.name ?? "Google user",
+        email: payload.email,
+        picture: typeof payload.picture === "string" ? payload.picture : null
+      };
+      const { user: stored, backend } = await upsertGoogleUser(REPO_ROOT, {
+        googleSub: user.id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture
+      });
+
       const maxAge = Math.max(1, Math.min(3600, (payload.exp ?? 0) - Math.floor(Date.now() / 1000)));
       setGoogleSessionCookie(res, credential, maxAge);
       sendJson(res, 200, {
         authenticated: true,
-        user: { id: payload.sub, name: payload.name ?? "Google user", email: payload.email, picture: payload.picture ?? null }
+        user,
+        persistence: { ...persistenceMeta(), backend, bots: stored.bots, settings: stored.settings }
       });
     } catch {
       sendJson(res, 401, { detail: "Google sign-in could not be verified. Please try again." });
@@ -1295,23 +1450,27 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (req.method === "GET" && url.pathname === "/api/auth/google/session") {
-    const credential = cookieValue(req, GOOGLE_SESSION_COOKIE);
-    if (!credential || !GOOGLE_CLIENT_ID) {
-      sendJson(res, 200, { authenticated: false });
+    const user = await verifyGoogleSession(req);
+    if (!user) {
+      if (cookieValue(req, GOOGLE_SESSION_COOKIE)) setGoogleSessionCookie(res, "", 0);
+      sendJson(res, 200, { authenticated: false, ...persistenceMeta() });
       return;
     }
-    try {
-      const ticket = await googleOAuthClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
-      const payload = ticket.getPayload();
-      if (!payload?.sub || !payload.email || payload.email_verified !== true) throw new Error("Invalid Google session.");
-      sendJson(res, 200, {
-        authenticated: true,
-        user: { id: payload.sub, name: payload.name ?? "Google user", email: payload.email, picture: payload.picture ?? null }
-      });
-    } catch {
-      setGoogleSessionCookie(res, "", 0);
-      sendJson(res, 200, { authenticated: false });
-    }
+    const { user: stored, backend } = await getUserByGoogleSub(REPO_ROOT, user.id, {
+      email: user.email,
+      name: user.name,
+      picture: user.picture
+    });
+    sendJson(res, 200, {
+      authenticated: true,
+      user,
+      persistence: {
+        ...persistenceMeta(),
+        backend,
+        bots: stored?.bots ?? [],
+        settings: stored?.settings ?? {}
+      }
+    });
     return;
   }
 
@@ -1325,10 +1484,81 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/user/data") {
+    const user = await verifyGoogleSession(req);
+    if (!user) {
+      sendJson(res, 401, { detail: "Google sign-in required to load cloud/local persisted data." });
+      return;
+    }
+    const { user: stored, backend } = await getUserByGoogleSub(REPO_ROOT, user.id, {
+      email: user.email,
+      name: user.name,
+      picture: user.picture
+    });
+    sendJson(res, 200, {
+      user,
+      bots: stored?.bots ?? [],
+      settings: stored?.settings ?? {},
+      ...persistenceMeta(),
+      backend
+    });
+    return;
+  }
+
+  if (req.method === "PUT" && url.pathname === "/api/user/data") {
+    if (!isSameOriginRequest(req)) {
+      sendJson(res, 403, { detail: "Persist requests must come from this app." });
+      return;
+    }
+    const user = await verifyGoogleSession(req);
+    if (!user) {
+      sendJson(res, 401, { detail: "Google sign-in required to save persisted data." });
+      return;
+    }
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const bots = Array.isArray(body.bots)
+        ? body.bots.filter((b): b is BotRosterEntry => Boolean(b) && typeof b === "object" && !Array.isArray(b))
+        : undefined;
+      const settings =
+        body.settings && typeof body.settings === "object" && !Array.isArray(body.settings)
+          ? (body.settings as UserSettings)
+          : undefined;
+      if (bots === undefined && settings === undefined) {
+        sendJson(res, 400, { detail: "Provide bots and/or settings to save." });
+        return;
+      }
+      if (bots && bots.length > 200) {
+        sendJson(res, 400, { detail: "Bot roster is too large (max 200)." });
+        return;
+      }
+      const { user: stored, backend } = await saveUserBotsAndSettings(
+        REPO_ROOT,
+        user.id,
+        { bots, settings },
+        { email: user.email, name: user.name, picture: user.picture }
+      );
+      sendJson(res, 200, {
+        ok: true,
+        bots: stored.bots,
+        settings: stored.settings,
+        ...persistenceMeta(),
+        backend
+      });
+    } catch {
+      sendJson(res, 500, { detail: "Could not save user data." });
+    }
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/status") {
     const tabs = activeSession ? await activeSession.controller.getTabs() : [];
     sendJson(res, 200, {
       ok: true,
+      auth: {
+        googleEnabled: Boolean(GOOGLE_CLIENT_ID),
+        ...persistenceMeta()
+      },
       hasApiKey: Boolean(process.env.OPENAI_API_KEY || process.env.XAI_API_KEY || process.env.ANTHROPIC_API_KEY),
       hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
       hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
@@ -1348,19 +1578,86 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       hasBrowserSession: Boolean(activeSession),
       sessionKind: activeSession?.kind ?? null,
       sessionMode: activeSessionMode,
+      defaultSessionMode: resolveDefaultSessionMode(),
+      desktopBrowserEngine: managedChromeEnabled() ? "chrome-cdp-v1" : "native-v1",
+      embeddedAvailable: embeddedBrowserAvailable(),
+      electronCdpPort: embeddedBrowserAvailable()
+        ? Number(process.env.OPEN_BOTS_ELECTRON_CDP_PORT) || DEFAULT_ELECTRON_CDP_PORT
+        : null,
       currentUrl: activeSession ? activeSession.controller.currentUrl() : null,
       tabs,
-      browserName: activeSession?.controller.browserName ?? (activeSessionMode === "guest" ? "chromium" : "chrome"),
-      profileDir: activeSessionMode === "guest" ? "Ephemeral Guest Context" :
-        activeSession?.controller.profileDir ?? browserSessionConfig(activeSessionMode).userDataDir
+      browserName:
+        activeSession?.controller.browserName ??
+        (activeSessionMode === "guest" || activeSessionMode === "embedded" ? "chromium" : "chrome"),
+      profileDir: profileDirForMode(activeSessionMode),
+      cdpEndpoint: cdpEndpointForMode(activeSessionMode),
+      cdpConnected:
+        activeSessionMode === "cdp" || activeSessionMode === "embedded"
+          ? Boolean(activeSession?.controller.isStarted)
+          : false
     });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/chrome/cdp") {
+    const endpoint = process.env.BROWSER_AGENT_CDP_ENDPOINT || DEFAULT_CDP_ENDPOINT;
+    const launch = chromeCdpLaunchCommand(endpoint, DEFAULT_CDP_PROFILE_DIR);
+    const reachable = await probeCdpEndpoint(endpoint);
+    sendJson(res, 200, {
+      endpoint: launch.endpoint,
+      profileDir: launch.profileDir,
+      command: launch.command,
+      port: launch.port,
+      reachable,
+      sessionMode: activeSessionMode
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/chrome/cdp/connect") {
+    try {
+      const endpoint = process.env.BROWSER_AGENT_CDP_ENDPOINT || DEFAULT_CDP_ENDPOINT;
+      if (managedChromeEnabled()) await ensureManagedChrome(endpoint, DEFAULT_CDP_PROFILE_DIR, probeCdpEndpoint);
+      const reachable = await probeCdpEndpoint(endpoint);
+      if (!reachable) {
+        const launch = chromeCdpLaunchCommand(endpoint, DEFAULT_CDP_PROFILE_DIR);
+        sendJson(res, 503, {
+          detail: "Chrome with remote debugging is not reachable.",
+          command: launch.command,
+          endpoint: launch.endpoint,
+          profileDir: launch.profileDir
+        });
+        return;
+      }
+      activeSessionMode = "cdp";
+      if (activeSession && (!currentRun || !currentRun.isRunning)) {
+        const old = activeSession;
+        activeSession = null;
+        old.frameQueue.push(null);
+        await old.controller.close().catch(() => undefined);
+      }
+      const result = await openLoginSession("about:blank", undefined, "cdp");
+      sendJson(res, 200, {
+        status: "ok",
+        sessionMode: result.sessionMode,
+        url: result.url,
+        tabs: result.tabs,
+        endpoint
+      });
+    } catch (err) {
+      const launch = chromeCdpLaunchCommand();
+      sendJson(res, 500, {
+        detail: (err as Error).message,
+        command: launch.command
+      });
+    }
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/session/mode") {
     try {
       const body = (await readJsonBody(req)) as Record<string, unknown>;
-      const mode: "persistent" | "guest" = body.mode === "guest" ? "guest" : "persistent";
+      const mode = parseSessionMode(body.mode) ?? resolveDefaultSessionMode();
       const changed = activeSessionMode !== mode;
       activeSessionMode = mode;
       if (changed && activeSession && (!currentRun || !currentRun.isRunning)) {
@@ -1369,7 +1666,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         old.frameQueue.push(null);
         await old.controller.close().catch(() => undefined);
       }
-      sendJson(res, 200, { status: "ok", sessionMode: activeSessionMode });
+      sendJson(res, 200, {
+        status: "ok",
+        sessionMode: activeSessionMode,
+        embeddedAvailable: embeddedBrowserAvailable(),
+        ...(mode === "cdp" ? chromeCdpLaunchCommand() : {})
+      });
     } catch (err) {
       sendJson(res, 400, { detail: (err as Error).message });
     }
@@ -1741,8 +2043,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const body = (await readJsonBody(req)) as Record<string, unknown>;
       const loginUrl = typeof body.url === "string" && body.url.trim() ? body.url.trim() : "about:blank";
       const botName = typeof body.botName === "string" ? body.botName : undefined;
-      const requestedMode =
-        body.mode === "guest" ? "guest" : body.mode === "persistent" ? "persistent" : undefined;
+      const requestedMode = parseSessionMode(body.mode);
       const {
         viewportWidth,
         viewportHeight,
@@ -1757,7 +2058,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         sessionMode,
         browserName: activeSession?.controller.browserName,
         accessDenied: state?.accessDenied ?? false,
-        profileDir: sessionMode === "guest" ? "Ephemeral Guest Context" : activeSession?.controller.profileDir,
+        profileDir: profileDirForMode(sessionMode),
+        embeddedAvailable: embeddedBrowserAvailable(),
         viewportWidth,
         viewportHeight,
         url: currentUrl,
@@ -1795,20 +2097,34 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       "Cache-Control": "no-cache",
       Connection: "keep-alive"
     });
+    res.flushHeaders();
+    const { frames, dispose } = session.frameQueue.subscribe();
+    res.once("close", dispose);
     const initialFrame = session.controller.latestFrame;
-    if (initialFrame) {
-      res.write(`data: ${initialFrame}\n\n`);
+    if (initialFrame) frames.push(initialFrame);
+    try {
+      while (!res.destroyed) {
+        const frame = await frames.next();
+        if (frame === null || res.destroyed) break;
+        if (!res.write(`data: ${frame}\n\n`)) {
+          // Pause this viewer only; its pending slot keeps replacing stale frames.
+          await new Promise<void>(resolve => {
+            const done = () => {
+              res.off("drain", done);
+              res.off("close", done);
+              resolve();
+            };
+            res.once("drain", done);
+            res.once("close", done);
+            if (res.destroyed) done();
+          });
+        }
+      }
+    } finally {
+      dispose();
+      res.off("close", dispose);
+      res.end();
     }
-    let closed = false;
-    req.on("close", () => {
-      closed = true;
-    });
-    while (!closed) {
-      const frame = await session.frameQueue.next();
-      if (frame === null || closed) break;
-      res.write(`data: ${frame}\n\n`);
-    }
-    res.end();
     return;
   }
 
@@ -1822,7 +2138,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         });
         return;
       }
-      await openLoginSession("https://www.google.com/");
+      await openLoginSession("about:blank");
       session = activeBrowserSession();
     }
     if (!session) {

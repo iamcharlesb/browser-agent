@@ -5,8 +5,8 @@
  *   yarn desktop:built     compile into build/, then open Electron on it
  *   yarn desktop:attach    skip the build and attach to a server that is already running
  *
- * `yarn desktop` stays on the dev output (dist/). This one exists because electron/main.js used to
- * hardcode dist/server.js, so there was no way to run the built copy in the desktop shell at all.
+ * Dev desktop (`yarn desktop` / `desktop:dev`) uses dist/ + watch on port 8765 — see desktopDev.js.
+ * This script is the production path only.
  */
 
 const { spawn, spawnSync } = require("node:child_process");
@@ -54,10 +54,12 @@ if (attach) {
   env.BROWSER_AGENT_UI_PORT = process.env.BROWSER_AGENT_UI_PORT || "8766";
   console.log(`[desktop] Attaching to the server already on port ${env.BROWSER_AGENT_UI_PORT}...`);
 } else {
-  // Electron starts its own server from build/ on a free port.
+  // Electron starts its own server from build/. Prefer a stable port so Google GIS
+  // Authorized JavaScript origins (http://127.0.0.1:8766) keep working across restarts.
   env.BROWSER_AGENT_SERVER_ENTRY = serverEntry;
+  env.BROWSER_AGENT_UI_PORT = process.env.BROWSER_AGENT_UI_PORT || "8766";
   delete env.BROWSER_AGENT_ATTACH_EXISTING;
-  console.log("[desktop] Starting Electron on the production build...");
+  console.log(`[desktop] Starting Electron on the production build (port ${env.BROWSER_AGENT_UI_PORT})...`);
 }
 
 const child = spawn(electronBin, ["."], { cwd: projectRoot, stdio: "inherit", env });
