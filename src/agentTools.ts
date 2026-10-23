@@ -44,7 +44,13 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       parameters: {
         type: "object",
         properties: {
-          markId: { type: "integer", description: "Numeric mark ID (e.g. 12 for #12)." }
+          markId: { type: "integer", description: "Numeric mark ID (e.g. 12 for #12)." },
+          effect: {
+            type: "string",
+            enum: ["read", "reversible", "outward", "irreversible"],
+            description:
+              "What this action does to the world. read = only looks. reversible = only you see it and you can undo it (filters, drafts, bookmarks). outward = another person will see it, or it leaves the account under the user's name (follow, connect, send, post, comment, like, apply, launch a campaign). irreversible = destroys something or moves money (delete, pay, buy, cancel a subscription). Judge the real consequence, not the button's wording: 'Save' on a profile-edit page is outward, because the bio becomes public. When unsure, pick the higher one."
+          }
         },
         required: ["markId"]
       }
@@ -61,7 +67,13 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           markId: { type: "integer", description: "Numeric mark ID of the input field." },
           text: { type: "string", description: "Text to type." },
           clear: { type: "boolean", description: "Clear field first (default true)." },
-          pressEnter: { type: "boolean", description: "Press Enter after typing (default false)." }
+          pressEnter: { type: "boolean", description: "Press Enter after typing (default false)." },
+          effect: {
+            type: "string",
+            enum: ["read", "reversible", "outward", "irreversible"],
+            description:
+              "What this action does to the world. read = only looks. reversible = only you see it and you can undo it (filters, drafts, bookmarks). outward = another person will see it, or it leaves the account under the user's name (follow, connect, send, post, comment, like, apply, launch a campaign). irreversible = destroys something or moves money (delete, pay, buy, cancel a subscription). Judge the real consequence, not the button's wording: 'Save' on a profile-edit page is outward, because the bio becomes public. When unsure, pick the higher one."
+          }
         },
         required: ["markId", "text"]
       }
@@ -75,7 +87,13 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       parameters: {
         type: "object",
         properties: {
-          target: { type: "string", description: "Visible text, aria-label, or CSS selector." }
+          target: { type: "string", description: "Visible text, aria-label, or CSS selector." },
+          effect: {
+            type: "string",
+            enum: ["read", "reversible", "outward", "irreversible"],
+            description:
+              "What this action does to the world. read = only looks. reversible = only you see it and you can undo it (filters, drafts, bookmarks). outward = another person will see it, or it leaves the account under the user's name (follow, connect, send, post, comment, like, apply, launch a campaign). irreversible = destroys something or moves money (delete, pay, buy, cancel a subscription). Judge the real consequence, not the button's wording: 'Save' on a profile-edit page is outward, because the bio becomes public. When unsure, pick the higher one."
+          }
         },
         required: ["target"]
       }
@@ -91,7 +109,13 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         properties: {
           x: { type: "integer" },
           y: { type: "integer" },
-          label: { type: "string" }
+          label: { type: "string" },
+          effect: {
+            type: "string",
+            enum: ["read", "reversible", "outward", "irreversible"],
+            description:
+              "What this action does to the world. read = only looks. reversible = only you see it and you can undo it (filters, drafts, bookmarks). outward = another person will see it, or it leaves the account under the user's name (follow, connect, send, post, comment, like, apply, launch a campaign). irreversible = destroys something or moves money (delete, pay, buy, cancel a subscription). Judge the real consequence, not the button's wording: 'Save' on a profile-edit page is outward, because the bio becomes public. When unsure, pick the higher one."
+          }
         },
         required: ["x", "y"]
       }
@@ -109,7 +133,13 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           y: { type: "integer" },
           text: { type: "string" },
           clear: { type: "boolean" },
-          pressEnter: { type: "boolean" }
+          pressEnter: { type: "boolean" },
+          effect: {
+            type: "string",
+            enum: ["read", "reversible", "outward", "irreversible"],
+            description:
+              "What this action does to the world. read = only looks. reversible = only you see it and you can undo it (filters, drafts, bookmarks). outward = another person will see it, or it leaves the account under the user's name (follow, connect, send, post, comment, like, apply, launch a campaign). irreversible = destroys something or moves money (delete, pay, buy, cancel a subscription). Judge the real consequence, not the button's wording: 'Save' on a profile-edit page is outward, because the bio becomes public. When unsure, pick the higher one."
+          }
         },
         required: ["x", "y", "text"]
       }
@@ -293,7 +323,15 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       description: "Press a keyboard key (e.g. 'Enter', 'Escape', 'Tab').",
       parameters: {
         type: "object",
-        properties: { key: { type: "string" } },
+        properties: {
+          key: { type: "string" },
+          effect: {
+            type: "string",
+            enum: ["read", "reversible", "outward", "irreversible"],
+            description:
+              "What this action does to the world. read = only looks. reversible = only you see it and you can undo it (filters, drafts, bookmarks). outward = another person will see it, or it leaves the account under the user's name (follow, connect, send, post, comment, like, apply, launch a campaign). irreversible = destroys something or moves money (delete, pay, buy, cancel a subscription). Judge the real consequence, not the button's wording: 'Save' on a profile-edit page is outward, because the bio becomes public. When unsure, pick the higher one."
+          }
+        },
         required: ["key"]
       }
     }
