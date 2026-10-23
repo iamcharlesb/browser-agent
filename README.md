@@ -1,5 +1,23 @@
 # Open Bots (Browser Agent)
 
+## Approvals and conversation flow
+
+Common read-only shell checks (`pwd`, `ls`, `cat`, and supported Git inspection
+commands) run without a permission prompt. Unknown shell syntax, other commands,
+and file writes still pause before execution. Commands containing mutations or
+substitutions do not become read-only just because they start with `git status`.
+
+At a prompt, choose **Allow once**, **Allow shell & files for this task**, or
+**Deny**. A task grant allows shell commands (including commands that contact
+remote services) and file edits for the current run only; it expires at completion
+or stop and does not transfer to another bot/run. **Approve for me** is the broader
+persistent opt-in. Financial task gates and unattended restrictions still apply.
+
+Replies enter upward above the composer, with the newest message at the bottom.
+Scrolling back pauses automatic following while new replies/steps arrive. Reduced
+motion preferences disable reply entrance animation. Recent context retains the
+opening goal and meaningful conversation rather than filling up with approval cards.
+
 ## Desktop app (Electron)
 
 ```sh

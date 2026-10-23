@@ -1,6 +1,8 @@
 /** The ReAct orchestrator: observe, evaluate delta, infer, execute, supervise, prune. */
 
 import OpenAI from "openai";
+import { randomUUID } from "node:crypto";
+import { isReadOnlyCommand, TaskApprovalScope, TerminalApprovalDecision } from "./approvalPolicy";
 import { TOOLS, ToolExecutionResult, executeTool } from "./agentTools";
 import { BrowserController, PageState } from "./browserController";
 import {
@@ -28,7 +30,7 @@ const INTERACTIVE_BROWSER_TOOL_NAMES = new Set(["click_mark", "type_mark", "clic
 const MUTATING_WORKSPACE_FILE_ACTIONS = new Set(["write", "append"]);
 
 function requiresPrivilegedApproval(toolName: string, input: Record<string, unknown>): boolean {
-  if (toolName === "run_terminal_command") return true;
+  if (toolName === "run_terminal_command") return !isReadOnlyCommand(String(input.command ?? ""));
   if (toolName === "workspace_file") {
     return MUTATING_WORKSPACE_FILE_ACTIONS.has(String(input.action ?? ""));
   }
@@ -62,7 +64,7 @@ export type AgentEvent = Record<string, unknown>;
 export type OnEvent = (event: AgentEvent) => void;
 export type OnHumanVerification = (state: PageState) => Promise<void> | void;
 /** Returns true to run the command/write, false to deny it. Must default to deny if unset. */
-export type OnTerminalApproval = (details: { toolName: string; description: string }) => Promise<boolean> | boolean;
+export type OnTerminalApproval = (details: { toolName: string; description: string; approvalId: string }) => Promise<TerminalApprovalDecision> | TerminalApprovalDecision;
 export type OnScheduleTask = (input: Record<string, unknown>) => Promise<ToolExecutionResult>;
 export type OnLearningKb = (input: Record<string, unknown>) => Promise<ToolExecutionResult>;
 /**
@@ -200,6 +202,7 @@ export class AgentOrchestrator {
   private readonly onEvent?: OnEvent;
   private readonly onHumanVerification?: OnHumanVerification;
   private readonly onTerminalApproval?: OnTerminalApproval;
+  private readonly taskApproval = new TaskApprovalScope();
   private readonly standingApproval: boolean;
   private readonly allowPrivilegedTools: boolean;
   private readonly onScheduleTask?: OnScheduleTask;
@@ -335,7 +338,11 @@ export class AgentOrchestrator {
       "Rules:\n" +
       "1. SPEED after the plan: batch tools; minimum steps; don't stall asking what the niche is if the profile can tell you.\n" +
       "2. PEER BOTS: answer from OPEN BOTS WORKSPACE ROSTER — never generic 'what is a bot' definitions.\n" +
-      "3. Terminal/file writes need user approval; if denied, adapt once — don't retry the same call.\n" +
+      "3. Read-only repository inspection runs without approval. Other shell commands/file writes use the tool's approval gate; call the tool directly rather than asking for permission in prose first. 'Approve for me' and task-scoped shell/file approval suppress repeat prompts. If denied, adapt once; don't retry the denied action.\n" +
+      "TASK CONTINUITY: Treat requests such as 'can you', 'proceed', 'sort it out', and 'yes' in the supplied conversation as instructions to continue the established task. Carry forward known paths, remotes, goals, and prior decisions. Inspect available state before asking for missing information. Ask only when a material choice cannot be inferred; bundle those choices into one question. Do not invent lost context.\n" +
+      "EXECUTION: A request to commit, push, migrate, or fix authorizes the normal steps for that task. Verify the destination and preserve uncommitted work, then invoke tools. Do not end with 'want me to proceed?' for work already requested. Never infer publication/visibility changes, destructive history rewrites, or secret disclosure from vague approval. Respect explicit limits such as 'do not push' and show actual diffs when review was requested.\n" +
+      "REPOSITORIES: Trace parent and submodule remotes together; after changing anything, check a fresh checkout/setup path before claiming migration complete. Report partial completion honestly.\n" +
+      "BOT HANDOFFS: Use only bots present in the supplied roster. Creating a bot and delegating work are different actions; never claim you created or contacted a bot without a successful tool result.\n" +
       "4. Check [Detected Stats] and Text first; if the ask is only for numbers/bio, finish_task immediately.\n" +
       "5. After SPA profile clicks (IG/X), extract_page_data or wait(1s) before failing.\n" +
       "6. YouTube → understand_youtube_video, never navigate for transcripts.\n" +
@@ -453,9 +460,13 @@ export class AgentOrchestrator {
    * not the safe one.
    */
   private async requestPrivilegedApproval(toolName: string, input: Record<string, unknown>): Promise<boolean> {
+    if (!this.allowPrivilegedTools) return false;
+    if (!requiresPrivilegedApproval(toolName, input) || this.standingApproval || this.taskApproval.allows(toolName)) return true;
     const description = describePrivilegedCall(toolName, input);
+    const approvalId = randomUUID();
     this.emit({
       type: "privileged_approval_required",
+      approvalId,
       toolName,
       description,
       message: `${this.botName} wants to: ${description}. Approve or deny before it runs.`
@@ -465,7 +476,7 @@ export class AgentOrchestrator {
     let approved = false;
     if (this.onTerminalApproval) {
       try {
-        approved = await this.onTerminalApproval({ toolName, description });
+        approved = this.taskApproval.resolve(await this.onTerminalApproval({ toolName, description, approvalId }));
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error("onTerminalApproval hook raised; denying by default.", err);
@@ -477,7 +488,7 @@ export class AgentOrchestrator {
     }
     this.loopGuard.extendDeadline((Date.now() - waitStarted) / 1000);
 
-    this.emit({ type: "privileged_approval_resolved", toolName, description, approved });
+    this.emit({ type: "privileged_approval_resolved", approvalId, toolName, description, approved });
     return approved;
   }
 
@@ -582,13 +593,25 @@ export class AgentOrchestrator {
       );
     if (cmdMatch || /^(?:git|ls|pwd|node|npm|npx|python3?|uname|whoami|date|echo)\b/i.test(rawRequest)) {
       const cmd = (cmdMatch ? cmdMatch[1] || cmdMatch[2] || cmdMatch[3] : rawRequest).trim();
-      const res = await executeTool("run_terminal_command", { command: cmd }, this.browser);
+      const approved = await this.requestPrivilegedApproval("run_terminal_command", { command: cmd });
+      const res = approved
+        ? await executeTool("run_terminal_command", { command: cmd }, this.browser)
+        : { ok: false, message: "This command was not approved by the user and was not executed." } as ToolExecutionResult;
       emitLocalStep("run_terminal_command", { command: cmd }, res);
       outputs.push(
         `### Local Terminal Execution\nCommand: \`$ ${cmd}\`\n\`\`\`text\n${
           (res.terminalEntry?.stdout || res.terminalEntry?.stderr || res.message).trim()
         }\n\`\`\``
       );
+      if (!res.ok) {
+        return this.finish({
+          success: false,
+          summary: outputs.join("\n\n"),
+          stepsTaken: steps,
+          elapsedSeconds: this.loopGuard.elapsedSeconds(),
+          terminationReason: approved ? "command_failed" : "approval_denied"
+        });
+      }
     }
 
     // 2. Check for YouTube video understanding
