@@ -34,6 +34,8 @@ function clearStaleSingletonLock(userDataDir: string): void {
  * runs reuse that session instead of hitting a login wall every time.
  */
 export const DEFAULT_PROFILE_DIR = join(homedir(), ".browser-agent-profile");
+/** A dedicated Chrome profile; never open or copy the user's personal Chrome profile. */
+export const DEFAULT_CHROME_PROFILE_DIR = join(homedir(), ".buddy-bot-chrome-profile");
 
 const INTERACTIVE_SELECTOR =
   'a[href], button, input, select, textarea, ' +
@@ -173,6 +175,11 @@ export function titleRequiresHumanVerification(title: string): boolean {
   return VERIFICATION_TITLE_KEYWORDS.some((keyword) => lower.includes(keyword));
 }
 
+export function pageAccessDenied(title: string, text: string): boolean {
+  return /^(?:access denied|403 forbidden|request blocked)(?:\b|\s)/i.test(title.trim()) ||
+    /^(?:[\s\S]{0,100}?)(?:sorry,? you have been blocked|you are unable to access\s+\S+|error (?:code:?\s*)?1020\b)/i.test(text.trim());
+}
+
 function isRecoverableNavigationError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   return (
@@ -246,6 +253,7 @@ export interface BrowserConfig {
   idleTimeoutMs: number;
   maxElements: number;
   userAgent?: string;
+  channel?: "chrome";
   /** Persistent on-disk Chromium profile directory. Same directory across runs = same cookies,
    * local storage, and signed-in sessions, so logins and MFA only have to happen once. */
   userDataDir: string;
@@ -278,6 +286,17 @@ export function defaultBrowserConfig(overrides: Partial<BrowserConfig> = {}): Br
   return config;
 }
 
+/** Attended saved sessions stay in visible Chrome from login through task execution. */
+export function browserSessionConfig(
+  mode: "persistent" | "guest",
+  options: { headless?: boolean; unattended?: boolean } = {}
+): BrowserConfig {
+  if (mode === "guest" || options.unattended) {
+    return defaultBrowserConfig({ headless: options.headless ?? true, guestMode: mode === "guest" });
+  }
+  return defaultBrowserConfig({ channel: "chrome", headless: false, userDataDir: DEFAULT_CHROME_PROFILE_DIR });
+}
+
 export interface InteractiveElement {
   markId: number;
   tag: string;
@@ -298,6 +317,7 @@ export interface PageState {
   pageText: string;
   stateHash: string;
   requiresHumanVerification: boolean;
+  accessDenied?: boolean;
   capturedAt: number;
 }
 
@@ -343,6 +363,14 @@ export class BrowserController {
     return Boolean(this.config.guestMode);
   }
 
+  get browserName(): "chrome" | "chromium" { return this.config.channel ?? "chromium"; }
+  get profileDir(): string { return this.config.userDataDir; }
+
+  async showWindow(): Promise<void> {
+    const page = await this.ensureActivePage();
+    await page.bringToFront();
+  }
+
   get viewportSize(): { width: number; height: number } {
     return { width: this.config.viewportWidth, height: this.config.viewportHeight };
   }
@@ -352,7 +380,7 @@ export class BrowserController {
   }
 
   get isStarted(): boolean {
-    return this.page !== null;
+    return this.page !== null && !this.page.isClosed();
   }
 
   currentUrl(): string {
@@ -439,45 +467,57 @@ export class BrowserController {
   }
 
   async start(): Promise<void> {
-    if (this.page !== null) {
+    if (this.isStarted) {
       return;
     }
     try {
-      const ua =
-        this.config.userAgent ??
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+      const identity = this.config.userAgent ? { userAgent: this.config.userAgent } : {};
       if (this.config.guestMode) {
-        const browser = await chromium.launch({ headless: this.config.headless });
+        const browser = await chromium.launch({ headless: this.config.headless, channel: this.config.channel });
         this.context = await browser.newContext({
           viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
           deviceScaleFactor: 1,
-          userAgent: ua
+          ...identity
         });
       } else {
         mkdirSync(this.config.userDataDir, { recursive: true });
-        clearStaleSingletonLock(this.config.userDataDir);
         const launchOptions = {
+          channel: this.config.channel,
           headless: this.config.headless,
           viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
           deviceScaleFactor: 1,
-          userAgent: ua
+          ...identity
         };
-        try {
+        if (this.config.channel === "chrome") {
+          // Chrome owns its profile locks. A second app instance must fail rather than
+          // deleting the locks of an open sign-in window.
           this.context = await chromium.launchPersistentContext(this.config.userDataDir, launchOptions);
-        } catch (launchErr) {
-          // A lock can be recreated by the dying process between our cleanup and the launch
-          // attempt itself; one clear-and-retry resolves that window without masking a real,
-          // persistent failure (e.g. a genuinely different process actually using this profile).
+        } else {
           clearStaleSingletonLock(this.config.userDataDir);
-          this.context = await chromium.launchPersistentContext(this.config.userDataDir, launchOptions);
+          try {
+            this.context = await chromium.launchPersistentContext(this.config.userDataDir, launchOptions);
+          } catch {
+            clearStaleSingletonLock(this.config.userDataDir);
+            this.context = await chromium.launchPersistentContext(this.config.userDataDir, launchOptions);
+          }
         }
       }
+      const context = this.context;
+      context.on("close", () => {
+        if (this.context !== context) return;
+        this.context = null;
+        this.page = null;
+        this.cdpSession = null;
+        this.lastScreencastFrame = null;
+      });
       this.context.setDefaultTimeout(this.config.actionTimeoutMs);
       this.page = this.context.pages()[0] ?? (await this.context.newPage());
       this.page.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
+      for (const page of this.context.pages()) this.trackPageClose(page);
       // Automatically adopt popups/new tabs opened by target="_blank" links
       this.context.on("page", (newPage) => {
         newPage.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
+        this.trackPageClose(newPage);
         this.page = newPage;
         if (this.screencastCallback) {
           void this.startScreencast(this.screencastCallback).catch(() => undefined);
@@ -485,8 +525,21 @@ export class BrowserController {
       });
     } catch (err) {
       await this.close();
+      if (this.config.channel === "chrome") {
+        throw new BrowserActionError(`Could not open Buddy Bot's Chrome session. Make sure Google Chrome is installed and this profile is not already open in another Buddy Bot instance. ${(err as Error).message}`);
+      }
       throw new BrowserActionError(`Failed to start the browser: ${(err as Error).message}`);
     }
+  }
+
+  private trackPageClose(page: Page): void {
+    page.on("close", () => {
+      if (this.page !== page) return;
+      this.page = this.context?.pages().filter(candidate => !candidate.isClosed()).at(-1) ?? null;
+      if (this.page && this.screencastCallback) {
+        void this.startScreencast(this.screencastCallback).catch(() => undefined);
+      }
+    });
   }
 
   async close(): Promise<void> {
@@ -991,7 +1044,8 @@ export class BrowserController {
       throw new BrowserActionError(`Failed to capture page state: ${(err as Error).message}`);
     }
 
-    const requiresHumanVerification = titleRequiresHumanVerification(title) || challengeDetected;
+    const accessDenied = pageAccessDenied(title, pageText);
+    const requiresHumanVerification = !accessDenied && (titleRequiresHumanVerification(title) || challengeDetected);
 
     const limited = Array.isArray(rawElements) ? rawElements.slice(0, this.config.maxElements) : [];
     const elements: InteractiveElement[] = limited.map((item, index) => ({
@@ -1015,6 +1069,7 @@ export class BrowserController {
       pageText,
       stateHash: computeStateHash(url, title, elements.length, pageText),
       requiresHumanVerification,
+      accessDenied,
       capturedAt: Date.now()
     };
   }

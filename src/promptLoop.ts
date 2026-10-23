@@ -553,6 +553,16 @@ export class AgentOrchestrator {
     });
   }
 
+  private accessDeniedResult(state: PageState, step: number): AgentResult {
+    return this.finish({
+      success: false,
+      summary: `The website denied access to ${state.url}. This is an access block, not a CAPTCHA to solve. Open Chrome to sign in using Buddy Bot's saved session. If the site still denies access there, use your regular browser or contact the site; signing in does not guarantee automated access.`,
+      stepsTaken: step,
+      elapsedSeconds: this.loopGuard.elapsedSeconds(),
+      terminationReason: "access_denied"
+    });
+  }
+
   private extractUserRequestCore(): string {
     const marker = "User request:";
     const idx = this.task.lastIndexOf(marker);
@@ -635,9 +645,10 @@ export class AgentOrchestrator {
       const navRes = await executeTool("navigate", { url: targetUrl }, this.browser);
       const state = await this.browser.captureState().catch(() => null);
       emitLocalStep("navigate", { url: targetUrl }, navRes, state);
+      if (state?.accessDenied) return this.accessDeniedResult(state, steps);
       const extRes = await executeTool("extract_page_data", { mode: "text" }, this.browser);
       emitLocalStep("extract_page_data", { mode: "text" }, extRes, state);
-      outputs.push(`### Local Headless Browser Extraction (${targetUrl})\n${extRes.message.slice(0, 2500)}`);
+      outputs.push(`### Local Browser Extraction (${targetUrl})\n${extRes.message.slice(0, 2500)}`);
     }
 
     // 4. Check for workspace bots / peer bots inquiry
@@ -819,10 +830,6 @@ export class AgentOrchestrator {
         });
       }
 
-      if (state.requiresHumanVerification) {
-        state = await this.handleHumanVerification(state);
-      }
-
       this.emit({
         type: "observe",
         step: 0,
@@ -831,6 +838,10 @@ export class AgentOrchestrator {
         screenshotB64: state.screenshotB64
       });
     }
+
+    if (state?.accessDenied) return this.accessDeniedResult(state, step);
+    if (state?.requiresHumanVerification) state = await this.handleHumanVerification(state);
+    if (state?.accessDenied) return this.accessDeniedResult(state, step);
 
     let isFirstTurn = true;
 
@@ -1109,8 +1120,10 @@ export class AgentOrchestrator {
         });
       }
 
+      if (touchedBrowserInBatch && state?.accessDenied) return this.accessDeniedResult(state, step);
       if (touchedBrowserInBatch && state?.requiresHumanVerification) {
         state = await this.handleHumanVerification(state);
+        if (state.accessDenied) return this.accessDeniedResult(state, step);
       }
     }
   }

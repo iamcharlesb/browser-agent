@@ -1,8 +1,27 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { AgentOrchestrator, AgentOrchestratorOptions, extractArithmeticExpression } from "./promptLoop";
-import { BrowserController } from "./browserController";
+import { BrowserController, PageState } from "./browserController";
 import { WORKSPACE_ROOT } from "./agentTools";
+
+test("a blocked page ends the run without asking the user to solve a nonexistent CAPTCHA", async () => {
+  const state: PageState = {
+    url: "https://medium.com/", title: "Attention Required! | Cloudflare", screenshotB64: "",
+    elements: [], pageText: "Sorry, you have been blocked", stateHash: "blocked", capturedAt: 0,
+    accessDenied: true, requiresHumanVerification: false
+  };
+  let verificationRequests = 0;
+  const browser = { isStarted: true, currentUrl: () => state.url, captureState: async () => state } as unknown as BrowserController;
+  const agent = new AgentOrchestrator({
+    task: "Sign in on this page", browser, model: "gpt-6-luna", apiKey: "test-key",
+    onHumanVerification: () => { verificationRequests++; },
+    fetch: async () => { throw new Error("A denied page should stop before calling a model"); }
+  });
+  const result = await agent.run();
+  assert.equal(result.success, false);
+  assert.equal(result.terminationReason, "access_denied");
+  assert.equal(verificationRequests, 0);
+});
 
 test("shell approval is reused only when explicitly granted for this task", async () => {
   const run = async (decision: boolean | { approved: boolean; scope: "task" }, standingApproval = false) => {

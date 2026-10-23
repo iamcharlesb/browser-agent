@@ -7,7 +7,34 @@ import {
   isRunInProgressMessage,
   resolveLoginDuringRun
 } from "./apiContract";
-import { titleRequiresHumanVerification } from "./browserController";
+import { browserSessionConfig, DEFAULT_CHROME_PROFILE_DIR, DEFAULT_PROFILE_DIR, pageAccessDenied, titleRequiresHumanVerification } from "./browserController";
+
+describe("saved Chrome session", () => {
+  it("keeps attended login and task execution in visible Chrome with its own profile", () => {
+    const config = browserSessionConfig("persistent", { headless: true });
+    assert.equal(config.channel, "chrome");
+    assert.equal(config.headless, false);
+    assert.equal(config.userDataDir, DEFAULT_CHROME_PROFILE_DIR);
+    assert.notEqual(config.userDataDir, DEFAULT_PROFILE_DIR);
+    assert.equal(config.userAgent, undefined);
+    assert.equal(config.guestMode, false);
+  });
+  it("keeps guest sessions ephemeral and unattended defaults headless", () => {
+    const guest = browserSessionConfig("guest");
+    assert.equal(guest.guestMode, true);
+    assert.equal(guest.channel, undefined);
+    assert.equal(browserSessionConfig("guest", { headless: false }).headless, false);
+    const unattended = browserSessionConfig("persistent", { unattended: true });
+    assert.equal(unattended.headless, true);
+    assert.equal(unattended.channel, undefined);
+  });
+  it("recognizes denial pages without mistaking real challenges or articles for them", () => {
+    assert.equal(pageAccessDenied("Attention Required! | Cloudflare", "Sorry, you have been blocked\nYou are unable to access medium.com"), true);
+    assert.equal(pageAccessDenied("403 Forbidden", "Request refused"), true);
+    assert.equal(pageAccessDenied("Just a moment...", "Verify you are human"), false);
+    assert.equal(pageAccessDenied("How security works", "This article discusses why some requests receive access denied errors."), false);
+  });
+});
 
 describe("apiContract artifacts", () => {
   it("maps image extensions to inline image MIME types", () => {
