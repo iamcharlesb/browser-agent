@@ -6,7 +6,7 @@ import { IncomingMessage, ServerResponse, createServer } from "node:http";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { OAuth2Client } from "google-auth-library";
-import { BrowserController, DEFAULT_PROFILE_DIR, PageState, defaultBrowserConfig } from "./browserController";
+import { BrowserController, PageState, browserSessionConfig } from "./browserController";
 import {
   ARTIFACTS_DIR,
   WORKSPACE_ROOT,
@@ -573,7 +573,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
 
       if (!activeSession && needsBrowserImmediately) {
         const controller = new BrowserController(
-          defaultBrowserConfig({ headless: run.headless, guestMode: activeSessionMode === "guest" })
+          browserSessionConfig(activeSessionMode, { headless: run.headless, unattended: Boolean(body.scheduleId) })
         );
         await controller.start();
         const viewport = controller.viewportSize;
@@ -597,7 +597,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
       const controller = activeSession
         ? activeSession.controller
         : new BrowserController(
-            defaultBrowserConfig({ headless: run.headless, guestMode: activeSessionMode === "guest" })
+            browserSessionConfig(activeSessionMode, { headless: run.headless, unattended: Boolean(body.scheduleId) })
           );
 
       if (activeSession && needsBrowserImmediately) {
@@ -1048,6 +1048,10 @@ async function openLoginSession(
     modeChanged
   });
   if (loginAction === "reuse" && activeSession) {
+    await activeSession.controller.start();
+    await activeSession.controller.showWindow();
+    const session = activeSession;
+    await session.controller.startScreencast(frame => session.frameQueue.push(frame));
     if (botName) activeSession.botKey = botName.trim();
     let navigationError: string | null = null;
     // Still honor an explicit navigate request on the live bot tab (or soft-recover via new tab).
@@ -1086,6 +1090,10 @@ async function openLoginSession(
   activeSessionMode = targetMode;
 
   if (activeSession) {
+    await activeSession.controller.start();
+    await activeSession.controller.showWindow();
+    const session = activeSession;
+    await session.controller.startScreencast(frame => session.frameQueue.push(frame));
     activeSession.kind = "login";
     if (botName) activeSession.botKey = botName.trim();
     let navigationError: string | null = null;
@@ -1109,7 +1117,7 @@ async function openLoginSession(
   }
   // Login / CAPTCHA needs a real visible window — screencast-only headless is painful for puzzles.
   const controller = new BrowserController(
-    defaultBrowserConfig({ headless: false, guestMode: activeSessionMode === "guest" })
+    browserSessionConfig(activeSessionMode, { headless: false })
   );
   const { width, height } = controller.viewportSize;
   const session: BrowserSession = {
@@ -1342,7 +1350,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       sessionMode: activeSessionMode,
       currentUrl: activeSession ? activeSession.controller.currentUrl() : null,
       tabs,
-      profileDir: activeSessionMode === "guest" ? "Ephemeral Guest Context" : DEFAULT_PROFILE_DIR
+      browserName: activeSession?.controller.browserName ?? (activeSessionMode === "guest" ? "chromium" : "chrome"),
+      profileDir: activeSessionMode === "guest" ? "Ephemeral Guest Context" :
+        activeSession?.controller.profileDir ?? browserSessionConfig(activeSessionMode).userDataDir
     });
     return;
   }
@@ -1741,10 +1751,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         tabs,
         navigationError
       } = await openLoginSession(loginUrl, botName, requestedMode);
+      const state = await activeSession?.controller.captureState().catch(() => undefined);
       sendJson(res, 200, {
         status: "opened",
         sessionMode,
-        profileDir: sessionMode === "guest" ? "Ephemeral Guest Context" : DEFAULT_PROFILE_DIR,
+        browserName: activeSession?.controller.browserName,
+        accessDenied: state?.accessDenied ?? false,
+        profileDir: sessionMode === "guest" ? "Ephemeral Guest Context" : activeSession?.controller.profileDir,
         viewportWidth,
         viewportHeight,
         url: currentUrl,

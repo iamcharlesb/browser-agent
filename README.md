@@ -18,6 +18,34 @@ Scrolling back pauses automatic following while new replies/steps arrive. Reduce
 motion preferences disable reply entrance animation. Recent context retains the
 opening goal and meaningful conversation rather than filling up with approval cards.
 
+The send button stays available during a run. Follow-up messages queue in order.
+Sending a new instruction while a run waits for browser verification or shell/file
+approval stops that waiting run and starts the new request; it does not approve
+the pending action. The Stop button cancels the current run and its queued requests.
+
+## Sign in using Chrome
+
+Install Google Chrome, then open **Connect Apps → Open Chrome to sign in**.
+Saved sessions launch a visible Chrome window with a dedicated Buddy Bot profile
+(`~/.buddy-bot-chrome-profile`). Navigate to the website and sign in yourself in
+that window. The app's browser panel shows that same browser session. Keep the
+window open and continue your task in the app; later saved-session runs reuse the
+profile's logins, subject to the website's session expiry rules.
+
+Your personal Chrome profile and the old Chromium profile are separate. No cookies
+or passwords are copied between them. Signing into Open Bots with Google is also
+separate from signing into a website through Chrome. Guest sessions remain
+temporary; unattended runs retain their existing browser defaults.
+
+Only one app instance can use the saved Chrome profile at a time. If Chrome is
+missing or the profile is already in use, the app reports the problem rather than
+silently switching to a different browser or deleting Chrome's profile locks.
+
+Some websites may still deny automated access. Access-denied pages end the run
+with an explanation; they are not presented as CAPTCHAs that can be solved by
+clicking Resume. This feature does not guarantee that Medium will accept the
+dedicated Chrome session.
+
 ## Desktop app (Electron)
 
 ```sh

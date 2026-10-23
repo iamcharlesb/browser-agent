@@ -2909,7 +2909,7 @@ dialog.modal-dialog::backdrop {
         <div id="browser-tabs" class="browser-tabs" hidden></div>
         <div class="browser-toolbar">
           <div class="panel-mode-switch" role="tablist" aria-label="Switch between Local Browser and Local Terminal">
-            <button type="button" id="panel-mode-browser" class="panel-mode-btn active" title="Headless Browser running behind the UI">Browser</button>
+            <button type="button" id="panel-mode-browser" class="panel-mode-btn active" title="Your browser session, shown live in the app">Browser</button>
             <button type="button" id="panel-mode-terminal" class="panel-mode-btn" title="Local Terminal running behind the browser (No cloud required)">&gt;_ Terminal</button>
           </div>
           <button id="browser-back" class="browser-nav-btn" title="Back" aria-label="Back">
@@ -2969,7 +2969,7 @@ dialog.modal-dialog::backdrop {
         </div>
         <input id="keyboard-capture" autocomplete="off" spellcheck="false"/>
         <div id="browser-footer">
-          <p id="browser-footer-text">Sign in or navigate directly in this live browser. Your session cookies are saved automatically across runs.</p>
+          <p id="browser-footer-text">Sign in in the Buddy Bot Chrome window. This panel shows the same session; saved logins are reused across runs.</p>
           <button id="signed-in-button">I’m signed in — start mission</button>
         </div>
       </section>
@@ -3037,14 +3037,17 @@ dialog.modal-dialog::backdrop {
           <div>
             <div class="session-mode-card-title">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6z" stroke="#ea4335" stroke-width="2"/><path d="m22 6-10 7L2 6" stroke="#4285f4" stroke-width="2"/></svg>
-              <span>Sign in via Gmail</span>
+              <span>Chrome · Saved session</span>
             </div>
-            <p style="margin-top:4px;">Persistent session. Saves your Google/Gmail login and app cookies across restarts.</p>
+            <p style="margin-top:4px;">Sign in to websites in a dedicated Chrome window, then continue here with the same session. Your personal Chrome profile stays separate.</p>
             <div class="gmail-input-row">
               <input id="gmail-email-input" type="email" placeholder="you@gmail.com (optional)" aria-label="Gmail address" />
             </div>
           </div>
-          <button type="button" id="signin-gmail-btn" class="session-mode-btn primary">
+          <button type="button" id="signin-chrome-btn" class="session-mode-btn primary">
+            <span>Open Chrome to sign in</span>
+          </button>
+          <button type="button" id="signin-gmail-btn" class="session-mode-btn">
             <span>Sign in with Gmail (Persistent)</span>
           </button>
         </div>
@@ -3253,7 +3256,9 @@ dialog.modal-dialog::backdrop {
   var viewport = { width: 1280, height: 800 };
   var searchQuery = "";
   var liveStepFeedBubble = null;
-  var queuedRunAfterActive = null;
+  var queuedRunsAfterActive = [];
+  var queuedRunPoll = null;
+  var waitingForRunInput = false;
   var startRunLock = false;
   var lastSubmitAt = 0;
   var runEventCursorKey = "openBotsRunEventCursor";
@@ -4335,7 +4340,7 @@ dialog.modal-dialog::backdrop {
     if (!isRunning) {
       status.textContent = requestedMode === "guest"
         ? "Launching isolated Guest Chromium session…"
-        : "Launching persistent Chromium session…";
+        : "Opening your saved Buddy Bot Chrome session…";
     }
     var a = activeAgent();
     fetch("/api/login", {
@@ -4364,7 +4369,9 @@ dialog.modal-dialog::backdrop {
         }
         if (body.tabs) renderBrowserTabs(body.tabs);
         connectBrowserFrames(true);
-        if (body.navigationError) {
+        if (body.accessDenied) {
+          status.textContent = "This website denied access. Check the Chrome window; there is no CAPTCHA to solve on this block page.";
+        } else if (body.navigationError) {
           status.textContent = "Navigation issue: " + body.navigationError + " — try Go again or + New Tab.";
         } else if (isRunning) {
           status.textContent = "Showing your bot’s live browser.";
@@ -4372,7 +4379,7 @@ dialog.modal-dialog::backdrop {
           status.textContent = showSetupBanner
             ? (currentSessionMode === "guest"
                 ? "Guest browser ready (ephemeral — nothing saved after closing)."
-                : "Persistent browser ready — sign in once and your session stays saved.")
+                : "Chrome is ready — sign in in its window, then continue here using the same saved session.")
             : "Live browser connected.";
         }
       })
@@ -4519,30 +4526,37 @@ dialog.modal-dialog::backdrop {
   }
 
   function queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, softNotice) {
-    queuedRunAfterActive = {
+    queuedRunsAfterActive.push({
       task: task,
       approvedCategories: approvedCategories || [],
       collaborationContext: collaborationContext,
       approvalBubble: approvalBubble,
       runAgentOverride: runAgentOverride
-    };
+    });
     isRunning = true;
-    startRunLock = false;
-    sendButton.disabled = true;
-    setStatusState("running", "Another Run Active");
-    setRunPresence("Working through the current task");
-    status.textContent = "Your task is queued and will start when the current run finishes.";
+    sendButton.disabled = false;
+    status.textContent = "Message queued — it will run after the current task.";
     if (approvalBubble) {
       var queuedButton = approvalBubble.querySelector(".approve-task-btn");
       if (queuedButton) queuedButton.textContent = "Queued — starting next";
     } else if (softNotice !== false) {
       status.textContent = "Queued — will start when the current run finishes.";
     }
-    connectRunEvents();
+    // A fresh instruction must not wait forever behind an unanswered CAPTCHA/approval.
+    // Stopping denies any pending command; it never approves the blocked action.
+    if (waitingForRunInput && !learnEvents) {
+      waitingForRunInput = false;
+      fetch("/api/stop", { method: "POST" }).then(readResponse).catch(function(err) {
+        status.textContent = "Your message is queued. Could not stop the waiting task: " + err.message;
+      });
+    }
+    if (!runEvents && !startRunLock && !learnEvents) connectRunEvents();
+    scheduleQueuedRun();
   }
 
   function clearRunClientState() {
     isRunning = false;
+    waitingForRunInput = false;
     document.body.classList.remove("is-run-active");
     setAgentMotion("idle");
     startRunLock = false;
@@ -4553,7 +4567,7 @@ dialog.modal-dialog::backdrop {
   }
 
   function startRun(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride) {
-    if (startRunLock) {
+    if (startRunLock || isRunning) {
       queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, false);
       return;
     }
@@ -4564,7 +4578,7 @@ dialog.modal-dialog::backdrop {
     isRunning = true;
     runningAgentId = agent && agent.id || null;
     runningAgentName = agent && agent.name || "Bot";
-    sendButton.disabled = true;
+    sendButton.disabled = false;
     setStatusState("running", "Thinking");
     status.textContent = "Thinking…";
     stepCounter.textContent = "";
@@ -4673,7 +4687,9 @@ dialog.modal-dialog::backdrop {
   }
 
   function stopRun() {
-    queuedRunAfterActive = null;
+    queuedRunsAfterActive = [];
+    clearTimeout(queuedRunPoll);
+    queuedRunPoll = null;
     fetch("/api/stop", { method: "POST" })
       .then(readResponse)
       .then(function() {
@@ -4866,7 +4882,7 @@ dialog.modal-dialog::backdrop {
     isRunning = true;
     runningAgentId = agent && agent.id || null;
     runningAgentName = agent && agent.name || "Buddy Bot";
-    sendButton.disabled = true;
+    sendButton.disabled = false;
     setStatusState("running", "Learning");
     status.textContent = "Standing in your shoes…";
     setRunPresence("Learning");
@@ -4916,7 +4932,7 @@ dialog.modal-dialog::backdrop {
       isRunning = true;
       runningAgentId = targetPeer && targetPeer.id || null;
       runningAgentName = targetPeer && targetPeer.name || "Bot";
-      sendButton.disabled = true;
+      sendButton.disabled = false;
       setStatusState("running", "Thinking");
       status.textContent = "Thinking…";
       setRunPresence("Thinking");
@@ -4960,6 +4976,7 @@ dialog.modal-dialog::backdrop {
     runEvents = new EventSource("/api/events?after=" + encodeURIComponent(cursor));
     var source = runEvents;
     runEvents.onmessage = function(m) {
+      if (runEvents !== source) return;
       if (m.lastEventId) localStorage.setItem(runEventCursorKey, m.lastEventId);
       try { handleRunEvent(JSON.parse(m.data)); } catch (_) {}
     };
@@ -4971,7 +4988,7 @@ dialog.modal-dialog::backdrop {
         .then(readResponse)
         .then(function(serverState) {
           if (runEvents !== source) return;
-          if (!serverState.isRunning && isRunning && !queuedRunAfterActive) {
+          if (!serverState.isRunning && isRunning && !queuedRunsAfterActive.length) {
             clearRunClientState();
             setStatusState("ready", "Ready");
             status.textContent = "";
@@ -4981,20 +4998,32 @@ dialog.modal-dialog::backdrop {
     };
   }
 
-  function startQueuedRunWhenServerIsIdle(queued) {
-    fetch("/api/status")
+  function scheduleQueuedRun() {
+    if (queuedRunPoll !== null || !queuedRunsAfterActive.length) return;
+    queuedRunPoll = setTimeout(function() {
+      fetch("/api/status")
       .then(readResponse)
       .then(function(serverState) {
-        if (serverState.isRunning) {
-          setTimeout(function() { startQueuedRunWhenServerIsIdle(queued); }, 250);
+        queuedRunPoll = null;
+        if (!queuedRunsAfterActive.length) return;
+        if (serverState.isRunning || serverState.learnSessionRunning || startRunLock) {
+          scheduleQueuedRun();
           return;
         }
+        var queued = queuedRunsAfterActive.shift();
+        if (runEvents) { runEvents.close(); runEvents = null; }
+        clearRunClientState();
         status.textContent = "Starting your queued request…";
-        startRun(queued.task, queued.approvedCategories, queued.collaborationContext, queued.approvalBubble, queued.runAgentOverride);
+        var learnMatch = /^\/learn\s+([\s\S]+)$/i.exec(queued.task);
+        if (learnMatch) startLearnSession(learnMatch[1]);
+        else startRun(queued.task, queued.approvedCategories, queued.collaborationContext, queued.approvalBubble, queued.runAgentOverride);
+        scheduleQueuedRun();
       })
       .catch(function() {
-        setTimeout(function() { startQueuedRunWhenServerIsIdle(queued); }, 750);
+        queuedRunPoll = null;
+        scheduleQueuedRun();
       });
+    }, 500);
   }
 
   function screenshotHtml(b) {
@@ -5088,6 +5117,7 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "human_verification") {
+      waitingForRunInput = true;
       setAgentMotion("needs-you");
       setRunPresence(null);
       status.textContent = "Action required: solve CAPTCHA / sign-in in the live browser.";
@@ -5104,6 +5134,7 @@ dialog.modal-dialog::backdrop {
           '<button type="button" class="resume-button" style="margin-top:0;">I’ve handled it — resume agent</button>' +
         "</div>"
       );
+      bubble.dataset.runVerification = "pending";
       var openBtn = bubble.querySelector(".open-verify-browser-btn");
       if (openBtn) {
         openBtn.onclick = function() {
@@ -5120,6 +5151,8 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "human_verification_resolved") {
+      waitingForRunInput = false;
+      messages.querySelectorAll("[data-run-verification] button").forEach(function(button) { button.disabled = true; });
       setAgentMotion("working");
       setBrowserVerificationFooter(false);
       status.textContent = "Verification resolved. Agent is continuing…";
@@ -5128,6 +5161,7 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "privileged_approval_required") {
+      waitingForRunInput = true;
       setAgentMotion("needs-you");
       setRunPresence(null);
       status.textContent = "Action required: approve or deny the request below.";
@@ -5167,6 +5201,7 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "privileged_approval_resolved") {
+      waitingForRunInput = false;
       setAgentMotion("working");
       var resolvedCard = Array.from(messages.querySelectorAll("[data-approval-id]")).find(function(card) {
         return card.dataset.approvalId === e.approvalId;
@@ -5178,6 +5213,8 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "terminal") {
+      messages.querySelectorAll("[data-run-verification] button, [data-approval-id] button").forEach(function(button) { button.disabled = true; });
+      setBrowserVerificationFooter(false);
       var isDirectReply = e.reason === "direct_reply";
       var prefix = e.success ? "" : "<strong>Requires follow-up.</strong> ";
       var delegatedPrefix = runningAgentId && runningAgentId !== activeAgentId
@@ -5200,11 +5237,7 @@ dialog.modal-dialog::backdrop {
       }
       localStorage.removeItem(runEventCursorKey);
 
-      if (queuedRunAfterActive) {
-        var queued = queuedRunAfterActive;
-        queuedRunAfterActive = null;
-        startQueuedRunWhenServerIsIdle(queued);
-      }
+      scheduleQueuedRun();
 
       // Keep the conversation in the requesting bot's chat while the specialist works.
       if (e.delegateTo && e.delegateTo.targetBotName) {
@@ -5411,7 +5444,7 @@ dialog.modal-dialog::backdrop {
 
   function submitPrompt() {
     var value = prompt.value.trim();
-    if (!value || isRunning || startRunLock) return;
+    if (!value) return;
     var now = Date.now();
     if (now - lastSubmitAt < 400) return;
     lastSubmitAt = now;
@@ -5423,6 +5456,17 @@ dialog.modal-dialog::backdrop {
     // `/learn <task>` runs the task as a rehearsal: the bot plays the user, grades its own
     // experience, and fixes what it finds. Only available in the built copy (npm run built).
     var learnMatch = /^\/learn\s+([\s\S]+)$/i.exec(value);
+    if (isRunning || startRunLock) {
+      var followup = value + attachmentContext();
+      var agent = activeAgent();
+      appendMessage("user", esc(value));
+      queueRunAfterActive(
+        learnMatch ? followup : "Continue the conversation. User request: " + followup,
+        [], buildConversationHistory(agent), null, agent, false
+      );
+      clearAttachments();
+      return;
+    }
     if (learnMatch) {
       appendMessage("user", esc(value));
       startLearnSession(learnMatch[1].trim());
@@ -6125,13 +6169,13 @@ dialog.modal-dialog::backdrop {
       avatarBtn.textContent = initial;
       avatarBtn.title = isGuest
         ? "Guest Session (Ephemeral) — Click to sign in via Gmail or manage session"
-        : ("Gmail Persistent Session" + (gmailAccount ? " (" + gmailAccount + ")" : "") + " — Click to manage session");
+        : "Buddy Bot Chrome · Saved session — Click to manage session";
     }
 
     if (pillLabel) {
       pillLabel.textContent = isGuest
         ? "Guest · Ephemeral"
-        : (gmailAccount ? gmailAccount : "Gmail · Persistent");
+        : "Chrome · Saved session";
     }
 
     if (welcomeLabel) {
@@ -6144,7 +6188,7 @@ dialog.modal-dialog::backdrop {
       badgeEl.classList.toggle("guest", isGuest);
       badgeEl.textContent = isGuest
         ? "● Guest · Ephemeral Session"
-        : ("● Gmail · Persistent" + (gmailAccount ? " (" + gmailAccount + ")" : " Session"));
+        : "● Chrome · Saved session";
     }
 
     if (cardPersistent && cardGuest) {
@@ -6163,7 +6207,7 @@ dialog.modal-dialog::backdrop {
     if (footerText) {
       footerText.textContent = isGuest
         ? "Guest Session active: temporary browser profile. Cookies and logins will NOT be saved after closing."
-        : "Persistent Session active: sign in via Gmail or any app once and your session cookies stay saved across runs.";
+        : "Saved Chrome session: sign in in the Chrome window, then continue in this panel. Keep Chrome open while your bot uses it.";
     }
   }
 
@@ -6281,6 +6325,11 @@ dialog.modal-dialog::backdrop {
   document.getElementById("header-connect-btn").onclick = openConnectModal;
   var welcomeSessionBtn = document.getElementById("welcome-session-btn");
   if (welcomeSessionBtn) welcomeSessionBtn.onclick = openConnectModal;
+
+  document.getElementById("signin-chrome-btn").onclick = function() {
+    document.getElementById("connect-modal").close();
+    openInteractiveBrowser(browserAddress.value.trim() || "https://www.google.com/", true, "persistent");
+  };
 
   document.getElementById("signin-gmail-btn").onclick = function() {
     var emailVal = (document.getElementById("gmail-email-input").value || "").trim();
@@ -6445,7 +6494,8 @@ dialog.modal-dialog::backdrop {
         var activeBot = agents.find(function(item) { return item.name === st.runBotName; });
         runningAgentId = activeBot ? activeBot.id : null;
         runningAgentName = st.runBotName || "Bot";
-        sendButton.disabled = true;
+        sendButton.disabled = false;
+        waitingForRunInput = Boolean(st.runHasPendingApproval || st.runHasPendingVerification);
         setStatusState("running", st.runHasPendingApproval ? "Waiting for Approval" : "Reconnecting");
         status.textContent = st.runHasPendingApproval
           ? "Your bot is waiting for your approval. Reconnecting to the current task…"
