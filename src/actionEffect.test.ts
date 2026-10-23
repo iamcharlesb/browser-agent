@@ -5,6 +5,7 @@ import {
   classifyLabel,
   describeEffectAction,
   effectRequiresApproval,
+  isCssSelector,
   maxEffect,
   normalizeLabel
 } from "./actionEffect.js";
@@ -100,6 +101,12 @@ test("typing is a draft until Enter sends it", () => {
   assert.equal(searching.effect, "reversible", "Enter in a search box is not outward");
 });
 
+test("a readable label is not inflated by the unknown-element baseline", () => {
+  const navLink = classifyBrowserAction({ toolName: "click_mark", label: "Followers", role: "link" });
+  assert.equal(navLink.effect, "read", "a link we could read is a read, not a maybe");
+  assert.equal(navLink.observed, "read");
+});
+
 test("read-only tools are never gated", () => {
   for (const toolName of ["navigate", "scroll", "screenshot", "web_search"]) {
     const decision = classifyBrowserAction({ toolName, declaredEffect: "irreversible" });
@@ -138,4 +145,15 @@ test("approval prompts name the real button", () => {
   assert.match(describeEffectAction("click_mark", "Send connection request", "outward"), /Send connection request/);
   assert.match(describeEffectAction("click_mark", "Delete", "irreversible"), /irreversible/);
   assert.match(describeEffectAction("click_mark", undefined, "outward"), /unlabelled/);
+});
+
+test("CSS selectors are not mined for verbs", () => {
+  assert.equal(isCssSelector("#post-list a"), true);
+  assert.equal(isCssSelector(".follow-button"), true);
+  assert.equal(isCssSelector("button[data-id='send']"), true);
+  assert.equal(isCssSelector("div.card"), true);
+
+  assert.equal(isCssSelector("Send connection request"), false, "prose is not a selector");
+  assert.equal(isCssSelector("Follow"), false);
+  assert.equal(isCssSelector("Pay $49.00"), false);
 });

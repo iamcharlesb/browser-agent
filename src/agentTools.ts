@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import OpenAI from "openai";
 import { artifactUrlFor } from "./apiContract";
 import { BrowserActionError, BrowserController } from "./browserController";
+import { googlePropertyGuide, redditSearch } from "./siteAdapters";
 import { redactSecrets } from "./security";
 
 export const ARTIFACTS_DIR = join(__dirname, "..", "artifacts");
@@ -189,6 +190,43 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           query: { type: "string" }
         },
         required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "reddit_search",
+      description:
+        "Research Reddit via public JSON (read-only). Prefer this over navigate to reddit.com when Playwright Chrome is blocked. Never posts or comments.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          subreddit: { type: "string", description: "Optional subreddit name without r/" },
+          sort: { type: "string", enum: ["relevance", "hot", "top", "new"] },
+          limit: { type: "number" }
+        },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "google_property",
+      description:
+        "Get deep links and read-only guidance for GA4, Tag Manager, Search Console, or Ads. Prefer Connected Chrome for Google sign-in.",
+      parameters: {
+        type: "object",
+        properties: {
+          property: {
+            type: "string",
+            enum: ["analytics", "tagmanager", "search_console", "ads"]
+          },
+          note: { type: "string", description: "Optional focus (e.g. landing pages, conversions)." }
+        },
+        required: ["property"]
       }
     }
   },
@@ -1051,6 +1089,27 @@ export async function executeTool(
         return {
           ok: true,
           message: `Web search results for "${query}":\n${searchOutput}`
+        };
+      }
+      case "reddit_search": {
+        const query = String(toolInput.query ?? "");
+        const subreddit = typeof toolInput.subreddit === "string" ? toolInput.subreddit : undefined;
+        const sort = ["relevance", "hot", "top", "new"].includes(String(toolInput.sort))
+          ? (toolInput.sort as "relevance" | "hot" | "top" | "new")
+          : undefined;
+        const limit = typeof toolInput.limit === "number" ? toolInput.limit : undefined;
+        const message = await redditSearch({ query, subreddit, sort, limit });
+        return { ok: true, message };
+      }
+      case "google_property": {
+        const property = String(toolInput.property ?? "");
+        if (!["analytics", "tagmanager", "search_console", "ads"].includes(property)) {
+          return { ok: false, message: "google_property requires analytics | tagmanager | search_console | ads." };
+        }
+        const note = typeof toolInput.note === "string" ? toolInput.note : undefined;
+        return {
+          ok: true,
+          message: googlePropertyGuide(property as "analytics" | "tagmanager" | "search_console" | "ads", note)
         };
       }
       case "calculate": {

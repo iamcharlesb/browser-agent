@@ -803,6 +803,32 @@ svg.bot-char-svg.bot-mood-3 .bot-eyes { animation-name: botEyeBlinkD; }
   color: var(--red);
 }
 .header-pill-btn svg { width: 15px; height: 15px; }
+.header-pill-btn.header-signin-btn {
+  width: auto;
+  min-width: 30px;
+  padding: 0 10px;
+  gap: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+}
+.header-pill-btn.header-signin-btn:hover {
+  background: #e0e7ff;
+  color: #312e81;
+}
+.header-pill-btn.header-signin-btn.signed-in {
+  border-color: var(--border);
+  background: #f8fafc;
+  color: var(--text-secondary);
+}
+.header-pill-btn.header-signin-btn .btn-label {
+  display: inline;
+  font-size: 12px;
+  font-weight: 700;
+}
 
 /* Workspace Split & Draggable Panel Resizers */
 #workspace {
@@ -947,9 +973,9 @@ svg.bot-char-svg.bot-mood-3 .bot-eyes { animation-name: botEyeBlinkD; }
 }
 .template-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(235px, 1fr));
-  gap: 10px;
-  width: min(100%, 740px);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+  width: min(100%, 720px);
   text-align: left;
 }
 #welcome.is-typing .template-grid {
@@ -989,75 +1015,84 @@ svg.bot-char-svg.bot-mood-3 .bot-eyes { animation-name: botEyeBlinkD; }
 #workspace.has-browser .template-grid {
   gap: 6px;
   width: min(100%, 100%);
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 #workspace.has-browser .template-card {
   padding: 8px 10px;
   border-radius: 12px;
   gap: 8px;
+  align-items: flex-start;
 }
 #workspace.has-browser #composer-wrap {
-  padding-top: 4px;
-  padding-bottom: 8px;
+  padding-top: 6px;
+  padding-bottom: 10px;
+}
+#workspace.has-browser .composer-meta {
+  margin-bottom: 0;
+  margin-top: 6px;
 }
 .template-card {
   background: #fff;
   border: 1px solid #eaecf0;
-  border-radius: 16px;
-  padding: 12px 14px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  min-height: 52px;
   cursor: pointer;
-  transition: all 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: border-color 0.16s ease, transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s ease;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
   display: flex;
   flex-direction: row;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 10px;
   text-align: left;
 }
 .template-card:hover {
   border-color: #cbd5e1;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
 }
 .template-card .template-avatar {
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  margin-top: 1px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 .template-card .template-avatar svg.bot-char-svg {
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   transition: transform 0.2s ease;
 }
 .template-card:hover .template-avatar svg.bot-char-svg {
-  transform: scale(1.1) rotate(-4deg);
+  transform: scale(1.08) rotate(-3deg);
 }
 .template-card .template-copy {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 2px;
   min-width: 0;
   flex: 1;
 }
 .template-card strong {
-  font-size: 13.5px;
+  display: block;
+  width: 100%;
+  font-size: 13px;
   font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
-.template-card span {
+.template-card .template-copy > span {
+  display: block;
+  width: 100%;
   font-size: 12px;
-  color: var(--muted);
   line-height: 1.35;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 .template-card.create-custom-card {
   border-style: dashed;
@@ -1070,15 +1105,16 @@ svg.bot-char-svg.bot-mood-3 .bot-eyes { animation-name: botEyeBlinkD; }
   background: #fff;
 }
 .template-plus-circle {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: #111827;
   color: #fff;
   display: grid;
   place-items: center;
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 500;
+  line-height: 1;
 }
 
 /* Messages (Clean Grok Bot Conversation Stream) */
@@ -1422,14 +1458,23 @@ svg.bot-char-svg.bot-mood-3 .bot-eyes { animation-name: botEyeBlinkD; }
 }
 #composer-wrap {
   flex: 0 0 auto;
-  padding: 6px clamp(16px, 3.8vw, 64px) 10px;
+  padding: 8px clamp(16px, 3.8vw, 64px) 14px;
+}
+.composer-meta {
+  width: min(100%, 960px);
+  margin: 0 auto 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
 }
 #quick-starts {
   display: flex;
   gap: 6px;
   justify-content: center;
   margin: 0 auto 8px;
-  max-width: 740px;
+  max-width: 960px;
   overflow-x: auto;
   flex-wrap: nowrap;
   scrollbar-width: none;
@@ -1507,12 +1552,20 @@ svg.bot-char-svg.bot-mood-3 .bot-eyes { animation-name: botEyeBlinkD; }
   color: var(--text);
 }
 #attach-button,
-#schedule-button {
+#schedule-button,
+#learn-mode-button {
   background: transparent;
+  padding: 0;
 }
 #attach-button:hover,
-#schedule-button:hover {
+#schedule-button:hover,
+#learn-mode-button:hover {
   background: #f1f3f7;
+}
+/* Label is decorative only (no expand-on-hover); hide so grid centering
+   isn't thrown off by a second row that still has line-height. */
+#learn-mode-button .composer-action-label {
+  display: none;
 }
 .composer-action.auto-approve-active {
   background: rgba(202, 138, 4, 0.18);
@@ -1774,15 +1827,32 @@ svg.bot-char-svg.bot-mood-3 .bot-eyes { animation-name: botEyeBlinkD; }
   font-weight: 700;
 }
 #status-bar {
-  min-height: 20px;
-  margin: 6px auto 0;
-  width: min(100%, 740px);
+  min-height: 0;
+  margin: 0;
+  width: auto;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: 10px;
   font-size: 12px;
   color: var(--muted);
-  padding: 0 10px;
+  padding: 0;
+  min-width: 0;
+}
+#status-bar #status {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  text-align: right;
+}
+#status-bar #step-counter:empty,
+#status-bar #status:empty {
+  display: none;
+}
+#status-bar:not(:has(#status:not(:empty))):not(:has(#step-counter:not(:empty))) {
+  display: none;
 }
 
 /* Live Browser Panel */
@@ -1993,34 +2063,6 @@ svg.bot-char-svg.bot-mood-3 .bot-eyes { animation-name: botEyeBlinkD; }
 #signed-in-button:hover { background: var(--blue-hover); }
 
 /* Local Terminal View inside Right Panel */
-.panel-mode-switch {
-  display: inline-flex;
-  align-items: center;
-  background: #e2e8f0;
-  border-radius: 7px;
-  padding: 2px;
-  gap: 2px;
-  flex-shrink: 0;
-}
-.panel-mode-btn {
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 5px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.12s ease;
-}
-.panel-mode-btn.active {
-  background: #fff;
-  color: var(--text);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
-}
 #terminal-view {
   display: none;
   flex: 1;
@@ -2187,57 +2229,149 @@ dialog.modal-dialog::backdrop {
   cursor: pointer;
   font-size: 16px;
 }
-.google-login-card {
+.account-primary {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 9px;
-  margin: 0 0 16px;
-  padding: 14px;
-  border: 1px solid #e3e8f0;
-  border-radius: 12px;
-  background: #fbfcfe;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--border);
 }
-.google-login-title { margin: 0; color: var(--text); font-size: 13px; font-weight: 700; }
-.google-login-caption { margin: 3px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
-#google-signin-status { min-height: 16px; margin: 0; color: var(--muted); font-size: 11.5px; }
-#google-signin-session { align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
+.account-lede {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.google-login-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+}
+#google-signin-button { min-height: 40px; width: 100%; }
+#google-signin-button > div { margin: 0 auto !important; }
+#google-signin-status {
+  min-height: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+#google-signin-status:empty { display: none; }
+#google-signin-status.is-error { color: #b91c1c; }
+#google-signin-session { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
 #google-signin-session[hidden] { display: none; }
-#google-signout-button {
+#google-signout-button,
+#google-login-guest-btn {
   flex: 0 0 auto;
-  padding: 6px 10px;
+  padding: 9px 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   color: var(--text-secondary);
   font: inherit;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
-#google-signin-session-email { min-width: 0; overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+#google-login-guest-btn { width: 100%; }
+#google-login-guest-btn:hover { background: #f8fafc; color: var(--text); }
+#google-signin-session-email { min-width: 0; overflow: hidden; color: var(--text); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.account-section {
+  margin: 0 0 14px;
+}
+.account-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.account-section-header strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.account-section-line {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.account-disclosure {
+  margin: 6px 0 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--blue);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.account-disclosure:hover { text-decoration: underline; }
+.account-disclosure[aria-expanded="true"] { color: var(--text-secondary); text-decoration: none; }
+.account-panel {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.account-panel[hidden] { display: none !important; }
+.account-panel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.account-apps details {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.account-apps summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.account-apps summary::-webkit-details-marker { display: none; }
+.account-apps summary::after {
+  content: "▸";
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.account-apps details[open] summary::after { content: "▾"; }
 .app-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  gap: 8px;
   margin-top: 12px;
 }
 .app-connect-card {
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
-  background: #fafbfc;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
-.app-connect-card strong { font-size: 13.5px; }
-.app-connect-card span { font-size: 11.5px; color: var(--muted); }
+.app-connect-card strong { font-size: 12.5px; }
 .app-connect-card button {
   align-self: flex-start;
   border: 1px solid var(--border);
   background: #fff;
   border-radius: 8px;
-  padding: 6px 11px;
+  padding: 5px 10px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -2245,24 +2379,6 @@ dialog.modal-dialog::backdrop {
 .app-connect-card button:hover {
   border-color: var(--blue);
   color: var(--blue);
-}
-.session-mode-section {
-  background: #f8fafc;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px 14px;
-  margin-bottom: 14px;
-}
-.session-mode-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.session-mode-header strong {
-  font-size: 13px;
-  color: var(--text);
 }
 .session-mode-badge {
   display: inline-flex;
@@ -2279,26 +2395,68 @@ dialog.modal-dialog::backdrop {
   background: rgba(100, 116, 139, 0.14);
   color: #334155;
 }
-.session-mode-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+.session-mode-badge.cdp {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+.session-mode-badge.embedded {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+}
+#browser-panel.embedded-live #browser-screen {
+  opacity: 0;
+  pointer-events: none;
+}
+#browser-panel.embedded-live #browser-placeholder {
+  display: none !important;
+}
+.interaction-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f1f5f9;
+  margin: 0;
+  flex: 0 0 auto;
+}
+.interaction-mode-btn {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
+}
+.interaction-mode-btn:hover {
+  color: var(--text);
+}
+.interaction-mode-btn.active {
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+}
+.cdp-command-box {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .session-mode-card {
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
-  background: #fff;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   gap: 8px;
-  transition: all 0.15s ease;
-}
-.session-mode-card.active {
-  border-color: var(--blue);
-  background: rgba(22, 119, 255, 0.03);
-  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.1);
 }
 .session-mode-card-title {
   display: flex;
@@ -2310,7 +2468,7 @@ dialog.modal-dialog::backdrop {
 }
 .session-mode-card p {
   margin: 0;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.4;
 }
@@ -2467,6 +2625,16 @@ dialog.modal-dialog::backdrop {
   .template-card { min-width: 0; width: 100%; }
   .template-copy { min-width: 0; }
   #composer-wrap { padding: 8px 10px 12px; }
+  .composer-meta {
+    width: 100%;
+    margin-top: 8px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .interaction-mode-switch { width: 100%; justify-content: stretch; }
+  .interaction-mode-btn { flex: 1 1 0; text-align: center; padding: 6px 8px; }
+  #status-bar { width: 100%; justify-content: flex-start; }
+  #status-bar #status { text-align: left; }
   #composer {
     min-width: 0;
     width: 100%;
@@ -2501,13 +2669,13 @@ dialog.modal-dialog::backdrop {
     gap: 4px;
     padding: 6px;
   }
-  .browser-toolbar .panel-mode-switch { grid-column: 1 / -1; justify-self: start; }
   .browser-toolbar .browser-nav-btn { width: 100%; min-width: 0; justify-self: stretch; }
   .browser-toolbar .browser-address { grid-column: 1 / 6; min-width: 0; width: 100%; }
   .browser-toolbar .browser-go { grid-column: 6; width: 100%; padding: 0; }
   #browser-footer { flex-wrap: wrap; }
   #browser-footer p { flex-basis: 100%; }
   .header-pill-btn span.btn-label { display: none; }
+  .header-pill-btn.header-signin-btn span.btn-label { display: inline; }
 }
 @media (max-width: 430px) {
   .topbar-right {
@@ -2728,9 +2896,9 @@ dialog.modal-dialog::backdrop {
     <div id="agent-list" class="agent-list"></div>
     <div class="connect-apps">
       <button type="button" id="profile-avatar-btn" class="profile-avatar gmail" title="Session Mode: Gmail Persistent (click to switch between Gmail & Guest)" aria-label="Account & Session Mode">G</button>
-      <button id="connect-apps-btn" class="connect-pill" title="Sign in via Gmail (Persistent) or Guest Session & Connect Apps" aria-label="Sign in via Gmail or Guest Session">
+      <button id="connect-apps-btn" class="connect-pill" title="Account & Connect Apps" aria-label="Account & Connect Apps">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
-        <span id="connect-pill-label" class="connect-label">Gmail · Persistent</span>
+        <span id="connect-pill-label" class="connect-label">Account · Connect Apps</span>
       </button>
     </div>
     <div id="sidebar-resizer" class="panel-resizer" role="separator" aria-orientation="vertical" aria-label="Drag to resize or expand/collapse sidebar (double-click to toggle)" title="Drag to resize sidebar (double-click to toggle)"></div>
@@ -2763,8 +2931,9 @@ dialog.modal-dialog::backdrop {
         <button id="header-new-btn" class="header-pill-btn" title="Create New Bot (Name, Role & Icon)" aria-label="Create New Bot">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         </button>
-        <button id="header-connect-btn" class="header-pill-btn" title="Sign in via Gmail (Persistent) or Guest & Connect Apps" aria-label="Sign in via Gmail or Guest & Connect Apps">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+        <button id="header-connect-btn" class="header-pill-btn header-signin-btn" title="Sign in with Google or manage Account" aria-label="Sign in or Account">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span id="header-connect-label" class="btn-label">Sign in</span>
         </button>
         <button id="header-schedule-btn" class="header-pill-btn" title="Scheduled Tasks" aria-label="Scheduled Tasks">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
@@ -2775,7 +2944,7 @@ dialog.modal-dialog::backdrop {
         <button id="toggle-terminal-btn" class="header-pill-btn" title="Toggle Local Terminal (Runs behind the browser — no cloud required)" aria-label="Toggle Local Terminal">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
         </button>
-        <button id="toggle-browser-btn" class="header-pill-btn" title="Toggle Local Headless Browser Panel" aria-label="Toggle Local Browser Panel">
+        <button id="toggle-browser-btn" class="header-pill-btn" title="Toggle Browser Workspace" aria-label="Toggle Browser Workspace">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h20"/></svg>
         </button>
       </div>
@@ -2892,9 +3061,16 @@ dialog.modal-dialog::backdrop {
             </div>
           </form>
           <div id="attachment-list"></div>
-          <div id="status-bar">
-            <span id="status"></span>
-            <span id="step-counter"></span>
+          <div class="composer-meta">
+            <div class="interaction-mode-switch" role="tablist" aria-label="Agent mode">
+              <button type="button" class="interaction-mode-btn" data-interaction-mode="chat" title="Text tools only — cheapest">Chat</button>
+              <button type="button" class="interaction-mode-btn" data-interaction-mode="browse" title="Navigate and read pages; no click/type">Browse</button>
+              <button type="button" class="interaction-mode-btn active" data-interaction-mode="act" title="Full browser actions with approval gates">Act</button>
+            </div>
+            <div id="status-bar">
+              <span id="status"></span>
+              <span id="step-counter"></span>
+            </div>
           </div>
         </div>
         <div id="right-edge-resizer" class="panel-resizer" role="separator" aria-orientation="vertical" aria-label="Drag left to open and resize Browser / Terminal panel" title="Drag left to open Browser / Terminal panel"></div>
@@ -2908,10 +3084,6 @@ dialog.modal-dialog::backdrop {
         </button>
         <div id="browser-tabs" class="browser-tabs" hidden></div>
         <div class="browser-toolbar">
-          <div class="panel-mode-switch" role="tablist" aria-label="Switch between Local Browser and Local Terminal">
-            <button type="button" id="panel-mode-browser" class="panel-mode-btn active" title="Your browser session, shown live in the app">Browser</button>
-            <button type="button" id="panel-mode-terminal" class="panel-mode-btn" title="Local Terminal running behind the browser (No cloud required)">&gt;_ Terminal</button>
-          </div>
           <button id="browser-back" class="browser-nav-btn" title="Back" aria-label="Back">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
           </button>
@@ -2969,7 +3141,7 @@ dialog.modal-dialog::backdrop {
         </div>
         <input id="keyboard-capture" autocomplete="off" spellcheck="false"/>
         <div id="browser-footer">
-          <p id="browser-footer-text">Sign in in the Buddy Bot Chrome window. This panel shows the same session; saved logins are reused across runs.</p>
+          <p id="browser-footer-text">Chrome-backed browsing uses a dedicated saved session and displays the live page here.</p>
           <button id="signed-in-button">I’m signed in — start mission</button>
         </div>
       </section>
@@ -3007,98 +3179,124 @@ dialog.modal-dialog::backdrop {
 </dialog>
 
 <!-- Sign-In & Connect Apps Modal -->
-<dialog id="connect-modal" class="modal-dialog" closedby="any" aria-labelledby="connect-modal-title" style="width:min(94vw, 560px);">
+<dialog id="connect-modal" class="modal-dialog" closedby="any" aria-labelledby="connect-modal-title" style="width:min(92vw, 420px);">
   <div class="modal-inner">
     <div class="modal-header">
-      <h2 id="connect-modal-title">Account Session &amp; Connected Apps</h2>
+      <h2 id="connect-modal-title">Account</h2>
       <button type="button" class="modal-close" data-close-modal="connect-modal" aria-label="Close">✕</button>
     </div>
 
-    <section class="google-login-card" aria-labelledby="google-login-title">
-      <div>
-        <h3 class="google-login-title" id="google-login-title">Sign in to Open Bots</h3>
-        <p class="google-login-caption">Google verifies your account; your password stays with Google. If Google rejects this page, add this app URL to the OAuth client’s Authorized JavaScript origins.</p>
+    <section class="account-primary" aria-labelledby="connect-modal-title">
+      <p class="account-lede">Optional — sign in with Google to sync bots across devices. Otherwise you’re a guest on this device.</p>
+      <div class="google-login-actions">
+        <div id="google-signin-button"></div>
+        <!-- Guest is the default when unsigned; header Sign in is enough. Keep id for JS wiring. -->
+        <button type="button" id="google-login-guest-btn" hidden>Continue as Guest</button>
       </div>
-      <div id="google-signin-button"></div>
       <div id="google-signin-session" hidden>
         <span id="google-signin-session-email"></span>
         <button type="button" id="google-signout-button">Sign out</button>
       </div>
-      <p id="google-signin-status" role="status" aria-live="polite">Checking Google sign-in…</p>
+      <p id="google-signin-status" role="status" aria-live="polite"></p>
     </section>
 
-    <div class="session-mode-section">
-      <div class="session-mode-header">
-        <strong>Choose Browser Session Mode</strong>
-        <span id="session-mode-badge" class="session-mode-badge">● Gmail · Persistent Session</span>
+    <section class="account-section" aria-labelledby="browser-section-title">
+      <div class="account-section-header">
+        <strong id="browser-section-title">Browser</strong>
+        <span id="session-mode-badge" class="session-mode-badge">● In-app</span>
       </div>
-      <div class="session-mode-grid">
-        <div id="session-card-persistent" class="session-mode-card active">
-          <div>
-            <div class="session-mode-card-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6z" stroke="#ea4335" stroke-width="2"/><path d="m22 6-10 7L2 6" stroke="#4285f4" stroke-width="2"/></svg>
-              <span>Chrome · Saved session</span>
-            </div>
-            <p style="margin-top:4px;">Sign in to websites in a dedicated Chrome window, then continue here with the same session. Your personal Chrome profile stays separate.</p>
-            <div class="gmail-input-row">
-              <input id="gmail-email-input" type="email" placeholder="you@gmail.com (optional)" aria-label="Gmail address" />
-            </div>
-          </div>
-          <button type="button" id="signin-chrome-btn" class="session-mode-btn primary">
-            <span>Open Chrome to sign in</span>
-          </button>
-          <button type="button" id="signin-gmail-btn" class="session-mode-btn">
-            <span>Sign in with Gmail (Persistent)</span>
-          </button>
-        </div>
+      <p id="browser-default-line" class="account-section-line">In-app browser is on — pages open inside Open Bots.</p>
 
-        <div id="session-card-guest" class="session-mode-card">
-          <div>
-            <div class="session-mode-card-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <span>Continue as Guest</span>
-            </div>
-            <p style="margin-top:4px;">Ephemeral session. Uses an isolated temporary browser profile — no cookies or logins saved to disk.</p>
+      <div id="session-card-embedded" class="session-mode-card" hidden>
+        <button type="button" id="use-embedded-btn" class="session-mode-btn primary">
+          <span>Use in-app browser</span>
+        </button>
+      </div>
+
+      <button type="button" id="cdp-help-toggle" class="account-disclosure" aria-expanded="false" aria-controls="cdp-help-panel">
+        Having trouble? Connect Chrome…
+      </button>
+      <div id="cdp-help-panel" class="account-panel" hidden>
+        <div id="session-card-cdp" class="session-mode-card">
+          <p>Use a separate Chrome window when a site blocks the in-app browser. This is not your everyday Chrome profile.</p>
+          <pre id="cdp-launch-command" class="cdp-command-box" hidden></pre>
+          <p id="cdp-status-line" style="margin:6px 0 0;font-size:12px;color:var(--muted);"></p>
+          <div class="account-panel-actions">
+            <button type="button" id="connect-cdp-btn" class="session-mode-btn">
+              <span>Connect Chrome</span>
+            </button>
+            <button type="button" id="copy-cdp-cmd-btn" class="session-mode-btn">
+              <span>Copy launch command</span>
+            </button>
           </div>
-          <button type="button" id="continue-guest-btn" class="session-mode-btn">
-            <span>Continue as Guest</span>
-          </button>
         </div>
       </div>
+
+      <button type="button" id="browser-advanced-toggle" class="account-disclosure" aria-expanded="false" aria-controls="browser-advanced-panel">
+        Advanced
+      </button>
+      <div id="browser-advanced-panel" class="account-panel" hidden>
+        <div id="session-card-persistent" class="session-mode-card">
+          <div class="session-mode-card-title">
+            <span id="session-card-persistent-title">External Buddy Bot Chrome</span>
+          </div>
+          <p id="session-card-persistent-copy">Opens a separate Buddy Bot Chrome window (not your personal profile).</p>
+          <div class="gmail-input-row">
+            <input id="gmail-email-input" type="email" placeholder="you@gmail.com (optional)" aria-label="Gmail address" />
+          </div>
+          <div class="account-panel-actions">
+            <button type="button" id="signin-chrome-btn" class="session-mode-btn">
+              <span>Open Chrome to sign in</span>
+            </button>
+            <button type="button" id="signin-gmail-btn" class="session-mode-btn">
+              <span>Sign in with Gmail</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Kept for JS session-mode wiring; guest CTA lives in Account above -->
+    <div id="session-card-guest" class="session-mode-card" hidden>
+      <button type="button" id="continue-guest-btn" class="session-mode-btn">
+        <span>Continue as Guest</span>
+      </button>
     </div>
 
-    <p style="margin:0 0 8px;color:var(--muted);font-size:12.5px;">Connect individual web apps in your active browser session:</p>
-    <div class="app-grid">
-      <div class="app-connect-card">
-        <strong>Gmail / Google</strong>
-        <span>Sign in to Gmail, Google Search, Docs &amp; YouTube.</span>
-        <button type="button" data-connect-url="https://accounts.google.com/ServiceLogin?service=mail">Open Gmail Sign-In</button>
-      </div>
-      <div class="app-connect-card">
-        <strong>Instagram</strong>
-        <span>Connect account to track followers, posts &amp; engagement.</span>
-        <button type="button" data-connect-url="https://www.instagram.com/">Open Instagram</button>
-      </div>
-      <div class="app-connect-card">
-        <strong>X / Twitter</strong>
-        <span>Connect for Grok-style real-time social research &amp; trends.</span>
-        <button type="button" data-connect-url="https://x.com/">Open X.com</button>
-      </div>
-      <div class="app-connect-card">
-        <strong>GitHub</strong>
-        <span>Access repositories, issues, and pull requests.</span>
-        <button type="button" data-connect-url="https://github.com/login">Open GitHub</button>
-      </div>
-      <div class="app-connect-card">
-        <strong>LinkedIn</strong>
-        <span>Connect for B2B sales prospecting &amp; company research.</span>
-        <button type="button" data-connect-url="https://www.linkedin.com/">Open LinkedIn</button>
-      </div>
-      <div class="app-connect-card">
-        <strong>Custom Website</strong>
-        <span>Open any URL in the interactive browser to sign in.</span>
-        <button type="button" data-connect-url="https://www.google.com/">Open Browser</button>
-      </div>
+    <div class="account-apps">
+      <details>
+        <summary>Open a site to sign in</summary>
+        <div class="app-grid">
+          <div class="app-connect-card">
+            <strong>Gmail</strong>
+            <button type="button" data-connect-url="https://accounts.google.com/ServiceLogin?service=mail">Open</button>
+          </div>
+          <div class="app-connect-card">
+            <strong>Reddit</strong>
+            <button type="button" data-connect-url="https://www.reddit.com/">Open</button>
+          </div>
+          <div class="app-connect-card">
+            <strong>Instagram</strong>
+            <button type="button" data-connect-url="https://www.instagram.com/">Open</button>
+          </div>
+          <div class="app-connect-card">
+            <strong>X</strong>
+            <button type="button" data-connect-url="https://x.com/">Open</button>
+          </div>
+          <div class="app-connect-card">
+            <strong>GitHub</strong>
+            <button type="button" data-connect-url="https://github.com/login">Open</button>
+          </div>
+          <div class="app-connect-card">
+            <strong>LinkedIn</strong>
+            <button type="button" data-connect-url="https://www.linkedin.com/">Open</button>
+          </div>
+          <div class="app-connect-card">
+            <strong>Other site</strong>
+            <button type="button" data-connect-url="https://www.google.com/">Open</button>
+          </div>
+        </div>
+      </details>
     </div>
   </div>
 </dialog>
@@ -3237,11 +3435,14 @@ dialog.modal-dialog::backdrop {
   </div>
 </dialog>
 
+<script src="/browserRuntime.js"></script>
 <script>
 (function() {
   "use strict";
   var STORAGE_KEY = "agentFireworksAgentsV2";
   var agents = loadAgents();
+  var googleIdentityUser = null;
+  var googlePersistTimer = null;
   var activeAgentId = null;
   var isRunning = false;
   var botIsWorking = false;
@@ -3252,6 +3453,7 @@ dialog.modal-dialog::backdrop {
   var runEvents = null;
   var browserFrames = null;
   var browserRetryTimer = null;
+  var browserOpenPromise = null;
   var attachments = [];
   var viewport = { width: 1280, height: 800 };
   var searchQuery = "";
@@ -3262,7 +3464,22 @@ dialog.modal-dialog::backdrop {
   var startRunLock = false;
   var lastSubmitAt = 0;
   var runEventCursorKey = "openBotsRunEventCursor";
-  var currentSessionMode = localStorage.getItem("openBotsSessionMode") === "guest" ? "guest" : "persistent";
+  var storedSessionMode = localStorage.getItem("openBotsSessionMode");
+  // Unsigned visitors default to Guest (same as former "Continue as Guest"); header Sign in remains optional.
+  var currentSessionMode =
+    storedSessionMode === "guest" || storedSessionMode === "cdp" || storedSessionMode === "embedded" || storedSessionMode === "persistent"
+      ? storedSessionMode
+      : "guest";
+  var embeddedAvailable = false;
+  var desktopApi = window.openBotsDesktop || null;
+  if (desktopApi && !storedSessionMode) {
+    currentSessionMode = "cdp";
+    storedSessionMode = "cdp";
+  }
+  var currentInteractionMode = localStorage.getItem("openBotsInteractionMode") === "chat" || localStorage.getItem("openBotsInteractionMode") === "browse"
+    ? localStorage.getItem("openBotsInteractionMode")
+    : "act";
+  var cdpLaunchInfo = null;
   var gmailAccount = localStorage.getItem("openBotsGmailAccount") || "";
   var googleIdentityLoader = null;
   var googleIdentityReady = false;
@@ -3322,8 +3539,58 @@ dialog.modal-dialog::backdrop {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
     catch (_) { return []; }
   }
+  function scheduleGooglePersist() {
+    if (!googleIdentityUser) return;
+    if (googlePersistTimer) clearTimeout(googlePersistTimer);
+    googlePersistTimer = setTimeout(function() {
+      googlePersistTimer = null;
+      fetch("/api/user/data", {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bots: agents,
+          settings: {
+            interactionMode: currentInteractionMode,
+            sessionMode: currentSessionMode,
+            model: (document.getElementById("model-select") || {}).value || localStorage.getItem("agentFireworksModel") || "",
+            autoApprove: localStorage.getItem("agentFireworksAutoApprove") === "1"
+          }
+        })
+      }).catch(function() { /* persistence is best-effort while signed in */ });
+    }, 500);
+  }
+  function applyGooglePersistence(persistence) {
+    if (!persistence) return;
+    if (Array.isArray(persistence.bots) && persistence.bots.length) {
+      agents = persistence.bots;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(agents));
+      if (typeof renderSidebar === "function") renderSidebar();
+    }
+    var settings = persistence.settings || {};
+    if (typeof settings.interactionMode === "string" && (settings.interactionMode === "chat" || settings.interactionMode === "browse" || settings.interactionMode === "act")) {
+      currentInteractionMode = settings.interactionMode;
+      localStorage.setItem("openBotsInteractionMode", currentInteractionMode);
+      if (typeof renderInteractionModeUI === "function") renderInteractionModeUI();
+    }
+    if (typeof settings.model === "string" && settings.model) {
+      localStorage.setItem("agentFireworksModel", settings.model);
+      var modelSelect = document.getElementById("model-select");
+      var composerModelSelect = document.getElementById("composer-model-select");
+      if (modelSelect) modelSelect.value = settings.model;
+      if (composerModelSelect) composerModelSelect.value = settings.model;
+    }
+    if (typeof settings.autoApprove === "boolean") {
+      localStorage.setItem("agentFireworksAutoApprove", settings.autoApprove ? "1" : "0");
+      if (typeof autoApproveEnabled !== "undefined") {
+        autoApproveEnabled = settings.autoApprove;
+        if (typeof renderAutoApproveToggle === "function") renderAutoApproveToggle();
+      }
+    }
+  }
   function saveAgents() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(agents));
+    scheduleGooglePersist();
   }
   function activeAgent() {
     return agents.find(function(a) { return a.id === activeAgentId; }) || null;
@@ -3893,6 +4160,7 @@ dialog.modal-dialog::backdrop {
     workspace.classList.remove("chat-collapsed");
     toggleBrowserBtn.classList.remove("active");
     if (toggleTerminalBtn) toggleTerminalBtn.classList.remove("active");
+    syncLiveBrowserChrome();
     appEl.classList.add("sidebar-collapsed");
     welcome.hidden = true;
     messages.hidden = false;
@@ -3918,6 +4186,7 @@ dialog.modal-dialog::backdrop {
     workspace.classList.remove("has-browser");
     workspace.classList.add("empty");
     toggleBrowserBtn.classList.remove("active");
+    syncLiveBrowserChrome();
     welcome.hidden = false;
     welcome.classList.remove("is-typing");
     messages.hidden = true;
@@ -3933,14 +4202,10 @@ dialog.modal-dialog::backdrop {
 
   var toggleTerminalBtn = document.getElementById("toggle-terminal-btn");
   var browserPanelEl = document.getElementById("browser-panel");
-  var panelModeBrowserBtn = document.getElementById("panel-mode-browser");
-  var panelModeTerminalBtn = document.getElementById("panel-mode-terminal");
 
   function setPanelMode(mode) {
     var isTerm = mode === "terminal";
     browserPanelEl.classList.toggle("terminal-mode", isTerm);
-    if (panelModeBrowserBtn) panelModeBrowserBtn.classList.toggle("active", !isTerm);
-    if (panelModeTerminalBtn) panelModeTerminalBtn.classList.toggle("active", isTerm);
     if (toggleTerminalBtn) toggleTerminalBtn.classList.toggle("active", isTerm && workspace.classList.contains("has-browser"));
     toggleBrowserBtn.classList.toggle("active", !isTerm && workspace.classList.contains("has-browser"));
     if (isTerm) {
@@ -3949,34 +4214,59 @@ dialog.modal-dialog::backdrop {
         if (inp) inp.focus();
       }, 40);
     }
+    syncLiveBrowserChrome();
+  }
+
+  function syncLiveBrowserChrome() {
+    var panelVisible = workspace.classList.contains("has-browser") && !browserPanelEl.classList.contains("terminal-mode") && !document.querySelector("dialog[open]");
+    var useEmbeddedView = Boolean(desktopApi) && embeddedAvailable && currentSessionMode === "embedded" && panelVisible;
+    browserPanelEl.classList.toggle("embedded-live", useEmbeddedView);
+    if (useEmbeddedView) closeBrowserFrames();
+    if (!desktopApi) return;
+    if (desktopApi.setLiveBrowserVisible) desktopApi.setLiveBrowserVisible(useEmbeddedView);
+    if (!useEmbeddedView || !desktopApi.reportBrowserBounds) return;
+    var vp = document.getElementById("browser-viewport");
+    if (!vp) return;
+    var rect = vp.getBoundingClientRect();
+    desktopApi.reportBrowserBounds({
+      x: Math.round(rect.left),
+      y: Math.round(rect.top),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height)
+    });
   }
 
   function showBrowser() {
+    sessionStorage.setItem("openBotsBrowserPane", "open");
     workspace.classList.remove("empty");
     workspace.classList.add("has-browser");
     setPanelMode("browser");
+    syncLiveBrowserChrome();
   }
 
   function showTerminal() {
     workspace.classList.remove("empty");
     workspace.classList.add("has-browser");
     setPanelMode("terminal");
+    syncLiveBrowserChrome();
   }
 
   function toggleBrowserPanel() {
     if (workspace.classList.contains("has-browser") && !browserPanelEl.classList.contains("terminal-mode")) {
+      sessionStorage.removeItem("openBotsBrowserPane");
       workspace.classList.remove("has-browser");
       workspace.classList.remove("chat-collapsed");
       document.getElementById("browser-expand-btn").classList.remove("active");
       toggleBrowserBtn.classList.remove("active");
       if (toggleTerminalBtn) toggleTerminalBtn.classList.remove("active");
       if (!activeAgentId) workspace.classList.add("empty");
+      syncLiveBrowserChrome();
     } else {
       showBrowser();
       // Ensure a live browser session is open and streaming
       var a = activeAgent();
       var targetUrl = browserAddress.value.trim() || (a && a.intent && a.intent.url) || "about:blank";
-      if (!browserScreen.src) {
+      if (!browserScreen.src || currentSessionMode === "embedded") {
         if (isRunning) connectBrowserFrames(true);
         else openInteractiveBrowser(targetUrl, false);
       }
@@ -3985,12 +4275,14 @@ dialog.modal-dialog::backdrop {
 
   function toggleTerminalPanel() {
     if (workspace.classList.contains("has-browser") && browserPanelEl.classList.contains("terminal-mode")) {
+      sessionStorage.removeItem("openBotsBrowserPane");
       workspace.classList.remove("has-browser");
       workspace.classList.remove("chat-collapsed");
       document.getElementById("browser-expand-btn").classList.remove("active");
       toggleBrowserBtn.classList.remove("active");
       if (toggleTerminalBtn) toggleTerminalBtn.classList.remove("active");
       if (!activeAgentId) workspace.classList.add("empty");
+      syncLiveBrowserChrome();
     } else {
       showTerminal();
       loadTerminalHistory();
@@ -4277,6 +4569,9 @@ dialog.modal-dialog::backdrop {
   function renderBrowserTabs(tabs) {
     var container = document.getElementById("browser-tabs");
     if (!container || !Array.isArray(tabs)) return;
+    var signature = JSON.stringify(tabs);
+    if (container.dataset.signature === signature) return;
+    container.dataset.signature = signature;
     if (tabs.length <= 1) {
       container.hidden = true;
       container.innerHTML = "";
@@ -4314,6 +4609,14 @@ dialog.modal-dialog::backdrop {
   }
 
   function openInteractiveBrowser(url, showSetupBanner, modeOverride) {
+    if (desktopApi && desktopApi.browserCommand && (modeOverride || currentSessionMode) === "embedded") {
+      currentSessionMode = "embedded";
+      embeddedAvailable = true;
+      showBrowser();
+      if (url && url !== "about:blank") remoteInput({ type: "navigate", url: url });
+      desktopApi.getBrowserState().then(applyNativeBrowserState).catch(function() {});
+      return;
+    }
     showBrowser();
     // While a bot run owns Chromium, still call /api/login — the server reuses the same
     // session and can navigate (or soft-recover onto a new tab) instead of failing silently.
@@ -4340,10 +4643,12 @@ dialog.modal-dialog::backdrop {
     if (!isRunning) {
       status.textContent = requestedMode === "guest"
         ? "Launching isolated Guest Chromium session…"
-        : "Opening your saved Buddy Bot Chrome session…";
+        : requestedMode === "cdp"
+          ? "Attaching to Connected Chrome (CDP)…"
+          : "Opening your saved Buddy Bot Chrome session…";
     }
     var a = activeAgent();
-    fetch("/api/login", {
+    browserOpenPromise = fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -4370,7 +4675,11 @@ dialog.modal-dialog::backdrop {
         if (body.tabs) renderBrowserTabs(body.tabs);
         connectBrowserFrames(true);
         if (body.accessDenied) {
-          status.textContent = "This website denied access. Check the Chrome window; there is no CAPTCHA to solve on this block page.";
+          status.textContent = currentSessionMode === "cdp"
+            ? "This website denied access even on Connected Chrome. Try reddit_search / web_search, or solve any challenge in the Chrome window."
+            : currentSessionMode === "embedded"
+              ? "This website denied access in the in-app browser. Switch to Connect Apps → Connect my Chrome (external)."
+              : "This website denied access. Switch to Connect Apps → Connect my Chrome. Playwright Chrome is often blocked by Reddit/Google.";
         } else if (body.navigationError) {
           status.textContent = "Navigation issue: " + body.navigationError + " — try Go again or + New Tab.";
         } else if (isRunning) {
@@ -4379,9 +4688,12 @@ dialog.modal-dialog::backdrop {
           status.textContent = showSetupBanner
             ? (currentSessionMode === "guest"
                 ? "Guest browser ready (ephemeral — nothing saved after closing)."
-                : "Chrome is ready — sign in in its window, then continue here using the same saved session.")
+                : currentSessionMode === "embedded"
+                  ? "In-app browser ready — sign in here without opening your personal Chrome."
+                  : "Chrome is ready — sign in in its window, then continue here using the same saved session.")
             : "Live browser connected.";
         }
+        syncLiveBrowserChrome();
       })
       .catch(function(err) {
         setupSessionOpen = false;
@@ -4394,7 +4706,8 @@ dialog.modal-dialog::backdrop {
         }
         status.textContent = "";
         appendMessage("agent", esc(err.message), "error");
-      });
+      }).finally(function() { browserOpenPromise = null; });
+    return browserOpenPromise;
   }
 
   function finishSetup() {
@@ -4604,6 +4917,8 @@ dialog.modal-dialog::backdrop {
         approvedCategories: approvedCategories || [],
         autoApprove: autoApproveEnabled,
         model: selectedModel,
+        interactionMode: currentInteractionMode || "act",
+        observeMode: "text",
         headless: true,
         maxSteps: 120,
         maxDurationSeconds: 14400
@@ -5036,8 +5351,7 @@ dialog.modal-dialog::backdrop {
       if (!browserFrames) connectBrowserFrames(true);
       if (e.url) browserAddress.value = e.url;
       if (e.screenshotB64) {
-        browserScreen.src = "data:image/jpeg;base64," + e.screenshotB64;
-        browserPlaceholder.style.display = "none";
+        if (!usesNativeBrowser()) framePresenter.push(e.screenshotB64);
       }
       return;
     }
@@ -5052,8 +5366,7 @@ dialog.modal-dialog::backdrop {
       if (e.screenshotB64) {
         // Update background frame silently without forcing the right panel open
         if (!browserFrames) connectBrowserFrames(true);
-        browserScreen.src = "data:image/jpeg;base64," + e.screenshotB64;
-        browserPlaceholder.style.display = "none";
+        if (!usesNativeBrowser()) framePresenter.push(e.screenshotB64);
       }
       var tool = String(e.toolName || "");
       var stepText = e.message || e.toolName || "working";
@@ -5127,14 +5440,17 @@ dialog.modal-dialog::backdrop {
         "agent",
         "<strong>Human verification needed.</strong> " +
         "Open Live Browser and solve the CAPTCHA or sign-in yourself (the agent will not click puzzle images). " +
-        "Address bar always shows the <em>real</em> page URL — if you need Instagram while stuck on another site, press <em>Go</em> or <em>+ New Tab</em>, then resume." +
+        "If Google says this browser may not be secure, that is a sign-in restriction, not a CAPTCHA. " +
+        "Use the website’s email sign-in option if available, or open sign-in options for Connected Chrome. " +
         screenshotHtml(e.screenshotB64) +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">' +
           '<button type="button" class="btn-secondary open-verify-browser-btn" style="padding:6px 12px;font-size:12px;">Open Live Browser</button>' +
+          '<button type="button" class="btn-secondary signin-options-btn" style="padding:6px 12px;font-size:12px;">Sign-in options</button>' +
           '<button type="button" class="resume-button" style="margin-top:0;">I’ve handled it — resume agent</button>' +
         "</div>"
       );
       bubble.dataset.runVerification = "pending";
+      bubble.querySelector(".signin-options-btn").onclick = openConnectModal;
       var openBtn = bubble.querySelector(".open-verify-browser-btn");
       if (openBtn) {
         openBtn.onclick = function() {
@@ -5153,8 +5469,24 @@ dialog.modal-dialog::backdrop {
     if (e.type === "human_verification_resolved") {
       waitingForRunInput = false;
       messages.querySelectorAll("[data-run-verification] button").forEach(function(button) { button.disabled = true; });
-      setAgentMotion("working");
+      setAgentMotion(e.accessDenied ? "needs-you" : "working");
       setBrowserVerificationFooter(false);
+      if (e.accessDenied) {
+        var agent = activeAgent();
+        messages.querySelectorAll("[data-run-verification='pending']").forEach(function(card) {
+          var previous = card.innerHTML;
+          card.innerHTML = "<strong>Website access blocked.</strong> This page denied access; there is no CAPTCHA to complete here.";
+          card.dataset.runVerification = "blocked";
+          if (agent && agent.transcript) {
+            var saved = agent.transcript.find(function(item) { return item.html === previous; });
+            if (saved) saved.html = card.innerHTML;
+          }
+        });
+        saveAgents();
+        status.textContent = "Website access blocked.";
+        setRunPresence(null);
+        return;
+      }
       status.textContent = "Verification resolved. Agent is continuing…";
       setStatusState("running", "Agent Running");
       setRunPresence("Back at it");
@@ -5269,7 +5601,17 @@ dialog.modal-dialog::backdrop {
     }
   }
 
+  var framePresenter = OpenBotsBrowserRuntime.createFramePresenter(function(frame) {
+    browserScreen.src = "data:image/jpeg;base64," + frame;
+    browserPlaceholder.style.display = "none";
+  }, window.requestAnimationFrame.bind(window), window.cancelAnimationFrame.bind(window));
+
+  function usesNativeBrowser() {
+    return Boolean(desktopApi) && embeddedAvailable && currentSessionMode === "embedded";
+  }
+
   function closeBrowserFrames() {
+    if (framePresenter) framePresenter.clear();
     if (browserFrames) {
       browserFrames.close();
       browserFrames = null;
@@ -5282,19 +5624,33 @@ dialog.modal-dialog::backdrop {
 
   function connectBrowserFrames(retry) {
     closeBrowserFrames();
+    if (usesNativeBrowser() || document.hidden) return;
     browserFrames = new EventSource("/api/login/screencast");
+    var source = browserFrames;
     browserFrames.onmessage = function(m) {
+      if (browserFrames !== source) return;
       if (!browserAddress.value.trim() || browserAddress.value.trim() === "about:blank") return;
-      browserScreen.src = "data:image/jpeg;base64," + m.data;
-      browserPlaceholder.style.display = "none";
+      framePresenter.push(m.data);
     };
     browserFrames.onerror = function() {
+      if (browserFrames !== source) return;
       closeBrowserFrames();
       if (retry && (isRunning || setupSessionOpen || workspace.classList.contains("has-browser"))) {
         browserRetryTimer = setTimeout(function() { connectBrowserFrames(true); }, 600);
       }
     };
   }
+
+  document.addEventListener("visibilitychange", function() {
+    if (document.hidden) {
+      closeBrowserFrames();
+      framePresenter.clear();
+    } else if (isRunning || setupSessionOpen || workspace.classList.contains("has-browser")) {
+      connectBrowserFrames(true);
+      syncBrowserFromStatus();
+    }
+  });
+  window.addEventListener("pagehide", function() { closeBrowserFrames(); framePresenter.clear(); });
 
   function syncBrowserFromStatus() {
     fetch("/api/status")
@@ -5328,11 +5684,34 @@ dialog.modal-dialog::backdrop {
     if (signedInBtn) signedInBtn.hidden = true;
   }
 
-  function remoteInput(payload) {
-    fetch("/api/login/input", {
+  function applyNativeBrowserState(state) {
+    if (!state || !usesNativeBrowser()) return;
+    var tab = state.tabs.find(function(item) { return item.active; });
+    if (tab && document.activeElement !== browserAddress) browserAddress.value = tab.url === "about:blank" ? "" : tab.url;
+    renderBrowserTabs(state.tabs);
+    syncLiveBrowserChrome();
+  }
+  if (desktopApi && desktopApi.onBrowserState) {
+    desktopApi.onBrowserState(applyNativeBrowserState);
+    desktopApi.getBrowserState().then(applyNativeBrowserState).catch(function() {});
+    new MutationObserver(function() { syncLiveBrowserChrome(); }).observe(document.body, {
+      subtree: true, attributes: true, attributeFilter: ["open"]
+    });
+  }
+
+  var remoteInput = OpenBotsBrowserRuntime.createInputQueue(function(payload) {
+    if (usesNativeBrowser() && desktopApi.browserCommand) {
+      return desktopApi.browserCommand(payload).then(function(state) {
+        applyNativeBrowserState(state);
+        if (!isRunning && payload.type === "navigate") status.textContent = "Page loaded.";
+      });
+    }
+    return Promise.resolve(browserOpenPromise).then(function() {
+      return fetch("/api/login/input", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
+      });
     })
       .then(readResponse)
       .then(function(body) {
@@ -5342,9 +5721,10 @@ dialog.modal-dialog::backdrop {
         if (body && body.tabs) {
           renderBrowserTabs(body.tabs);
         }
-        if (!browserFrames) connectBrowserFrames(true);
+        if (payload.type === "navigate" || !browserFrames) connectBrowserFrames(true);
+        if (!isRunning && payload.type === "navigate") status.textContent = "Page loaded.";
       })
-      .catch(function(err) {
+  }, function(err, payload) {
         var detail = (err && err.message) || "Browser action failed.";
         status.textContent = detail;
         // Soft UX: if Go/navigate failed (stuck captcha tab / closed page), open a dedicated tab.
@@ -5352,8 +5732,7 @@ dialog.modal-dialog::backdrop {
           status.textContent = detail + " Opening a new tab…";
           remoteInput({ type: "new_tab", url: payload.url, _retriedAsNewTab: true });
         }
-      });
-  }
+  });
 
   function screenCoords(e) {
     var r = browserScreen.getBoundingClientRect();
@@ -5678,10 +6057,12 @@ dialog.modal-dialog::backdrop {
   modelSelect.addEventListener("change", function() {
     localStorage.setItem("agentFireworksModel", modelSelect.value);
     composerModelSelect.value = modelSelect.value;
+    scheduleGooglePersist();
   });
   composerModelSelect.addEventListener("change", function() {
     modelSelect.value = composerModelSelect.value;
     localStorage.setItem("agentFireworksModel", composerModelSelect.value);
+    scheduleGooglePersist();
   });
 
   // Read-only checks run freely. Shell/file access can also be granted for one task inline.
@@ -5702,6 +6083,7 @@ dialog.modal-dialog::backdrop {
     autoApproveEnabled = !autoApproveEnabled;
     localStorage.setItem("agentFireworksAutoApprove", autoApproveEnabled ? "1" : "0");
     renderAutoApproveToggle();
+    scheduleGooglePersist();
   };
   renderAutoApproveToggle();
 
@@ -5923,23 +6305,6 @@ dialog.modal-dialog::backdrop {
   if (toggleTerminalBtn) toggleTerminalBtn.onclick = toggleTerminalPanel;
   var welcomeTerminalBtn = document.getElementById("welcome-terminal-btn");
   if (welcomeTerminalBtn) welcomeTerminalBtn.onclick = toggleTerminalPanel;
-  if (panelModeBrowserBtn) {
-    panelModeBrowserBtn.onclick = function() {
-      showBrowser();
-      var a = activeAgent();
-      var targetUrl = browserAddress.value.trim() || (a && a.intent && a.intent.url) || "about:blank";
-      if (!browserScreen.src) {
-        if (isRunning) connectBrowserFrames(true);
-        else openInteractiveBrowser(targetUrl, false);
-      }
-    };
-  }
-  if (panelModeTerminalBtn) {
-    panelModeTerminalBtn.onclick = function() {
-      showTerminal();
-      loadTerminalHistory();
-    };
-  }
   document.getElementById("terminal-form").addEventListener("submit", function(e) {
     e.preventDefault();
     var inp = document.getElementById("terminal-input");
@@ -6100,6 +6465,7 @@ dialog.modal-dialog::backdrop {
           workspace.style.setProperty("--chat-width", val);
           localStorage.setItem("openBotsChatWidth", val);
         }
+        syncLiveBrowserChrome();
       }
 
       function onUp(ev) {
@@ -6109,6 +6475,7 @@ dialog.modal-dialog::backdrop {
         handleEl.removeEventListener("pointermove", onMove);
         handleEl.removeEventListener("pointerup", onUp);
         handleEl.removeEventListener("pointercancel", onUp);
+        syncLiveBrowserChrome();
       }
 
       handleEl.addEventListener("pointermove", onMove);
@@ -6145,86 +6512,216 @@ dialog.modal-dialog::backdrop {
     renderSidebar();
   });
 
+  function setAccountDisclosure(panelId, toggleId, open) {
+    var panel = document.getElementById(panelId);
+    var toggle = document.getElementById(toggleId);
+    if (panel) panel.hidden = !open;
+    if (toggle) {
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      if (toggleId === "cdp-help-toggle") {
+        toggle.textContent = open ? "Hide Chrome connect" : "Having trouble? Connect Chrome…";
+      } else if (toggleId === "browser-advanced-toggle") {
+        toggle.textContent = open ? "Hide advanced" : "Advanced";
+      }
+    }
+  }
+
   function renderSessionModeUI() {
     var isGuest = currentSessionMode === "guest";
+    var isCdp = currentSessionMode === "cdp";
+    var isEmbedded = currentSessionMode === "embedded";
+    var isPersistent = currentSessionMode === "persistent";
     var avatarBtn = document.getElementById("profile-avatar-btn");
     var pillLabel = document.getElementById("connect-pill-label");
-    var welcomeLabel = document.getElementById("welcome-session-label");
     var badgeEl = document.getElementById("session-mode-badge");
+    var browserLine = document.getElementById("browser-default-line");
+    var cardEmbedded = document.getElementById("session-card-embedded");
     var cardPersistent = document.getElementById("session-card-persistent");
     var cardGuest = document.getElementById("session-card-guest");
+    var cardCdp = document.getElementById("session-card-cdp");
+    var embeddedBtn = document.getElementById("use-embedded-btn");
     var gmailBtn = document.getElementById("signin-gmail-btn");
+    var chromeBtn = document.getElementById("signin-chrome-btn");
     var guestBtn = document.getElementById("continue-guest-btn");
+    var cdpBtn = document.getElementById("connect-cdp-btn");
     var emailInput = document.getElementById("gmail-email-input");
     var footerText = document.getElementById("browser-footer-text");
+    var cdpStatus = document.getElementById("cdp-status-line");
+    var cdpCmd = document.getElementById("cdp-launch-command");
+    var persistentTitle = document.getElementById("session-card-persistent-title");
+    var persistentCopy = document.getElementById("session-card-persistent-copy");
 
     if (emailInput && gmailAccount && !emailInput.value) {
       emailInput.value = gmailAccount;
     }
 
+    if (cardEmbedded) {
+      cardEmbedded.hidden = !(embeddedAvailable && !isEmbedded);
+      cardEmbedded.classList.toggle("active", isEmbedded);
+    }
+    if (browserLine) {
+      browserLine.textContent = isEmbedded
+        ? "In-app browser is on — pages open inside Open Bots."
+        : isCdp
+          ? "Connected Chrome is active for sites that block the in-app browser."
+          : isPersistent
+            ? "External Buddy Bot Chrome is active."
+            : "In-app browser is the default. Switch below only if needed.";
+    }
+    if (persistentTitle) {
+      persistentTitle.textContent = embeddedAvailable ? "External Buddy Bot Chrome" : "Chrome · Saved session";
+    }
+    if (persistentCopy) {
+      persistentCopy.textContent = embeddedAvailable
+        ? "Opens a separate Buddy Bot Chrome window (not your personal profile)."
+        : "Sign in in a dedicated Buddy Bot Chrome window, then continue here.";
+    }
+
     if (avatarBtn) {
       avatarBtn.classList.toggle("gmail", !isGuest);
       avatarBtn.classList.toggle("guest", isGuest);
-      var initial = isGuest ? "👤" : (gmailAccount ? gmailAccount.charAt(0).toUpperCase() : "G");
+      var initial = isGuest ? "👤" : (isCdp ? "C" : (isEmbedded ? "A" : (gmailAccount ? gmailAccount.charAt(0).toUpperCase() : "G")));
       avatarBtn.textContent = initial;
       avatarBtn.title = isGuest
-        ? "Guest Session (Ephemeral) — Click to sign in via Gmail or manage session"
-        : "Buddy Bot Chrome · Saved session — Click to manage session";
+        ? "Guest — click for Account"
+        : isCdp
+          ? "Connected Chrome — click for Account"
+          : isEmbedded
+            ? "In-app browser — click for Account"
+            : "Buddy Bot Chrome — click for Account";
     }
 
     if (pillLabel) {
-      pillLabel.textContent = isGuest
-        ? "Guest · Ephemeral"
-        : "Chrome · Saved session";
+      pillLabel.textContent = googleIdentityUser
+        ? ("Signed in · " + (googleIdentityUser.email || "Google"))
+        : isGuest
+          ? "Guest · Connect Apps"
+          : "Sign in · Connect Apps";
     }
 
-    if (welcomeLabel) {
-      welcomeLabel.textContent = isGuest
-        ? "Guest Session (Ephemeral)"
-        : (gmailAccount ? ("Signed in: " + gmailAccount) : "Sign in via Gmail or Guest");
-    }
+    var headerConnectLabel = document.getElementById("header-connect-label");
+    var headerConnectBtn = document.getElementById("header-connect-btn");
+    if (headerConnectLabel) headerConnectLabel.textContent = googleIdentityUser ? "Account" : "Sign in";
+    if (headerConnectBtn) headerConnectBtn.classList.toggle("signed-in", Boolean(googleIdentityUser));
 
     if (badgeEl) {
       badgeEl.classList.toggle("guest", isGuest);
+      badgeEl.classList.toggle("cdp", isCdp);
+      badgeEl.classList.toggle("embedded", isEmbedded);
       badgeEl.textContent = isGuest
-        ? "● Guest · Ephemeral Session"
-        : "● Chrome · Saved session";
+        ? "● Guest"
+        : isCdp
+          ? "● Connected Chrome"
+          : isEmbedded
+            ? "● In-app"
+            : "● External Chrome";
     }
 
     if (cardPersistent && cardGuest) {
-      cardPersistent.classList.toggle("active", !isGuest);
+      cardPersistent.classList.toggle("active", isPersistent);
       cardGuest.classList.toggle("active", isGuest);
     }
+    if (cardCdp) cardCdp.classList.toggle("active", isCdp);
 
-    if (gmailBtn && guestBtn) {
-      gmailBtn.classList.toggle("primary", !isGuest);
+    if (isCdp) setAccountDisclosure("cdp-help-panel", "cdp-help-toggle", true);
+    if (isPersistent) setAccountDisclosure("browser-advanced-panel", "browser-advanced-toggle", true);
+
+    if (embeddedBtn) {
+      embeddedBtn.classList.toggle("primary", isEmbedded);
+      embeddedBtn.innerHTML = isEmbedded ? "<span>✓ In-app browser active</span>" : "<span>Use in-app browser</span>";
+    }
+    if (gmailBtn && guestBtn && chromeBtn) {
+      chromeBtn.classList.toggle("primary", isPersistent);
+      gmailBtn.classList.toggle("primary", false);
       guestBtn.classList.toggle("primary", isGuest);
       guestBtn.innerHTML = isGuest
         ? "<span>✓ Active Guest Session</span>"
         : "<span>Continue as Guest</span>";
     }
+    var primaryGuestBtn = document.getElementById("google-login-guest-btn");
+    if (primaryGuestBtn && !primaryGuestBtn.hidden) {
+      primaryGuestBtn.textContent = isGuest ? "✓ Continuing as Guest" : "Continue as Guest";
+    }
+    if (cdpBtn) {
+      cdpBtn.classList.toggle("primary", isCdp);
+      cdpBtn.innerHTML = isCdp ? "<span>✓ Connected Chrome</span>" : "<span>Connect Chrome</span>";
+    }
+
+    if (cdpCmd && cdpLaunchInfo && cdpLaunchInfo.command) {
+      cdpCmd.hidden = false;
+      cdpCmd.textContent = cdpLaunchInfo.command;
+    }
+    if (cdpStatus) {
+      if (!cdpLaunchInfo) cdpStatus.textContent = "Loading connect steps…";
+      else if (cdpLaunchInfo.reachable) cdpStatus.textContent = "Chrome is ready — click Connect Chrome.";
+      else cdpStatus.textContent = "Run the command below, then click Connect Chrome.";
+    }
 
     if (footerText) {
       footerText.textContent = isGuest
-        ? "Guest Session active: temporary browser profile. Cookies and logins will NOT be saved after closing."
-        : "Saved Chrome session: sign in in the Chrome window, then continue in this panel. Keep Chrome open while your bot uses it.";
+        ? "Guest: temporary browser profile on this device."
+        : isCdp
+          ? "Chrome-backed browser · your dedicated saved session."
+          : isEmbedded
+            ? "In-app browser: pages open inside Open Bots."
+            : "External Chrome: sign in in the Chrome window, then continue here.";
     }
+
+    document.querySelectorAll("[data-interaction-mode]").forEach(function(btn) {
+      btn.classList.toggle("active", btn.getAttribute("data-interaction-mode") === currentInteractionMode);
+    });
+    syncLiveBrowserChrome();
   }
 
-  function setGoogleIdentitySession(user) {
+  function refreshCdpInfo() {
+    return fetch("/api/chrome/cdp")
+      .then(readResponse)
+      .then(function(body) {
+        cdpLaunchInfo = body;
+        renderSessionModeUI();
+        return body;
+      })
+      .catch(function() {
+        return null;
+      });
+  }
+
+  function renderInteractionModeUI() {
+    document.querySelectorAll("[data-interaction-mode]").forEach(function(btn) {
+      btn.classList.toggle("active", btn.getAttribute("data-interaction-mode") === currentInteractionMode);
+    });
+  }
+
+  function setGoogleSignInStatus(message, isError) {
+    var statusText = document.getElementById("google-signin-status");
+    if (!statusText) return;
+    statusText.textContent = message || "";
+    statusText.classList.toggle("is-error", Boolean(isError && message));
+  }
+
+  function setGoogleIdentitySession(user, persistence) {
     var button = document.getElementById("google-signin-button");
     var session = document.getElementById("google-signin-session");
     var email = document.getElementById("google-signin-session-email");
-    var statusText = document.getElementById("google-signin-status");
+    var guestBtn = document.getElementById("google-login-guest-btn");
+    googleIdentityUser = user || null;
     if (user) {
-      button.hidden = true;
+      if (button) button.hidden = true;
+      if (guestBtn) guestBtn.hidden = true;
       session.hidden = false;
       email.textContent = "Signed in as " + user.email;
-      statusText.textContent = "Your Google account is connected to this app.";
+      setGoogleSignInStatus("Signed in — bots sync across devices when available.");
+      applyGooglePersistence(persistence);
     } else {
       session.hidden = true;
-      button.hidden = false;
+      if (button) button.hidden = false;
+      if (guestBtn) guestBtn.hidden = true; // Guest is default; no CTA required
+      if (currentSessionMode !== "guest" && currentSessionMode !== "cdp" && currentSessionMode !== "embedded" && currentSessionMode !== "persistent") {
+        currentSessionMode = "guest";
+        localStorage.setItem("openBotsSessionMode", "guest");
+      }
     }
+    renderSessionModeUI();
   }
 
   function loadGoogleIdentityScript() {
@@ -6236,20 +6733,35 @@ dialog.modal-dialog::backdrop {
       script.async = true;
       script.defer = true;
       script.onload = resolve;
-      script.onerror = function() { reject(new Error("Google sign-in could not load. Check your connection.")); };
+      script.onerror = function() { reject(new Error("Google sign-in could not load. Check your connection — you can keep using Open Bots as a guest.")); };
       document.head.appendChild(script);
     });
     return googleIdentityLoader;
   }
 
+  function googleSignInOriginHint(authorizedOrigin) {
+    return "Add this exact origin in Google Cloud → Credentials → Authorized JavaScript origins: " +
+      (authorizedOrigin || location.origin) +
+      " — then restart. Until then you remain a guest on this device.";
+  }
+
+  function watchGoogleButtonRender(button, authorizedOrigin) {
+    window.setTimeout(function() {
+      if (googleIdentityUser || !button || button.hidden) return;
+      var rendered = button.querySelector("iframe, div[role='button'], span[id^='gsi']");
+      if (!rendered && !button.childElementCount) {
+        setGoogleSignInStatus("Google Sign-In button did not appear. " + googleSignInOriginHint(authorizedOrigin), true);
+      }
+    }, 1800);
+  }
+
   function setupGoogleIdentitySignIn() {
-    var statusText = document.getElementById("google-signin-status");
     var button = document.getElementById("google-signin-button");
     fetch("/api/auth/google/config")
       .then(readResponse)
       .then(function(config) {
         if (!config.enabled || !config.clientId) {
-          statusText.textContent = "Set GOOGLE_CLIENT_ID in .env to enable Google sign-in.";
+          setGoogleSignInStatus("Set GOOGLE_CLIENT_ID in .env and restart. Until then you remain a guest.", true);
           return;
         }
         googleIdentityClientId = config.clientId;
@@ -6257,12 +6769,15 @@ dialog.modal-dialog::backdrop {
           .then(readResponse)
           .then(function(session) {
             if (session.authenticated && session.user) {
-              setGoogleIdentitySession(session.user);
+              setGoogleIdentitySession(session.user, session.persistence);
               return;
             }
             setGoogleIdentitySession(null);
-            if (googleIdentityReady) return;
-            statusText.textContent = "Loading secure sign-in…";
+            if (googleIdentityReady) {
+              watchGoogleButtonRender(button, config.authorizedOrigin);
+              return;
+            }
+            setGoogleSignInStatus("Loading secure sign-in…");
             return loadGoogleIdentityScript().then(function() {
               googleIdentityNonce = Array.from(crypto.getRandomValues(new Uint8Array(24)))
                 .map(function(value) { return value.toString(16).padStart(2, "0"); }).join("");
@@ -6270,7 +6785,7 @@ dialog.modal-dialog::backdrop {
                 client_id: googleIdentityClientId,
                 nonce: googleIdentityNonce,
                 callback: function(result) {
-                  statusText.textContent = "Verifying your Google account…";
+                  setGoogleSignInStatus("Verifying your Google account…");
                   fetch("/api/auth/google", {
                     method: "POST",
                     credentials: "same-origin",
@@ -6279,32 +6794,78 @@ dialog.modal-dialog::backdrop {
                   })
                     .then(readResponse)
                     .then(function(response) {
-                      setGoogleIdentitySession(response.user);
-                      statusText.textContent = "";
+                      setGoogleIdentitySession(response.user, response.persistence);
+                      if (!response.persistence || !Array.isArray(response.persistence.bots) || !response.persistence.bots.length) {
+                        scheduleGooglePersist();
+                      }
+                      setGoogleSignInStatus("");
                     })
                     .catch(function(error) {
-                      statusText.textContent = error.message || "Google sign-in failed. Please try again.";
+                      setGoogleSignInStatus((error.message || "Google sign-in failed.") + " You can keep using Open Bots as a guest.", true);
                     });
                 }
               });
-              window.google.accounts.id.renderButton(button, {
-                type: "standard", theme: "outline", size: "medium", shape: "pill", text: "signin_with", width: 260
-              });
-              googleIdentityReady = true;
-              statusText.textContent = "";
+              try {
+                button.innerHTML = "";
+                window.google.accounts.id.renderButton(button, {
+                  type: "standard", theme: "outline", size: "large", shape: "pill", text: "signin_with", width: 280
+                });
+                googleIdentityReady = true;
+                setGoogleSignInStatus("");
+                watchGoogleButtonRender(button, config.authorizedOrigin);
+              } catch (error) {
+                setGoogleSignInStatus((error && error.message ? error.message : "Google button failed.") + " " + googleSignInOriginHint(config.authorizedOrigin), true);
+              }
             });
           });
       })
       .catch(function(error) {
-        statusText.textContent = error.message || "Google sign-in is unavailable.";
+        setGoogleSignInStatus((error.message || "Google sign-in is unavailable.") + " You remain a guest on this device.", true);
       });
+  }
+
+  function activateGuestSession(closeModal) {
+    currentSessionMode = "guest";
+    localStorage.setItem("openBotsSessionMode", "guest");
+    renderSessionModeUI();
+    scheduleGooglePersist();
+    fetch("/api/session/mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "guest" })
+    }).catch(function() {});
+    status.textContent = googleIdentityUser
+      ? "Guest browser profile on this device. Your Google account still syncs bots."
+      : "Continuing as guest on this device.";
+    if (closeModal) {
+      var modal = document.getElementById("connect-modal");
+      if (modal && modal.open) modal.close();
+    }
   }
 
   function openConnectModal() {
     renderSessionModeUI();
+    refreshCdpInfo();
     document.getElementById("connect-modal").showModal();
     setupGoogleIdentitySignIn();
   }
+
+  (function wireAccountDisclosures() {
+    var pairs = [
+      { toggle: "cdp-help-toggle", panel: "cdp-help-panel" },
+      { toggle: "browser-advanced-toggle", panel: "browser-advanced-panel" }
+    ];
+    pairs.forEach(function(pair) {
+      var btn = document.getElementById(pair.toggle);
+      if (!btn) return;
+      btn.onclick = function() {
+        var panel = document.getElementById(pair.panel);
+        var open = panel ? panel.hidden : false;
+        setAccountDisclosure(pair.panel, pair.toggle, open);
+        if (open && pair.panel === "cdp-help-panel") refreshCdpInfo();
+      };
+    });
+  })();
 
   document.getElementById("google-signout-button").onclick = function() {
     fetch("/api/auth/google/logout", { method: "POST", credentials: "same-origin" })
@@ -6313,22 +6874,104 @@ dialog.modal-dialog::backdrop {
         googleIdentityReady = false;
         document.getElementById("google-signin-button").innerHTML = "";
         setGoogleIdentitySession(null);
+        activateGuestSession(false);
         setupGoogleIdentitySignIn();
       })
       .catch(function(error) {
-        document.getElementById("google-signin-status").textContent = error.message || "Could not sign out.";
+        setGoogleSignInStatus(error.message || "Could not sign out.", true);
       });
   };
 
   document.getElementById("connect-apps-btn").onclick = openConnectModal;
   document.getElementById("profile-avatar-btn").onclick = openConnectModal;
   document.getElementById("header-connect-btn").onclick = openConnectModal;
-  var welcomeSessionBtn = document.getElementById("welcome-session-btn");
-  if (welcomeSessionBtn) welcomeSessionBtn.onclick = openConnectModal;
+  var googleLoginGuestBtn = document.getElementById("google-login-guest-btn");
+  if (googleLoginGuestBtn) googleLoginGuestBtn.onclick = function() { activateGuestSession(true); };
+  // First visit (or cleared storage): enter Guest immediately — no interstitial choice.
+  if (!storedSessionMode) activateGuestSession(false);
+  setupGoogleIdentitySignIn();
+
+  var useEmbeddedBtn = document.getElementById("use-embedded-btn");
+  if (useEmbeddedBtn) {
+    useEmbeddedBtn.onclick = function() {
+      currentSessionMode = "embedded";
+      localStorage.setItem("openBotsSessionMode", "embedded");
+      renderSessionModeUI();
+      scheduleGooglePersist();
+      document.getElementById("connect-modal").close();
+      openInteractiveBrowser(browserAddress.value.trim() || "https://www.google.com/", true, "embedded");
+    };
+  }
 
   document.getElementById("signin-chrome-btn").onclick = function() {
+    currentSessionMode = "persistent";
+    localStorage.setItem("openBotsSessionMode", "persistent");
+    renderSessionModeUI();
+    scheduleGooglePersist();
     document.getElementById("connect-modal").close();
     openInteractiveBrowser(browserAddress.value.trim() || "https://www.google.com/", true, "persistent");
+  };
+
+  document.querySelectorAll("[data-interaction-mode]").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      currentInteractionMode = btn.getAttribute("data-interaction-mode") || "act";
+      localStorage.setItem("openBotsInteractionMode", currentInteractionMode);
+      renderInteractionModeUI();
+      scheduleGooglePersist();
+      status.textContent =
+        currentInteractionMode === "chat"
+          ? "Chat mode: text tools only (lowest tokens)."
+          : currentInteractionMode === "browse"
+            ? "Browse mode: navigate and read; no click/type."
+            : "Act mode: full browser with approval gates.";
+    });
+  });
+  renderInteractionModeUI();
+
+  document.getElementById("copy-cdp-cmd-btn").onclick = function() {
+    refreshCdpInfo().then(function(info) {
+      var cmd = (info && info.command) || (cdpLaunchInfo && cdpLaunchInfo.command);
+      if (!cmd) {
+        status.textContent = "Could not load the Chrome launch command.";
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(cmd).then(function() {
+          status.textContent = "Chrome launch command copied.";
+        }).catch(function() {
+          status.textContent = cmd;
+        });
+      } else {
+        status.textContent = cmd;
+      }
+    });
+  };
+
+  document.getElementById("connect-cdp-btn").onclick = function() {
+    status.textContent = "Connecting to Chrome via CDP…";
+    fetch("/api/chrome/cdp/connect", { method: "POST" })
+      .then(readResponse)
+      .then(function(body) {
+        currentSessionMode = "cdp";
+        localStorage.setItem("openBotsSessionMode", "cdp");
+        renderSessionModeUI();
+        scheduleGooglePersist();
+        document.getElementById("connect-modal").close();
+        status.textContent = "Connected Chrome ready. Sign in to Reddit/Google in that window, then run your task.";
+        openInteractiveBrowser(body.url || "https://www.google.com/", true, "cdp");
+        refreshCdpInfo();
+      })
+      .catch(function(err) {
+        refreshCdpInfo().then(function(info) {
+          var hint = info && info.command ? (" Start Chrome with:\n" + info.command) : "";
+          status.textContent = (err && err.message ? err.message : "Could not connect.") + hint;
+          var box = document.getElementById("cdp-launch-command");
+          if (box && info && info.command) {
+            box.hidden = false;
+            box.textContent = info.command;
+          }
+        });
+      });
   };
 
   document.getElementById("signin-gmail-btn").onclick = function() {
@@ -6340,6 +6983,7 @@ dialog.modal-dialog::backdrop {
     currentSessionMode = "persistent";
     localStorage.setItem("openBotsSessionMode", "persistent");
     renderSessionModeUI();
+    scheduleGooglePersist();
     document.getElementById("connect-modal").close();
     var gmailLoginUrl = "https://accounts.google.com/ServiceLogin?service=mail" +
       (gmailAccount ? "&Email=" + encodeURIComponent(gmailAccount) : "");
@@ -6347,22 +6991,9 @@ dialog.modal-dialog::backdrop {
   };
 
   document.getElementById("continue-guest-btn").onclick = function() {
-    currentSessionMode = "guest";
-    localStorage.setItem("openBotsSessionMode", "guest");
-    renderSessionModeUI();
-    fetch("/api/session/mode", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: "guest" })
-    })
-      .then(readResponse)
-      .then(function() {
-        document.getElementById("connect-modal").close();
-        status.textContent = "Switched to Guest Session (ephemeral browser profile — no cookies saved to disk).";
-      })
-      .catch(function(err) {
-        status.textContent = err.message;
-      });
+    // Guest browser profile is ephemeral. Identity sync (Mongo) only runs while Google-signed-in;
+    // guest explorers keep bots/prefs in localStorage and never call /api/user/data.
+    activateGuestSession(true);
   };
 
   document.querySelectorAll("[data-connect-url]").forEach(function(btn) {
@@ -6469,13 +7100,31 @@ dialog.modal-dialog::backdrop {
   });
 
   renderSessionModeUI();
-  window.addEventListener("resize", syncPromptPlaceholder);
+  window.addEventListener("resize", function() {
+    syncPromptPlaceholder();
+    syncLiveBrowserChrome();
+  });
+  if (typeof ResizeObserver !== "undefined") {
+    var viewportEl = document.getElementById("browser-viewport");
+    if (viewportEl) {
+      new ResizeObserver(function() { syncLiveBrowserChrome(); }).observe(viewportEl);
+    }
+  }
   syncPromptPlaceholder();
 
   // Sync preferred session mode and restore status if server already has an active browser session
   fetch("/api/status")
     .then(readResponse)
     .then(function(st) {
+      embeddedAvailable = Boolean(st.embeddedAvailable);
+      if (desktopApi && st.desktopBrowserEngine && localStorage.getItem("openBotsDesktopEngineVersion") !== st.desktopBrowserEngine) {
+        currentSessionMode = st.defaultSessionMode || "cdp";
+        storedSessionMode = currentSessionMode;
+        localStorage.setItem("openBotsSessionMode", currentSessionMode);
+        localStorage.setItem("openBotsDesktopEngineVersion", st.desktopBrowserEngine);
+      }
+      renderSessionModeUI();
+      if (usesNativeBrowser() && sessionStorage.getItem("openBotsBrowserPane") === "open") showBrowser();
       if (st.sessionMode && st.sessionMode !== currentSessionMode) {
         fetch("/api/session/mode", {
           method: "POST",
@@ -6483,10 +7132,11 @@ dialog.modal-dialog::backdrop {
           body: JSON.stringify({ mode: currentSessionMode })
         }).catch(function() {});
       }
-      if (st.currentUrl && st.currentUrl !== "about:blank") {
+      if (usesNativeBrowser() && desktopApi.getBrowserState) desktopApi.getBrowserState().then(applyNativeBrowserState).catch(function() {});
+      if (!usesNativeBrowser() && st.currentUrl && st.currentUrl !== "about:blank") {
         browserAddress.value = st.currentUrl;
       }
-      if (st.tabs && st.tabs.length) {
+      if (!usesNativeBrowser() && st.tabs && st.tabs.length) {
         renderBrowserTabs(st.tabs);
       }
       if (st.isRunning) {

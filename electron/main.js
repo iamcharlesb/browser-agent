@@ -1,11 +1,14 @@
 /**
  * Open Bots desktop shell — starts the local agent server and shows it in Electron.
+ * Default browsing surface: docked WebContentsView (in-app), driven via Electron CDP.
+ * Optional escape hatch: external Connected Chrome on port 9222 (handled by the agent server).
  */
-const { app, BrowserWindow, shell, Menu } = require("electron");
+const { app, BrowserWindow, WebContentsView, session, shell, Menu, ipcMain } = require("electron");
 const { spawn } = require("node:child_process");
 const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
+const { BrowserWorkspace, startBrowserBroker } = require("./browserWorkspace");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
 // Defaults to the dev output (dist/). `yarn desktop:built` points this at build/ so the desktop
@@ -15,7 +18,15 @@ const SERVER_ENTRY = path.resolve(
   process.env.BROWSER_AGENT_SERVER_ENTRY || path.join("dist", "server.js")
 );
 
+/** Dedicated Electron CDP port — not 9222, to avoid colliding with Connected Chrome. */
+const ELECTRON_CDP_PORT = Number(process.env.OPEN_BOTS_ELECTRON_CDP_PORT) || 9333;
+
+// Must be set before app ready so Playwright can connectOverCDP to this process.
+app.commandLine.appendSwitch("remote-debugging-port", String(ELECTRON_CDP_PORT));
+
 let mainWindow = null;
+let browserWorkspace = null;
+let browserBroker = null;
 let serverProcess = null;
 let serverPort = null;
 
@@ -29,6 +40,33 @@ function findFreePort() {
     });
     probe.on("error", reject);
   });
+}
+
+function isPortFree(port) {
+  return new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.once("error", () => resolve(false));
+    probe.listen(port, "127.0.0.1", () => {
+      probe.close(() => resolve(true));
+    });
+  });
+}
+
+/** Prefer a stable UI port so Google OAuth Authorized JavaScript origins stay valid. */
+async function resolveServerPort(attachExisting) {
+  // Dev (live reload / attach to `yarn dev`) → 8765; production desktop:built → 8766.
+  const liveReload = process.env.BROWSER_AGENT_LIVE_RELOAD === "1";
+  const preferred =
+    Number(process.env.BROWSER_AGENT_UI_PORT) ||
+    (attachExisting || liveReload ? 8765 : 8766);
+  if (attachExisting) return preferred;
+  if (await isPortFree(preferred)) return preferred;
+  const fallback = await findFreePort();
+  console.warn(
+    `[desktop] Port ${preferred} is busy; using http://127.0.0.1:${fallback}. ` +
+      `Add that origin to Google Cloud → Credentials → Authorized JavaScript origins, or free port ${preferred}.`
+  );
+  return fallback;
 }
 
 function waitForServer(port, timeoutMs = 30000) {
@@ -55,7 +93,10 @@ function waitForServer(port, timeoutMs = 30000) {
 }
 
 function startServer(port) {
-  serverProcess = spawn(process.execPath, [SERVER_ENTRY], {
+  // `BROWSER_AGENT_LIVE_RELOAD=1` (desktop:dev) uses Node --watch so dist/ rebuilds restart the server.
+  const liveReload = process.env.BROWSER_AGENT_LIVE_RELOAD === "1";
+  const nodeArgs = liveReload ? ["--watch", SERVER_ENTRY] : [SERVER_ENTRY];
+  serverProcess = spawn(process.execPath, nodeArgs, {
     cwd: PROJECT_ROOT,
     env: {
       ...process.env,
@@ -63,10 +104,17 @@ function startServer(port) {
       BROWSER_AGENT_UI_PORT: String(port),
       BROWSER_AGENT_UI_HOST: "127.0.0.1",
       BROWSER_AGENT_NO_OPEN: "1",
-      BROWSER_AGENT_LIVE_RELOAD: "0",
-      // The desktop app is a built copy, so `/learn <task>` works here too. Set
-      // BROWSER_AGENT_LEARN_MODE=0 to turn it off, BROWSER_AGENT_LEARN_SELF_FIX=0 for
-      // findings without letting it patch its own source.
+      BROWSER_AGENT_LIVE_RELOAD: liveReload ? "1" : "0",
+      // Desktop defaults to the in-app / embedded browser (Electron CDP), not the user's Chrome.
+      OPEN_BOTS_EMBEDDED: "1",
+      OPEN_BOTS_BROWSER_BROKER_URL: browserBroker?.url || "",
+      OPEN_BOTS_BROWSER_BROKER_TOKEN: browserBroker?.token || "",
+      OPEN_BOTS_ELECTRON_CDP_PORT: String(ELECTRON_CDP_PORT),
+      OPEN_BOTS_ELECTRON_CDP_ENDPOINT: `http://127.0.0.1:${ELECTRON_CDP_PORT}`,
+      OPEN_BOTS_UI_ORIGIN: `http://127.0.0.1:${port}`,
+      BROWSER_AGENT_EMBEDDED_CDP_ENDPOINT: `http://127.0.0.1:${ELECTRON_CDP_PORT}`,
+      // Production desktop (`desktop:built`) defaults learn mode on. Dev desktop leaves it
+      // off unless set (see scripts/desktopDev.js). Override with BROWSER_AGENT_LEARN_MODE.
       BROWSER_AGENT_LEARN_MODE: process.env.BROWSER_AGENT_LEARN_MODE ?? "1"
     },
     stdio: ["ignore", "pipe", "pipe"]
@@ -97,6 +145,24 @@ function stopServer() {
   }
 }
 
+function ensureBrowserWorkspace() {
+  if (!browserWorkspace) {
+    browserWorkspace = new BrowserWorkspace({
+      WebContentsView,
+      session: session.fromPartition("persist:open-bots"),
+      onChange(state) {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("workspace:browser-state", state);
+      }
+    });
+  }
+  return browserWorkspace;
+}
+
+function isWorkspaceSender(event) {
+  return Boolean(mainWindow && event.sender === mainWindow.webContents &&
+    event.senderFrame === mainWindow.webContents.mainFrame);
+}
+
 function createWindow(port) {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -106,6 +172,7 @@ function createWindow(port) {
     title: "Open Bots",
     backgroundColor: "#f8f9fb",
     webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
@@ -119,9 +186,22 @@ function createWindow(port) {
     return { action: "deny" };
   });
 
-  mainWindow.on("closed", () => {
-    mainWindow = null;
+  // Create the Live Browser target early so Playwright can find it (not the UI webContents).
+  ensureBrowserWorkspace().attach(mainWindow);
+
+  mainWindow.webContents.on("did-start-loading", () => {
+    if (browserWorkspace) { browserWorkspace.visible = false; browserWorkspace.layout(); }
   });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (new URL(url).origin !== `http://127.0.0.1:${port}`) event.preventDefault();
+  });
+
+  mainWindow.on("resize", () => {
+    browserWorkspace?.layout();
+  });
+
+  mainWindow.on("close", () => browserWorkspace?.dispose());
+  mainWindow.on("closed", () => { mainWindow = null; });
 }
 
 function buildMenu() {
@@ -182,11 +262,30 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+ipcMain.on("live-browser:bounds", (event, bounds) => {
+  if (isWorkspaceSender(event)) browserWorkspace?.setBounds(bounds);
+});
+ipcMain.on("live-browser:visible", (event, visible) => {
+  if (!isWorkspaceSender(event) || !browserWorkspace) return;
+  browserWorkspace.visible = Boolean(visible);
+  browserWorkspace.layout();
+});
+ipcMain.handle("workspace:browser-state", (event) => {
+  if (!isWorkspaceSender(event)) throw new Error("Untrusted workspace sender.");
+  return ensureBrowserWorkspace().snapshot();
+});
+ipcMain.handle("workspace:browser-command", (event, input) => {
+  if (!isWorkspaceSender(event)) throw new Error("Untrusted workspace sender.");
+  return ensureBrowserWorkspace().command(input);
+});
+
 async function boot() {
   buildMenu();
   // Attach to an already-running server (e.g. `npm run dev` on 8765) without spawning dist/.
   const attachExisting = process.env.BROWSER_AGENT_ATTACH_EXISTING === "1";
-  serverPort = Number(process.env.BROWSER_AGENT_UI_PORT) || (attachExisting ? 8765 : await findFreePort());
+  serverPort = await resolveServerPort(attachExisting);
+  console.log(`[desktop] UI origin for Google sign-in: http://127.0.0.1:${serverPort}`);
+  browserBroker = await startBrowserBroker(ensureBrowserWorkspace());
   if (!attachExisting) {
     startServer(serverPort);
   }
@@ -202,6 +301,8 @@ app.whenReady().then(boot).catch((err) => {
 app.on("before-quit", () => {
   app.isQuitting = true;
   stopServer();
+  browserWorkspace?.dispose();
+  browserBroker?.server.close();
 });
 
 app.on("window-all-closed", () => {

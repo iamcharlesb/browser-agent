@@ -3,8 +3,20 @@
 import OpenAI from "openai";
 import { randomUUID } from "node:crypto";
 import { isReadOnlyCommand, TaskApprovalScope, TerminalApprovalDecision } from "./approvalPolicy";
+import {
+  classifyBrowserAction,
+  describeEffectAction,
+  effectRequiresApproval,
+  INTERACTIVE_TOOLS,
+  isCssSelector
+} from "./actionEffect";
 import { TOOLS, ToolExecutionResult, executeTool } from "./agentTools";
-import { BrowserController, PageState } from "./browserController";
+import {
+  accessDeniedRecoveryHint,
+  BrowserController,
+  PageState,
+  SessionMode
+} from "./browserController";
 import {
   claudeCliModelAlias,
   claudeCliResultToChatCompletion,
@@ -27,7 +39,35 @@ const MAX_API_RETRIES_DEFAULT = 3;
 /** Local mutation and paid-generation tools excluded from scheduled/unattended runs. */
 const PRIVILEGED_TOOL_NAMES = new Set(["run_terminal_command", "workspace_file", "create_document", "generate_image"]);
 const INTERACTIVE_BROWSER_TOOL_NAMES = new Set(["click_mark", "type_mark", "click_element", "click_coords", "type_text", "key_press"]);
+/** All tools that drive Playwright (excluded in Chat mode). */
+const BROWSER_TOOL_NAMES = new Set([
+  "navigate",
+  "click_mark",
+  "type_mark",
+  "click_element",
+  "click_coords",
+  "type_text",
+  "extract_page_data",
+  "scroll_page",
+  "wait",
+  "key_press",
+  "go_back"
+]);
+const HEADLESS_RESEARCH_TOOL_NAMES = new Set([
+  "web_search",
+  "reddit_search",
+  "google_property",
+  "calculate",
+  "understand_youtube_video",
+  "create_document",
+  "workspace_file",
+  "run_terminal_command"
+]);
 const MUTATING_WORKSPACE_FILE_ACTIONS = new Set(["write", "append"]);
+
+export type ObserveMode = "text" | "vision";
+/** Chat = text tools only; Browse = browser read+nav; Act = full click/type with effect gates. */
+export type InteractionMode = "chat" | "browse" | "act";
 
 function requiresPrivilegedApproval(toolName: string, input: Record<string, unknown>): boolean {
   if (toolName === "run_terminal_command") return !isReadOnlyCommand(String(input.command ?? ""));
@@ -113,6 +153,13 @@ export interface AgentOrchestratorOptions {
   allowPrivilegedTools?: boolean;
   /** Set false for unattended tasks so they can inspect pages but cannot click or type. */
   allowBrowserInteraction?: boolean;
+  /**
+   * Observation budget. Default `text` skips JPEG vision tokens unless CAPTCHA, access wall,
+   * icon-only UI, or consecutive click failures force a vision pass.
+   */
+  observeMode?: ObserveMode;
+  /** Product mode: chat (no browser), browse (nav/read), act (full). Defaults to act. */
+  interactionMode?: InteractionMode;
 }
 
 type ChatMessage =
@@ -210,6 +257,10 @@ export class AgentOrchestrator {
   private readonly shouldAbort?: ShouldAbort;
   private readonly scheduleTimeZone: string;
   private readonly allowBrowserInteraction: boolean;
+  private readonly observeMode: ObserveMode;
+  private readonly interactionMode: InteractionMode;
+  private forceVisionOnce = false;
+  private consecutiveClickFailures = 0;
   private readonly toolsForModel: OpenAI.Chat.Completions.ChatCompletionTool[];
   private readonly loopGuard: LoopGuard;
   private readonly messages: ChatMessage[] = [];
@@ -290,20 +341,71 @@ export class AgentOrchestrator {
     this.onLearningKb = options.onLearningKb;
     this.shouldAbort = options.shouldAbort;
     this.scheduleTimeZone = options.scheduleTimeZone || "UTC";
-    this.allowBrowserInteraction = options.allowBrowserInteraction ?? true;
+    this.interactionMode = options.interactionMode ?? "act";
+    this.observeMode = options.observeMode ?? "text";
+    // Chat never drives the browser; browse/act honor allowBrowserInteraction for scheduled runs.
+    this.allowBrowserInteraction =
+      this.interactionMode === "chat"
+        ? false
+        : this.interactionMode === "browse"
+          ? false
+          : (options.allowBrowserInteraction ?? true);
     this.toolsForModel = TOOLS.filter((tool) => {
       if (tool.type !== "function") return true;
-      if (!this.allowPrivilegedTools && PRIVILEGED_TOOL_NAMES.has(tool.function.name)) return false;
-      if (!this.allowBrowserInteraction && INTERACTIVE_BROWSER_TOOL_NAMES.has(tool.function.name)) return false;
+      const name = tool.function.name;
+      if (!this.allowPrivilegedTools && PRIVILEGED_TOOL_NAMES.has(name)) return false;
+      if (this.interactionMode === "chat" && BROWSER_TOOL_NAMES.has(name)) return false;
+      if (this.interactionMode === "browse" && INTERACTIVE_BROWSER_TOOL_NAMES.has(name)) return false;
+      if (!this.allowBrowserInteraction && INTERACTIVE_BROWSER_TOOL_NAMES.has(name)) return false;
       return true;
     });
     this.loopGuard = new LoopGuard(options.maxSteps ?? 25, options.maxDurationSeconds ?? 900.0);
     this.systemPrompt = this.buildSystemPrompt();
   }
 
+  private sessionMode(): SessionMode {
+    return this.browser.sessionMode;
+  }
+
+  private shouldCaptureScreenshot(state?: PageState | null): boolean {
+    if (this.forceVisionOnce) return true;
+    if (this.observeMode === "vision") return true;
+    if (state?.requiresHumanVerification || state?.accessDenied) return true;
+    if (this.consecutiveClickFailures >= 2) return true;
+    if (state?.elements?.length) {
+      const unlabeled = state.elements.filter((el) => !el.text.trim()).length;
+      if (unlabeled >= Math.ceil(state.elements.length * 0.6)) return true;
+    }
+    return false;
+  }
+
+  private async captureObservation(): Promise<PageState> {
+    // First pass without screenshot when text-first; upgrade if walls/icon-only demand vision.
+    const wantShot = this.observeMode === "vision" || this.forceVisionOnce || this.consecutiveClickFailures >= 2;
+    let state = await this.browser.captureState({ includeScreenshot: wantShot });
+    if (!wantShot && this.shouldCaptureScreenshot(state) && !state.screenshotB64) {
+      state = await this.browser.captureState({ includeScreenshot: true });
+    }
+    this.forceVisionOnce = false;
+    return state;
+  }
+
   private buildSystemPrompt(): string {
     // The approval rules have to reflect what the user actually granted. Hardcoding "always stop
     // and ask" meant the bot asked, got a yes, and then asked again on the very next turn.
+    // One rule that covers every site, instead of a paragraph per platform. The model declares the
+    // effect; actionEffect.ts independently checks the real button label and takes the stricter of
+    // the two, so a wrong declaration cannot unlock anything.
+    const effectRule =
+      "EFFECTS — label every click before you make it:\n" +
+      "- Every click_* / type_* call takes an `effect`: read | reversible | outward | irreversible.\n" +
+      "- read = you only look. reversible = only this user sees it and it can be undone (filters, drafts, bookmarks).\n" +
+      "- outward = another person sees it, or it goes out under the user's name: follow, connect, send, post, comment, like, endorse, apply, invite, launch a campaign, start a sequence.\n" +
+      "- irreversible = destroys something or moves money: delete, remove, pay, buy, place order, cancel a subscription.\n" +
+      "- Judge the consequence, not the wording. 'Save' on a profile-edit page is outward because the bio becomes public. 'Confirm' at the end of a checkout is irreversible.\n" +
+      "- This is the same question on every site, so you never need a platform-specific rule: ask what the click does to the world, not which app you are in.\n" +
+      "- Declaring a higher effect than needed costs one question. Declaring a lower one is a lie the gate will catch anyway, and it is how real damage happens.\n";
+
     const approvalRules = this.standingApproval
       ? "STANDING APPROVAL — the user has turned on 'Approve for me'. They have already said yes:\n" +
         "- Engagement they've scoped (follows, likes, comments on targets you shortlisted) is APPROVED. Do it in paced batches without asking again.\n" +
@@ -325,16 +427,25 @@ export class AgentOrchestrator {
       "- Structured plans beat paragraphs: short labeled lines, not bold bullet essays.\n" +
       "- Finish as soon as you have the answer or a concrete next ask. Don't narrate every click.\n" +
       "- Batch independent tool calls. Prefer extract_page_data / Detected Stats over re-navigating.\n" +
-      "- Skip screenshots mentally when Text/Detected Stats already answer the question.\n" +
+      "- Observations are text-first (marks + page text). Do not ask for screenshots when Text answers the ask.\n" +
+      `- Mode: ${this.interactionMode.toUpperCase()} (` +
+      (this.interactionMode === "chat"
+        ? "text tools only — no browser navigate/click"
+        : this.interactionMode === "browse"
+          ? "navigate/read/extract only — no click/type"
+          : "full browser with effect gates") +
+      ").\n" +
+      "- Reddit/Google bot walls: prefer reddit_search / google_property / web_search, or tell the user to switch to Connected Chrome — do not hammer Playwright Chrome.\n" +
       "PLAN FIRST ON COMPLEX ASKS (marketing, growth, Reddit, SEO, multi-step work):\n" +
       "- Before spraying tools, briefly reason: goal, niche signals, constraints (esp. ban/spam/karma risk), biggest leverage.\n" +
       "- Then give a compact actionable plan (≤8 short lines). Prefer structured labels over essays.\n" +
       "- ≤3 targeted research calls when needed; don't burn a step farm of generic searches before a plan.\n" +
       "- Start research/audit tools to ground the plan in their real account/site when signed in; don't wait to be spoon-fed niche details.\n" +
+      effectRule +
       approvalRules +
       "SCHEDULING: schedule_task for one-time/daily jobs (tz=" + this.scheduleTimeZone + "). Schedules are read-only for engagement (research/monitor/draft only). Never like/follow/comment/post from a schedule. Ask before recurring paid model runs; set costApproved only after explicit yes.\n" +
       "VOICE: warm, direct, specific — like a sharp social-media co-founder texting. Never corporate filler ('Certainly!', 'Here are several strategies:', 'In conclusion').\n" +
-      "CAPABILITIES: delegate_to_bot (workspace roster in CONTEXT); learning_kb (durable local memory); run_terminal_command; headless web_search/calculate/create_document/workspace_file/understand_youtube_video; generate_image (one clear prompt); browser navigate/click_*/type_*/extract_page_data/scroll/wait.\n" +
+      "CAPABILITIES: delegate_to_bot (workspace roster in CONTEXT); learning_kb (durable local memory); run_terminal_command; headless web_search/reddit_search/google_property/calculate/create_document/workspace_file/understand_youtube_video; generate_image (one clear prompt); browser navigate/click_*/type_*/extract_page_data/scroll/wait (when mode allows).\n" +
       "Rules:\n" +
       "1. SPEED after the plan: batch tools; minimum steps; don't stall asking what the niche is if the profile can tell you.\n" +
       "2. PEER BOTS: answer from OPEN BOTS WORKSPACE ROSTER — never generic 'what is a bot' definitions.\n" +
@@ -492,6 +603,101 @@ export class AgentOrchestrator {
     return approved;
   }
 
+  /**
+   * Reads the label of the element a tool call is about to act on. The model names an element by
+   * mark id or by text; either way the real on-screen label is what the gate should judge, not the
+   * model's description of it.
+   */
+  private resolveActionTarget(toolName: string, input: Record<string, unknown>): { label?: string; role?: string } {
+    if (toolName === "click_mark" || toolName === "type_mark") {
+      const markId = Math.trunc(Number(input.markId));
+      const el = Number.isNaN(markId) ? undefined : this.browser.getElementByMark(markId);
+      return { label: el?.text, role: el?.role };
+    }
+    if (toolName === "click_element") {
+      const target = typeof input.target === "string" ? input.target : undefined;
+      // A CSS selector carries no human label, so do not mine it for verbs.
+      return { label: target && isCssSelector(target) ? undefined : target };
+    }
+    if (toolName === "click_coords") return { label: typeof input.label === "string" ? input.label : undefined };
+    return {};
+  }
+
+  /**
+   * The general approval gate: classify what this click/keystroke actually does and stop only when
+   * it reaches someone else or cannot be taken back. This replaces guessing from the task text,
+   * which needed a new rule per platform and let every unlisted site through.
+   */
+  private async gateBrowserAction(
+    toolName: string,
+    input: Record<string, unknown>
+  ): Promise<ToolExecutionResult | null> {
+    if (!INTERACTIVE_TOOLS.has(toolName)) return null;
+    const target = this.resolveActionTarget(toolName, input);
+    const captchaLike =
+      /\b(captcha|i'?m not a robot|recaptcha|hcaptcha|turnstile|verify you are human|select all images)\b/i.test(
+        target.label || ""
+      );
+    if (captchaLike) {
+      return {
+        ok: false,
+        message:
+          "Not executed: CAPTCHA / human-verification controls must be solved by you in Live Browser, then click Resume. The agent will not click CAPTCHA tiles."
+      };
+    }
+    const decision = classifyBrowserAction({
+      toolName,
+      label: target.label,
+      role: target.role,
+      declaredEffect: input.effect,
+      pressEnter: Boolean(input.pressEnter)
+    });
+    if (!effectRequiresApproval(decision.effect, this.standingApproval)) return null;
+    // A "yes for the whole task" on outward actions covers the rest of the batch; irreversible
+    // ones are deliberately excluded from that shortcut.
+    if (decision.effect === "outward" && this.taskApproval.allowsOutwardAction()) return null;
+
+    const description = describeEffectAction(toolName, target.label, decision.effect);
+    if (!this.allowPrivilegedTools) {
+      // Unattended/scheduled runs have nobody to ask, so they stay research-and-draft only.
+      return {
+        ok: false,
+        message: `Not executed: "${description}" is ${decision.effect} and this run is unattended. Research and draft it instead, and leave it for the user to send.`
+      };
+    }
+
+    const approvalId = randomUUID();
+    this.emit({
+      type: "privileged_approval_required",
+      approvalId,
+      toolName,
+      description,
+      message: `${this.botName} wants to: ${description}. ${decision.reason}. Approve or deny before it runs.`
+    });
+
+    const waitStarted = Date.now();
+    let approved = false;
+    if (this.onTerminalApproval) {
+      try {
+        approved = this.taskApproval.resolve(
+          await this.onTerminalApproval({ toolName, description, approvalId }),
+          // Irreversible actions never establish a standing grant, however the user answers.
+          decision.effect === "outward" ? "outward-action" : "privileged"
+        );
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("onTerminalApproval hook raised; denying by default.", err);
+        approved = false;
+      }
+    }
+    this.loopGuard.extendDeadline((Date.now() - waitStarted) / 1000);
+    this.emit({ type: "privileged_approval_resolved", approvalId, toolName, description, approved });
+
+    return approved
+      ? null
+      : { ok: false, message: `The user did not approve "${description}", so it was not executed.` };
+  }
+
   private async handleHumanVerification(state: PageState): Promise<PageState> {
     this.emit({
       type: "human_verification",
@@ -518,12 +724,14 @@ export class AgentOrchestrator {
 
     let resolvedState: PageState;
     try {
-      resolvedState = await this.browser.captureState();
+      this.forceVisionOnce = true;
+      resolvedState = await this.captureObservation();
     } catch {
       return state;
     }
     this.emit({
       type: "human_verification_resolved",
+      accessDenied: Boolean(resolvedState.accessDenied),
       url: resolvedState.url,
       title: resolvedState.title,
       screenshotB64: resolvedState.screenshotB64
@@ -556,7 +764,7 @@ export class AgentOrchestrator {
   private accessDeniedResult(state: PageState, step: number): AgentResult {
     return this.finish({
       success: false,
-      summary: `The website denied access to ${state.url}. This is an access block, not a CAPTCHA to solve. Open Chrome to sign in using Buddy Bot's saved session. If the site still denies access there, use your regular browser or contact the site; signing in does not guarantee automated access.`,
+      summary: accessDeniedRecoveryHint(this.sessionMode(), state.url, state.signInRejected),
       stepsTaken: step,
       elapsedSeconds: this.loopGuard.elapsedSeconds(),
       terminationReason: "access_denied"
@@ -643,7 +851,7 @@ export class AgentOrchestrator {
         await this.browser.start();
       }
       const navRes = await executeTool("navigate", { url: targetUrl }, this.browser);
-      const state = await this.browser.captureState().catch(() => null);
+      const state = await this.captureObservation().catch(() => null);
       emitLocalStep("navigate", { url: targetUrl }, navRes, state);
       if (state?.accessDenied) return this.accessDeniedResult(state, steps);
       const extRes = await executeTool("extract_page_data", { mode: "text" }, this.browser);
@@ -770,7 +978,7 @@ export class AgentOrchestrator {
       const cur = this.browser.currentUrl();
       if (!cur || cur === "about:blank" || !cur.startsWith(targetUrl.slice(0, 24))) {
         const navRes = await executeTool("navigate", { url: targetUrl }, this.browser);
-        const state = await this.browser.captureState().catch(() => null);
+        const state = await this.captureObservation().catch(() => null);
         this.emit({
           type: "step",
           step: 1,
@@ -819,7 +1027,7 @@ export class AgentOrchestrator {
 
     if (!state && !skipInitialScreenshot && this.browser.isStarted) {
       try {
-        state = await this.browser.captureState();
+        state = await this.captureObservation();
       } catch (err) {
         return this.finish({
           success: false,
@@ -1015,7 +1223,7 @@ export class AgentOrchestrator {
           if (step <= 2 && this.browser.isStarted) {
             try {
               await this.browser.wait(0.6);
-              state = await this.browser.captureState();
+              state = await this.captureObservation();
               pendingToolOutputs.push({
                 id: toolCall.id,
                 result: {
@@ -1040,13 +1248,7 @@ export class AgentOrchestrator {
           });
         }
 
-        const isNonBrowserTool =
-          toolCall.name === "run_terminal_command" ||
-          toolCall.name === "understand_youtube_video" ||
-          toolCall.name === "web_search" ||
-          toolCall.name === "calculate" ||
-          toolCall.name === "create_document" ||
-          toolCall.name === "workspace_file";
+        const isNonBrowserTool = HEADLESS_RESEARCH_TOOL_NAMES.has(toolCall.name) || toolCall.name === "generate_image";
 
         if (!isNonBrowserTool) {
           touchedBrowserInBatch = true;
@@ -1056,13 +1258,23 @@ export class AgentOrchestrator {
         }
 
         let execResult: ToolExecutionResult;
-        if (requiresPrivilegedApproval(toolCall.name, toolCall.input)) {
+        const effectRefusal = await this.gateBrowserAction(toolCall.name, toolCall.input);
+        if (effectRefusal) {
+          execResult = effectRefusal;
+        } else if (requiresPrivilegedApproval(toolCall.name, toolCall.input)) {
           const approved = await this.requestPrivilegedApproval(toolCall.name, toolCall.input);
           execResult = approved
             ? await executeTool(toolCall.name, toolCall.input, this.browser)
             : { ok: false, message: "This action was not approved by the user and was not executed." };
         } else {
           execResult = await executeTool(toolCall.name, toolCall.input, this.browser);
+        }
+        if (INTERACTIVE_BROWSER_TOOL_NAMES.has(toolCall.name)) {
+          if (execResult.ok) this.consecutiveClickFailures = 0;
+          else {
+            this.consecutiveClickFailures += 1;
+            if (this.consecutiveClickFailures >= 2) this.forceVisionOnce = true;
+          }
         }
         pendingToolOutputs.push({ id: toolCall.id, result: execResult });
         if (execResult.imageUsage) {
@@ -1082,7 +1294,7 @@ export class AgentOrchestrator {
 
         if (!isNonBrowserTool && this.browser.isStarted && (i === toolCalls.length - 1 || nextNeedsFreshMarks)) {
           try {
-            state = await this.browser.captureState();
+            state = await this.captureObservation();
           } catch (err) {
             pendingToolOutputs[pendingToolOutputs.length - 1].result = {
               ok: false,
@@ -1178,10 +1390,14 @@ export class AgentOrchestrator {
     if (warningText) lines.push(warningText);
     if (directiveText) lines.push(directiveText);
 
-    // Skip screenshots when text already has profile stats — saves vision tokens on IG/X audits.
+    // Text-first: only attach vision when we captured a screenshot and it is still useful.
     const textHasStats = Boolean(state?.pageText && /\[Detected Stats:/i.test(state.pageText));
     const includeScreenshot = Boolean(
-      state && state.screenshotB64 && state.url !== "about:blank" && !textHasStats
+      state &&
+        state.screenshotB64 &&
+        state.url !== "about:blank" &&
+        !textHasStats &&
+        this.shouldCaptureScreenshot(state)
     );
     if (includeScreenshot && state) {
       this.messages.push({

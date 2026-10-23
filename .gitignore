@@ -11,3 +11,5 @@ artifacts/
 # Per-bot learning KB and learn-mode reports / pre-fix snapshots: local runtime state.
 .browser-agent-learnings/
 .browser-agent-learn/
+# Google-signed-in user profiles when Mongo is not configured.
+.browser-agent-users/

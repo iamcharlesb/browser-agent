@@ -57,17 +57,35 @@ function isReadOnlyInvocation(words: string[]): boolean {
 
 export type TerminalApprovalDecision = boolean | { approved: boolean; scope?: "once" | "task" };
 
-/** Grants live only inside one orchestrator; denial never grants future access. */
+/** What a "yes, for the whole task" answer was actually about. */
+export type ApprovalGrantKind = "privileged" | "outward-action";
+
+/**
+ * Grants live only inside one orchestrator; denial never grants future access.
+ *
+ * The two grants are kept separate on purpose. Saying "yes, follow these 20 accounts for the rest
+ * of the task" must not also hand the agent a shell for the rest of the task - that would be a
+ * privilege escalation through an unrelated question.
+ */
 export class TaskApprovalScope {
   private granted = false;
+  private outwardGranted = false;
 
   allows(toolName: string): boolean {
     return this.granted && (toolName === "run_terminal_command" || toolName === "workspace_file");
   }
 
-  resolve(decision: TerminalApprovalDecision): boolean {
+  /** Only ever true for repeat outward actions; irreversible ones ask every single time. */
+  allowsOutwardAction(): boolean {
+    return this.outwardGranted;
+  }
+
+  resolve(decision: TerminalApprovalDecision, kind: ApprovalGrantKind = "privileged"): boolean {
     const approved = typeof decision === "boolean" ? decision : decision.approved === true;
-    if (approved && typeof decision !== "boolean" && decision.scope === "task") this.granted = true;
+    if (approved && typeof decision !== "boolean" && decision.scope === "task") {
+      if (kind === "outward-action") this.outwardGranted = true;
+      else this.granted = true;
+    }
     return approved;
   }
 }

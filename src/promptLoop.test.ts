@@ -11,7 +11,12 @@ test("a blocked page ends the run without asking the user to solve a nonexistent
     accessDenied: true, requiresHumanVerification: false
   };
   let verificationRequests = 0;
-  const browser = { isStarted: true, currentUrl: () => state.url, captureState: async () => state } as unknown as BrowserController;
+  const browser = {
+    isStarted: true,
+    sessionMode: "persistent",
+    currentUrl: () => state.url,
+    captureState: async () => state
+  } as unknown as BrowserController;
   const agent = new AgentOrchestrator({
     task: "Sign in on this page", browser, model: "gpt-6-luna", apiKey: "test-key",
     onHumanVerification: () => { verificationRequests++; },
@@ -412,4 +417,71 @@ test("standing approval changes the prompt from 'always ask' to 'go do it'", { c
   assert.match(approved, /publishing new posts\/content, direct messages, payments/);
   assert.match(approved, /Scheduled\/unattended runs are still research-and-draft only/);
   assert.match(approved, /paced batches/);
+});
+
+test("the effect gate stops an outward click no task-text rule anticipated", { concurrency: false }, async () => {
+  // A platform this codebase has never heard of, so no regex in security.ts can save us here.
+  const state: PageState = {
+    url: "https://some-new-social-app.example/u/dana", title: "Dana", screenshotB64: "",
+    elements: [
+      { markId: 1, tag: "button", role: "button", elementType: "button", text: "Send connection request", x: 10, y: 20, width: 100, height: 30 },
+      { markId: 2, tag: "a", role: "link", elementType: "link", text: "Followers", x: 10, y: 60, width: 100, height: 30 },
+      { markId: 3, tag: "button", role: "button", elementType: "button", text: "Delete account", x: 10, y: 90, width: 100, height: 30 }
+    ],
+    pageText: "Dana's profile", stateHash: "profile", capturedAt: 0,
+    accessDenied: false, requiresHumanVerification: false
+  };
+
+  const run = async (opts: { standingApproval?: boolean; approve?: boolean; markId?: number; declared?: string }) => {
+    const asked: string[] = [];
+    let clicks = 0;
+    let requests = 0;
+    const browser = {
+      isStarted: true,
+      start: async () => {},
+      currentUrl: () => state.url,
+      captureState: async () => state,
+      getElementByMark: (markId: number) => state.elements.find((el) => el.markId === markId),
+      clickMark: async (markId: number) => { clicks++; return state.elements.find((el) => el.markId === markId)!; }
+    } as unknown as BrowserController;
+    const fetch: typeof globalThis.fetch = async () => {
+      requests++;
+      const output = requests === 1
+        ? [{ type: "function_call", call_id: "call_1", name: "click_mark",
+             arguments: JSON.stringify({ markId: opts.markId ?? 1, ...(opts.declared ? { effect: opts.declared } : {}) }) }]
+        : [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Done." }] }];
+      return new Response(JSON.stringify(makeResponsesPayload(output, `resp_${requests}`)), { headers: { "content-type": "application/json" } });
+    };
+    await new AgentOrchestrator({
+      task: "Open Dana's profile on this site", model: "gpt-6-luna", apiKey: "test-key",
+      browser, fetch, standingApproval: opts.standingApproval ?? false,
+      onTerminalApproval: ({ description }) => { asked.push(description); return opts.approve ?? false; }
+    }).run();
+    return { asked, clicks };
+  };
+
+  const denied = await run({ approve: false });
+  assert.equal(denied.asked.length, 1, "an outward click must be asked about");
+  assert.match(denied.asked[0], /Send connection request/, "the question names the real button");
+  assert.equal(denied.clicks, 0, "denial actually blocks the click");
+
+  const approved = await run({ approve: true });
+  assert.equal(approved.clicks, 1, "approval lets it through");
+
+  const standing = await run({ standingApproval: true });
+  assert.equal(standing.asked.length, 0, "'Approve for me' is what stops the re-asking");
+  assert.equal(standing.clicks, 1);
+
+  const navigating = await run({ markId: 2, approve: false });
+  assert.equal(navigating.asked.length, 0, "clicking a Followers link is reading, not acting");
+  assert.equal(navigating.clicks, 1);
+
+  const lying = await run({ markId: 1, declared: "read", approve: false });
+  assert.equal(lying.asked.length, 1, "a false 'read' declaration cannot unlock an outward button");
+  assert.equal(lying.clicks, 0);
+
+  // The line that matters most: approving engagement is not consent to destroy the account.
+  const destructive = await run({ markId: 3, standingApproval: true, approve: false });
+  assert.equal(destructive.asked.length, 1, "standing approval must never cover an irreversible click");
+  assert.equal(destructive.clicks, 0);
 });

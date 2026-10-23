@@ -7,7 +7,16 @@ import {
   isRunInProgressMessage,
   resolveLoginDuringRun
 } from "./apiContract";
-import { browserSessionConfig, DEFAULT_CHROME_PROFILE_DIR, DEFAULT_PROFILE_DIR, pageAccessDenied, titleRequiresHumanVerification } from "./browserController";
+import {
+  browserSessionConfig,
+  googleSignInRejected,
+  accessDeniedRecoveryHint,
+  DEFAULT_CHROME_PROFILE_DIR,
+  DEFAULT_EMBEDDED_PROFILE_LABEL,
+  DEFAULT_PROFILE_DIR,
+  pageAccessDenied,
+  titleRequiresHumanVerification
+} from "./browserController";
 
 describe("saved Chrome session", () => {
   it("keeps attended login and task execution in visible Chrome with its own profile", () => {
@@ -19,6 +28,13 @@ describe("saved Chrome session", () => {
     assert.equal(config.userAgent, undefined);
     assert.equal(config.guestMode, false);
   });
+  it("configures in-app embedded mode over Electron CDP", () => {
+    const config = browserSessionConfig("embedded");
+    assert.equal(config.embeddedMode, true);
+    assert.equal(config.userDataDir, DEFAULT_EMBEDDED_PROFILE_LABEL);
+    assert.match(config.cdpEndpoint || "", /9333/);
+    assert.equal(config.headless, false);
+  });
   it("keeps guest sessions ephemeral and unattended defaults headless", () => {
     const guest = browserSessionConfig("guest");
     assert.equal(guest.guestMode, true);
@@ -27,10 +43,14 @@ describe("saved Chrome session", () => {
     const unattended = browserSessionConfig("persistent", { unattended: true });
     assert.equal(unattended.headless, true);
     assert.equal(unattended.channel, undefined);
+    const unattendedEmbedded = browserSessionConfig("embedded", { unattended: true });
+    assert.equal(unattendedEmbedded.embeddedMode, undefined);
+    assert.equal(unattendedEmbedded.headless, true);
   });
   it("recognizes denial pages without mistaking real challenges or articles for them", () => {
     assert.equal(pageAccessDenied("Attention Required! | Cloudflare", "Sorry, you have been blocked\nYou are unable to access medium.com"), true);
     assert.equal(pageAccessDenied("403 Forbidden", "Request refused"), true);
+    assert.equal(pageAccessDenied("Attention Required! | Cloudflare", "[Meta: " + "Site description ".repeat(30) + "]\nPlease enable cookies.\nSorry, you have been blocked\nYou are unable to access medium.com"), true);
     assert.equal(pageAccessDenied("Just a moment...", "Verify you are human"), false);
     assert.equal(pageAccessDenied("How security works", "This article discusses why some requests receive access denied errors."), false);
   });
@@ -87,5 +107,24 @@ describe("human verification title heuristics", () => {
     assert.ok(titleRequiresHumanVerification("Just a moment..."));
     assert.ok(titleRequiresHumanVerification("Select all images with crosswalks"));
     assert.ok(!titleRequiresHumanVerification("Instagram"));
+  });
+});
+
+// Google rejects some automation/embedded browsers before a challenge can be solved.
+describe("Google browser sign-in rejection", () => {
+  it("recognizes the rejected URL and security message on the actual accounts host", () => {
+    assert.equal(googleSignInRejected("https://accounts.google.com/v3/signin/rejected?app_domain=https%3A%2F%2Fmedium.com"), true);
+    assert.equal(googleSignInRejected("https://accounts.google.com/signin", "Couldn’t sign you in", "This browser or app may not be secure."), true);
+    assert.equal(googleSignInRejected("https://accounts.google.com/o/oauth2/auth?error=disallowed_useragent"), true);
+    assert.equal(googleSignInRejected("https://accounts.google.com/v3/signin/challenge/pwd", "Sign in", "Verify it’s you"), false);
+    assert.equal(googleSignInRejected("https://example.com/article", "Couldn’t sign you in", "This browser or app may not be secure."), false);
+    assert.equal(googleSignInRejected("https://accounts.google.com.evil.example/v3/signin/rejected"), false);
+    assert.equal(googleSignInRejected("invalid"), false);
+  });
+  it("gives recovery guidance without claiming that connecting Chrome guarantees sign-in", () => {
+    const url = "https://accounts.google.com/v3/signin/rejected";
+    assert.match(accessDeniedRecoveryHint("embedded", url), /not a CAPTCHA/);
+    assert.match(accessDeniedRecoveryHint("cdp", url), /already active/);
+    assert.match(accessDeniedRecoveryHint("persistent", url), /email sign-in/);
   });
 });
