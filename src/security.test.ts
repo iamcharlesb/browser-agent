@@ -58,3 +58,62 @@ test("publishing secrets is blocked, not merely approval-gated", () => {
   assert.equal(result.blocked, true);
   assert.deepEqual(result.approvalsRequired, []);
 });
+
+test("LinkedIn networking actions require approval", () => {
+  // "connect" is LinkedIn's primary verb and used to pass the gate entirely, so the agent could
+  // put connection requests in real inboxes under the user's name with no prompt.
+  for (const task of [
+    "connect with 20 founders on LinkedIn",
+    "send connection requests to these prospects",
+    "send 15 invites to the people on this list",
+    "invite these recruiters to connect",
+    "connect with @someone",
+    "endorse their skills on LinkedIn",
+    "accept all pending invitations",
+    "withdraw my sent connection requests"
+  ]) {
+    assert.deepEqual(assessTaskRisk(task).approvalsRequired, [approval], task);
+  }
+});
+
+test("ordinary uses of connect and invite stay ungated", () => {
+  for (const task of [
+    "connect to the database and run the migration",
+    "connect the API to the frontend",
+    "explain how OAuth connects the two services",
+    "check whether the websocket reconnects after a drop",
+    "summarize the LinkedIn post about hiring",
+    "research which founders are worth connecting with later"
+  ]) {
+    assert.deepEqual(assessTaskRisk(task).approvalsRequired, [], task);
+  }
+});
+
+test("cold-email campaign actions require approval", () => {
+  // Starting a sequence puts real mail in real inboxes under the user's domain; it cannot be
+  // unsent, and it carries CAN-SPAM / GDPR obligations.
+  for (const task of [
+    "launch the Instantly sequence",
+    "start the cold outreach campaign",
+    "resume my campaign in instantly.ai",
+    "start sending to the warm list",
+    "send these 200 cold emails",
+    "upload this lead list to the Instantly campaign",
+    "add these leads to the sequence",
+    "enroll these prospects in the Lemlist sequence"
+  ]) {
+    assert.deepEqual(assessTaskRisk(task).approvalsRequired, [approval], task);
+  }
+});
+
+test("researching and drafting outreach stays ungated", () => {
+  for (const task of [
+    "draft a cold email sequence for SaaS founders",
+    "review my Instantly campaign stats and tell me the reply rate",
+    "research which lead list performed best",
+    "write three subject line variants for the campaign",
+    "explain how Instantly handles inbox rotation"
+  ]) {
+    assert.deepEqual(assessTaskRisk(task).approvalsRequired, [], task);
+  }
+});

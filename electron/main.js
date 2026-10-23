@@ -8,7 +8,12 @@ const net = require("node:net");
 const path = require("node:path");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
-const SERVER_ENTRY = path.join(PROJECT_ROOT, "dist", "server.js");
+// Defaults to the dev output (dist/). `yarn desktop:built` points this at build/ so the desktop
+// shell can run the production copy instead.
+const SERVER_ENTRY = path.resolve(
+  PROJECT_ROOT,
+  process.env.BROWSER_AGENT_SERVER_ENTRY || path.join("dist", "server.js")
+);
 
 let mainWindow = null;
 let serverProcess = null;
@@ -58,7 +63,11 @@ function startServer(port) {
       BROWSER_AGENT_UI_PORT: String(port),
       BROWSER_AGENT_UI_HOST: "127.0.0.1",
       BROWSER_AGENT_NO_OPEN: "1",
-      BROWSER_AGENT_LIVE_RELOAD: "0"
+      BROWSER_AGENT_LIVE_RELOAD: "0",
+      // The desktop app is a built copy, so `/learn <task>` works here too. Set
+      // BROWSER_AGENT_LEARN_MODE=0 to turn it off, BROWSER_AGENT_LEARN_SELF_FIX=0 for
+      // findings without letting it patch its own source.
+      BROWSER_AGENT_LEARN_MODE: process.env.BROWSER_AGENT_LEARN_MODE ?? "1"
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
@@ -175,8 +184,12 @@ function buildMenu() {
 
 async function boot() {
   buildMenu();
-  serverPort = Number(process.env.BROWSER_AGENT_UI_PORT) || (await findFreePort());
-  startServer(serverPort);
+  // Attach to an already-running server (e.g. `npm run dev` on 8765) without spawning dist/.
+  const attachExisting = process.env.BROWSER_AGENT_ATTACH_EXISTING === "1";
+  serverPort = Number(process.env.BROWSER_AGENT_UI_PORT) || (attachExisting ? 8765 : await findFreePort());
+  if (!attachExisting) {
+    startServer(serverPort);
+  }
   await waitForServer(serverPort);
   createWindow(serverPort);
 }
@@ -192,12 +205,28 @@ app.on("before-quit", () => {
 });
 
 app.on("window-all-closed", () => {
+  // On macOS closing the last window does NOT quit the app - the dock icon reopens it through
+  // "activate" below. Stopping the server here therefore left that reopened window pointing at a
+  // port with nothing listening on it. `before-quit` is what actually shuts the server down.
+  if (process.platform === "darwin") return;
   stopServer();
-  if (process.platform !== "darwin") app.quit();
+  app.quit();
 });
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0 && serverPort) {
-    createWindow(serverPort);
+  if (BrowserWindow.getAllWindows().length !== 0 || !serverPort) return;
+  // If the server died while the app sat in the dock, bring it back first - otherwise the reopened
+  // window loads a dead port and looks like the app is broken.
+  const attachExisting = process.env.BROWSER_AGENT_ATTACH_EXISTING === "1";
+  if (!serverProcess && !attachExisting) {
+    startServer(serverPort);
+    waitForServer(serverPort)
+      .then(() => createWindow(serverPort))
+      .catch((err) => {
+        console.error(`[server] could not be restarted: ${err.message}`);
+        createWindow(serverPort);
+      });
+    return;
   }
+  createWindow(serverPort);
 });

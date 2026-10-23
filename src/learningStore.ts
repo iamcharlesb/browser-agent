@@ -233,6 +233,46 @@ export async function saveLearningKb(baseDir: string, state: LearningKbState): P
   }
 }
 
+/**
+ * One in-flight read-modify-write per bot file, chained by path.
+ *
+ * The write itself is atomic (temp + rename), but a load/save pair is not: two callers that both
+ * loaded before either saved would each write their own view and the first one's entry would
+ * vanish. The server fires several of these per run (an approval denial and a run outcome can land
+ * microseconds apart), so the pair has to be serialized, not just the write.
+ */
+const learningWriteChains = new Map<string, Promise<unknown>>();
+
+export async function updateLearningKb(
+  baseDir: string,
+  botId: string,
+  mutate: (state: LearningKbState) => LearningKbState | Promise<LearningKbState>
+): Promise<LearningKbState> {
+  const filePath = learningFilePath(baseDir, botId);
+  const previous = learningWriteChains.get(filePath) ?? Promise.resolve();
+  const next = previous.then(
+    async () => {
+      const current = await loadLearningKb(baseDir, botId);
+      const mutated = await mutate(current);
+      await saveLearningKb(baseDir, mutated);
+      return mutated;
+    },
+    async () => {
+      // A failed predecessor must not poison the queue; start this update from fresh state.
+      const current = await loadLearningKb(baseDir, botId);
+      const mutated = await mutate(current);
+      await saveLearningKb(baseDir, mutated);
+      return mutated;
+    }
+  );
+  learningWriteChains.set(filePath, next);
+  try {
+    return await next;
+  } finally {
+    if (learningWriteChains.get(filePath) === next) learningWriteChains.delete(filePath);
+  }
+}
+
 function listForKind(state: LearningKbState, kind: LearningKind): LearningEntry[] {
   switch (kind) {
     case "intent":

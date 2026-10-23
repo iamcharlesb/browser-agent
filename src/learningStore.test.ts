@@ -17,6 +17,7 @@ import {
   sanitizeLearningText,
   saveLearningKb,
   setNiche,
+  updateLearningKb,
   validateLearningKb
 } from "./learningStore";
 
@@ -118,6 +119,57 @@ test("load/save atomic JSON round-trip", async () => {
     assert.equal(loaded.niche, "local bakery");
     assert.equal(loaded.intents.length, 1);
     assert.equal(loaded.intents[0].text, "Rank for local bakery SEO");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("concurrent updates all survive instead of overwriting each other", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "learn-kb-race-"));
+  try {
+    await saveLearningKb(dir, defaultLearningKb("racer"));
+
+    // Fired without awaiting each other, the way the server fires an approval denial and a run
+    // outcome. A plain load/save pair here loses every write but the last.
+    await Promise.all(
+      ["first", "second", "third", "fourth"].map((label) =>
+        updateLearningKb(dir, "racer", (kb) =>
+          appendLearning(kb, { kind: "learning", text: `lesson ${label}`, source: "auto" })
+        )
+      )
+    );
+
+    const kb = await loadLearningKb(dir, "racer");
+    assert.equal(kb.learnings.length, 4, `expected all four writes, got ${kb.learnings.length}`);
+    for (const label of ["first", "second", "third", "fourth"]) {
+      assert.ok(
+        kb.learnings.some((entry) => entry.text.includes(label)),
+        `"${label}" was overwritten`
+      );
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("a failed update does not poison the queue for the next one", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "learn-kb-recover-"));
+  try {
+    await saveLearningKb(dir, defaultLearningKb("recover"));
+
+    const failing = updateLearningKb(dir, "recover", () => {
+      throw new Error("mutator blew up");
+    });
+    const following = updateLearningKb(dir, "recover", (kb) =>
+      appendLearning(kb, { kind: "learning", text: "still written", source: "auto" })
+    );
+
+    await assert.rejects(() => failing, /mutator blew up/);
+    await following;
+
+    const kb = await loadLearningKb(dir, "recover");
+    assert.equal(kb.learnings.length, 1);
+    assert.match(kb.learnings[0].text, /still written/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

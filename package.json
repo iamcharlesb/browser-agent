@@ -7,13 +7,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:production": "tsc -p tsconfig.json --outDir build",
-    "test": "npm run build && node --test dist/security.test.js dist/promptLoop.test.js dist/scheduler.test.js dist/apiContract.test.js dist/claudeCli.test.js dist/learningStore.test.js",
+    "test": "npm run build && node --test dist/security.test.js dist/promptLoop.test.js dist/scheduler.test.js dist/apiContract.test.js dist/claudeCli.test.js dist/learningStore.test.js dist/messageBus.test.js dist/selfFix.test.js dist/learnMode.test.js dist/patchProposer.test.js dist/handoff.test.js dist/fixApproval.test.js",
     "cli": "node dist/cli.js",
     "server": "node dist/server.js",
     "dev": "node scripts/dev.js",
     "built": "node scripts/built.js",
     "electron": "npm run build && electron .",
-    "desktop": "npm run electron"
+    "desktop": "npm run electron",
+    "desktop:built": "node scripts/desktop.js",
+    "desktop:attach": "node scripts/desktop.js --attach"
   },
   "engines": {
     "node": ">=18.0.0"

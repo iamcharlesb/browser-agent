@@ -17,18 +17,31 @@ import {
 import { artifactContentType, isRunInProgressMessage, resolveLoginDuringRun } from "./apiContract";
 import { resolveClaudeCliBinary } from "./claudeCli";
 import {
+  appendLearning,
   applyApprovalDenial,
   applyLearningKbTool,
   applyRunOutcome,
   botIdFromName,
   distillLearningKb,
   loadLearningKb,
-  saveLearningKb,
+  updateLearningKb,
   type LearningKind
 } from "./learningStore";
-import { AgentEvent, AgentOrchestrator, DEFAULT_MODEL, requiresInitialBrowserState } from "./promptLoop";
+import { AgentEvent, AgentOrchestrator, AgentResult, DEFAULT_MODEL, requiresInitialBrowserState } from "./promptLoop";
 import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
 import { nextDailyOccurrence } from "./scheduler";
+import { AgentHandoffRequest, TOPICS, localBus } from "./messageBus";
+import { MAX_HANDOFF_DEPTH, decideHandoff } from "./handoff";
+import {
+  LearnModeSession,
+  LearnReport,
+  LearnRunOutcome,
+  renderLearnDocument,
+  renderLearnReport
+} from "./learnMode";
+import { createDefaultVerifier } from "./selfFix";
+import { createPatchProposer } from "./patchProposer";
+import { FixApprovalGate } from "./fixApproval";
 
 const STATIC_DIR = join(__dirname, "..", "static");
 const ENV_FILE = join(__dirname, "..", ".env");
@@ -36,6 +49,10 @@ const SCHEDULE_FILE = join(__dirname, "..", ".browser-agent-schedules.json");
 const USAGE_FILE = join(__dirname, "..", ".browser-agent-usage.json");
 /** Per-bot durable learning KB (intents / mistakes / learnings). Local JSON only. */
 const LEARNINGS_DIR = join(__dirname, "..", ".browser-agent-learnings");
+/** Learn-mode self-play reports and pre-fix file snapshots. */
+const LEARN_REPORT_DIR = join(__dirname, "..", ".browser-agent-learn");
+/** Repo root: `__dirname` is dist/ in dev and build/ in the production copy, both one level down. */
+const REPO_ROOT = join(__dirname, "..");
 
 // Keep local setup dependency-free. Values already provided by the shell always win.
 if (existsSync(ENV_FILE)) {
@@ -58,6 +75,18 @@ const PORT = Number(process.env.BROWSER_AGENT_UI_PORT ?? 8765);
 const HOST = process.env.BROWSER_AGENT_UI_HOST ?? "127.0.0.1";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 const GOOGLE_SESSION_COOKIE = "openbots_google_session";
+/**
+ * Learn mode is on in the production copy (`npm run built` sets this) and off in dev unless asked
+ * for, because a learn session rebuilds and re-runs the test suite - that would fight tsc --watch.
+ */
+const LEARN_MODE_ENABLED = process.env.BROWSER_AGENT_LEARN_MODE === "1";
+/** Learn mode may patch its own source. Set to "0" to get findings only. */
+const LEARN_SELF_FIX_ENABLED = process.env.BROWSER_AGENT_LEARN_SELF_FIX !== "0";
+/**
+ * Replay history per run. Events carry base64 screenshots, so an unbounded 500-step run would hold
+ * tens of megabytes of JPEG in memory for the whole process lifetime.
+ */
+const MAX_RETAINED_RUN_EVENTS = 400;
 const googleOAuthClient = new OAuth2Client();
 
 function cookieValue(req: IncomingMessage, name: string): string | null {
@@ -157,6 +186,7 @@ interface RunState {
   headless: boolean;
   isRunning: boolean;
   cancelled: boolean;
+  nextSequence: number;
   events: SequencedRunEvent[];
   subscribers: Set<AsyncQueue<SequencedRunEvent | null>>;
   resolveVerification: (() => void) | null;
@@ -169,8 +199,16 @@ interface SequencedRunEvent {
 }
 
 function publishRunEvent(run: RunState, event: AgentEvent | null): void {
-  const sequencedEvent = event ? { sequence: run.events.length + 1, event } : null;
-  if (sequencedEvent) run.events.push(sequencedEvent);
+  const sequencedEvent = event ? { sequence: run.nextSequence++, event } : null;
+  if (sequencedEvent) {
+    run.events.push(sequencedEvent);
+    // Trim oldest first. Sequence numbers come from a counter, not the array length, so a
+    // reconnecting client's `after=` cursor still lines up after a trim.
+    if (run.events.length > MAX_RETAINED_RUN_EVENTS) {
+      run.events.splice(0, run.events.length - MAX_RETAINED_RUN_EVENTS);
+    }
+    localBus.publish(TOPICS.runEvent, { botName: run.botName, event }, { source: run.botName });
+  }
   for (const subscriber of run.subscribers) subscriber.push(sequencedEvent);
 }
 
@@ -223,6 +261,8 @@ interface ScheduledTask {
 }
 
 let currentRun: RunState | null = null;
+/** Set while an orchestrator is still executing, which outlasts `currentRun.isRunning` on a stop. */
+let activeRunPromise: Promise<AgentResult> | null = null;
 let activeSession: BrowserSession | null = null;
 let activeSessionMode: "persistent" | "guest" = "persistent";
 let schedules: ScheduledTask[] = [];
@@ -470,9 +510,20 @@ function resolvePendingApproval(approved: boolean): boolean {
   return true;
 }
 
-function startRun(body: RunRequestBody): void {
+/**
+ * Starts a run and resolves with its result. Callers that only want fire-and-forget behaviour can
+ * ignore the promise (it never rejects - a crash resolves as an unsuccessful AgentResult), while
+ * learn mode needs to await each self-play turn.
+ */
+function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {}): Promise<AgentResult> {
   if (currentRun && currentRun.isRunning) {
     throw new Error("A run is already in progress. Wait for it to finish or stop it first.");
+  }
+  // A stopped run reports "stopped" to the UI right away, but the orchestrator takes until its
+  // next abort check to actually let go of the browser. Starting a second run in that window would
+  // give two agents the same Chromium page.
+  if (activeRunPromise) {
+    throw new Error("The previous run is still in progress (winding down). Try again in a moment.");
   }
   if (activeSession?.kind === "login") {
     // Seamlessly promote an open login session into the bot's conversation session so the
@@ -487,14 +538,28 @@ function startRun(body: RunRequestBody): void {
     headless: Boolean(body.headless),
     isRunning: true,
     cancelled: false,
+    nextSequence: 1,
     events: [],
     subscribers: new Set<AsyncQueue<SequencedRunEvent | null>>(),
     resolveVerification: null,
     resolveApproval: null
   };
   currentRun = run;
+  const handoffDepth = options.handoffDepth ?? 0;
+  localBus.publish(
+    TOPICS.runStarted,
+    { botName: run.botName, task: body.task, handoffDepth, unattended: Boolean(body.scheduleId) },
+    { source: run.botName }
+  );
 
-  void (async () => {
+  const runPromise = (async (): Promise<AgentResult> => {
+    let result: AgentResult = {
+      success: false,
+      summary: "Run did not produce a result.",
+      stepsTaken: 0,
+      elapsedSeconds: 0,
+      terminationReason: "no_result"
+    };
     try {
       const existingUrl = activeSession ? activeSession.controller.currentUrl() : "about:blank";
       const needsBrowserImmediately = requiresInitialBrowserState(body.task, existingUrl);
@@ -581,35 +646,29 @@ function startRun(body: RunRequestBody): void {
           }
           const safeEvent = { ...event };
           if (typeof safeEvent.summary === "string") safeEvent.summary = redactSecrets(safeEvent.summary);
+          // Tells the UI not to start the next hop itself: the bus owns delegation now, and two
+          // starts for one handoff would mean two runs fighting over the same browser.
+          if (safeEvent.type === "terminal" && safeEvent.delegateTo) safeEvent.handoffOwnedByServer = true;
           publishRunEvent(run, safeEvent);
 
+          // Both of these fire on the same run and used to load/save independently, so whichever
+          // saved second overwrote the other's entry. updateLearningKb serializes the pair per bot.
           if (event.type === "privileged_approval_resolved" && event.approved === false) {
             const description = typeof event.description === "string" ? event.description : "privileged action";
-            void (async () => {
-              try {
-                const kb = await loadLearningKb(LEARNINGS_DIR, learningBotId);
-                await saveLearningKb(LEARNINGS_DIR, applyApprovalDenial(kb, description));
-              } catch (err) {
-                console.warn(`Learning KB approval denial save failed:`, (err as Error).message);
-              }
-            })();
+            void updateLearningKb(LEARNINGS_DIR, learningBotId, (kb) => applyApprovalDenial(kb, description)).catch(
+              (err: Error) => console.warn("Learning KB approval denial save failed:", err.message)
+            );
           }
 
           if (event.type === "terminal") {
-            void (async () => {
-              try {
-                const kb = await loadLearningKb(LEARNINGS_DIR, learningBotId);
-                const next = applyRunOutcome(kb, {
-                  task: body.task,
-                  success: Boolean(event.success),
-                  summary: String(event.summary ?? ""),
-                  terminationReason: typeof event.terminationReason === "string" ? event.terminationReason : undefined
-                });
-                await saveLearningKb(LEARNINGS_DIR, next);
-              } catch (err) {
-                console.warn(`Learning KB run-outcome save failed:`, (err as Error).message);
-              }
-            })();
+            void updateLearningKb(LEARNINGS_DIR, learningBotId, (kb) =>
+              applyRunOutcome(kb, {
+                task: body.task,
+                success: Boolean(event.success),
+                summary: String(event.summary ?? ""),
+                terminationReason: typeof event.terminationReason === "string" ? event.terminationReason : undefined
+              })
+            ).catch((err: Error) => console.warn("Learning KB run-outcome save failed:", err.message));
           }
 
           if (body.scheduleId && event.type === "terminal") {
@@ -640,6 +699,9 @@ function startRun(body: RunRequestBody): void {
         // at all (filtered out of the model's tool list below) - nobody is present to approve them.
         allowPrivilegedTools: !body.scheduleId,
         allowBrowserInteraction: !body.scheduleId,
+        // "Approve for me" is the only thing that grants this, and never for a scheduled run -
+        // nobody is watching those, so they stay research-and-draft only.
+        standingApproval: Boolean(body.autoApprove) && !body.scheduleId,
         scheduleTimeZone: body.scheduleTimeZone,
         onScheduleTask: async (input) => {
           try {
@@ -660,28 +722,44 @@ function startRun(body: RunRequestBody): void {
         },
         onLearningKb: async (input) => {
           try {
-            const kb = await loadLearningKb(LEARNINGS_DIR, learningBotId);
             const action = String(input.action ?? "read") as "read" | "list" | "save";
             const kind = typeof input.kind === "string" ? (input.kind as LearningKind) : undefined;
             const text = typeof input.text === "string" ? input.text : undefined;
-            const result = applyLearningKbTool(kb, { action, kind, text });
-            if (action === "save") {
-              await saveLearningKb(LEARNINGS_DIR, result.state);
+            if (action !== "save") {
+              const kb = await loadLearningKb(LEARNINGS_DIR, learningBotId);
+              return { ok: true, message: applyLearningKbTool(kb, { action, kind, text }).message };
             }
-            return { ok: true, message: result.message };
+            // Serialized with the run-outcome and approval-denial writes for the same bot.
+            let message = "";
+            await updateLearningKb(LEARNINGS_DIR, learningBotId, (kb) => {
+              const result = applyLearningKbTool(kb, { action, kind, text });
+              message = result.message;
+              return result.state;
+            });
+            return { ok: true, message };
           } catch (error) {
             return { ok: false, message: (error as Error).message };
           }
         },
-        onTerminalApproval: body.scheduleId ? undefined : body.autoApprove ? () => true : () => onTerminalApproval(run)
+        onTerminalApproval: body.scheduleId ? undefined : body.autoApprove ? () => true : () => onTerminalApproval(run),
+        // "Stop" used to be cosmetic: it told the UI the run had ended while the loop kept calling
+        // the model and clicking the page. The orchestrator now polls this before every step.
+        shouldAbort: () => run.cancelled
       });
-      await orchestrator.run();
+      result = await orchestrator.run();
     } catch (err) {
+      result = {
+        success: false,
+        summary: `Run stopped before completion: ${(err as Error).message}`,
+        stepsTaken: 0,
+        elapsedSeconds: 0,
+        terminationReason: "crash"
+      };
       if (!run.cancelled) {
         publishRunEvent(run, {
           type: "terminal",
           success: false,
-          summary: `Run stopped before completion: ${(err as Error).message}`,
+          summary: result.summary,
           terminationReason: "crash",
           stepsTaken: 0,
           elapsedSeconds: 0
@@ -691,7 +769,222 @@ function startRun(body: RunRequestBody): void {
       run.isRunning = false;
       publishRunEvent(run, null);
     }
+
+    return result;
   })();
+
+  activeRunPromise = runPromise;
+  // Announce the result only after the run slot is free, so a handoff subscriber can start the
+  // next hop immediately instead of bouncing off the "already in progress" guard.
+  void runPromise
+    .finally(() => {
+      if (activeRunPromise === runPromise) activeRunPromise = null;
+    })
+    .then((result) => {
+      localBus.publish(TOPICS.runCompleted, { botName: run.botName, result, handoffDepth }, { source: run.botName });
+
+      // Delegation goes out as a message, not a direct call into another bot. A bus subscriber
+      // picks it up, so a handoff now also happens for scheduled runs and survives the UI closing
+      // mid-run - both of which silently dropped the handoff when the browser owned it.
+      if (result.delegateTo?.targetBotName) {
+        localBus.publish<AgentHandoffRequest>(
+          TOPICS.handoffRequested,
+          {
+            fromBot: run.botName,
+            toBot: result.delegateTo.targetBotName,
+            task: result.delegateTo.task,
+            handoffNote: result.delegateTo.handoffNote,
+            depth: handoffDepth + 1,
+            model: body.model,
+            scheduleTimeZone: body.scheduleTimeZone,
+            unattended: Boolean(body.scheduleId)
+          },
+          { source: run.botName }
+        );
+      }
+    })
+    .catch(() => undefined);
+
+  return runPromise;
+}
+
+/**
+ * The only place a handoff turns back into a run. Everything that wants a peer bot to do something
+ * publishes on `agent.handoff.requested` and this decides whether it may happen - so the depth cap
+ * and the risk gate are enforced once, server-side, instead of in whatever caller had the idea.
+ */
+localBus.subscribe<AgentHandoffRequest>(TOPICS.handoffRequested, async (message) => {
+  const request = message.payload;
+  const reject = (reason: string): void => {
+    console.warn(`Handoff ${request.fromBot} -> ${request.toBot} rejected: ${reason}`);
+    localBus.publish(TOPICS.handoffRejected, { ...request, reason }, { source: "server" });
+  };
+
+  const decision = decideHandoff(request, MAX_HANDOFF_DEPTH);
+  if (!decision.allowed) {
+    reject(decision.reason);
+    return;
+  }
+
+  try {
+    void startRun(
+      {
+        task: decision.delegatedTask,
+        botName: request.toBot,
+        collaborationContext: `DELEGATION HANDOFF FROM '${request.fromBot}': ${request.handoffNote || request.task}`,
+        approvedCategories: [],
+        autoApprove: false,
+        model: request.model,
+        scheduleTimeZone: request.scheduleTimeZone,
+        headless: true,
+        maxSteps: 120,
+        maxDurationSeconds: 14_400,
+        // A delegated run started by a schedule stays unattended: no terminal, no file writes.
+        ...(request.unattended ? { scheduleId: `handoff-${randomUUID()}` } : {})
+      },
+      { handoffDepth: request.depth }
+    );
+    localBus.publish(TOPICS.handoffQueued, { ...request, queued: true }, { source: "server" });
+  } catch (err) {
+    reject((err as Error).message);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Learn mode
+// ---------------------------------------------------------------------------
+
+interface ActiveLearnSession {
+  sessionId: string;
+  task: string;
+  startedAt: string;
+  promise: Promise<LearnReport>;
+}
+
+let activeLearnSession: ActiveLearnSession | null = null;
+let lastLearnReport: LearnReport | null = null;
+/** Holds a proposed patch set while the user decides. Nothing is written until it says yes. */
+const fixApprovalGate = new FixApprovalGate();
+
+// Published from inside the session, so the report is readable the moment a client sees the
+// completion event on /api/learn/events - before `session.run()`'s own promise has even resolved.
+localBus.subscribe<{ report: LearnReport }>(TOPICS.learnCompleted, (message) => {
+  lastLearnReport = message.payload.report;
+});
+
+/**
+ * One self-play turn: a real run through the real orchestrator, with its event stream captured so
+ * the rubric can score what actually happened rather than just the final summary.
+ */
+async function runLearnTurn(body: RunRequestBody): Promise<LearnRunOutcome> {
+  const events: AgentEvent[] = [];
+  const unsubscribe = localBus.subscribe<{ botName: string; event: AgentEvent }>(TOPICS.runEvent, (message) => {
+    events.push(message.payload.event);
+  });
+  try {
+    const result = await startRun(body);
+    // Bus delivery is a microtask, so let the terminal event land before we stop listening.
+    await new Promise((resolve) => setImmediate(resolve));
+    return {
+      summary: result.summary,
+      success: result.success,
+      stepsTaken: result.stepsTaken,
+      elapsedSeconds: result.elapsedSeconds,
+      terminationReason: result.terminationReason,
+      events
+    };
+  } finally {
+    unsubscribe();
+  }
+}
+
+function startLearnSession(input: {
+  task: string;
+  botName?: string;
+  expertise?: string;
+  model?: string;
+  maxRounds?: number;
+  allowSelfFix?: boolean;
+}): ActiveLearnSession {
+  if (!LEARN_MODE_ENABLED) {
+    throw new Error("Learn mode is off in this instance. Start the production copy with `npm run built`.");
+  }
+  if (activeLearnSession) {
+    throw new Error("A learn session is already in progress. Wait for it to finish.");
+  }
+  if (currentRun?.isRunning || activeRunPromise) {
+    throw new Error("A run is already in progress. Wait for it to finish or stop it first.");
+  }
+
+  const task = input.task.trim();
+  const botName = input.botName?.trim() || "Buddy Bot";
+  const risk = assessTaskRisk(task);
+  if (risk.blocked) {
+    throw new Error(risk.reason ?? "This task is blocked.");
+  }
+  // Self-play means nobody is watching each turn, so a task that could like, follow, post, or pay
+  // is not something to rehearse unsupervised. Rehearse the research half instead.
+  if (risk.approvalsRequired.length > 0) {
+    throw new Error(
+      `Learn mode won't rehearse a task that can cause a real side effect (${risk.approvalsRequired.join(", ")}). Give it the research or drafting half of the task instead.`
+    );
+  }
+
+  const learningBotId = botIdFromName(botName);
+  const session = new LearnModeSession({
+    task,
+    bus: localBus,
+    repoRoot: REPO_ROOT,
+    reportDir: LEARN_REPORT_DIR,
+    maxRounds: input.maxRounds ?? 3,
+    allowSelfFix: LEARN_SELF_FIX_ENABLED && input.allowSelfFix !== false,
+    verify: createDefaultVerifier(REPO_ROOT),
+    proposePatches: createPatchProposer({ repoRoot: REPO_ROOT, model: input.model ?? DEFAULT_MODEL }),
+    // Patches are written, documented, and then held here until the user says yes.
+    onFixApproval: fixApprovalGate.request,
+    runner: ({ message, round }) =>
+      runLearnTurn({
+        task: message,
+        botName,
+        expertise: input.expertise,
+        collaborationContext:
+          round === 0
+            ? "LEARN MODE: this is a self-play rehearsal. Behave exactly as you would for the real user."
+            : "LEARN MODE follow-up: the simulated user is pushing back on your previous answer.",
+        approvedCategories: [],
+        autoApprove: false,
+        model: input.model,
+        headless: true,
+        maxSteps: 40,
+        maxDurationSeconds: 900
+      }),
+    onLearning: async ({ kind, text }) => {
+      await updateLearningKb(LEARNINGS_DIR, learningBotId, (kb) =>
+        appendLearning(kb, { kind, text: `learn mode: ${text}`, source: "auto" })
+      );
+    }
+  });
+
+  const promise = session
+    .run()
+    .then((report) => {
+      lastLearnReport = report;
+      return report;
+    })
+    .finally(() => {
+      if (activeLearnSession?.sessionId === session.sessionId) activeLearnSession = null;
+    });
+
+  activeLearnSession = {
+    sessionId: session.sessionId,
+    task,
+    startedAt: new Date().toISOString(),
+    promise
+  };
+  // The HTTP caller gets the session id immediately; results arrive over /api/events and
+  // /api/learn/report. An unhandled rejection here must not take the server down.
+  void promise.catch((err: Error) => console.warn(`Learn session failed: ${err.message}`));
+  return activeLearnSession;
 }
 
 function stopCurrentRun(): boolean {
@@ -1030,6 +1323,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       defaultModel: DEFAULT_MODEL,
       isRunning: Boolean(currentRun?.isRunning),
       runBotName: currentRun?.botName ?? null,
+      learnModeEnabled: LEARN_MODE_ENABLED,
+      learnSelfFixEnabled: LEARN_MODE_ENABLED && LEARN_SELF_FIX_ENABLED,
+      learnSessionRunning: Boolean(activeLearnSession),
+      learnAwaitingApproval: fixApprovalGate.isWaiting,
       runHasPendingApproval: Boolean(currentRun?.resolveApproval),
       runHasPendingVerification: Boolean(currentRun?.resolveVerification),
       waitingForVerification: Boolean(currentRun?.resolveVerification),
@@ -1163,6 +1460,181 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         detail: message,
         code: alreadyRunning ? "run_in_progress" : undefined
       });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/learn") {
+    try {
+      const raw = (await readJsonBody(req)) as Record<string, unknown> | null;
+      const task = typeof raw?.task === "string" ? raw.task.trim() : "";
+      if (!task || task.length > 20_000) {
+        sendJson(res, 400, { detail: "task must be a non-empty string of at most 20000 characters." });
+        return;
+      }
+      const maxRounds = raw?.maxRounds === undefined ? 3 : Number(raw.maxRounds);
+      if (!Number.isFinite(maxRounds) || maxRounds < 1 || maxRounds > 5) {
+        sendJson(res, 400, { detail: "maxRounds must be a number between 1 and 5." });
+        return;
+      }
+      const session = startLearnSession({
+        task,
+        botName: typeof raw?.botName === "string" ? raw.botName.slice(0, 120) : undefined,
+        expertise: typeof raw?.expertise === "string" ? raw.expertise.slice(0, 500) : undefined,
+        model: typeof raw?.model === "string" ? raw.model : undefined,
+        maxRounds,
+        allowSelfFix: raw?.allowSelfFix !== false
+      });
+      sendJson(res, 200, {
+        status: "started",
+        sessionId: session.sessionId,
+        selfFix: LEARN_SELF_FIX_ENABLED && raw?.allowSelfFix !== false
+      });
+    } catch (err) {
+      const message = (err as Error).message;
+      const busy = isRunInProgressMessage(message) || /already in progress/i.test(message);
+      sendJson(res, busy ? 409 : LEARN_MODE_ENABLED ? 400 : 404, {
+        detail: message,
+        code: busy ? "run_in_progress" : LEARN_MODE_ENABLED ? undefined : "learn_mode_disabled"
+      });
+    }
+    return;
+  }
+
+  // What the session wants to change, and nothing has been written yet. Served separately so a
+  // reloaded tab can pick the decision back up mid-session.
+  if (req.method === "GET" && url.pathname === "/api/learn/proposal") {
+    const pending = fixApprovalGate.pendingProposal;
+    if (!pending) {
+      sendJson(res, 404, { detail: "No code changes are waiting for a decision.", waiting: false });
+      return;
+    }
+    sendJson(res, 200, { waiting: true, proposal: pending });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/learn/approval") {
+    if (!fixApprovalGate.isWaiting) {
+      sendJson(res, 409, { detail: "No code changes are waiting for a decision.", code: "no_pending_proposal" });
+      return;
+    }
+    try {
+      const raw = (await readJsonBody(req)) as Record<string, unknown> | null;
+      const approved = raw?.approved === true;
+      const patchIds = fixApprovalGate.normalizePatchIds(raw?.patchIds);
+      if (approved && patchIds && patchIds.length === 0) {
+        sendJson(res, 400, { detail: "None of the given patchIds belong to the pending proposal." });
+        return;
+      }
+      const settled = fixApprovalGate.settle({
+        approved,
+        ...(patchIds ? { patchIds } : {}),
+        reason: typeof raw?.reason === "string" ? raw.reason.slice(0, 500) : approved ? "you approved them" : "you declined"
+      });
+      if (!settled) {
+        sendJson(res, 409, { detail: "That decision arrived too late.", code: "no_pending_proposal" });
+        return;
+      }
+      sendJson(res, 200, { status: approved ? "approved" : "denied", patchIds: patchIds ?? "all" });
+    } catch (err) {
+      sendJson(res, 400, { detail: (err as Error).message });
+    }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/learn/report") {
+    if (!lastLearnReport) {
+      sendJson(res, 404, {
+        detail: activeLearnSession ? "The learn session is still running." : "No learn session has finished yet.",
+        running: Boolean(activeLearnSession)
+      });
+      return;
+    }
+    sendJson(res, 200, {
+      running: Boolean(activeLearnSession),
+      report: lastLearnReport,
+      rendered: renderLearnReport(lastLearnReport),
+      document: renderLearnDocument(lastLearnReport),
+      documentPath: join(LEARN_REPORT_DIR, "latest.md")
+    });
+    return;
+  }
+
+  // Learn progress rides the bus, not a run's event stream: a session spans several runs, so a
+  // per-run SSE connection would drop between turns.
+  if (req.method === "GET" && url.pathname === "/api/learn/events") {
+    if (!LEARN_MODE_ENABLED) {
+      sendJson(res, 404, { detail: "Learn mode is off in this instance.", code: "learn_mode_disabled" });
+      return;
+    }
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive"
+    });
+    const unsubscribe = localBus.subscribe("learn.#", (message) => {
+      if (res.destroyed) return;
+      res.write(`data: ${JSON.stringify({ topic: message.topic, ...(message.payload as object) })}\n\n`);
+    });
+    const heartbeat = setInterval(() => {
+      if (!res.destroyed) res.write(": keep-alive\n\n");
+    }, 15_000);
+    res.once("close", () => {
+      unsubscribe();
+      clearInterval(heartbeat);
+    });
+    return;
+  }
+
+  /**
+   * Thumbs up / thumbs down on one agent reply. This is the cheapest signal the bot gets about
+   * whether it read the user's intent, so it goes straight into the per-bot learning KB and comes
+   * back as context on the next run - a dislike becomes a "mistake", a like becomes a "learning".
+   */
+  if (req.method === "POST" && url.pathname === "/api/feedback") {
+    try {
+      const raw = (await readJsonBody(req)) as Record<string, unknown> | null;
+      const kind = raw?.kind === "like" ? "like" : raw?.kind === "dislike" ? "dislike" : null;
+      if (!kind) {
+        sendJson(res, 400, { detail: 'kind must be "like" or "dislike".' });
+        return;
+      }
+      const botName = typeof raw?.botName === "string" && raw.botName.trim() ? raw.botName.slice(0, 120) : "default";
+      const summary = typeof raw?.summary === "string" ? raw.summary.slice(0, 400) : "";
+      const reason = typeof raw?.reason === "string" ? raw.reason.slice(0, 400).trim() : "";
+      if (!summary && !reason) {
+        sendJson(res, 400, { detail: "Nothing to record: send the reply text or a reason." });
+        return;
+      }
+
+      // A dislike with a stated reason is the most useful thing here - keep the reason first so it
+      // survives the KB's per-entry truncation.
+      const text =
+        kind === "like"
+          ? `user liked: ${summary}`
+          : reason
+            ? `user disliked (${reason}): ${summary}`
+            : `user disliked: ${summary}`;
+
+      const learningBotId = botIdFromName(botName);
+      await updateLearningKb(LEARNINGS_DIR, learningBotId, (kb) =>
+        appendLearning(kb, {
+          kind: kind === "like" ? "learning" : "mistake",
+          text,
+          source: "user_correction"
+        })
+      );
+      localBus.publish("feedback.received", { botName, kind, reason }, { source: "ui" });
+      sendJson(res, 200, {
+        status: "recorded",
+        kind,
+        message:
+          kind === "like"
+            ? "Noted — I'll keep doing that."
+            : "Noted — I'll avoid that next time."
+      });
+    } catch (err) {
+      sendJson(res, 400, { detail: (err as Error).message });
     }
     return;
   }
