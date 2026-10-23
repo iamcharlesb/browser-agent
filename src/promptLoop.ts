@@ -2,7 +2,7 @@
 
 import OpenAI from "openai";
 import { TOOLS, ToolExecutionResult, executeTool } from "./agentTools";
-import { BrowserActionError, BrowserController, PageState } from "./browserController";
+import { BrowserController, PageState } from "./browserController";
 import {
   claudeCliModelAlias,
   claudeCliResultToChatCompletion,
@@ -65,6 +65,12 @@ export type OnHumanVerification = (state: PageState) => Promise<void> | void;
 export type OnTerminalApproval = (details: { toolName: string; description: string }) => Promise<boolean> | boolean;
 export type OnScheduleTask = (input: Record<string, unknown>) => Promise<ToolExecutionResult>;
 export type OnLearningKb = (input: Record<string, unknown>) => Promise<ToolExecutionResult>;
+/**
+ * Polled before every model call and every tool call. Returning true ends the run immediately.
+ * Without this, "Stop" only told the UI the run was over - the loop kept calling the model and
+ * kept driving the browser, so a stopped agent could still click things and spend tokens.
+ */
+export type ShouldAbort = () => boolean;
 
 interface ExtractedToolCall {
   id: string;
@@ -92,7 +98,15 @@ export interface AgentOrchestratorOptions {
   onTerminalApproval?: OnTerminalApproval;
   onScheduleTask?: OnScheduleTask;
   onLearningKb?: OnLearningKb;
+  /** Cooperative cancellation; see ShouldAbort. */
+  shouldAbort?: ShouldAbort;
   scheduleTimeZone?: string;
+  /**
+   * The user turned on "Approve for me", so engagement they've already scoped is approved.
+   * Without this the prompt kept ordering the bot to stop and ask even after the user had said
+   * yes - it asked, got a yes, then asked again on the next turn.
+   */
+  standingApproval?: boolean;
   /** Set false for scheduled/unattended runs: removes local writes and paid image generation. */
   allowPrivilegedTools?: boolean;
   /** Set false for unattended tasks so they can inspect pages but cannot click or type. */
@@ -145,6 +159,28 @@ export function requiresInitialBrowserState(task: string, browserUrl: string): b
   return false;
 }
 
+/**
+ * Pulls a pure arithmetic expression out of a request, or null if there isn't one.
+ *
+ * Deliberately strict: it only matches when what's left after stripping a leading "calculate"/
+ * "what is" is *entirely* numbers and operators. "calculate 2 + 2" matches; "what's the revenue
+ * for Q2 2024" does not, so a research question never gets handed to the calculator.
+ */
+export function extractArithmeticExpression(request: string): string | null {
+  const stripped = request
+    .trim()
+    .replace(/^(?:please\s+)?(?:can you\s+)?(?:calculate|compute|evaluate|work out|what(?:'s| is))\s+/i, "")
+    .replace(/[?.]+\s*$/, "")
+    .replace(/\s+and\s+tell\s+me\s+the\s+answer$/i, "")
+    .trim();
+  if (!stripped || stripped.length > 200) return null;
+  // Numbers and operators only, and at least one operator - a bare "42" is not a calculation.
+  if (!/^[\d\s+\-*/^%().,]+$/.test(stripped)) return null;
+  if (!/[+\-*/^%]/.test(stripped)) return null;
+  if (!/\d/.test(stripped)) return null;
+  return stripped;
+}
+
 export class AgentOrchestrator {
   private readonly task: string;
   private readonly botName: string;
@@ -164,9 +200,11 @@ export class AgentOrchestrator {
   private readonly onEvent?: OnEvent;
   private readonly onHumanVerification?: OnHumanVerification;
   private readonly onTerminalApproval?: OnTerminalApproval;
+  private readonly standingApproval: boolean;
   private readonly allowPrivilegedTools: boolean;
   private readonly onScheduleTask?: OnScheduleTask;
   private readonly onLearningKb?: OnLearningKb;
+  private readonly shouldAbort?: ShouldAbort;
   private readonly scheduleTimeZone: string;
   private readonly allowBrowserInteraction: boolean;
   private readonly toolsForModel: OpenAI.Chat.Completions.ChatCompletionTool[];
@@ -243,9 +281,11 @@ export class AgentOrchestrator {
     this.onEvent = options.onEvent;
     this.onHumanVerification = options.onHumanVerification;
     this.onTerminalApproval = options.onTerminalApproval;
+    this.standingApproval = options.standingApproval ?? false;
     this.allowPrivilegedTools = options.allowPrivilegedTools ?? true;
     this.onScheduleTask = options.onScheduleTask;
     this.onLearningKb = options.onLearningKb;
+    this.shouldAbort = options.shouldAbort;
     this.scheduleTimeZone = options.scheduleTimeZone || "UTC";
     this.allowBrowserInteraction = options.allowBrowserInteraction ?? true;
     this.toolsForModel = TOOLS.filter((tool) => {
@@ -259,6 +299,20 @@ export class AgentOrchestrator {
   }
 
   private buildSystemPrompt(): string {
+    // The approval rules have to reflect what the user actually granted. Hardcoding "always stop
+    // and ask" meant the bot asked, got a yes, and then asked again on the very next turn.
+    const approvalRules = this.standingApproval
+      ? "STANDING APPROVAL — the user has turned on 'Approve for me'. They have already said yes:\n" +
+        "- Engagement they've scoped (follows, likes, comments on targets you shortlisted) is APPROVED. Do it in paced batches without asking again.\n" +
+        "- Do NOT re-ask for what is already approved. Re-asking after a yes is the exact thing they complained about. Announce what you're doing, then do it.\n" +
+        "- Still stop and ask, every time, for: publishing new posts/content, direct messages, payments, profile/bio/password changes, deletions, and anything irreversible or public under their name.\n" +
+        "- Scheduled/unattended runs are still research-and-draft only; standing approval does not extend to them.\n" +
+        "- If part of a request is in scope and part isn't, do the in-scope part now and name the rest in one line.\n"
+      : "APPROVALS — the user has NOT granted standing approval:\n" +
+        "- Stop for approval before follows/likes/comments/posts/publishes/GA-GTM edits; research + drafting is free to do.\n" +
+        "- Propose a specific batch (targets + exact wording) and ask once. Don't ask the same question twice.\n" +
+        "- If they say they approve everything / give blanket approval, tell them to turn on 'Approve for me' in the composer — one click, and it's what actually grants it. Never claim standing approval you weren't given.\n";
+
     return (
       `You are ${this.botName}. Role & Purpose: ${this.expertise}.\n` +
       "Local personal agent in Open Bots (runs behind the user's browser).\n" +
@@ -274,7 +328,7 @@ export class AgentOrchestrator {
       "- Then give a compact actionable plan (≤8 short lines). Prefer structured labels over essays.\n" +
       "- ≤3 targeted research calls when needed; don't burn a step farm of generic searches before a plan.\n" +
       "- Start research/audit tools to ground the plan in their real account/site when signed in; don't wait to be spoon-fed niche details.\n" +
-      "- Stop for approval before follows/likes/comments/posts/publishes/GA-GTM edits; research + drafting is free to do.\n" +
+      approvalRules +
       "SCHEDULING: schedule_task for one-time/daily jobs (tz=" + this.scheduleTimeZone + "). Schedules are read-only for engagement (research/monitor/draft only). Never like/follow/comment/post from a schedule. Ask before recurring paid model runs; set costApproved only after explicit yes.\n" +
       "VOICE: warm, direct, specific — like a sharp social-media co-founder texting. Never corporate filler ('Certainly!', 'Here are several strategies:', 'In conclusion').\n" +
       "CAPABILITIES: delegate_to_bot (workspace roster in CONTEXT); learning_kb (durable local memory); run_terminal_command; headless web_search/calculate/create_document/workspace_file/understand_youtube_video; generate_image (one clear prompt); browser navigate/click_*/type_*/extract_page_data/scroll/wait.\n" +
@@ -286,7 +340,9 @@ export class AgentOrchestrator {
       "5. After SPA profile clicks (IG/X), extract_page_data or wait(1s) before failing.\n" +
       "6. YouTube → understand_youtube_video, never navigate for transcripts.\n" +
       "7. Never expose credentials; ask before money or public post/delete.\n" +
-      "8. RESEARCH YOURSELF for niche targets: infer niche from profile, find real candidates, draft comments, return a shortlist for approval. Never follow/like/comment/message until they approve specific targets+wording.\n" +
+      (this.standingApproval
+        ? "8. RESEARCH YOURSELF for niche targets: infer niche from profile, find real candidates, draft comments, then EXECUTE the paced batch — they've already approved engagement. Report what you did; don't ask first.\n"
+        : "8. RESEARCH YOURSELF for niche targets: infer niche from profile, find real candidates, draft comments, return a shortlist for approval. Never follow/like/comment/message until they approve specific targets+wording.\n") +
       "9. PACE engagement: ≤5–8 likes/follows/comments per run with wait between; leave the rest for later.\n" +
       "10. CONFIRM UI state (Follow→Following, toast, visible comment) before claiming success.\n" +
       "11. LEARNINGS/KB in CONTEXT: recall niche, prior mistakes, and what worked; when the user corrects you, call learning_kb save (mistake/intent) so the next run is smarter. For growth/SEO/Reddit, reuse prior niche and avoid repeating failed approaches.\n" +
@@ -295,7 +351,9 @@ export class AgentOrchestrator {
       "- Plan shape (keep lean): Goal & niche | Profile audit | Content angle (2–3 post ideas) | Engagement (who to like/comment + draft lines) | Follow targets (5–8 handles + why) | Pacing (≤5–8 actions/run) | Schedule (optional daily research-only check-in).\n" +
       "- Execution order: (1) open signed-in profile + read stats/bio/posts, (2) infer niche, (3) research real accounts / hashtags, (4) return shortlist + draft comments + ask what to approve, (5) only then execute approved follows/likes/comments with pacing.\n" +
       "- If not signed in: say so once, ask Open Live Browser / sign in, then resume — don't burn steps guessing.\n" +
-      "- Prefer propose→approve→execute over unsupervised engagement.\n" +
+      (this.standingApproval
+        ? "- They approved engagement: run propose→execute yourself in paced batches, and report results instead of asking.\n"
+        : "- Prefer propose→approve→execute over unsupervised engagement.\n") +
       "REDDIT / COMMUNITY GROWTH PLAYBOOK (smart marketer — never naive spam):\n" +
       "- On 'Reddit bot / promote on Reddit / community growth': refuse unsupervised auto-posting. Reason → lean plan → research rules/subs → drafts + schedule for approval. Never blast links or spam identical comments.\n" +
       "- Plan shape (≤8 lines): Positioning | Target subs (3–5 + why) | Rules/self-promo norms | Account trust (aged > throwaway; karma/comment history; ban/shadowban/spam-filter risk) | Karma-build phase (value-only first) | Content angles (2–3 value-first drafts, disclosure when relevant) | Engagement + pacing | Schedule (research/draft-only unless they approve a specific post) | Do-NOT list.\n" +
@@ -310,6 +368,26 @@ export class AgentOrchestrator {
       "- AI visibility / GEO / AEO: honest tactics only (clear entities, citable facts, FAQ structure, authoritative brand mentions). State limits of ChatGPT/Claude/Perplexity-style answer engines; never promise 'rank #1 in AI' or fake visibility scores.\n" +
       "- SERP: prefer Search Console + user's own properties + careful web_search. Do NOT scrape Google SERP in ways that violate ToS.\n" +
       "- Output: compact plan → grounded findings → prioritized next actions + what to approve. Stop before publishing content, changing tags, or editing analytics config.\n" +
+      "LINKEDIN / B2B OUTREACH PLAYBOOK (research-led, never a connect-spray):\n" +
+      "- On 'LinkedIn / connect / prospects / leads / outreach / ICP': do NOT start connecting. Reason → compact plan → research real profiles → draft personalised notes → batch for approval.\n" +
+      "- Plan shape (≤8 lines): ICP & trigger | Target list (5-10 profiles + why each) | Connection note drafts (personalised, ≤300 chars) | Follow-up message | Pacing | What needs approval | Risks | Measurement.\n" +
+      "- LIMITS worth naming once: LinkedIn weekly invite caps (roughly 100-200/week, account-dependent), automation detection, and restriction/ban risk. Pace ≤10-15 invites per run with waits. Never bulk-connect.\n" +
+      "- Personalise from something real on the profile (a post, a role change, shared group). A generic 'I'd like to add you to my network' is what gets accounts flagged and ignored.\n" +
+      "- Connect, invite, endorse, message, and post are side effects: they need approval unless standing approval is on, and messages/posts need it even then.\n" +
+      "- Prefer: engage with their content first → connect with a referenced note → follow up only after they accept. Never scrape at volume or use private/unofficial LinkedIn APIs.\n" +
+      "COLD EMAIL / SEQUENCE PLATFORM PLAYBOOK (Instantly, Lemlist, Apollo, Smartlead):\n" +
+      "- You can navigate these in the browser when the user is signed in: read campaign stats, build lists, draft copy, and set a sequence up. You must NOT press send, launch, resume, or enable a campaign without explicit approval for that specific campaign — mail cannot be unsent.\n" +
+      "- Plan shape (≤8 lines): Offer & ICP | List source & verification | Domain/inbox health (separate sending domain, SPF/DKIM/DMARC, warmup, daily cap) | Sequence (3-4 touches, value-first) | Personalisation variables | Deliverability risks | Compliance | What to approve.\n" +
+      "- Say plainly, once, what the user is responsible for: consent/legitimate interest under GDPR, CAN-SPAM's real postal address and working one-click opt-out, honouring unsubscribes, and that burnt domains don't recover quickly. Advise a dedicated sending domain, never the primary one.\n" +
+      "- Sensible defaults to recommend: warm the inbox first, 20-50 sends/inbox/day, spread across inboxes, stop a sequence on reply, suppress existing customers and prior recipients.\n" +
+      "- Never invent reply/open rates, never buy or scrape lists, never send to a list the user can't explain the source of. If deliverability looks bad, say so instead of sending anyway.\n" +
+      "- Reading dashboards, exporting stats, and drafting copy are free. Launching, resuming, importing-then-sending, and anything that puts mail in an inbox are approval-gated.\n" +
+      "UX / PRODUCT DESIGN PLAYBOOK (evidence-based product partner):\n" +
+      "- On 'UX / UI / usability / a11y / flow / IA / wireframe / redesign': do NOT dump generic design tips and stop. Reason → compact labeled plan → inspect the live page in the browser → severity-ranked findings → ask approval before product UI changes.\n" +
+      "- Plan shape (≤8–10 short labeled lines): Goals & audience | Key flows | Heuristic scan (Nielsen-style, lean) | A11y (contrast, focus, labels, keyboard) | IA/nav/copy | Friction & opportunities | Prioritized fixes (P0–P2) | Approvals / retest.\n" +
+      "- Ground critique in what you see on the page (CTAs, forms, empty/error states, hierarchy, spacing, mobile when relevant). Never invent user interviews, heatmaps, or conversion rates you didn't observe.\n" +
+      "- Prefer clear problem → evidence → recommended fix over subjective taste. Call out accessibility issues with WCAG-minded language when visible.\n" +
+      "- Output: short plan → findings with severity → concrete next actions; stop before rewriting live product UI unless the user approves specific changes.\n" +
       (this.collaborationContext ? `\nCONTEXT:\n${this.collaborationContext}\n` : "")
     );
   }
@@ -442,6 +520,28 @@ export class AgentOrchestrator {
     return resolvedState;
   }
 
+  /** True once the caller has asked for the run to stop. Never throws out of the hook. */
+  private aborted(): boolean {
+    if (!this.shouldAbort) return false;
+    try {
+      return this.shouldAbort();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("shouldAbort hook raised; treating the run as still active.", err);
+      return false;
+    }
+  }
+
+  private abortResult(step: number): AgentResult {
+    return this.finish({
+      success: false,
+      summary: "Stopped before finishing, as you asked.",
+      stepsTaken: step,
+      elapsedSeconds: this.loopGuard.elapsedSeconds(),
+      terminationReason: "stopped"
+    });
+  }
+
   private extractUserRequestCore(): string {
     const marker = "User request:";
     const idx = this.task.lastIndexOf(marker);
@@ -530,6 +630,18 @@ export class AgentOrchestrator {
     }
 
     // 5. Fallback to local web search + workspace summary if no other tool matched
+    // Arithmetic has to be caught before the web_search fallback. Without this, "calculate 2 + 2"
+    // fell through to a search and came back with film trivia - a confidently wrong answer to a
+    // question the calculator tool could have answered exactly.
+    const arithmetic = extractArithmeticExpression(rawRequest);
+    if (outputs.length === 0 && arithmetic) {
+      const calcRes = await executeTool("calculate", { expression: arithmetic }, this.browser);
+      emitLocalStep("calculate", { expression: arithmetic }, calcRes);
+      if (calcRes.ok) {
+        outputs.push(calcRes.message);
+      }
+    }
+
     if (outputs.length === 0) {
       const searchRes = await executeTool("web_search", { query: rawRequest.slice(0, 120) }, this.browser);
       emitLocalStep("web_search", { query: rawRequest.slice(0, 120) }, searchRes);
@@ -701,6 +813,7 @@ export class AgentOrchestrator {
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
+      if (this.aborted()) return this.abortResult(step);
       step += 1;
       try {
         this.loopGuard.checkCircuitBreaker(step);
@@ -757,6 +870,9 @@ export class AgentOrchestrator {
         });
       }
 
+      // A model call can take a while; don't spend its tool calls on a run the user stopped.
+      if (this.aborted()) return this.abortResult(step);
+
       const message = response.choices[0].message;
       const toolCalls = this.extractToolCalls(message);
       this.messages.push(this.serializeAssistantMessage(message, toolCalls.length));
@@ -788,6 +904,8 @@ export class AgentOrchestrator {
         if (i > 0) {
           step += 1;
         }
+        // Checked per call, not per batch: a batch of eight clicks must not finish after Stop.
+        if (this.aborted()) return this.abortResult(step);
 
         if (toolCall.name === "delegate_to_bot") {
           const targetBotName = String(toolCall.input.targetBotName ?? "").trim() || "Specialist Bot";
@@ -1143,6 +1261,9 @@ export class AgentOrchestrator {
           }. Retrying in ${backoffMs}ms.`
         );
         await sleep(backoffMs);
+        if (this.aborted()) {
+          throw new Error("Run stopped while retrying the LLM API.");
+        }
       }
     }
     throw new Error(`Exhausted retries calling the LLM API: ${(lastErr as Error)?.message ?? lastErr}`);

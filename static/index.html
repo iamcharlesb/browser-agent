@@ -297,37 +297,57 @@ button { color: inherit; }
   transition: transform 0.2s ease;
 }
 
-/* Grok-like bot faces: snappy idle breath + blink; working = fast scan + punchy pulse.
-   CSS owns transforms (no SVG attr transform on .bot-eyes) so animation always applies. */
+/* Grok-like bot faces — each bot gets its own phase/duration/mood via CSS vars
+   set in JS (--bot-breath-*, --bot-eye-*, --bot-work-*, .bot-mood-N). */
 svg.bot-char-svg .bot-body {
   transform-box: fill-box;
   transform-origin: 50% 50%;
-  animation: botBreath 1.75s ease-in-out infinite;
+  animation: botBreath var(--bot-breath-dur, 1.85s) ease-in-out infinite;
+  animation-delay: var(--bot-breath-delay, 0s);
 }
 svg.bot-char-svg .bot-eyes {
   transform-box: fill-box;
   transform-origin: 50% 50%;
   transform: rotate(-20deg);
-  animation: botEyeBlink 2.1s ease-in-out infinite;
+  animation: botEyeBlinkA var(--bot-eye-dur, 2.4s) ease-in-out infinite;
+  animation-delay: var(--bot-eye-delay, 0s);
 }
-/* Desync surfaces so bots don't blink in lockstep */
-.msg-bot-avatar svg.bot-char-svg .bot-eyes { animation-delay: -0.7s; }
-.agent-row:nth-child(2n) .agent-avatar svg.bot-char-svg .bot-eyes { animation-delay: -1.1s; }
-.agent-row:nth-child(3n) .agent-avatar svg.bot-char-svg .bot-eyes { animation-delay: -0.35s; }
-.template-avatar svg.bot-char-svg .bot-eyes { animation-delay: -0.9s; }
-#welcome-avatar svg.bot-char-svg .bot-eyes { animation-delay: -0.2s; }
-#welcome-avatar svg.bot-char-svg .bot-body { animation-delay: -0.45s; }
+.bot-mood-1 svg.bot-char-svg .bot-eyes,
+svg.bot-char-svg.bot-mood-1 .bot-eyes { animation-name: botEyeBlinkB; }
+.bot-mood-2 svg.bot-char-svg .bot-eyes,
+svg.bot-char-svg.bot-mood-2 .bot-eyes { animation-name: botEyeBlinkC; }
+.bot-mood-3 svg.bot-char-svg .bot-eyes,
+svg.bot-char-svg.bot-mood-3 .bot-eyes { animation-name: botEyeBlinkD; }
 
 .agent-avatar.is-working svg.bot-char-svg .bot-body,
 .agent-row.is-working .agent-avatar svg.bot-char-svg .bot-body,
 .run-presence .agent-avatar svg.bot-char-svg .bot-body {
-  animation: botPulseWork 0.72s ease-in-out infinite;
+  animation: botPulseWork var(--bot-work-body-dur, 0.78s) ease-in-out infinite;
+  animation-delay: var(--bot-work-delay, 0s);
 }
 .agent-avatar.is-working svg.bot-char-svg .bot-eyes,
 .agent-row.is-working .agent-avatar svg.bot-char-svg .bot-eyes,
 .run-presence .agent-avatar svg.bot-char-svg .bot-eyes {
-  animation: botEyeWork 0.8s ease-in-out infinite;
-  animation-delay: 0s;
+  animation: botEyeWorkA var(--bot-work-eye-dur, 0.95s) ease-in-out infinite;
+  animation-delay: var(--bot-work-delay, 0s);
+}
+.bot-mood-1.agent-avatar.is-working svg.bot-char-svg .bot-eyes,
+.agent-row.is-working.bot-mood-1 .agent-avatar svg.bot-char-svg .bot-eyes,
+.run-presence.bot-mood-1 .agent-avatar svg.bot-char-svg .bot-eyes,
+.agent-avatar.is-working.bot-mood-1 svg.bot-char-svg .bot-eyes {
+  animation-name: botEyeWorkB;
+}
+.bot-mood-2.agent-avatar.is-working svg.bot-char-svg .bot-eyes,
+.agent-row.is-working.bot-mood-2 .agent-avatar svg.bot-char-svg .bot-eyes,
+.run-presence.bot-mood-2 .agent-avatar svg.bot-char-svg .bot-eyes,
+.agent-avatar.is-working.bot-mood-2 svg.bot-char-svg .bot-eyes {
+  animation-name: botEyeWorkC;
+}
+.bot-mood-3.agent-avatar.is-working svg.bot-char-svg .bot-eyes,
+.agent-row.is-working.bot-mood-3 .agent-avatar svg.bot-char-svg .bot-eyes,
+.run-presence.bot-mood-3 .agent-avatar svg.bot-char-svg .bot-eyes,
+.agent-avatar.is-working.bot-mood-3 svg.bot-char-svg .bot-eyes {
+  animation-name: botEyeWorkD;
 }
 
 @keyframes botBreath {
@@ -338,16 +358,36 @@ svg.bot-char-svg .bot-eyes {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.12); }
 }
-/* ~2.1s cycle; each blink ~100ms (≈5% of cycle) */
-@keyframes botEyeBlink {
-  0%, 58%, 100% { transform: rotate(-20deg) scaleY(1); }
-  63% { transform: rotate(-20deg) scaleY(0.06); }
-  68% { transform: rotate(-20deg) scaleY(1); }
-  84% { transform: rotate(-20deg) scaleY(1); }
-  89% { transform: rotate(-20deg) scaleY(0.06); }
+/* Idle blink personalities — different cadence so bots don't lockstep */
+@keyframes botEyeBlinkA {
+  0%, 62%, 100% { transform: rotate(-20deg) scaleY(1); }
+  66% { transform: rotate(-20deg) scaleY(0.06); }
+  71% { transform: rotate(-20deg) scaleY(1); }
+  86% { transform: rotate(-20deg) scaleY(1); }
+  90% { transform: rotate(-20deg) scaleY(0.06); }
   94% { transform: rotate(-20deg) scaleY(1); }
 }
-@keyframes botEyeWork {
+@keyframes botEyeBlinkB {
+  0%, 40%, 100% { transform: rotate(-18deg) scaleY(1); }
+  45% { transform: rotate(-18deg) scaleY(0.05); }
+  52% { transform: rotate(-18deg) scaleY(1); }
+}
+@keyframes botEyeBlinkC {
+  0%, 28%, 100% { transform: rotate(-22deg) translate(0, 0) scaleY(1); }
+  12% { transform: rotate(-22deg) translate(-5px, 0) scaleY(1); }
+  22% { transform: rotate(-22deg) translate(4px, 1px) scaleY(1); }
+  32% { transform: rotate(-22deg) translate(0, 0) scaleY(0.08); }
+  38% { transform: rotate(-22deg) translate(0, 0) scaleY(1); }
+}
+@keyframes botEyeBlinkD {
+  0%, 55%, 72%, 100% { transform: rotate(-16deg) scaleY(1); }
+  58% { transform: rotate(-16deg) scaleY(0.06); }
+  62% { transform: rotate(-16deg) scaleY(1); }
+  65% { transform: rotate(-16deg) scaleY(0.06); }
+  69% { transform: rotate(-16deg) scaleY(1); }
+}
+/* Working eye personalities */
+@keyframes botEyeWorkA {
   0%, 100% { transform: rotate(-20deg) translate(0, 0) scaleY(1); }
   18% { transform: rotate(-20deg) translate(-9px, -2px) scaleY(1); }
   36% { transform: rotate(-20deg) translate(9px, -1px) scaleY(1); }
@@ -356,6 +396,30 @@ svg.bot-char-svg .bot-eyes {
   72% { transform: rotate(-20deg) translate(-6px, 2px) scaleY(1); }
   85% { transform: rotate(-20deg) translate(3px, -2px) scaleY(0.1); }
   92% { transform: rotate(-20deg) translate(0, 0) scaleY(1); }
+}
+@keyframes botEyeWorkB {
+  0%, 100% { transform: rotate(-18deg) translate(0, 0) scaleY(1); }
+  25% { transform: rotate(-18deg) translate(0, -7px) scaleY(1); }
+  50% { transform: rotate(-18deg) translate(0, 5px) scaleY(0.12); }
+  65% { transform: rotate(-18deg) translate(0, 4px) scaleY(1); }
+  80% { transform: rotate(-18deg) translate(0, -3px) scaleY(1); }
+}
+@keyframes botEyeWorkC {
+  0%, 100% { transform: rotate(-22deg) scaleY(1); }
+  15% { transform: rotate(-22deg) scaleY(0.08); }
+  28% { transform: rotate(-22deg) scaleY(1); }
+  42% { transform: rotate(-22deg) scaleY(0.08); }
+  55% { transform: rotate(-22deg) scaleY(1); }
+  70% { transform: rotate(-22deg) translate(7px, 0) scaleY(1); }
+  85% { transform: rotate(-22deg) translate(-7px, 0) scaleY(1); }
+}
+@keyframes botEyeWorkD {
+  0% { transform: rotate(-20deg) translate(-6px, -3px) scaleY(1); }
+  25% { transform: rotate(-20deg) translate(6px, -3px) scaleY(1); }
+  40% { transform: rotate(-20deg) translate(6px, 3px) scaleY(0.1); }
+  55% { transform: rotate(-20deg) translate(6px, 3px) scaleY(1); }
+  75% { transform: rotate(-20deg) translate(-6px, 3px) scaleY(1); }
+  100% { transform: rotate(-20deg) translate(-6px, -3px) scaleY(1); }
 }
 
 /* Create Bot Modal (Grok Bots Shape & Color Customizer) */
@@ -2431,10 +2495,19 @@ dialog.modal-dialog::backdrop {
   .header-pill-btn span.btn-label { display: none; }
 }
 @media (max-width: 430px) {
-  .topbar-right { flex: 0 0 112px; overflow-x: auto; scrollbar-width: none; max-width: 112px; overscroll-behavior-x: contain; }
+  .topbar-right {
+    flex: 0 1 auto;
+    max-width: min(56vw, 200px);
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    position: relative;
+    z-index: 2;
+    justify-content: flex-start;
+  }
   .topbar-right::-webkit-scrollbar { display: none; }
   .topbar-right .header-pill-btn { flex: 0 0 30px; }
-  #agent-chip { min-width: 0; padding-right: 2px; }
+  #agent-chip { flex: 1 1 0; min-width: 0; max-width: 42vw; padding-right: 2px; position: relative; z-index: 1; }
   #composer { gap: 2px; padding: 6px; }
   .composer-action { width: 30px; height: 30px; font-size: 13px; }
   .approval-action { width: 30px; min-width: 30px; max-width: 30px; height: 30px; }
@@ -2460,6 +2533,151 @@ dialog.modal-dialog::backdrop {
   .run-presence-label { animation: none !important; }
   .run-presence-label { color: var(--text-secondary); background: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   Agent state, expressed as motion.
+
+   First pass at this was a permanent spin+zoom loop. It looked busy and said
+   nothing: the same animation played whether the agent was flying through
+   steps, stuck on one selector for a minute, or waiting on the user. It also
+   competed with the text people are actually trying to read.
+
+   So motion here is tied to state and to events, not to a decorative loop:
+     idle      - still
+     thinking  - slow breathing; "alive", ignorable in peripheral vision
+     step      - one tick per real step event, so the RHYTHM is the progress
+                 bar. Rapid ticks = moving fast. No ticks = stalled, visible
+                 at a glance without reading the step counter.
+     needs-you - the only state allowed to pull focus, because it's the only
+                 one where nothing happens until the user acts.
+     done      - one settle, then stop.
+   --------------------------------------------------------------------------- */
+
+/* +2px and a lit, raised surface rather than a flat glyph. */
+.agent-avatar {
+  width: 36px;
+  height: 36px;
+  background-image:
+    radial-gradient(120% 120% at 30% 18%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
+  box-shadow:
+    0 3px 8px rgba(22, 119, 255, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 -2px 4px rgba(0, 0, 0, 0.16) inset;
+}
+.composer-action svg,
+.agent-avatar svg {
+  width: 20px;
+  height: 20px;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.4)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.22));
+}
+/* Buttons react to the pointer. They do not animate on their own - a row of
+   jittering icons is noise, and none of it is about agent state. */
+.composer-action {
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.composer-action:hover { transform: translateY(-1px) scale(1.04); }
+.composer-action:active { transform: translateY(1px) scale(0.97); }
+
+/* Thinking: ~4% over 2.4s. Deliberately almost subliminal. */
+@keyframes agentBreathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
+}
+.agent-avatar.is-working,
+.agent-row.is-working .agent-avatar,
+.run-presence .agent-avatar {
+  animation: agentBreathe 2.4s ease-in-out infinite;
+}
+
+/* One tick per step event. Short, springy, self-cancelling. */
+@keyframes agentStep {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.16); }
+  70%  { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+@keyframes agentStepRipple {
+  0%   { box-shadow: 0 0 0 0 rgba(22, 119, 255, 0.45); }
+  100% { box-shadow: 0 0 0 10px rgba(22, 119, 255, 0); }
+}
+.agent-avatar.is-step,
+.run-presence .agent-avatar.is-step {
+  animation: agentStep 400ms cubic-bezier(0.34, 1.56, 0.64, 1),
+             agentStepRipple 600ms ease-out;
+}
+
+/* Needs you. Warm, insistent, and the only thing on screen that nags. */
+@keyframes agentNeedsYou {
+  0%, 100%  { transform: translateY(0) scale(1); }
+  12%       { transform: translateY(-4px) scale(1.07); }
+  24%       { transform: translateY(0) scale(1); }
+  36%       { transform: translateY(-2px) scale(1.03); }
+  48%       { transform: translateY(0) scale(1); }
+}
+.agent-avatar.needs-you,
+.run-presence .agent-avatar.needs-you {
+  animation: agentNeedsYou 1.8s ease-in-out infinite;
+  background-image:
+    radial-gradient(120% 120% at 30% 18%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22), 0 4px 12px rgba(245, 158, 11, 0.35);
+}
+
+/* Done: one settle, then still. */
+@keyframes agentSettle {
+  0%   { transform: scale(1.1); }
+  60%  { transform: scale(0.98); }
+  100% { transform: scale(1); }
+}
+.agent-avatar.just-finished { animation: agentSettle 420ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* Reduced motion: keep the meaning, drop the movement. Needs-you still reads as
+   different because it is a colour change, not a dance. */
+@media (prefers-reduced-motion: reduce) {
+  .agent-avatar.is-working,
+  .agent-row.is-working .agent-avatar,
+  .run-presence .agent-avatar,
+  .agent-avatar.is-step,
+  .agent-avatar.needs-you,
+  .agent-avatar.just-finished {
+    animation: none;
+  }
+  .agent-avatar.needs-you { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.5); }
+}
+
+/* Per-message feedback row */
+.msg-feedback {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-top: 6px;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+.message:hover .msg-feedback,
+.msg-feedback:focus-within,
+.msg-feedback.is-answered { opacity: 1; }
+.msg-feedback button {
+  border: 1px solid rgba(127, 127, 127, 0.28);
+  background: transparent;
+  color: inherit;
+  border-radius: 7px;
+  padding: 3px 7px;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.msg-feedback button:hover { transform: translateY(-1px) scale(1.06); background: rgba(127, 127, 127, 0.12); }
+.msg-feedback button:active { transform: translateY(1px) scale(0.96); }
+.msg-feedback button[disabled] { cursor: default; opacity: 0.85; transform: none; }
+.msg-feedback button.picked-like { border-color: rgba(16, 185, 129, 0.75); color: #10b981; }
+.msg-feedback button.picked-dislike { border-color: rgba(239, 68, 68, 0.75); color: #ef4444; }
+.msg-feedback .msg-feedback-note { font-size: 11px; opacity: 0.7; }
 </style>
 </head>
 <body>
@@ -2597,6 +2815,13 @@ dialog.modal-dialog::backdrop {
                 <span>Monitor real-time discussions, viral threads &amp; breaking news.</span>
               </div>
             </button>
+            <button type="button" class="template-card" data-name="UX Specialist" data-desc="Product UX partner: audit flows, heuristics, a11y, IA, and copy — plan first, critique with evidence from the live page, propose fixes you approve." data-shape="tilted-square" data-color="#ea580c">
+              <div class="template-avatar" data-shape="tilted-square" data-color="#ea580c"></div>
+              <div class="template-copy">
+                <strong>UX Specialist</strong>
+                <span>Audit flows → heuristics &amp; a11y → clear fix proposals you approve.</span>
+              </div>
+            </button>
             <button type="button" class="template-card" data-name="Competitor Intelligence" data-desc="Research competitor websites, compare pricing & features, and synthesize executive comparisons." data-shape="circle" data-color="#1677ff">
               <div class="template-avatar" data-shape="circle" data-color="#1677ff"></div>
               <div class="template-copy">
@@ -2624,6 +2849,7 @@ dialog.modal-dialog::backdrop {
               <button type="button" id="attach-button" class="composer-action" aria-label="Attach files" title="Attach text, code, CSV, or JSON files">+</button>
               <button type="button" id="schedule-button" class="composer-action" aria-label="Schedule task" title="Schedule a recurring or future task"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></button>
               <button type="button" id="auto-approve-toggle" class="composer-action approval-action" aria-label="Approve for me" title="Asking before sensitive actions (terminal commands, file writes, financial/external tasks). Click to auto-approve instead."><span id="auto-approve-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 19 6v5c0 4.4-2.7 7.8-7 10-4.3-2.2-7-5.6-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="composer-action-label" aria-hidden="true">Approve for me</span></button>
+              <button type="button" id="learn-mode-button" class="composer-action" aria-label="Learn mode" title="Learn mode: rehearse this task, grade the experience, and show me what to fix" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4 3 8l9 4 9-4-9-4Z"/><path d="M7 10.5V15c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5v-4.5"/><path d="M21 8v5"/></svg><span class="composer-action-label" aria-hidden="true">Learn</span></button>
               <label for="prompt" class="sr-only">Message or command</label>
               <textarea id="prompt" rows="1" placeholder="Ask anything, run $ command, or paste a URL…"></textarea>
               <label class="sr-only" for="composer-model-select">Choose model</label>
@@ -2737,7 +2963,7 @@ dialog.modal-dialog::backdrop {
 </div>
 
 <!-- Create / Customize Bot Modal (Grok Bots Customizer) -->
-<dialog id="create-bot-modal" class="modal-dialog" closedby="any" aria-labelledby="create-bot-modal-title" style="width:min(92vw, 420px);">
+<dialog id="create-bot-modal" class="modal-dialog" closedby="closerequest" aria-labelledby="create-bot-modal-title" style="width:min(92vw, 420px);">
   <div class="modal-inner">
     <div class="modal-header">
       <h2 id="create-bot-modal-title">Create New Bot</h2>
@@ -3133,6 +3359,7 @@ dialog.modal-dialog::backdrop {
     "Instagram Follower Growth": "heart",
     "Reddit Community Growth": "cloud",
     "SEO Specialist": "hexagon",
+    "UX Specialist": "tilted-square",
     "X / Grok Trend Researcher": "starburst",
     "Competitor Intelligence": "pentagon"
   };
@@ -3162,8 +3389,42 @@ dialog.modal-dialog::backdrop {
     );
   }
 
+  /** Stable hash so each bot keeps its own animation personality across renders. */
+  function botAnimSeed(value) {
+    var s = String(value == null ? "" : value);
+    var h = 2166136261;
+    for (var i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function applyBotAnimPersonality(el, seedSource) {
+    if (!el) return;
+    var seed = botAnimSeed(seedSource);
+    var mood = seed % 4;
+    var breathDur = (1.45 + (seed % 17) * 0.07).toFixed(2) + "s";
+    var breathDelay = (-((seed % 2300) / 1000)).toFixed(2) + "s";
+    var eyeDur = (1.9 + (seed % 23) * 0.09).toFixed(2) + "s";
+    var eyeDelay = (-((seed % 3100) / 1000)).toFixed(2) + "s";
+    var workBody = (0.55 + (seed % 11) * 0.05).toFixed(2) + "s";
+    var workEye = (0.7 + (seed % 13) * 0.06).toFixed(2) + "s";
+    var workDelay = (-((seed % 1700) / 1000)).toFixed(2) + "s";
+    for (var m = 0; m < 4; m++) el.classList.remove("bot-mood-" + m);
+    el.classList.add("bot-mood-" + mood);
+    el.style.setProperty("--bot-breath-dur", breathDur);
+    el.style.setProperty("--bot-breath-delay", breathDelay);
+    el.style.setProperty("--bot-eye-dur", eyeDur);
+    el.style.setProperty("--bot-eye-delay", eyeDelay);
+    el.style.setProperty("--bot-work-body-dur", workBody);
+    el.style.setProperty("--bot-work-eye-dur", workEye);
+    el.style.setProperty("--bot-work-delay", workDelay);
+  }
+
   function applyAvatarElement(el, agent, working) {
     if (!el) return;
+    var seedKey = (agent && (agent.id || agent.name)) || "new-bot";
     if (agent && (agent.shape || agent.color)) {
       el.classList.add("custom-bot");
       el.style.setProperty("--bot-color", agent.color || "#ff2d3b");
@@ -3180,6 +3441,7 @@ dialog.modal-dialog::backdrop {
       el.style.setProperty("--bot-color", autoColor);
       el.innerHTML = renderBotSvg("circle", autoColor);
     }
+    applyBotAnimPersonality(el, seedKey);
     el.classList.toggle("is-working", Boolean(working));
   }
 
@@ -3194,7 +3456,39 @@ dialog.modal-dialog::backdrop {
     if (!botIsWorking) setRunPresence(null);
   }
 
+  /**
+   * The agent's visible state. Exactly one of these is true at a time, and each looks different
+   * on purpose - a single "it's doing something" animation told the user nothing.
+   */
+  function setAgentMotion(state) {
+    var avatars = document.querySelectorAll(".run-presence .agent-avatar, .agent-avatar.msg-bot-avatar, #chip-avatar");
+    avatars.forEach(function(el) {
+      el.classList.toggle("needs-you", state === "needs-you");
+      if (state === "idle") el.classList.remove("is-step");
+    });
+    if (state === "done") {
+      var presence = document.querySelector(".run-presence .agent-avatar");
+      if (presence) {
+        presence.classList.add("just-finished");
+        setTimeout(function() { presence.classList.remove("just-finished"); }, 450);
+      }
+    }
+  }
+
+  /**
+   * One tick per real step. The rhythm is the progress signal: ticking fast means it's moving,
+   * going quiet means it's stuck - both readable without looking at the step counter.
+   */
+  function pulseAgentStep() {
+    var el = document.querySelector(".run-presence .agent-avatar");
+    if (!el) return;
+    el.classList.remove("is-step");
+    void el.offsetWidth; // restart the animation even if steps land back-to-back
+    el.classList.add("is-step");
+  }
+
   function setRunPresence(text) {
+    document.body.classList.toggle("is-run-active", Boolean(isRunning));
     if (!text || !isRunning) {
       if (runPresenceEl) runPresenceEl.remove();
       runPresenceEl = null;
@@ -3255,6 +3549,20 @@ dialog.modal-dialog::backdrop {
           "Karma-build schedule for this week"
         ],
         task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", a smart Reddit/community growth marketer") + ". Stay lean. On Reddit/promote/community asks: (1) briefly reason about positioning, target subs, and ban/spam/karma risks, (2) propose a compact plan: Positioning | Target subs | Rules/norms | Account trust | Karma-build | Content angles + drafts | Pacing/schedule | Do-NOT, (3) research a few real subs/rules only as needed, (4) return drafts + weekly cadence for approval, (5) never unsupervised post/comment/upvote or blast links. Prefer aged accounts and value-first participation; disclose affiliation when relevant."
+      };
+    if (/\bux\b|\bui\b|usability|wireframe|prototype|design system|user journey|user flow|heuristic|a11y|accessibility|information architecture|\bia\b|figma|interaction design|product design/.test(lower))
+      return {
+        kind: "ux-specialist",
+        expertise: roleText || "Product UX partner: flow audits, Nielsen heuristics, accessibility (a11y), IA/copy clarity, and evidence-based fix proposals — plan first, inspect the live page, never invent user research, ask before changing product UI",
+        url: "",
+        needsBrowserOnInit: false,
+        summary: roleText || "Flows → heuristics & a11y → IA/copy → prioritized fixes — plan first, you approve changes.",
+        suggestions: [
+          "Audit this page's UX and a11y",
+          "Map the signup flow and friction points",
+          "Propose a clearer IA for our nav"
+        ],
+        task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", a sharp product UX specialist") + ". Stay lean. On UX/UI/usability/a11y asks: (1) clarify goal, audience, and success metric, (2) propose a compact labeled plan: Goals | Key flows | Heuristic scan | A11y checks | IA/copy | Friction & opportunities | Prioritized fixes | Approvals needed, (3) open the target URL in the live browser and ground critique in what you see (layout, CTAs, forms, errors, focus/contrast when visible) — never invent user research or analytics, (4) return a short severity-ranked fix list and ask what to implement or retest. Prefer propose→approve over silent UI edits."
       };
     if (/\bseo\b|analytics|tag manager|\bgtm\b|\bga4\b|keywords?|\bserp\b|organic|search console|\bgeo\b|\baeo\b|ai visibility|funnel/.test(lower))
       return {
@@ -3461,10 +3769,79 @@ dialog.modal-dialog::backdrop {
       '<div class="message-label">' + (role === "user" ? "You" : esc(a ? a.name : "Bot")) + '</div>' +
       '<div class="bubble ' + (cls || "") + '">' + html + '</div>';
     row.appendChild(body);
+    // Like / Dislike / Reply on every agent reply. This is the cheapest read we get on whether the
+    // bot understood the intent, and it writes straight into the bot's learning KB.
+    if (role === "agent") body.appendChild(buildFeedbackRow(body.querySelector(".bubble"), a));
     messages.appendChild(row);
     messages.scrollTop = messages.scrollHeight;
     if (persist !== false) persistMessage(role, html, cls);
     return body.querySelector(".bubble");
+  }
+
+  function buildFeedbackRow(bubble, agent) {
+    var rowEl = document.createElement("div");
+    rowEl.className = "msg-feedback";
+    rowEl.innerHTML =
+      '<button type="button" class="fb-like" aria-label="Good reply" title="Good reply — do more of this">' +
+        '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M7 10v10H4V10h3Zm3 10V9l4-5 1.2.9a2 2 0 0 1 .7 2L15 10h4.2a1.8 1.8 0 0 1 1.8 2.2l-1.3 6A2 2 0 0 1 17.7 20H10Z"/></svg>' +
+        "<span>Like</span></button>" +
+      '<button type="button" class="fb-dislike" aria-label="Bad reply" title="Bad reply — tell it what was wrong">' +
+        '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M7 14V4H4v10h3Zm3-10v11l4 5 1.2-.9a2 2 0 0 0 .7-2L15 14h4.2a1.8 1.8 0 0 0 1.8-2.2l-1.3-6A2 2 0 0 0 17.7 4H10Z"/></svg>' +
+        "<span>Dislike</span></button>" +
+      '<button type="button" class="fb-reply" aria-label="Reply to this" title="Quote this reply in your next message">' +
+        '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M9 7 4 12l5 5"/><path d="M4 12h9a7 7 0 0 1 7 7v1"/></svg>' +
+        "<span>Reply</span></button>";
+
+    var replyText = function() {
+      return (bubble && (bubble.textContent || "")).trim().slice(0, 400);
+    };
+
+    var send = function(kind, reason, button) {
+      rowEl.querySelectorAll("button").forEach(function(b) { b.disabled = true; });
+      button.classList.add(kind === "like" ? "picked-like" : "picked-dislike");
+      rowEl.classList.add("is-answered");
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: kind,
+          botName: agent && agent.name,
+          summary: replyText(),
+          reason: reason || ""
+        })
+      })
+        .then(readResponse)
+        .then(function(payload) {
+          var note = document.createElement("span");
+          note.className = "msg-feedback-note";
+          note.textContent = payload.message || "Noted.";
+          rowEl.appendChild(note);
+        })
+        .catch(function(err) {
+          rowEl.querySelectorAll("button").forEach(function(b) { b.disabled = false; });
+          button.classList.remove("picked-like", "picked-dislike");
+          var note = document.createElement("span");
+          note.className = "msg-feedback-note";
+          note.textContent = "Couldn't save that: " + (err.message || "unknown error");
+          rowEl.appendChild(note);
+        });
+    };
+
+    rowEl.querySelector(".fb-like").onclick = function() { send("like", "", this); };
+    rowEl.querySelector(".fb-dislike").onclick = function() {
+      // A dislike with a reason is worth far more to the next run than a bare thumbs-down, but
+      // skipping the reason still records the dislike.
+      var reason = window.prompt("What was wrong with that? (optional — helps it do better next time)") || "";
+      send("dislike", reason.trim(), this);
+    };
+    rowEl.querySelector(".fb-reply").onclick = function() {
+      var quoted = replyText().slice(0, 200);
+      prompt.value = "> " + quoted + "\n\n";
+      prompt.focus();
+      prompt.setSelectionRange(prompt.value.length, prompt.value.length);
+      prompt.dispatchEvent(new Event("input"));
+    };
+    return rowEl;
   }
 
   function renderTranscript() {
@@ -3667,7 +4044,10 @@ dialog.modal-dialog::backdrop {
   }
 
   // Create / Customize Bot Modal Logic
-  function renderBotPickerControls() {
+  // Important: do NOT destroy the clicked control during the click. With
+  // <dialog closedby="any">, removing the event target mid-click is treated as a
+  // light-dismiss and closes the modal — so shape/color picks looked "broken".
+  function syncBotPickerSelection() {
     var previewEl = document.getElementById("bot-modal-preview");
     var shapeGrid = document.getElementById("bot-shape-grid");
     var colorGrid = document.getElementById("bot-color-grid");
@@ -3675,18 +4055,57 @@ dialog.modal-dialog::backdrop {
 
     previewEl.innerHTML = renderBotSvg(selectedBotShape, selectedBotColor);
 
+    Array.prototype.forEach.call(shapeGrid.querySelectorAll(".bot-shape-btn"), function(btn) {
+      var id = btn.getAttribute("data-shape");
+      btn.classList.toggle("selected", id === selectedBotShape);
+      btn.innerHTML = renderBotSvg(id, selectedBotColor);
+    });
+
+    Array.prototype.forEach.call(colorGrid.querySelectorAll(".bot-color-btn"), function(btn) {
+      btn.classList.toggle("selected", btn.getAttribute("data-color") === selectedBotColor);
+    });
+  }
+
+  function renderBotPickerControls() {
+    var previewEl = document.getElementById("bot-modal-preview");
+    var shapeGrid = document.getElementById("bot-shape-grid");
+    var colorGrid = document.getElementById("bot-color-grid");
+    if (!previewEl || !shapeGrid || !colorGrid) return;
+
+    if (!shapeGrid.dataset.pickerBound) {
+      shapeGrid.addEventListener("click", function(event) {
+        var btn = event.target.closest(".bot-shape-btn");
+        if (!btn || !shapeGrid.contains(btn)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        var next = btn.getAttribute("data-shape");
+        if (!next || next === selectedBotShape) return;
+        selectedBotShape = next;
+        // Defer DOM updates until after the click fully settles.
+        requestAnimationFrame(syncBotPickerSelection);
+      });
+      colorGrid.addEventListener("click", function(event) {
+        var btn = event.target.closest(".bot-color-btn");
+        if (!btn || !colorGrid.contains(btn)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        var next = btn.getAttribute("data-color");
+        if (!next || next === selectedBotColor) return;
+        selectedBotColor = next;
+        requestAnimationFrame(syncBotPickerSelection);
+      });
+      shapeGrid.dataset.pickerBound = "1";
+    }
+
     shapeGrid.innerHTML = "";
     BOT_SHAPES.forEach(function(s) {
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "bot-shape-btn" + (s.id === selectedBotShape ? " selected" : "");
+      btn.dataset.shape = s.id;
       btn.title = "Shape: " + s.id;
       btn.setAttribute("aria-label", "Shape " + s.id);
       btn.innerHTML = renderBotSvg(s.id, selectedBotColor);
-      btn.onclick = function() {
-        selectedBotShape = s.id;
-        renderBotPickerControls();
-      };
       shapeGrid.appendChild(btn);
     });
 
@@ -3695,15 +4114,14 @@ dialog.modal-dialog::backdrop {
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "bot-color-btn" + (c === selectedBotColor ? " selected" : "");
+      btn.dataset.color = c;
       btn.style.background = c;
       btn.title = "Color: " + c;
       btn.setAttribute("aria-label", "Color " + c);
-      btn.onclick = function() {
-        selectedBotColor = c;
-        renderBotPickerControls();
-      };
       colorGrid.appendChild(btn);
     });
+
+    previewEl.innerHTML = renderBotSvg(selectedBotShape, selectedBotColor);
   }
 
   function openCreateBotModal(prefill) {
@@ -4044,7 +4462,7 @@ dialog.modal-dialog::backdrop {
     }
     var peerBots = agents.filter(function(a) { return !currentAgent || a.id !== currentAgent.id; });
     if (peerBots.length === 0) {
-      lines.push("- (No other custom bots created in the sidebar yet. Built-in specialist bots available to spawn or delegate to via `delegate_to_bot`: \"YouTube Concept & Code Learner\", \"Local Terminal & DevOps Bot\", \"Instagram Follower Growth\", \"Reddit Community Growth\", \"SEO Specialist\", \"X / Grok Trend Researcher\", \"Competitor Intelligence\".)");
+      lines.push("- (No other custom bots created in the sidebar yet. Built-in specialist bots available to spawn or delegate to via `delegate_to_bot`: \"YouTube Concept & Code Learner\", \"Local Terminal & DevOps Bot\", \"Instagram Follower Growth\", \"Reddit Community Growth\", \"SEO Specialist\", \"UX Specialist\", \"X / Grok Trend Researcher\", \"Competitor Intelligence\".)");
     } else {
       peerBots.forEach(function(b, idx) {
         var roleDesc = b.description || b.summary || (b.intent && b.intent.summary) || "Specialist Bot";
@@ -4099,6 +4517,8 @@ dialog.modal-dialog::backdrop {
 
   function clearRunClientState() {
     isRunning = false;
+    document.body.classList.remove("is-run-active");
+    setAgentMotion("idle");
     startRunLock = false;
     setRunPresence(null);
     runningAgentId = null;
@@ -4241,6 +4661,273 @@ dialog.modal-dialog::backdrop {
       });
   }
 
+  var learnEvents = null;
+  var learnWatchdog = null;
+  var learnProposalShown = false;
+
+  function closeLearnEvents() {
+    if (learnEvents) {
+      learnEvents.close();
+      learnEvents = null;
+    }
+    if (learnWatchdog) {
+      clearInterval(learnWatchdog);
+      learnWatchdog = null;
+    }
+  }
+
+  /**
+   * If the session dies before it can publish its completion event, the chat would sit on
+   * "Learning" forever. The server's status flag is the fallback signal.
+   */
+  function watchLearnSession() {
+    if (learnWatchdog) clearInterval(learnWatchdog);
+    learnWatchdog = setInterval(function() {
+      fetch("/api/status")
+        .then(readResponse)
+        .then(function(serverState) {
+          if (serverState.learnAwaitingApproval && !learnProposalShown) {
+            // A reloaded tab missed the proposal event; pick the decision back up.
+            fetch("/api/learn/proposal")
+              .then(readResponse)
+              .then(function(payload) { if (payload.proposal) renderFixProposal(payload.proposal); })
+              .catch(function() {});
+            return;
+          }
+          if (!serverState.learnSessionRunning && learnEvents) {
+            closeLearnEvents();
+            finishLearnSession();
+          }
+        })
+        .catch(function() {});
+    }, 10000);
+  }
+
+  /**
+   * Learn-mode progress comes off the server's local bus (/api/learn/events), not a run's event
+   * stream: one session spans several runs, so a per-run SSE connection would drop between turns.
+   */
+  function connectLearnEvents() {
+    closeLearnEvents();
+    learnEvents = new EventSource("/api/learn/events");
+    learnEvents.onmessage = function(m) {
+      var e;
+      try { e = JSON.parse(m.data); } catch (_) { return; }
+      if (e.topic === "learn.turn.user") {
+        status.textContent = "Round " + (e.round + 1) + " — asking as you would";
+        appendMessage("agent", "<em>Round " + (e.round + 1) + ", as you:</em> " + esc(String(e.message || "").slice(0, 300)));
+      } else if (e.topic === "learn.turn.bot" && e.turn) {
+        status.textContent = "Round " + (e.round + 1) + " — grading the reply";
+        appendMessage(
+          "agent",
+          "<em>Round " + (e.round + 1) + ", as the bot (" + e.turn.stepsTaken + " step(s), " +
+            (e.turn.success ? "ok" : "failed") + "):</em> " + esc(String(e.turn.botSummary || "").slice(0, 400))
+        );
+      } else if (e.topic === "learn.session.scored") {
+        status.textContent = e.stellar ? "Experience is stellar" : "Found things to fix";
+        if (!e.stellar && e.notes && e.notes.length) {
+          var noteLines = e.notes.map(function(note) {
+            return "<li><strong>[" + esc(note.severity) + "] " + esc(note.area) + "</strong><br>" +
+              esc(note.evidence) + " — " + esc(note.suggestedFix) + "</li>";
+          }).join("");
+          appendMessage("agent", "<strong>What I found:</strong><ul style=\"margin:8px 0 0;padding-left:18px;\">" + noteLines + "</ul>");
+        }
+      } else if (e.topic === "learn.fix.proposed" && e.proposal) {
+        renderFixProposal(e.proposal);
+      } else if (e.topic === "learn.fix.decision") {
+        status.textContent = e.approved ? "Applying the approved changes…" : "Left the code untouched";
+      } else if (e.topic === "learn.fix.applied" && e.fix) {
+        appendMessage("agent", "<em>Self-fix:</em> " + esc(e.fix.summary || ""), e.fix.applied ? "" : "error");
+      } else if (e.topic === "learn.session.verified") {
+        status.textContent = e.verification && e.verification.ok ? "Build and tests green" : "Verification failed";
+      } else if (e.topic === "learn.session.completed") {
+        closeLearnEvents();
+        finishLearnSession();
+      }
+    };
+    learnEvents.onerror = function() {
+      // The session keeps running server-side; the report fetch below is the source of truth.
+    };
+    watchLearnSession();
+  }
+
+  /**
+   * The patches exist only as a proposal at this point - nothing has been written to any file.
+   * Deny (or just walking away) leaves the tree exactly as it is.
+   */
+  function renderFixProposal(proposal) {
+    if (learnProposalShown) return;
+    learnProposalShown = true;
+    setRunPresence(null);
+    setStatusState("running", "Waiting for Approval");
+    status.textContent = "Review the changes below and approve or decline.";
+
+    var patchHtml = (proposal.fixes || []).map(function(fix) {
+      return '<li style="margin-bottom:10px;">' +
+        '<label style="display:flex;gap:6px;align-items:flex-start;cursor:pointer;">' +
+          '<input type="checkbox" class="fix-pick" value="' + esc(fix.id) + '" checked style="margin-top:3px;">' +
+          "<span><code>" + esc(fix.patch.file) + "</code> — " + esc(fix.patch.rationale) + "</span>" +
+        "</label>" +
+        '<pre style="margin:6px 0 0 22px;padding:8px;overflow:auto;max-height:180px;font-size:11px;">' +
+          esc(fix.preview) +
+        "</pre></li>";
+    }).join("");
+
+    var bubble = appendMessage(
+      "agent",
+      "<strong>I’d like to change " + (proposal.fixes || []).length + " thing(s) in my own code.</strong> " +
+      "Nothing has been written yet. Untick anything you don’t want." +
+      '<ul style="margin:10px 0 0;padding-left:18px;list-style:none;">' + patchHtml + "</ul>" +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">' +
+        '<button type="button" class="resume-button fix-approve-btn" style="margin-top:0;">Apply selected</button>' +
+        '<button type="button" class="btn-secondary fix-deny-btn" style="padding:6px 12px;font-size:12px;">Don’t change anything</button>' +
+      "</div>" +
+      '<div style="margin-top:8px;font-size:11px;opacity:0.75;">If the build or tests go red afterwards, every file is restored automatically.</div>'
+    );
+
+    var respond = function(approved, ev) {
+      var picked = [];
+      bubble.querySelectorAll(".fix-pick").forEach(function(box) {
+        if (box.checked) picked.push(box.value);
+      });
+      if (approved && picked.length === 0) {
+        status.textContent = "Tick at least one change, or choose “Don’t change anything”.";
+        return;
+      }
+      bubble.querySelectorAll("button, input").forEach(function(el) { el.disabled = true; });
+      ev.target.textContent = approved ? "Applying…" : "Declining…";
+      fetch("/api/learn/approval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approved: approved, patchIds: approved ? picked : undefined })
+      })
+        .then(readResponse)
+        .then(function() {
+          ev.target.textContent = approved ? "Applying " + picked.length + " change(s)" : "Left untouched";
+        })
+        .catch(function(err) {
+          bubble.querySelectorAll("button, input").forEach(function(el) { el.disabled = false; });
+          ev.target.textContent = approved ? "Retry" : "Retry decline";
+          status.textContent = err.message || "Could not send your decision. Please retry.";
+        });
+    };
+    bubble.querySelector(".fix-approve-btn").onclick = function(ev) { respond(true, ev); };
+    bubble.querySelector(".fix-deny-btn").onclick = function(ev) { respond(false, ev); };
+  }
+
+  function finishLearnSession() {
+    fetch("/api/learn/report")
+      .then(readResponse)
+      .then(function(payload) {
+        appendMessage("agent", formatMarkdown(payload.rendered || ""), payload.report && payload.report.verdict === "needs_human" ? "error" : "");
+        if (payload.documentPath) {
+          appendMessage("agent", "Full write-up \u2014 findings, transcript and the exact diffs \u2014 saved to <code>" + esc(payload.documentPath) + "</code>.");
+        }
+      })
+      .catch(function(err) {
+        appendMessage("agent", "The learn session finished but the report couldn’t be read: " + esc(err.message || String(err)), "error");
+      })
+      .then(function() {
+        clearRunClientState();
+        setStatusState("ready", "Ready");
+        status.textContent = "";
+      });
+  }
+
+  function startLearnSession(task) {
+    var agent = activeAgent();
+    learnProposalShown = false;
+    isRunning = true;
+    runningAgentId = agent && agent.id || null;
+    runningAgentName = agent && agent.name || "Buddy Bot";
+    sendButton.disabled = true;
+    setStatusState("running", "Learning");
+    status.textContent = "Standing in your shoes…";
+    setRunPresence("Learning");
+
+    fetch("/api/learn", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        task: task,
+        botName: agent && agent.name,
+        expertise: agent && agent.intent && agent.intent.expertise,
+        model: document.getElementById("model-select").value || "gpt-6-luna"
+      })
+    })
+      .then(readResponse)
+      .then(function(payload) {
+        appendMessage(
+          "agent",
+          "Running this as a rehearsal: I’ll play you for up to 3 rounds, grade the experience, " +
+            (payload.selfFix ? "write down what needs fixing and show you the patches before changing anything, " : "") +
+            "then confirm the build and tests are green."
+        );
+        connectLearnEvents();
+      })
+      .catch(function(err) {
+        clearRunClientState();
+        setStatusState("ready", "Ready");
+        status.textContent = "";
+        var message = err && err.message ? err.message : String(err);
+        appendMessage(
+          "agent",
+          /learn mode is off|learn_mode_disabled/i.test(message)
+            ? "Learn mode runs in the production copy. Start it with <code>npm run built</code> and use the app on port 8766."
+            : esc(message),
+          "error"
+        );
+      });
+  }
+
+  /**
+   * Waits for a run the SERVER started (a bus handoff) and attaches the step feed to it. We don't
+   * post /api/run here - that would be a second run for the same handoff.
+   */
+  function attachToServerRun(targetPeer, handoffTask, attempt) {
+    var tries = attempt || 0;
+    if (tries === 0) {
+      isRunning = true;
+      runningAgentId = targetPeer && targetPeer.id || null;
+      runningAgentName = targetPeer && targetPeer.name || "Bot";
+      sendButton.disabled = true;
+      setStatusState("running", "Thinking");
+      status.textContent = "Thinking…";
+      setRunPresence("Thinking");
+    }
+    fetch("/api/status")
+      .then(readResponse)
+      .then(function(serverState) {
+        if (serverState.isRunning) {
+          localStorage.removeItem(runEventCursorKey);
+          connectRunEvents();
+          return;
+        }
+        if (tries < 24) {
+          setTimeout(function() { attachToServerRun(targetPeer, handoffTask, tries + 1); }, 250);
+          return;
+        }
+        // The server declined the handoff (depth cap, or it needs the user's approval first).
+        clearRunClientState();
+        setStatusState("ready", "Ready");
+        status.textContent = "";
+        appendMessage(
+          "agent",
+          "The handoff to <strong>" + esc(targetPeer && targetPeer.name || "that bot") +
+            "</strong> didn’t start. Ask it directly if the task needs your approval first.",
+          "error"
+        );
+      })
+      .catch(function() {
+        if (tries < 24) {
+          setTimeout(function() { attachToServerRun(targetPeer, handoffTask, tries + 1); }, 400);
+        } else {
+          clearRunClientState();
+          setStatusState("ready", "Ready");
+        }
+      });
+  }
+
   function connectRunEvents() {
     if (runEvents) runEvents.close();
     var cursor = localStorage.getItem(runEventCursorKey) || "0";
@@ -4300,6 +4987,7 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "step") {
+      pulseAgentStep();
       if (e.terminalEntry) {
         appendTerminalEntry(e.terminalEntry);
       }
@@ -4373,6 +5061,7 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "human_verification") {
+      setAgentMotion("needs-you");
       setRunPresence(null);
       status.textContent = "Action required: solve CAPTCHA / sign-in in the live browser.";
       setStatusState("running", "Waiting for Verification");
@@ -4404,6 +5093,7 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "human_verification_resolved") {
+      setAgentMotion("working");
       setBrowserVerificationFooter(false);
       status.textContent = "Verification resolved. Agent is continuing…";
       setStatusState("running", "Agent Running");
@@ -4411,6 +5101,7 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "privileged_approval_required") {
+      setAgentMotion("needs-you");
       setRunPresence(null);
       status.textContent = "Action required: approve or deny the request below.";
       setStatusState("running", "Waiting for Approval");
@@ -4442,6 +5133,7 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "privileged_approval_resolved") {
+      setAgentMotion("working");
       var resolvedButton = document.querySelector(".approve-btn[disabled], .deny-btn[disabled]");
       if (resolvedButton) resolvedButton.textContent = e.approved ? "Approved" : "Denied";
       status.textContent = e.approved ? "Approved. Agent is continuing…" : "Denied. Agent is continuing…";
@@ -4460,6 +5152,7 @@ dialog.modal-dialog::backdrop {
         delegatedPrefix + prefix + formatMarkdown(e.summary || ""),
         e.success ? "" : "error"
       );
+      setAgentMotion("done");
       clearRunClientState();
       setStatusState("ready", "Ready");
       status.textContent = e.success ? (isDirectReply ? "Answered directly" : "Done") : "Ready for your next instruction";
@@ -4489,13 +5182,20 @@ dialog.modal-dialog::backdrop {
         var handoffNote = e.delegateTo.handoffNote || "";
         appendMessage("agent", "I’m checking with <strong>" + esc(targetPeer.name) + "</strong> and will bring the result back here.");
         quickStarts.hidden = true;
-        startRun(
-          "Continue acting as " + targetPeer.name + ". Task delegated by peer bot '" + sourceName + "': " + handoffTask,
-          [],
-          "DELEGATION HANDOFF FROM '" + sourceName + "': " + (handoffNote || handoffTask),
-          null,
-          targetPeer
-        );
+        if (e.handoffOwnedByServer) {
+          // The server publishes the handoff on its local bus and starts the next hop itself, so
+          // the handoff survives this tab closing and also happens for scheduled runs. We just
+          // attach to whatever run it starts instead of posting a second /api/run for the same hop.
+          attachToServerRun(targetPeer, handoffTask);
+        } else {
+          startRun(
+            "Continue acting as " + targetPeer.name + ". Task delegated by peer bot '" + sourceName + "': " + handoffTask,
+            [],
+            "DELEGATION HANDOFF FROM '" + sourceName + "': " + (handoffNote || handoffTask),
+            null,
+            targetPeer
+          );
+        }
       }
     }
   }
@@ -4683,6 +5383,16 @@ dialog.modal-dialog::backdrop {
     prompt.style.height = "auto";
     quickStarts.hidden = true;
     welcome.classList.remove("is-typing");
+
+    // `/learn <task>` runs the task as a rehearsal: the bot plays the user, grades its own
+    // experience, and fixes what it finds. Only available in the built copy (npm run built).
+    var learnMatch = /^\/learn\s+([\s\S]+)$/i.exec(value);
+    if (learnMatch) {
+      appendMessage("user", esc(value));
+      startLearnSession(learnMatch[1].trim());
+      clearAttachments();
+      return;
+    }
 
     if (!activeAgentId) {
       // Check if user mentioned an existing bot in their prompt from the welcome screen
@@ -4913,6 +5623,38 @@ dialog.modal-dialog::backdrop {
     autoApproveEnabled = !autoApproveEnabled;
     localStorage.setItem("agentFireworksAutoApprove", autoApproveEnabled ? "1" : "0");
     renderAutoApproveToggle();
+
+  // Learn mode button. Hidden unless the server says the mode is on, so it never appears in dev
+  // where pressing it could only fail.
+  var learnModeButton = document.getElementById("learn-mode-button");
+  learnModeButton.onclick = function() {
+    var typed = prompt.value.trim().replace(/^\/learn\s+/i, "");
+    if (!typed) {
+      prompt.value = "/learn ";
+      prompt.focus();
+      prompt.setSelectionRange(prompt.value.length, prompt.value.length);
+      prompt.dispatchEvent(new Event("input"));
+      status.textContent = "Type the task to rehearse, then press Enter.";
+      return;
+    }
+    if (isRunning || startRunLock) return;
+    prompt.value = "";
+    prompt.style.height = "auto";
+    quickStarts.hidden = true;
+    appendMessage("user", esc("/learn " + typed));
+    startLearnSession(typed);
+  };
+  fetch("/api/status")
+    .then(readResponse)
+    .then(function(serverState) {
+      learnModeButton.hidden = !serverState.learnModeEnabled;
+      if (serverState.learnModeEnabled) {
+        learnModeButton.title = serverState.learnSelfFixEnabled
+          ? "Learn mode: rehearse this task, grade the experience, and show me patches to approve"
+          : "Learn mode: rehearse this task and report what needs fixing (self-fix off)";
+      }
+    })
+    .catch(function() {});
   };
   renderAutoApproveToggle();
 
@@ -5551,14 +6293,16 @@ dialog.modal-dialog::backdrop {
   var welcomeAvatarEl = document.getElementById("welcome-avatar");
   if (welcomeAvatarEl) {
     welcomeAvatarEl.innerHTML = renderBotSvg("circle", "#ff2d3b");
+    applyBotAnimPersonality(welcomeAvatarEl, "welcome-hero");
   }
 
-  document.querySelectorAll(".template-card").forEach(function(card) {
+  document.querySelectorAll(".template-card").forEach(function(card, cardIndex) {
     var avatarHolder = card.querySelector(".template-avatar[data-shape]");
     if (avatarHolder) {
       var s = avatarHolder.getAttribute("data-shape") || "circle";
       var c = avatarHolder.getAttribute("data-color") || "#ff2d3b";
       avatarHolder.innerHTML = renderBotSvg(s, c);
+      applyBotAnimPersonality(avatarHolder, (card.getAttribute("data-name") || "template") + ":" + cardIndex);
     }
     card.addEventListener("click", function() {
       var name = card.getAttribute("data-name");
