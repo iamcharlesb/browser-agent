@@ -5094,7 +5094,7 @@ dialog.modal-dialog::backdrop {
       row.className = "queued-command";
       var text = document.createElement("span");
       text.className = "queued-command-text";
-      text.textContent = item.task.replace(/^Continue the conversation\. User request: /, "");
+      text.textContent = item.displayText || item.task.replace(/^Continue the conversation\. User request: /, "");
       text.title = text.textContent;
       var steer = document.createElement("button");
       steer.type = "button";
@@ -5146,6 +5146,7 @@ dialog.modal-dialog::backdrop {
     queuedRunsAfterActive.push({
       id: crypto.randomUUID(),
       userMarkup: userMarkup || "",
+      displayText: task.replace(/^Continue the conversation\. User request: /, ""),
       task: task,
       approvedCategories: approvedCategories || [],
       collaborationContext: collaborationContext,

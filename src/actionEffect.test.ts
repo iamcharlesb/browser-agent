@@ -178,3 +178,10 @@ test("CSS selectors are not mined for verbs", () => {
   assert.equal(isCssSelector("Follow"), false);
   assert.equal(isCssSelector("Pay $49.00"), false);
 });
+
+
+test("financial controls cannot be downgraded as local draft actions", () => {
+  for (const label of ["Add payment card", "Subscribe", "Confirm payment", "Buy credits"]) {
+    assert.equal(classifyBrowserAction({ toolName: "click_element", label, declaredEffect: "outward" }).effect, "irreversible", label);
+  }
+});
