@@ -1,6 +1,7 @@
 /** The ReAct orchestrator: observe, evaluate delta, infer, execute, supervise, prune. */
 
 import OpenAI from "openai";
+import { findingEvidenceIssue, isAbsenceClaim } from "./findingEvidence";
 import { randomUUID } from "node:crypto";
 import { isReadOnlyCommand, TaskApprovalScope, TerminalApprovalDecision } from "./approvalPolicy";
 import {
@@ -10,6 +11,7 @@ import {
   INTERACTIVE_TOOLS,
   isCssSelector
 } from "./actionEffect";
+import { assessTaskRisk } from "./security";
 import { TOOLS, ToolExecutionResult, executeTool } from "./agentTools";
 import {
   accessDeniedRecoveryHint,
@@ -44,6 +46,7 @@ const PRIVILEGED_TOOL_NAMES = new Set(["run_terminal_command", "workspace_file",
 const INTERACTIVE_BROWSER_TOOL_NAMES = new Set(["upload_file", "click_mark", "type_mark", "click_element", "click_coords", "type_text", "key_press"]);
 /** All tools that drive Playwright (excluded in Chat mode). */
 const BROWSER_TOOL_NAMES = new Set([
+  "list_tabs", "switch_tab", "inspect_view",
   "upload_file",
   "navigate",
   "click_mark",
@@ -157,7 +160,7 @@ export type AgentEvent = Record<string, unknown>;
 export type OnEvent = (event: AgentEvent) => void;
 export type OnHumanVerification = (state: PageState) => Promise<void> | void;
 /** Returns true to run the command/write, false to deny it. Must default to deny if unset. */
-export type OnTerminalApproval = (details: { toolName: string; description: string; approvalId: string }) => Promise<TerminalApprovalDecision> | TerminalApprovalDecision;
+export type OnTerminalApproval = (details: { toolName: string; description: string; approvalId: string; approvalKind?: "shell" | "outward" | "irreversible" }) => Promise<TerminalApprovalDecision> | TerminalApprovalDecision;
 export type OnScheduleTask = (input: Record<string, unknown>) => Promise<ToolExecutionResult>;
 export type OnLearningKb = (input: Record<string, unknown>) => Promise<ToolExecutionResult>;
 /**
@@ -179,6 +182,8 @@ export interface AgentOrchestratorOptions {
   botName?: string;
   expertise?: string;
   collaborationContext?: string;
+  taskImages?: string[];
+  onKnowledgeBase?: OnLearningKb;
   browser: BrowserController;
   apiKey?: string;
   /** Injectable transport for deterministic API tests; production uses the SDK default fetch. */
@@ -196,6 +201,7 @@ export interface AgentOrchestratorOptions {
   onLearningKb?: OnLearningKb;
   /** Cooperative cancellation; see ShouldAbort. */
   shouldAbort?: ShouldAbort;
+  abortSignal?: AbortSignal;
   scheduleTimeZone?: string;
   /**
    * The user turned on "Approve for me", so engagement they've already scoped is approved.
@@ -311,6 +317,8 @@ export class AgentOrchestrator {
   private readonly botName: string;
   private readonly expertise: string;
   private readonly collaborationContext: string;
+  private readonly taskImages: string[];
+  private readonly onKnowledgeBase?: OnLearningKb;
   private readonly browser: BrowserController;
   private readonly client: OpenAI;
   private readonly model: string;
@@ -331,6 +339,7 @@ export class AgentOrchestrator {
   private readonly onScheduleTask?: OnScheduleTask;
   private readonly onLearningKb?: OnLearningKb;
   private readonly shouldAbort?: ShouldAbort;
+  private readonly abortSignal?: AbortSignal;
   private readonly scheduleTimeZone: string;
   private readonly allowBrowserInteraction: boolean;
   private readonly observeMode: ObserveMode;
@@ -339,6 +348,7 @@ export class AgentOrchestrator {
   private readonly resolvedApiKey: string;
   private readonly resolvedBaseURL?: string;
   private readonly maxStepsConfig: number;
+  private latestEvidenceState: PageState | null = null;
   private forceVisionOnce = false;
   private consecutiveClickFailures = 0;
   private prematureFinishRejections = 0;
@@ -397,6 +407,8 @@ export class AgentOrchestrator {
     this.botName = options.botName?.trim() || "Open Bot";
     this.expertise = options.expertise?.trim() || "autonomous local terminal, Codex, and browser execution";
     this.collaborationContext = options.collaborationContext?.trim() || "";
+    this.taskImages = options.taskImages || [];
+    this.onKnowledgeBase = options.onKnowledgeBase;
     this.browser = options.browser;
     this.client = new OpenAI({
       apiKey: resolvedKey,
@@ -412,7 +424,7 @@ export class AgentOrchestrator {
     this.model = isOllamaModel ? rawModel.slice("ollama:".length) || "llama3.2" : rawModel;
     this.useResponsesApi =
       this.model.startsWith("gpt-6") && !isGrokModel && !isOllamaModel && !isClaudeModel && !useClaudeCli;
-    this.keepRecentImages = keepRecentImages;
+    this.keepRecentImages = Math.max(keepRecentImages, this.taskImages.length + 1);
     this.maxApiRetries = maxApiRetries;
     this.onEvent = options.onEvent;
     this.onHumanVerification = options.onHumanVerification;
@@ -425,6 +437,7 @@ export class AgentOrchestrator {
     this.onScheduleTask = options.onScheduleTask;
     this.onLearningKb = options.onLearningKb;
     this.shouldAbort = options.shouldAbort;
+    this.abortSignal = options.abortSignal;
     this.scheduleTimeZone = options.scheduleTimeZone || "UTC";
     this.observeMode = options.observeMode ?? "text";
     this.agentEngine = options.agentEngine ?? "cheap";
@@ -475,7 +488,19 @@ export class AgentOrchestrator {
       state = await this.browser.captureState({ includeScreenshot: true });
     }
     this.forceVisionOnce = false;
+    this.latestEvidenceState = state;
     return state;
+  }
+
+  private async reviewCompletion(summary: string, state: PageState | null): Promise<string | null> {
+    if (this.interactionMode !== "chat" && this.browser.isStarted && isAbsenceClaim(summary)) {
+      this.forceVisionOnce = true;
+      const fresh = await this.captureObservation().catch(() => state);
+      if (fresh && state) Object.assign(state,fresh);
+      const issue = findingEvidenceIssue(summary,fresh,this.browser.lastViewInspection);
+      if (issue) return `Unverified conclusion rejected: ${issue}\n${formatObservationForSdk(fresh,0)}`;
+    }
+    return detectPrematureFinish(summary);
   }
 
   private buildSystemPrompt(): string {
@@ -518,6 +543,7 @@ export class AgentOrchestrator {
       "- Finish as soon as you have the answer or a concrete next ask. Don't narrate every click.\n" +
       "- Batch independent tool calls. Prefer extract_page_data / Detected Stats over re-navigating.\n" +
       "- FAST NAVIGATION: Reuse the latest observation. Native click_mark/click_element opens pointer-driven menus; newly opened menu/dialog controls appear first in the next marks list. Click the exact Edit action from those marks instead of re-extracting full HTML, reopening the menu, or walking Tab repeatedly. Use run_action_script for a known short sequence; check each result and stop on failure or ambiguity. Search once only when the target row is absent, then match the exact draft title/workspace. Never guess a different row to save steps.\n" +
+      "- EVIDENCE: Browser tabs are listed in observations. Use list_tabs/switch_tab to inspect the intended application; user tab changes invalidate old assumptions and marks. Before reporting no data, no results, or missing access, use inspect_view on the intended current scope. Inspect selectable contexts and native/ARIA data regions; a missing selector/table or welcome page is not proof of absence. Do not infer account-wide absence from an empty filtered view. If the default range/filter is empty but the task calls for broader research, inspect the available filters and the appropriate requested range before stopping.\n" +
       "- Observations are text-first (marks + page text). Do not ask for screenshots when Text answers the ask.\n" +
       `- Mode: ${this.interactionMode.toUpperCase()} (` +
       (this.interactionMode === "chat"
@@ -556,6 +582,7 @@ export class AgentOrchestrator {
         : "8. RESEARCH YOURSELF for niche targets: infer niche from profile, find real candidates, draft comments, return a shortlist for approval. Never follow/like/comment/message until they approve specific targets+wording.\n") +
       "9. PACE engagement: ≤5–8 likes/follows/comments per run with wait between; leave the rest for later.\n" +
       "10. CONFIRM UI state (Follow→Following, toast, visible comment) before claiming success.\n" +
+      "KNOWLEDGE: Use retrieved runbooks and knowledge_base(search/read) for targeted details. After a verified successful workflow, save a short runbook with account/workspace preconditions, stable navigation, verification and pitfalls. Treat saved runbooks as guidance to recheck, not proof of current state or permission. Inspect pasted images directly, reconcile them with page text, and save a concise textual correction/runbook when they teach something reusable. Never infer resource absence or missing access from a landing page. Check the intended tab, current selection/filter, and actual data region first.\n" +
       "11. CONTINUOUS SELF-IMPROVEMENT (LEARNINGS/KB in CONTEXT): Recall niche, user rules, prior mistakes, and what worked from LEARNINGS/KB. Every time the user gives feedback, corrects an action, states a preference/rule, or teaches you how a site/workflow operates, call learning_kb(action='save', kind='mistake'|'learning'|'intent'|'hypothesis', text=...) so you permanently improve across runs and never repeat the same mistake.\n" +
       "12. FORMS, DROPDOWNS & HERO IMAGES: To select an option in a `<select>` dropdown, call `type_mark(markId, text='<option label or value>')` (do NOT click and press ArrowDown). If form fields or editors are below the fold, call `scroll_page(direction='down')` or use the marks listed in `Elements:`. When creating a blog post or article that needs a hero/featured image, `generate_image` is pre-authorized — call it directly without stopping to ask permission. Then use upload_file with its saved filename to attach it; do not type a local path into an upload button or stop at opening a file chooser. Reuse the existing artifact after a yes or retry. Verify the preview, save the draft, and reopen it to confirm the image persists. A selected file alone is not proof of a completed upload.\n" +
       "INSTAGRAM / FOLLOWER GROWTH PLAYBOOK (be a proactive marketing specialist):\n" +
@@ -645,6 +672,9 @@ export class AgentOrchestrator {
   }
 
   private finish(result: AgentResult): AgentResult {
+    if (this.interactionMode !== "chat" && this.latestEvidenceState && findingEvidenceIssue(result.summary,this.latestEvidenceState,this.browser.lastViewInspection)) {
+      result = {...result,success:false,summary:`I have not verified the requested finding. The last observed page was ${this.latestEvidenceState.url}. The task is incomplete; I have not established that the requested resource is empty or inaccessible.`,terminationReason:"unverified_finding"};
+    }
     const cleanedSummary = this.humanizeSummary(result.summary);
     const finalResult: AgentResult = { ...result, summary: cleanedSummary };
     this.emit({
@@ -667,12 +697,14 @@ export class AgentOrchestrator {
    */
   private async requestPrivilegedApproval(toolName: string, input: Record<string, unknown>): Promise<boolean> {
     if (!this.allowPrivilegedTools) return false;
-    if (!requiresPrivilegedApproval(toolName, input) || this.standingApproval || this.taskApproval.allows(toolName)) return true;
+    const financial = toolName === "run_terminal_command" && assessTaskRisk(String(input.command || "")).approvalsRequired.includes("financial_transaction");
+    if (!financial && (!requiresPrivilegedApproval(toolName, input) || this.standingApproval || this.taskApproval.allows(toolName))) return true;
     const description = describePrivilegedCall(toolName, input);
     const approvalId = randomUUID();
     this.emit({
       type: "privileged_approval_required",
       approvalId,
+      approvalKind: financial ? "irreversible" : "shell",
       toolName,
       description,
       message: `${this.botName} wants to: ${description}. Approve or deny before it runs.`
@@ -680,9 +712,12 @@ export class AgentOrchestrator {
 
     const waitStarted = Date.now();
     let approved = false;
+    let approvalScope: "once" | "task" = "once";
     if (this.onTerminalApproval) {
       try {
-        approved = this.taskApproval.resolve(await this.onTerminalApproval({ toolName, description, approvalId }));
+        const decision = await this.onTerminalApproval({ toolName, description, approvalId, approvalKind: financial ? "irreversible" : "shell" });
+        approvalScope = typeof decision === "object" && decision.scope === "task" ? "task" : "once";
+        approved = this.taskApproval.resolve(decision, financial ? "none" : "privileged");
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error("onTerminalApproval hook raised; denying by default.", err);
@@ -694,8 +729,8 @@ export class AgentOrchestrator {
     }
     this.loopGuard.extendDeadline((Date.now() - waitStarted) / 1000);
 
-    this.emit({ type: "privileged_approval_resolved", approvalId, toolName, description, approved });
-    return approved;
+    this.emit({ type: "privileged_approval_resolved", approvalId, toolName, description, approved, approvalScope });
+    return approved && !this.aborted();
   }
 
   /**
@@ -729,7 +764,9 @@ export class AgentOrchestrator {
     input: Record<string, unknown>
   ): Promise<ToolExecutionResult | null> {
     if (!INTERACTIVE_TOOLS.has(toolName)) return null;
-    const target = this.resolveActionTarget(toolName, input);
+    const observed = typeof this.browser.inspectActionTarget === "function" && this.browser.isStarted
+      ? await this.browser.inspectActionTarget(toolName, input) : {};
+    const target = { ...this.resolveActionTarget(toolName, input), ...observed };
     const captchaLike =
       /\b(captcha|i'?m not a robot|recaptcha|hcaptcha|turnstile|verify you are human|select all images)\b/i.test(
         target.label || ""
@@ -766,6 +803,7 @@ export class AgentOrchestrator {
     this.emit({
       type: "privileged_approval_required",
       approvalId,
+      approvalKind: decision.effect === "irreversible" ? "irreversible" : "outward",
       toolName,
       description,
       message: `${this.botName} wants to: ${description}. ${decision.reason}. Approve or deny before it runs.`
@@ -773,12 +811,16 @@ export class AgentOrchestrator {
 
     const waitStarted = Date.now();
     let approved = false;
+    let approvalScope: "once" | "task" = "once";
     if (this.onTerminalApproval) {
       try {
+        const approvalDecision = await this.onTerminalApproval({ toolName, description, approvalId, approvalKind: decision.effect === "irreversible" ? "irreversible" : "outward" });
+        approvalScope = decision.effect !== "irreversible" && typeof approvalDecision === "object" && approvalDecision.scope === "task" ? "task" : "once";
         approved = this.taskApproval.resolve(
-          await this.onTerminalApproval({ toolName, description, approvalId }),
-          // Irreversible actions never establish a standing grant, however the user answers.
-          decision.effect === "outward" ? "outward-action" : "privileged"
+          approvalDecision,
+          // A task-wide answer can cover similar outward actions or shell/files, never an
+          // irreversible action. Irreversible approval applies to this click only.
+          decision.effect === "irreversible" ? "none" : decision.effect === "outward" ? "outward-action" : "privileged"
         );
       } catch (err) {
         // eslint-disable-next-line no-console
@@ -787,9 +829,9 @@ export class AgentOrchestrator {
       }
     }
     this.loopGuard.extendDeadline((Date.now() - waitStarted) / 1000);
-    this.emit({ type: "privileged_approval_resolved", approvalId, toolName, description, approved });
+    this.emit({ type: "privileged_approval_resolved", approvalId, toolName, description, approved, approvalScope });
 
-    return approved
+    return approved && !this.aborted()
       ? null
       : { ok: false, message: `The user did not approve "${description}", so it was not executed.` };
   }
@@ -828,6 +870,7 @@ export class AgentOrchestrator {
     this.emit({
       type: "human_verification_resolved",
       accessDenied: Boolean(resolvedState.accessDenied),
+      requiresHumanVerification: Boolean(resolvedState.requiresHumanVerification),
       url: resolvedState.url,
       title: resolvedState.title,
       screenshotB64: resolvedState.screenshotB64
@@ -837,6 +880,7 @@ export class AgentOrchestrator {
 
   /** True once the caller has asked for the run to stop. Never throws out of the hook. */
   private aborted(): boolean {
+    if (this.abortSignal?.aborted) return true;
     if (!this.shouldAbort) return false;
     try {
       return this.shouldAbort();
@@ -909,7 +953,7 @@ export class AgentOrchestrator {
       const cmd = (cmdMatch ? cmdMatch[1] || cmdMatch[2] || cmdMatch[3] : rawRequest).trim();
       const approved = await this.requestPrivilegedApproval("run_terminal_command", { command: cmd });
       const res = approved
-        ? await executeTool("run_terminal_command", { command: cmd }, this.browser)
+        ? await executeTool("run_terminal_command", { command: cmd }, this.browser, this.abortSignal)
         : { ok: false, message: "This command was not approved by the user and was not executed." } as ToolExecutionResult;
       emitLocalStep("run_terminal_command", { command: cmd }, res);
       outputs.push(
@@ -934,7 +978,7 @@ export class AgentOrchestrator {
     );
     if (ytMatch || /\byoutube\b/i.test(rawRequest)) {
       const target = ytMatch ? ytMatch[1] : rawRequest;
-      const res = await executeTool("understand_youtube_video", { urlOrQuery: target }, this.browser);
+      const res = await executeTool("understand_youtube_video", { urlOrQuery: target }, this.browser, this.abortSignal);
       emitLocalStep("understand_youtube_video", { urlOrQuery: target }, res);
       outputs.push(`### YouTube Video Analysis (Local Headless)\n${res.message.slice(0, 3500)}`);
     }
@@ -946,11 +990,11 @@ export class AgentOrchestrator {
       if (!this.browser.isStarted) {
         await this.browser.start();
       }
-      const navRes = await executeTool("navigate", { url: targetUrl }, this.browser);
+      const navRes = await executeTool("navigate", { url: targetUrl }, this.browser, this.abortSignal);
       const state = await this.captureObservation().catch(() => null);
       emitLocalStep("navigate", { url: targetUrl }, navRes, state);
       if (state?.accessDenied) return this.accessDeniedResult(state, steps);
-      const extRes = await executeTool("extract_page_data", { mode: "text" }, this.browser);
+      const extRes = await executeTool("extract_page_data", { mode: "text" }, this.browser, this.abortSignal);
       emitLocalStep("extract_page_data", { mode: "text" }, extRes, state);
       outputs.push(`### Local Browser Extraction (${targetUrl})\n${extRes.message.slice(0, 2500)}`);
     }
@@ -973,7 +1017,7 @@ export class AgentOrchestrator {
     // question the calculator tool could have answered exactly.
     const arithmetic = extractArithmeticExpression(rawRequest);
     if (outputs.length === 0 && arithmetic) {
-      const calcRes = await executeTool("calculate", { expression: arithmetic }, this.browser);
+      const calcRes = await executeTool("calculate", { expression: arithmetic }, this.browser, this.abortSignal);
       emitLocalStep("calculate", { expression: arithmetic }, calcRes);
       if (calcRes.ok) {
         outputs.push(calcRes.message);
@@ -981,7 +1025,7 @@ export class AgentOrchestrator {
     }
 
     if (outputs.length === 0) {
-      const searchRes = await executeTool("web_search", { query: rawRequest.slice(0, 120) }, this.browser);
+      const searchRes = await executeTool("web_search", { query: rawRequest.slice(0, 120) }, this.browser, this.abortSignal);
       emitLocalStep("web_search", { query: rawRequest.slice(0, 120) }, searchRes);
       outputs.push(`### Local Research Results (Zero Cloud)\n${searchRes.message}`);
     }
@@ -1016,7 +1060,7 @@ export class AgentOrchestrator {
       const cmd = directShellMatch[1].trim();
       const approved = await this.requestPrivilegedApproval("run_terminal_command", { command: cmd });
       const res = approved
-        ? await executeTool("run_terminal_command", { command: cmd }, this.browser)
+        ? await executeTool("run_terminal_command", { command: cmd }, this.browser, this.abortSignal)
         : { ok: false, message: "This command was not approved by the user and was not executed." };
       this.emit({
         type: "step",
@@ -1049,7 +1093,7 @@ export class AgentOrchestrator {
       );
     if (ytMatch && !/\b(open in browser|watch in browser)\b/i.test(rawRequest)) {
       const videoUrl = ytMatch[1];
-      const res = await executeTool("understand_youtube_video", { urlOrQuery: videoUrl }, this.browser);
+      const res = await executeTool("understand_youtube_video", { urlOrQuery: videoUrl }, this.browser, this.abortSignal);
       this.emit({
         type: "step",
         step: 1,
@@ -1073,7 +1117,7 @@ export class AgentOrchestrator {
       }
       const cur = this.browser.currentUrl();
       if (!cur || cur === "about:blank" || !cur.startsWith(targetUrl.slice(0, 24))) {
-        const navRes = await executeTool("navigate", { url: targetUrl }, this.browser);
+        const navRes = await executeTool("navigate", { url: targetUrl }, this.browser, this.abortSignal);
         const state = await this.captureObservation().catch(() => null);
         this.emit({
           type: "step",
@@ -1098,11 +1142,14 @@ export class AgentOrchestrator {
   }
 
   async run(): Promise<AgentResult> {
+    if (this.taskImages.length && (this.useClaudeCli || this.model === "local-engine")) {
+      return this.finish({ success: false, summary: "This execution engine cannot inspect pasted images. Select an image-capable API model to analyze this attachment.", stepsTaken: 0, elapsedSeconds: 0, terminationReason: "unsupported_image_input" });
+    }
     if (this.useLocalEngine) {
       return this.runLocalEngine();
     }
 
-    const pre = await this.preExecuteFirstAction();
+    const pre = this.taskImages.length ? { stepsUsed: 0, initialState: null, preExecutedContext: null, instantFinish: null } : await this.preExecuteFirstAction();
     if (pre.instantFinish) {
       return pre.instantFinish;
     }
@@ -1199,6 +1246,7 @@ export class AgentOrchestrator {
       } catch (err) {
         // A heuristic local search is not an LLM fallback: silently substituting it masks
         // authentication/model/API errors and makes the agent appear to have reasoned.
+        if (this.aborted()) return this.abortResult(step);
         const detail = (err instanceof Error ? err.message : String(err))
           .replace(/\b(?:sk|xai)-[A-Za-z0-9_-]{12,}\b/g, "[redacted key]")
           .replace(/Incorrect API key provided:\s*\S+/gi, "Incorrect API key provided: [redacted]")
@@ -1225,7 +1273,7 @@ export class AgentOrchestrator {
         if (directReply) {
           const premature =
             this.prematureFinishRejections < MAX_PREMATURE_FINISH_REJECTIONS
-              ? detectPrematureFinish(directReply)
+              ? await this.reviewCompletion(directReply, state)
               : null;
           if (premature) {
             this.prematureFinishRejections += 1;
@@ -1308,15 +1356,16 @@ export class AgentOrchestrator {
           continue;
         }
 
-        if (toolCall.name === "learning_kb") {
-          const result = this.onLearningKb
-            ? await this.onLearningKb(toolCall.input)
+        if (toolCall.name === "learning_kb" || toolCall.name === "knowledge_base") {
+          const handler = toolCall.name === "knowledge_base" ? this.onKnowledgeBase : this.onLearningKb;
+          const result = handler
+            ? await handler(toolCall.input)
             : { ok: false, message: "Learning KB is unavailable in this app instance." };
           pendingToolOutputs.push({ id: toolCall.id, result });
           this.emit({
             type: "step",
             step,
-            toolName: "learning_kb",
+            toolName: toolCall.name,
             toolInput: toolCall.input,
             ok: result.ok,
             message: result.message.slice(0, 180)
@@ -1339,9 +1388,10 @@ export class AgentOrchestrator {
               if (this.aborted()) {
                 return { ok: false, message: "Run aborted by user." };
               }
-              if (subName === "learning_kb") {
-                const kbRes = this.onLearningKb
-                  ? await this.onLearningKb(subInput)
+              if (subName === "learning_kb" || subName === "knowledge_base") {
+                const handler = subName === "knowledge_base" ? this.onKnowledgeBase : this.onLearningKb;
+                const kbRes = handler
+                  ? await handler(subInput)
                   : { ok: false, message: "Learning KB is unavailable in this app instance." };
                 return { ok: kbRes.ok, message: kbRes.message, data: kbRes.data };
               }
@@ -1362,10 +1412,10 @@ export class AgentOrchestrator {
               } else if (requiresPrivilegedApproval(subName, subInput)) {
                 const approved = await this.requestPrivilegedApproval(subName, subInput);
                 subResult = approved
-                  ? await executeTool(subName, subInput, this.browser)
+                  ? await executeTool(subName, subInput, this.browser, this.abortSignal)
                   : { ok: false, message: "This action was not approved by the user and was not executed." };
               } else {
-                subResult = await executeTool(subName, subInput, this.browser);
+                subResult = await executeTool(subName, subInput, this.browser, this.abortSignal);
               }
 
               let obsData = subResult.data;
@@ -1423,7 +1473,7 @@ export class AgentOrchestrator {
           if (scriptResult.ok && scriptResult.finalAnswer !== undefined) {
             const premature =
               this.prematureFinishRejections < MAX_PREMATURE_FINISH_REJECTIONS
-                ? detectPrematureFinish(scriptResult.finalAnswer)
+                ? await this.reviewCompletion(scriptResult.finalAnswer, state)
                 : null;
             if (!premature) {
               return this.finish({
@@ -1457,7 +1507,7 @@ export class AgentOrchestrator {
           const summary = typeof toolCall.input.summary === "string" ? toolCall.input.summary : "Task completed.";
           const premature =
             this.prematureFinishRejections < MAX_PREMATURE_FINISH_REJECTIONS
-              ? detectPrematureFinish(summary)
+              ? await this.reviewCompletion(summary, state)
               : null;
           if (premature) {
             this.prematureFinishRejections += 1;
@@ -1486,7 +1536,7 @@ export class AgentOrchestrator {
           const reason = typeof toolCall.input.reason === "string" ? toolCall.input.reason : "Task failed.";
           const prematureFail =
             this.prematureFinishRejections < MAX_PREMATURE_FINISH_REJECTIONS
-              ? detectPrematureFail(reason)
+              ? (await this.reviewCompletion(reason, state)) || detectPrematureFail(reason)
               : null;
           if (prematureFail) {
             this.prematureFinishRejections += 1;
@@ -1546,10 +1596,10 @@ export class AgentOrchestrator {
         } else if (requiresPrivilegedApproval(toolCall.name, toolCall.input)) {
           const approved = await this.requestPrivilegedApproval(toolCall.name, toolCall.input);
           execResult = approved
-            ? await executeTool(toolCall.name, toolCall.input, this.browser)
+            ? await executeTool(toolCall.name, toolCall.input, this.browser, this.abortSignal)
             : { ok: false, message: "This action was not approved by the user and was not executed." };
         } else {
-          execResult = await executeTool(toolCall.name, toolCall.input, this.browser);
+          execResult = await executeTool(toolCall.name, toolCall.input, this.browser, this.abortSignal);
         }
         if (INTERACTIVE_BROWSER_TOOL_NAMES.has(toolCall.name)) {
           if (execResult.ok) this.consecutiveClickFailures = 0;
@@ -1645,6 +1695,7 @@ export class AgentOrchestrator {
     }
 
     const lines: string[] = [];
+    if (state?.tabs?.length) lines.push(`OPEN TABS (switch_tab uses index): ${state.tabs.map(tab=>`${tab.index}${tab.active?"*":""}: ${tab.title} | ${tab.url}`).join("\n")}`);
     if (isFirstTurn) {
       lines.push(`TASK: ${this.task}`);
       if (preExecutedContext) {
@@ -1687,24 +1738,10 @@ export class AgentOrchestrator {
         !textHasStats &&
         this.shouldCaptureScreenshot(state)
     );
-    if (includeScreenshot && state) {
-      this.messages.push({
-        role: "user",
-        content: [
-          { type: "text", text: lines.join("\n") },
-          {
-            type: "image_url",
-            // detail: "low" uses a fixed 85 tokens per image in OpenAI Vision instead of 765-1105 tokens!
-            image_url: { url: `data:image/jpeg;base64,${state.screenshotB64}`, detail: "low" }
-          }
-        ]
-      } as OpenAI.Chat.Completions.ChatCompletionUserMessageParam);
-    } else {
-      this.messages.push({
-        role: "user",
-        content: lines.join("\n")
-      });
-    }
+    const images: OpenAI.Chat.Completions.ChatCompletionContentPart[] = isFirstTurn
+      ? this.taskImages.map(url => ({ type: "image_url", image_url: { url, detail: "high" } })) : [];
+    if (includeScreenshot && state) images.push({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${state.screenshotB64}`, detail: "low" } });
+    this.messages.push({ role: "user", content: images.length ? [{ type: "text", text: lines.join("\n") }, ...images] : lines.join("\n") });
   }
 
   private async callClaudeCliLlm(): Promise<OpenAI.Chat.Completions.ChatCompletion> {
@@ -1716,7 +1753,8 @@ export class AgentOrchestrator {
       systemPrompt: system,
       userPrompt,
       modelAlias: this.claudeCliModelAlias,
-      cwd: process.cwd()
+      cwd: process.cwd(),
+      signal: this.abortSignal
     });
     return claudeCliResultToChatCompletion(result, this.model);
   }
@@ -1745,7 +1783,7 @@ export class AgentOrchestrator {
             parallel_tool_calls: true,
             max_output_tokens: MAX_TOKENS,
             reasoning: { effort: GPT6_REASONING_EFFORT }
-          });
+          }, { signal: this.abortSignal });
           this.responsesPreviousId = response.id;
           const calls = response.output
             .filter((item): item is OpenAI.Responses.ResponseFunctionToolCall => item.type === "function_call")
@@ -1783,7 +1821,7 @@ export class AgentOrchestrator {
           parallel_tool_calls: true,
           messages: this.messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
           max_tokens: MAX_TOKENS
-        });
+        }, { signal: this.abortSignal });
       } catch (err) {
         if (!isRetryableOpenAIError(err)) {
           throw err;
@@ -1926,6 +1964,7 @@ export class AgentOrchestrator {
         botName: this.botName,
         systemPrompt: this.systemPrompt,
         initialUserPrompt: initialLines.join("\n\n"),
+        taskImages: this.taskImages,
         model: this.model,
         apiKey: this.resolvedApiKey,
         baseURL: this.resolvedBaseURL,
@@ -1934,7 +1973,8 @@ export class AgentOrchestrator {
         maxSteps: this.maxStepsConfig,
         tools: this.toolsForModel,
         shouldAbort: () => this.aborted(),
-        checkPrematureFinish: (text) => detectPrematureFinish(text),
+        checkPrematureFinish: (text) => this.reviewCompletion(text,state),
+        getLatestObservationImage: () => this.latestEvidenceState?.screenshotB64,
         getLatestObservationText: () => formatObservationForSdk(state, step),
         onUsage: (usage) => {
           this.emit({
@@ -1996,14 +2036,15 @@ export class AgentOrchestrator {
             return { output: result.message };
           }
 
-          if (toolName === "learning_kb") {
-            const result = this.onLearningKb
-              ? await this.onLearningKb(toolInput)
+          if (toolName === "learning_kb" || toolName === "knowledge_base") {
+            const handler = toolName === "knowledge_base" ? this.onKnowledgeBase : this.onLearningKb;
+            const result = handler
+              ? await handler(toolInput)
               : { ok: false, message: "Learning KB is unavailable in this app instance." };
             this.emit({
               type: "step",
               step,
-              toolName: "learning_kb",
+              toolName,
               toolInput,
               ok: result.ok,
               message: result.message.slice(0, 180)
@@ -2026,9 +2067,10 @@ export class AgentOrchestrator {
                 if (this.aborted()) {
                   return { ok: false, message: "Run aborted by user." };
                 }
-                if (subName === "learning_kb") {
-                  const kbRes = this.onLearningKb
-                    ? await this.onLearningKb(subInput)
+                if (subName === "learning_kb" || subName === "knowledge_base") {
+                  const handler = subName === "knowledge_base" ? this.onKnowledgeBase : this.onLearningKb;
+                  const kbRes = handler
+                    ? await handler(subInput)
                     : { ok: false, message: "Learning KB is unavailable in this app instance." };
                   return { ok: kbRes.ok, message: kbRes.message, data: kbRes.data };
                 }
@@ -2044,10 +2086,10 @@ export class AgentOrchestrator {
                 } else if (requiresPrivilegedApproval(subName, subInput)) {
                   const approved = await this.requestPrivilegedApproval(subName, subInput);
                   subResult = approved
-                    ? await executeTool(subName, subInput, this.browser)
+                    ? await executeTool(subName, subInput, this.browser, this.abortSignal)
                     : { ok: false, message: "This action was not approved by the user and was not executed." };
                 } else {
-                  subResult = await executeTool(subName, subInput, this.browser);
+                  subResult = await executeTool(subName, subInput, this.browser, this.abortSignal);
                 }
                 let obsData = subResult.data;
                 if (!subIsNonBrowser && this.browser.isStarted) {
@@ -2098,7 +2140,7 @@ export class AgentOrchestrator {
             if (scriptResult.ok && scriptResult.finalAnswer !== undefined) {
               const premature =
                 this.prematureFinishRejections < MAX_PREMATURE_FINISH_REJECTIONS
-                  ? detectPrematureFinish(scriptResult.finalAnswer)
+                  ? await this.reviewCompletion(scriptResult.finalAnswer, state)
                   : null;
               if (!premature) {
                 return {
@@ -2123,7 +2165,7 @@ export class AgentOrchestrator {
             const summary = typeof toolInput.summary === "string" ? toolInput.summary : "Task completed.";
             const premature =
               this.prematureFinishRejections < MAX_PREMATURE_FINISH_REJECTIONS
-                ? detectPrematureFinish(summary)
+                ? await this.reviewCompletion(summary, state)
                 : null;
             if (premature) {
               this.prematureFinishRejections += 1;
@@ -2151,7 +2193,7 @@ export class AgentOrchestrator {
             const reason = typeof toolInput.reason === "string" ? toolInput.reason : "Task failed.";
             const prematureFail =
               this.prematureFinishRejections < MAX_PREMATURE_FINISH_REJECTIONS
-                ? detectPrematureFail(reason)
+                ? (await this.reviewCompletion(reason, state)) || detectPrematureFail(reason)
                 : null;
             if (prematureFail) {
               this.prematureFinishRejections += 1;
@@ -2187,10 +2229,10 @@ export class AgentOrchestrator {
           } else if (requiresPrivilegedApproval(toolName, toolInput)) {
             const approved = await this.requestPrivilegedApproval(toolName, toolInput);
             execResult = approved
-              ? await executeTool(toolName, toolInput, this.browser)
+              ? await executeTool(toolName, toolInput, this.browser, this.abortSignal)
               : { ok: false, message: "This action was not approved by the user and was not executed." };
           } else {
-            execResult = await executeTool(toolName, toolInput, this.browser);
+            execResult = await executeTool(toolName, toolInput, this.browser, this.abortSignal);
           }
 
           if (execResult.imageUsage) {

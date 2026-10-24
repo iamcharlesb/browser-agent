@@ -34,6 +34,7 @@ export interface ClaudeCliInvokeOptions {
   cliPath?: string;
   timeoutMs?: number;
   cwd?: string;
+  signal?: AbortSignal;
 }
 
 export interface ClaudeCliStructuredTurn {
@@ -180,6 +181,7 @@ export async function invokeClaudeCli(options: ClaudeCliInvokeOptions): Promise<
   const stdout = await new Promise<string>((resolve, reject) => {
     const child = spawn(bin, args, {
       cwd: options.cwd,
+      signal: options.signal,
       env: { ...process.env },
       stdio: ["ignore", "pipe", "pipe"]
     });

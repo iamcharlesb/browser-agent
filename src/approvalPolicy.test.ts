@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isReadOnlyCommand, TaskApprovalScope } from "./approvalPolicy";
+import { canAutoApprove, isReadOnlyCommand, TaskApprovalScope } from "./approvalPolicy";
 
 test("repository inspection batches do not need repeated approval", () => {
   for (const command of [
@@ -38,4 +38,21 @@ test("task grants are explicit, limited to shell/files, and reset for every run"
   assert.equal(scope.allows("workspace_file"), true);
   assert.equal(scope.allows("generate_image"), false);
   assert.equal(new TaskApprovalScope().allows("run_terminal_command"), false);
+});
+
+test("a task-scoped approval for an irreversible browser action cannot grant later shell access", () => {
+  const scope = new TaskApprovalScope();
+  assert.equal(scope.resolve({ approved: true, scope: "task" }, "none"), true);
+  assert.equal(scope.allows("run_terminal_command"), false);
+});
+
+
+test("persistent approval and Turbo cannot approve payments or irreversible actions", () => {
+  for (const enabled of [true, false]) {
+    assert.equal(canAutoApprove(enabled, "irreversible"), false);
+    assert.equal(canAutoApprove(enabled, "financial"), false);
+  }
+  assert.equal(canAutoApprove(true, "outward"), true);
+  assert.equal(canAutoApprove(true, "shell"), true);
+  assert.equal(canAutoApprove(false, "shell"), false);
 });

@@ -554,6 +554,21 @@ export function applyApprovalDenial(
   );
 }
 
+/** Remember the user's task-scope choice as a UI/workflow preference, never as future authority. */
+export function applyTaskApprovalChoice(
+  state: LearningKbState,
+  description: string,
+  now?: Date
+): LearningKbState {
+  const action = sanitizeLearningText(description, 100);
+  if (!action) return state;
+  return appendLearning(state, {
+    kind: "learning",
+    text: `Task approval is temporary; ask again in future tasks. User allowed: ${action}`,
+    source: "user_correction"
+  }, now);
+}
+
 export interface LearningKbToolInput {
   action: "read" | "list" | "save";
   kind?: LearningKind;

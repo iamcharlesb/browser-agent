@@ -58,7 +58,7 @@ function isReadOnlyInvocation(words: string[]): boolean {
 export type TerminalApprovalDecision = boolean | { approved: boolean; scope?: "once" | "task" };
 
 /** What a "yes, for the whole task" answer was actually about. */
-export type ApprovalGrantKind = "privileged" | "outward-action";
+export type ApprovalGrantKind = "privileged" | "outward-action" | "none";
 
 /**
  * Grants live only inside one orchestrator; denial never grants future access.
@@ -84,8 +84,13 @@ export class TaskApprovalScope {
     const approved = typeof decision === "boolean" ? decision : decision.approved === true;
     if (approved && typeof decision !== "boolean" && decision.scope === "task") {
       if (kind === "outward-action") this.outwardGranted = true;
-      else this.granted = true;
+      else if (kind === "privileged") this.granted = true;
     }
     return approved;
   }
+}
+
+/** Broad approval settings never answer an irreversible action for the user. */
+export function canAutoApprove(autoApprove: boolean, kind?: string): boolean {
+  return autoApprove && kind !== "irreversible" && kind !== "financial";
 }

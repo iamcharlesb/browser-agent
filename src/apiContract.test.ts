@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { chromium } from "playwright";
 import { describe, it } from "node:test";
 import {
   artifactContentType,
@@ -17,7 +18,8 @@ import {
   DEFAULT_EMBEDDED_PROFILE_LABEL,
   DEFAULT_PROFILE_DIR,
   pageAccessDenied,
-  titleRequiresHumanVerification
+  titleRequiresHumanVerification,
+  detectVerificationChallenge
 } from "./browserController";
 
 describe("saved Chrome session", () => {
@@ -153,5 +155,37 @@ describe("browser keyboard aliases", () => {
     assert.equal(normalizeBrowserKey("CTRL+SHIFT+END"), "Control+Shift+End");
     assert.equal(normalizeBrowserKey("Command+a"), "Meta+a");
     assert.equal(normalizeBrowserKey("A"), "A");
+  });
+});
+
+
+describe("active verification detection", () => {
+  it("ignores background widgets on usable profiles and keeps real challenges", async () => {
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage();
+      await page.route("**/*", route => route.fulfill({ body: "" }));
+      const check = async (html: string, expected: boolean) => {
+        await page.setContent(html);
+        assert.equal(await page.evaluate(detectVerificationChallenge), expected, html);
+      };
+      const frame = '<iframe title="recaptcha" style="width:300px;height:100px"></iframe>';
+      await check('<h1>Stunning_Progress_19</h1><p>Profile settings</p>' +
+        '<div style="visibility:hidden">' + frame + '</div>', false);
+      await check('<div style="opacity:0">' + frame + '</div>', false);
+      await check('<div style="position:absolute;left:-9999px">' + frame + '</div>', false);
+      await check('<div class="grecaptcha-badge">' + frame + '</div>', false);
+      await check('<div class="g-recaptcha" data-size="invisible" style="width:300px;height:100px"></div>', false);
+      await check('<div style="display:none">' + frame + '</div>' + frame, true);
+      await check(frame, true);
+      await check('<h1>Verify you are human</h1>', true);
+      await check('<main>Article about how to verify you are human. ' + 'Discussion. '.repeat(150) + '</main>', false);
+      await check('<main>' + 'Discussion. '.repeat(150) + '</main><div role="dialog">Verify you are human</div>', true);
+      await check('<div style="visibility:hidden"><input type="password"></div>', false);
+      await check('<input type="password">', true);
+      await check('<input autocomplete="one-time-code">', true);
+    } finally {
+      await browser.close();
+    }
   });
 });

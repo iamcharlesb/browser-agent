@@ -59,3 +59,13 @@ test("explicit user guidance survives repeated automatic failure notes", () => {
   for(let i=0;i<30;i++) kb=appendLearning(kb,{kind:'mistake',text:`Transient failure ${i}`});
   assert.match(distillLearningKb(kb), /blog management module/);
 });
+
+
+test("a side question does not overwrite the compact work objective",()=>{
+ let memory=rememberTurn(emptyTaskMemory(),'user','Research GSC performance queries for magicsite.ai');
+ memory=rememberTurn(memory,'user','Do you have the capability to schedule a task?');
+ memory=rememberTurn(memory,'user','now resume with the goal bro');
+ assert.equal(memory.objective,'Research GSC performance queries for magicsite.ai');
+ assert.match(taskMemoryContext(memory),/Current work objective.*GSC/);
+ assert.ok(taskMemoryContext(memory).length<=3000);
+});

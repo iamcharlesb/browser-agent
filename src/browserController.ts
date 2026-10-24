@@ -1,5 +1,6 @@
 /** Browser operations and state capture, backed by Playwright for Node. */
 
+import type { ViewInspection } from "./findingEvidence";
 import { isCssSelector } from "./actionEffect";
 import { browserViewportSize } from "./apiContract";
 import { ensureManagedChrome, managedChromeEnabled } from "./managedChrome";
@@ -62,7 +63,7 @@ export type SessionMode = "persistent" | "guest" | "cdp" | "embedded";
 const INTERACTIVE_SELECTOR =
   'a[href], button, input, select, textarea, ' +
   '[role="button"], [role="link"], [role="checkbox"], [role="radio"], ' +
-  '[role="tab"], [role="menuitem"], [role="combobox"], [role="switch"], ' +
+  '[role="tab"], [role="option"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="menuitem"], [role="combobox"], [role="switch"], ' +
   '[onclick], [contenteditable="true"], [contenteditable="true"] h1, [contenteditable="true"] h2, [contenteditable="true"] h3, [contenteditable="true"] p';
 
 /** Executed inside the page via page.evaluate — must be a real function, not a string, so
@@ -211,7 +212,11 @@ function extractPageTextSummary(): string {
     .replace(/\n{2,}/g, "\n")
     .trim();
 
+  const overlays = Array.from(document.querySelectorAll('[role="menu"], [role="listbox"], [role="dialog"], [data-radix-popper-content-wrapper]'))
+    .filter(el => {const rect=el.getBoundingClientRect();return rect.width>0&&rect.height>0&&getComputedStyle(el).visibility!=="hidden";})
+    .map(el => (el as HTMLElement).innerText || '').join('\n').trim();
   const parts: string[] = [];
+  if (overlays) parts.push(`[Open controls / dialogs]\n${overlays.slice(0,1100)}`);
   if (metaDesc) parts.push(`[Meta: ${metaDesc}]`);
   if (statMatches.length > 0) parts.push(`[Detected Stats: ${statMatches.slice(0, 12).join(" | ")}]`);
   if (priorityText) {
@@ -286,7 +291,19 @@ function isRecoverableNavigationError(err: unknown): boolean {
  * Executed inside the page via page.evaluate — must be a real function, see note above.
  * Flags active CAPTCHA/bot-check widgets AND blocking login/MFA walls.
  */
-function detectVerificationChallenge(): boolean {
+export function detectVerificationChallenge(): boolean {
+  // Loaded background widgets and badges do not mean the page is blocked.
+  const isVisible = (el: Element): boolean => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0 || rect.bottom <= 0 || rect.right <= 0 ||
+        rect.top >= window.innerHeight || rect.left >= window.innerWidth) return false;
+    for (let ancestor: Element | null = el; ancestor; ancestor = ancestor.parentElement) {
+      const style = window.getComputedStyle(ancestor);
+      if (style.display === "none" || style.visibility === "hidden" ||
+          style.visibility === "collapse" || Number(style.opacity) === 0) return false;
+    }
+    return true;
+  };
   const captchaSelectors = [
     'iframe[src*="recaptcha"]',
     'iframe[src*="hcaptcha"]',
@@ -299,27 +316,28 @@ function detectVerificationChallenge(): boolean {
     'input[autocomplete="one-time-code"]'
   ];
   for (const selector of captchaSelectors) {
-    const el = document.querySelector(selector);
-    if (el) {
-      const rect = el.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) return true;
+    for (const el of Array.from(document.querySelectorAll(selector))) {
+      if (el.closest(".grecaptcha-badge")) continue;
+      if (el.getAttribute("data-size") === "invisible" && el.tagName !== "IFRAME") continue;
+      if (isVisible(el)) return true;
     }
   }
-  const bodyText = (document.body?.innerText || "").slice(0, 800).toLowerCase();
+  const bodyText = (document.body?.innerText || "").trim();
+  const isAuthUrl = /\/(login|signin|sign-in|accounts\/login|auth|session|challenge|checkpoint)(?:\/|$)/i.test(window.location.pathname);
+  const challengeCopy = /select all images with|i[’']?m not a robot|prove your humanity|prove you(?:[’']?re| are) human|unusual traffic|verify you are human|complete the security check/i;
+  // Posts and articles can discuss CAPTCHAs. Copy alone must describe a wall.
   if (
-    /select all images with|i'?m not a robot|prove your humanity|prove you(?:'?re| are) human|unusual traffic|verify you are human|complete the security check/.test(
-      bodyText
-    )
+    (isAuthUrl || bodyText.length < 1200) &&
+    document.querySelectorAll("a[href]").length < 25 && challengeCopy.test(bodyText)
   ) {
     return true;
   }
   // Only flag password inputs if the page is predominantly a login/auth screen (not a full content page with a hidden or header login input)
-  const pwd = document.querySelector('input[type="password"]');
-  if (pwd) {
-    const rect = pwd.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-      const urlPath = window.location.pathname.toLowerCase();
-      const isAuthUrl = /\/(login|signin|sign-in|accounts\/login|auth|session|challenge|checkpoint)/.test(urlPath);
+  for (const dialog of Array.from(document.querySelectorAll('dialog[open], [role="dialog"], [aria-modal="true"]'))) {
+    if (isVisible(dialog) && challengeCopy.test((dialog as HTMLElement).innerText || "")) return true;
+  }
+  for (const pwd of Array.from(document.querySelectorAll('input[type="password"]'))) {
+    if (isVisible(pwd)) {
       const mainLinks = document.querySelectorAll("a[href]").length;
       if (isAuthUrl || mainLinks < 25) {
         return true;
@@ -608,6 +626,7 @@ export interface PageState {
   accessDenied?: boolean;
   signInRejected?: boolean;
   capturedAt: number;
+  tabs?: BrowserTabInfo[];
 }
 
 export interface BrowserTabInfo {
@@ -658,6 +677,8 @@ export class BrowserController {
   private lastScreencastFrame: string | null = null;
   private screencastCallback: ((base64Jpeg: string) => void) | null = null;
   private lastElements: InteractiveElement[] = [];
+  private viewInspection?: ViewInspection;
+  get lastViewInspection(): ViewInspection | undefined { return this.viewInspection; }
   private startPromise: Promise<void> | null = null;
   private desktopTargetIds = new WeakMap<Page, string>();
 
@@ -713,10 +734,11 @@ export class BrowserController {
   async resizeViewport(width: unknown, height: unknown): Promise<{ width: number; height: number }> {
     const size = browserViewportSize(width, height);
     const page = await this.ensureActivePage();
-    if (page.viewportSize()?.width === size.width && page.viewportSize()?.height === size.height) return size;
-    await page.setViewportSize(size);
+    const unchanged = page.viewportSize()?.width === size.width && page.viewportSize()?.height === size.height;
+    if (!unchanged) await page.setViewportSize(size);
     this.config.viewportWidth = size.width;
     this.config.viewportHeight = size.height;
+    if (unchanged) return size;
     this.lastElements = [];
     // Screencast max dimensions were negotiated when the feed started.
     if (this.screencastCallback) await this.startScreencast(this.screencastCallback);
@@ -776,6 +798,7 @@ export class BrowserController {
     const target = pages[index];
     if (target === this.page) return;
     this.page = target;
+    this.lastElements = [];
     if (!this.config.embeddedMode) await target.setViewportSize(this.viewportSize);
     await this.maybeBringToFront(target);
     if (this.screencastCallback) {
@@ -1297,6 +1320,7 @@ export class BrowserController {
   }
 
   async clickMark(markId: number): Promise<InteractiveElement> {
+    await this.ensureActivePage();
     const el = this.getElementByMark(markId);
     if (!el) {
       throw new BrowserActionError(`Mark #${markId} not found in current viewport elements. Check the latest element list.`);
@@ -1345,6 +1369,7 @@ export class BrowserController {
   }
 
   async typeMark(markId: number, text: string, clear = true, pressEnter = false): Promise<InteractiveElement> {
+    await this.ensureActivePage();
     const el = this.getElementByMark(markId);
     if (!el) {
       throw new BrowserActionError(`Mark #${markId} not found in current viewport elements. Check the latest element list.`);
@@ -1462,6 +1487,28 @@ export class BrowserController {
    * Extracts structured content (tables, lists, headings, links, or text matching a CSS selector)
    * directly from the live DOM so any agent can scrape, audit, or analyze page data reliably.
    */
+  async inspectView(selector?: string): Promise<ViewInspection> {
+    const page = await this.ensureActivePage();
+    const before = await this.captureState({includeScreenshot:false});
+    const result = await page.evaluate((selector) => {
+      const root = selector ? document.querySelector(selector) : document.body;
+      const visible = (el: Element) => { const rect=el.getBoundingClientRect();return rect.width>0&&rect.height>0&&getComputedStyle(el).visibility!=="hidden"; };
+      const textOf = (el: Element) => ((el as HTMLElement).innerText||el.textContent||'').replace(/\s+/g,' ').trim();
+      if(!root)return {scopeFound:false,optionCount:0,rowCount:0,examples:[],contexts:[],emptyIndicator:'',accessDeniedIndicator:'',text:''};
+      const options=Array.from(root.querySelectorAll('[role="option"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], select option')).filter(el=>el.tagName==='OPTION'?visible(el.closest('select')!):visible(el));
+      const rows=Array.from(root.querySelectorAll('table tr, [role="table"] [role="row"], [role="grid"] [role="row"]')).filter(el=>visible(el)&&!!el.querySelector('td,[role="cell"],[role="gridcell"]'));
+      const contexts=Array.from(root.querySelectorAll('select, [role="combobox"], [aria-selected="true"], [aria-expanded="true"], [role="tab"][aria-selected="true"]')).filter(visible).slice(0,8).map(el=>`${el.getAttribute('aria-label')||el.getAttribute('placeholder')||el.tagName}: ${(el as HTMLInputElement).value||textOf(el)}`.slice(0,180));
+      const text=textOf(root);
+      return {scopeFound:true,optionCount:options.length,rowCount:rows.length,examples:[...options,...rows].slice(0,12).map(el=>textOf(el).slice(0,200)),contexts,
+        emptyIndicator:/\b(?:no (?:matching )?(?:results|data|records|items|entries)|0 results|nothing (?:found|to display))\b/i.exec(text)?.[0]||'',
+        accessDeniedIndicator:/\b(?:access denied|permission denied|you (?:do not|don't) have (?:access|permission)|403 forbidden)\b/i.exec(text)?.[0]||'',text:text.slice(0,4000)};
+    },selector?.trim()||'');
+    const state=await this.captureState({includeScreenshot:false});
+    if (this.page !== page || before.url !== state.url || before.stateHash !== state.stateHash) throw new BrowserActionError("The page changed during inspection. Inspect the current view again before drawing a conclusion.");
+    this.viewInspection = {...result,url:state.url,stateHash:state.stateHash,scope:selector||'current page'};
+    return this.viewInspection;
+  }
+
   async extractPageData(selector?: string, mode: "text" | "links" | "tables" | "headings" | "html" = "text"): Promise<string> {
     const page = await this.ensureActivePage();
     try {
@@ -1486,14 +1533,14 @@ export class BrowserController {
               .join("\n");
           }
           if (extractMode === "tables") {
-            const tables = Array.from(root.querySelectorAll("table")).slice(0, 4);
-            if (!tables.length) return "No <table> elements found on page.";
+            const tables = Array.from(root.querySelectorAll('table, [role="table"], [role="grid"]')).slice(0, 4);
+            if (!tables.length) return "No native table or ARIA table/grid found in this scope. This does not establish that the site has no data.";
             return tables
               .map((t, idx) => {
-                const rows = Array.from(t.querySelectorAll("tr")).slice(0, 30);
+                const rows = Array.from(t.querySelectorAll('tr, [role="row"]')).slice(0, 30);
                 const csv = rows
                   .map((r) =>
-                    Array.from(r.querySelectorAll("th, td"))
+                    Array.from(r.querySelectorAll('th, td, [role="cell"], [role="gridcell"], [role="columnheader"]'))
                       .map((c) => (c.textContent || "").trim().replace(/\s+/g, " "))
                       .join(" | ")
                   )
@@ -1590,6 +1637,35 @@ export class BrowserController {
     }
   }
 
+  /** Read the actual control under a selector, pointer or Enter key before classifying its effect. */
+  async inspectActionTarget(toolName: string, input: Record<string, unknown>): Promise<{ label?: string; role?: string }> {
+    if (!["click_element", "click_coords", "key_press"].includes(toolName)) return {};
+    const page = await this.ensureActivePage();
+    return page.evaluate(({ toolName, input }) => {
+      let el: Element | null = null;
+      if (toolName === "key_press") {
+        if (!/^(?:enter|return)$/i.test(String(input.key || ""))) return {};
+        el = document.activeElement;
+      } else if (toolName === "click_coords") {
+        el = document.elementFromPoint(Number(input.x), Number(input.y));
+      } else {
+        try { el = document.querySelector(String(input.target || "")); } catch { /* visible text */ }
+      }
+      if (!el) return {};
+      const control = el.closest('button, a, input, [role="button"]') || el;
+      const label = control.getAttribute("aria-label") || control.getAttribute("title") ||
+        (control.tagName === "INPUT" ? (control as HTMLInputElement).value : control.textContent) || "";
+      if (toolName === "key_press" && control.tagName !== "BUTTON" && control.getAttribute("role") !== "button") {
+        const form = control.closest("form");
+        if (form && (/checkout|payment|billing/i.test(window.location.pathname) ||
+            form.querySelector('[autocomplete="cc-number"], [name*="cardNumber"], [name*="card_number"]'))) {
+          return { label: "Submit payment", role: "button" };
+        }
+      }
+      return label.trim() ? { label: label.trim().slice(0, 240), role: control.getAttribute("role") || control.tagName.toLowerCase() } : {};
+    }, { toolName, input });
+  }
+
   async captureState(options: { includeScreenshot?: boolean } = {}): Promise<PageState> {
     const page = await this.ensureActivePage();
     const includeScreenshot = options.includeScreenshot !== false;
@@ -1651,6 +1727,7 @@ export class BrowserController {
       requiresHumanVerification,
       accessDenied,
       signInRejected,
+      tabs: await this.getTabs(),
       capturedAt: Date.now()
     };
   }
