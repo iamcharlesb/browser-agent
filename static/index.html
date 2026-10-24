@@ -3020,7 +3020,7 @@ dialog.modal-dialog::backdrop {
 .fb-reason-input { width: min(220px, 52vw); min-width: 130px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; }
 .fb-reason-panel button { border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; color: var(--text); background: var(--surface); cursor: pointer; font: inherit; font-size: 12px; }
 
-  #command-queue { display: flex; flex-direction: column; gap: 6px; margin: 0 12px 8px; }
+  #command-queue { display: flex; flex-direction: column; gap: 6px; margin: 0 12px 8px; max-height: 180px; overflow-y: auto; }
   #command-queue[hidden], #composer-stop-button[hidden] { display: none; }
   .queued-command { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 14px; background: #fff; font-size: 14px; }
   .queued-command-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -5142,11 +5142,11 @@ dialog.modal-dialog::backdrop {
     });
   }
 
-  function queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, softNotice, userMarkup) {
+  function queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, softNotice, userMarkup, displayText) {
     queuedRunsAfterActive.push({
       id: crypto.randomUUID(),
       userMarkup: userMarkup || "",
-      displayText: task.replace(/^Continue the conversation\. User request: /, ""),
+      displayText: displayText || task.replace(/^Continue the conversation\. User request: /, ""),
       task: task,
       approvedCategories: approvedCategories || [],
       collaborationContext: collaborationContext,
@@ -6240,7 +6240,7 @@ dialog.modal-dialog::backdrop {
       var agent = activeAgent();
       queueRunAfterActive(
         learnMatch ? followup : "Continue the conversation. User request: " + followup,
-        [], "", null, agent, false, esc(value) + attachmentMessageMarkup()
+        [], "", null, agent, false, esc(value) + attachmentMessageMarkup(), value
       );
       clearAttachments();
       return;
