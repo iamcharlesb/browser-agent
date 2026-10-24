@@ -9,7 +9,7 @@ const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
 const { BrowserWorkspace, startBrowserBroker } = require("./browserWorkspace");
-const { getExternalGoogleSignInAppUrl } = require("./googleSignIn");
+const { getExternalGoogleSignInAppUrl, buildDesktopGoogleSignInUrl } = require("./googleSignIn");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
 // Defaults to the dev output (dist/). `yarn desktop:built` points this at build/ so the desktop
@@ -285,6 +285,16 @@ ipcMain.handle("workspace:browser-state", (event) => {
 ipcMain.handle("workspace:browser-command", (event, input) => {
   if (!isWorkspaceSender(event)) throw new Error("Untrusted workspace sender.");
   return ensureBrowserWorkspace().command(input);
+});
+ipcMain.handle("auth:google-sign-in", async (event, handoff) => {
+  if (!isWorkspaceSender(event)) throw new Error("Untrusted workspace sender.");
+  const nonce = typeof handoff?.nonce === "string" ? handoff.nonce : "";
+  const verifier = typeof handoff?.handoffVerifier === "string" ? handoff.handoffVerifier : "";
+  const url = buildDesktopGoogleSignInUrl(serverPort, nonce);
+  if (!url || !/^[a-f0-9]{48,128}$/i.test(verifier)) {
+    throw new Error("Could not prepare secure Google sign-in.");
+  }
+  await shell.openExternal(url);
 });
 
 async function boot() {
