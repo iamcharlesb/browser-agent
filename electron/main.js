@@ -9,6 +9,7 @@ const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
 const { BrowserWorkspace, startBrowserBroker } = require("./browserWorkspace");
+const { getExternalGoogleSignInAppUrl } = require("./googleSignIn");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
 // Defaults to the dev output (dist/). `yarn desktop:built` points this at build/ so the desktop
@@ -188,7 +189,8 @@ function createWindow(port) {
   mainWindow.loadURL(`http://127.0.0.1:${port}/`);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    const externalGoogleSignInUrl = getExternalGoogleSignInAppUrl(url, `http://127.0.0.1:${port}`);
+    shell.openExternal(externalGoogleSignInUrl || url);
     return { action: "deny" };
   });
 

@@ -107,6 +107,8 @@ Open Bots supports two identity modes for open-source / local use:
    - Top bar: **Sign in** (becomes **Account** when signed in)
    - Sidebar: avatar / **Connect Apps** → Google button in the Account modal
 
+Electron opens Google sign-in in the system browser because Google blocks authentication in embedded user agents. The system browser completes the redirect, then the app exchanges a short-lived, one-time handoff with its local server so the Electron session is signed in too. In Electron, click the Google button in the browser page it opens to finish.
+
 Do not commit `.env` or real client secrets. `.env.example` documents the keys only.
 
 ### MongoDB (optional cloud persistence)
