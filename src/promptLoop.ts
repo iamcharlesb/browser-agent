@@ -517,6 +517,7 @@ export class AgentOrchestrator {
       "- Structured plans beat paragraphs: short labeled lines, not bold bullet essays.\n" +
       "- Finish as soon as you have the answer or a concrete next ask. Don't narrate every click.\n" +
       "- Batch independent tool calls. Prefer extract_page_data / Detected Stats over re-navigating.\n" +
+      "- FAST NAVIGATION: Reuse the latest observation. Native click_mark/click_element opens pointer-driven menus; newly opened menu/dialog controls appear first in the next marks list. Click the exact Edit action from those marks instead of re-extracting full HTML, reopening the menu, or walking Tab repeatedly. Use run_action_script for a known short sequence; check each result and stop on failure or ambiguity. Search once only when the target row is absent, then match the exact draft title/workspace. Never guess a different row to save steps.\n" +
       "- Observations are text-first (marks + page text). Do not ask for screenshots when Text answers the ask.\n" +
       `- Mode: ${this.interactionMode.toUpperCase()} (` +
       (this.interactionMode === "chat"

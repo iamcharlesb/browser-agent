@@ -1,5 +1,6 @@
 /** Browser operations and state capture, backed by Playwright for Node. */
 
+import { isCssSelector } from "./actionEffect";
 import { browserViewportSize } from "./apiContract";
 import { ensureManagedChrome, managedChromeEnabled } from "./managedChrome";
 import { desktopBrowserAvailable, desktopBrowserRequest } from "./desktopBrowser";
@@ -71,7 +72,15 @@ function extractInteractiveElements(selector: string): RawElement[] {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const results: RawElement[] = [];
-  for (const [domIndex, el] of nodes.entries()) {
+  // Portaled menus often sit after dozens of table controls. Keep their original DOM
+  // indices for clickMark, but expose them first within the observation's element budget.
+  const ordered = nodes.map((el, domIndex) => ({
+    el, domIndex,
+    priority: el.closest('[role="menu"], [role="listbox"], [role="menuitem"], [role="option"]') ? 3
+      : el.closest('[role="dialog"], [aria-modal="true"], [data-radix-popper-content-wrapper]') ? 2
+      : el === document.activeElement ? 1 : 0
+  })).sort((a, b) => b.priority - a.priority);
+  for (const { domIndex, el } of ordered) {
     const tagLower = el.tagName.toLowerCase();
     const editable = (el as HTMLElement).isContentEditable;
     const isDirectEditableRoot = el.getAttribute("contenteditable") === "true";
@@ -1512,83 +1521,58 @@ export class BrowserController {
   async clickBySelectorOrText(target: string): Promise<string> {
     const page = await this.ensureActivePage();
     const query = target.trim();
-    if (!query) {
-      throw new BrowserActionError("clickBySelectorOrText requires a non-empty target");
-    }
+    if (!query) throw new BrowserActionError("clickBySelectorOrText requires a non-empty target");
+    const candidatesSelector = 'a, button, input, [role="button"], [role="link"], [role="tab"], [role="menuitem"], span, div';
     try {
-      const clickedLabel = await page.evaluate((q) => {
-        const lower = q.toLowerCase();
-        // Special handling for "profile" on Instagram/X where the sidebar link only has an <img alt="...'s profile picture">
-        if (lower === "profile" || lower === "my profile") {
-          const sidebarProfile = Array.from(document.querySelectorAll('a[href]')).find((a) => {
-            const rect = a.getBoundingClientRect();
-            if (rect.width <= 0 || rect.height <= 0 || rect.left > 280) return false;
-            const imgAlt = a.querySelector("img[alt]")?.getAttribute("alt") || "";
-            const txt = ((a as HTMLElement).innerText || a.getAttribute("aria-label") || "").trim();
-            return /profile picture/i.test(imgAlt) || /^profile$/i.test(txt);
-          });
-          if (sidebarProfile) {
-            (sidebarProfile as HTMLElement).click();
-            return (sidebarProfile.getAttribute("href") || "Profile").trim();
+      let locator;
+      let label = query;
+      if (isCssSelector(query)) {
+        locator = page.locator(query);
+      } else {
+        const match = await page.evaluate(({ q, selector }) => {
+          const lower = q.toLowerCase();
+          const candidates = Array.from(document.querySelectorAll(selector));
+          const visible = (el: Element) => {
+            const rect = el.getBoundingClientRect();
+            const style = getComputedStyle(el);
+            return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+          };
+          if (lower === "profile" || lower === "my profile") {
+            const index = candidates.findIndex(el => el.matches('a[href]') && visible(el) && el.getBoundingClientRect().left <= 280 &&
+              (/profile picture/i.test(el.querySelector('img[alt]')?.getAttribute('alt') || '') || /^profile$/i.test((el.textContent || '').trim())));
+            if (index >= 0) return { index, label: (candidates[index].getAttribute('href') || 'Profile').trim() };
           }
+          const labelled = candidates.map((el, index) => ({ el, index, label: (
+            el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("placeholder") ||
+            (el as HTMLElement).innerText || el.querySelector('img[alt]')?.getAttribute('alt') || ""
+          ).trim().replace(/\s+/g, " ") })).filter(item => visible(item.el));
+          // Prefer actual interactive controls over an ancestor with the same text.
+          const interactive = (el: Element) => el.matches('a,button,input,[role="button"],[role="link"],[role="tab"],[role="menuitem"]');
+          const exact = labelled.filter(item => item.label.toLowerCase() === lower);
+          const match = exact.find(item => interactive(item.el)) || exact[0] ||
+            labelled.find(item => interactive(item.el) && item.label.length < 100 && item.label.toLowerCase().includes(lower)) ||
+            labelled.find(item => item.label.length < 100 && item.label.toLowerCase().includes(lower));
+          return match ? { index: match.index, label: match.label } : null;
+        }, { q: query, selector: candidatesSelector });
+        if (match) {
+          locator = page.locator(candidatesSelector).nth(match.index);
+          label = match.label;
+        } else {
+          // Also accept simple selectors such as "button" without treating every word as CSS.
+          locator = page.locator(query);
         }
-        const candidates = Array.from(
-          document.querySelectorAll('a, button, input, [role="button"], [role="link"], [role="tab"], [role="menuitem"], span, div')
-        );
-        for (const el of candidates) {
-          const rect = el.getBoundingClientRect();
-          if (rect.width <= 0 || rect.height <= 0) continue;
-          const imgAlt = el.querySelector("img[alt]")?.getAttribute("alt") || "";
-          const label = (
-            el.getAttribute("aria-label") ||
-            el.getAttribute("title") ||
-            el.getAttribute("placeholder") ||
-            (el as HTMLElement).innerText ||
-            imgAlt ||
-            ""
-          )
-            .trim()
-            .replace(/\s+/g, " ");
-          if (label && label.toLowerCase() === lower) {
-            (el as HTMLElement).click();
-            return label;
-          }
-        }
-        for (const el of candidates) {
-          const rect = el.getBoundingClientRect();
-          if (rect.width <= 0 || rect.height <= 0) continue;
-          const imgAlt = el.querySelector("img[alt]")?.getAttribute("alt") || "";
-          const label = (
-            el.getAttribute("aria-label") ||
-            el.getAttribute("title") ||
-            (el as HTMLElement).innerText ||
-            imgAlt ||
-            ""
-          )
-            .trim()
-            .replace(/\s+/g, " ");
-          if (label && label.length < 100 && label.toLowerCase().includes(lower)) {
-            (el as HTMLElement).click();
-            return label;
-          }
-        }
-        try {
-          const selEl = document.querySelector(q) as HTMLElement | null;
-          if (selEl) {
-            selEl.click();
-            return q;
-          }
-        } catch {
-          // ignore invalid CSS selector
-        }
-        return null;
-      }, query);
-
-      if (!clickedLabel) {
-        throw new BrowserActionError(`Could not find a visible element matching "${query}".`);
       }
-      await this.waitForIdle(undefined, 160);
-      return clickedLabel;
+      const visibleIndex = await locator.evaluateAll(nodes => nodes.findIndex(el => {
+        const rect = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      }));
+      if (visibleIndex < 0) throw new BrowserActionError(`Could not find a visible element matching "${query}".`);
+      // Native pointer events are required by Radix and other pointerdown-driven menus.
+      // Never fall back to element.click(): that can report success without opening the menu.
+      await locator.nth(visibleIndex).click({ timeout: this.config.actionTimeoutMs });
+      await this.waitForIdle(undefined, 80);
+      return label;
     } catch (err) {
       if (err instanceof BrowserActionError) throw err;
       throw new BrowserActionError(`Failed to click "${query}": ${(err as Error).message}`);
