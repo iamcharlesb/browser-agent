@@ -7,6 +7,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("openBotsDesktop", {
   isDesktop: true,
   platform: process.platform,
+  startGoogleSignIn(nonce, handoffVerifier) {
+    return ipcRenderer.invoke("auth:google-sign-in", { nonce, handoffVerifier });
+  },
   reportBrowserBounds(bounds) {
     ipcRenderer.send("live-browser:bounds", bounds);
   },

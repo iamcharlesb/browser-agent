@@ -2419,6 +2419,7 @@ dialog.modal-dialog::backdrop {
 }
 #google-signin-button { min-height: 40px; width: 100%; }
 #google-signin-button > div { margin: 0 auto !important; }
+#google-signin-desktop-button { min-height: 40px; width: 100%; }
 #google-signin-status {
   min-height: 0;
   margin: 0;
@@ -3368,6 +3369,7 @@ dialog.modal-dialog::backdrop {
       <p class="account-lede">Optional — sign in with Google to sync bots across devices. Otherwise you’re a guest on this device.</p>
       <div class="google-login-actions">
         <div id="google-signin-button"></div>
+        <button type="button" id="google-signin-desktop-button" class="session-mode-btn" hidden>Sign in with Google</button>
         <!-- Guest is the default when unsigned; header Sign in is enough. Keep id for JS wiring. -->
         <button type="button" id="google-login-guest-btn" hidden>Continue as Guest</button>
       </div>
@@ -3678,7 +3680,10 @@ dialog.modal-dialog::backdrop {
   var googleSignInAttemptTimer = 0;
   var googleSignInHandoffTimer = 0;
   var googleSignInHandoffDeadline = 0;
-  var googleSignInReturn = new URLSearchParams(location.search).get("googleSignIn") || "";
+  var googleSignInParams = new URLSearchParams(location.search);
+  var googleSignInReturn = googleSignInParams.get("googleSignIn") || "";
+  var googleSignInExternal = googleSignInReturn === "external";
+  var googleSignInExternalNonce = googleSignInExternal ? googleSignInParams.get("state") || "" : "";
 
   var appEl = document.getElementById("app");
   var workspace = document.getElementById("workspace");
@@ -7134,9 +7139,11 @@ dialog.modal-dialog::backdrop {
     var session = document.getElementById("google-signin-session");
     var email = document.getElementById("google-signin-session-email");
     var guestBtn = document.getElementById("google-login-guest-btn");
+    var desktopButton = document.getElementById("google-signin-desktop-button");
     googleIdentityUser = user || null;
     if (user) {
       if (button) button.hidden = true;
+      if (desktopButton) desktopButton.hidden = true;
       if (guestBtn) guestBtn.hidden = true;
       session.hidden = false;
       email.textContent = "Signed in as " + user.email;
@@ -7258,6 +7265,7 @@ dialog.modal-dialog::backdrop {
 
   function setupGoogleIdentitySignIn() {
     var button = document.getElementById("google-signin-button");
+    var desktopButton = document.getElementById("google-signin-desktop-button");
     fetch("/api/auth/google/config")
       .then(readResponse)
       .then(function(config) {
@@ -7274,12 +7282,27 @@ dialog.modal-dialog::backdrop {
               return;
             }
             setGoogleIdentitySession(null);
+            if (window.openBotsDesktop && window.openBotsDesktop.isDesktop && !googleSignInExternal) {
+              button.hidden = true;
+              desktopButton.hidden = false;
+              setGoogleSignInStatus("");
+              return;
+            }
+            button.hidden = false;
+            if (desktopButton) desktopButton.hidden = true;
             if (googleIdentityReady) {
               watchGoogleButtonRender(button, config.authorizedOrigin);
               return;
             }
             setGoogleSignInStatus("Loading secure sign-in…");
             return loadGoogleIdentityScript().then(function() {
+              if (googleSignInExternal) {
+                googleIdentityNonce = googleSignInExternalNonce;
+                if (!/^[a-f0-9]{48,128}$/i.test(googleIdentityNonce)) {
+                  throw new Error("The desktop sign-in link expired. Click Sign in with Google in Open Bots again.");
+                }
+                return Promise.resolve({ ready: true });
+              }
               googleIdentityNonce = Array.from(crypto.getRandomValues(new Uint8Array(24)))
                 .map(function(value) { return value.toString(16).padStart(2, "0"); }).join("");
               googleIdentityHandoffVerifier = Array.from(crypto.getRandomValues(new Uint8Array(32)))
@@ -7358,6 +7381,36 @@ dialog.modal-dialog::backdrop {
     document.getElementById("connect-modal").showModal();
     setupGoogleIdentitySignIn();
   }
+
+  var desktopGoogleSignInButton = document.getElementById("google-signin-desktop-button");
+  if (desktopGoogleSignInButton) desktopGoogleSignInButton.onclick = function() {
+    var nonce = Array.from(crypto.getRandomValues(new Uint8Array(24)))
+      .map(function(value) { return value.toString(16).padStart(2, "0"); }).join("");
+    var verifier = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+      .map(function(value) { return value.toString(16).padStart(2, "0"); }).join("");
+    setGoogleSignInStatus("Opening Google sign-in in your browser…");
+    fetch("/api/auth/google/nonce", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nonce: nonce, handoffVerifier: verifier })
+    }).then(readResponse).then(function() {
+      googleIdentityNonce = nonce;
+      googleIdentityHandoffVerifier = verifier;
+      googleSignInHandoffDeadline = Date.now() + 120000;
+      window.clearTimeout(googleSignInHandoffTimer);
+      googleSignInHandoffTimer = window.setTimeout(pollGoogleSignInHandoff, 500);
+      return window.openBotsDesktop.startGoogleSignIn(nonce, verifier);
+    }).then(function() {
+      window.clearTimeout(googleSignInAttemptTimer);
+      googleSignInAttemptTimer = window.setTimeout(function() {
+        if (!googleIdentityUser) setGoogleSignInStatus("Choose your Google account in the browser window to finish signing in.");
+      }, 7000);
+    }).catch(function(error) {
+      window.clearTimeout(googleSignInHandoffTimer);
+      googleSignInHandoffTimer = 0;
+      setGoogleSignInStatus(error.message || "Could not open Google sign-in in your browser.", true);
+    });
+  };
 
   (function wireAccountDisclosures() {
     var pairs = [

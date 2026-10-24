@@ -11,4 +11,12 @@ function getExternalGoogleSignInAppUrl(requestedUrl, appOrigin) {
   }
 }
 
-module.exports = { getExternalGoogleSignInAppUrl };
+function buildDesktopGoogleSignInUrl(port, nonce) {
+  if (!Number.isInteger(port) || port < 1 || port > 65535 || !/^[a-f0-9]{48,128}$/i.test(nonce || "")) return null;
+  const url = new URL(`http://127.0.0.1:${port}/`);
+  url.searchParams.set("googleSignIn", "external");
+  url.searchParams.set("state", nonce);
+  return url.toString();
+}
+
+module.exports = { getExternalGoogleSignInAppUrl, buildDesktopGoogleSignInUrl };
