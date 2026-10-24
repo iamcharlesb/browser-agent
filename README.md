@@ -92,7 +92,9 @@ Open Bots supports two identity modes for open-source / local use:
 1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an **OAuth 2.0 Client ID** (application type: Web).
 2. Under **Authorized JavaScript origins**, add:
    - `http://127.0.0.1:8765` (dev)
+   - `http://localhost:8765` (if you open the dev app using `localhost`)
    - `http://127.0.0.1:8766` (built / `desktop:built` — stable default port)
+   - `http://localhost:8766` (if you open the built app using `localhost`)
    - plus any deployed origin you use
 3. Copy the client ID into `.env` as `GOOGLE_CLIENT_ID` (same pattern as SuperBuilder’s `GOOGLE_CLIENT_ID` / `NEXT_PUBLIC_GOOGLE_CLIENT_ID`). GIS Sign-In does **not** require a client secret.
 4. Restart the server (or `npm run desktop:built`). Unsigned visitors start as **Guest** automatically (no Sign in / Guest choice screen). Sign-in is available from:
