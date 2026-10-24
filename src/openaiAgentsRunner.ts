@@ -5,7 +5,7 @@
  * Selecting "Cheap" in the header switches to the token-lean custom loop in `promptLoop.ts`.
  */
 
-import { Agent, MaxTurnsExceededError, OpenAIProvider, Runner, tool } from "@openai/agents";
+import { Agent, MaxTurnsExceededError, OpenAIProvider, Runner, tool, user, type AgentInputItem } from "@openai/agents";
 import type OpenAI from "openai";
 import type { PageState } from "./browserController";
 
@@ -27,6 +27,7 @@ export interface RunOpenAIAgentsSdkOptions {
   botName: string;
   systemPrompt: string;
   initialUserPrompt: string;
+  taskImages?: string[];
   model: string;
   apiKey: string;
   baseURL?: string;
@@ -37,7 +38,8 @@ export interface RunOpenAIAgentsSdkOptions {
   shouldAbort: () => boolean;
   onToolCall: (name: string, input: Record<string, unknown>) => Promise<OpenAIAgentsSdkToolResult>;
   onUsage?: (usage: { promptTokens: number; completionTokens: number; totalTokens: number }) => void;
-  checkPrematureFinish?: (text: string) => string | null;
+  checkPrematureFinish?: (text: string) => string | null | Promise<string | null>;
+  getLatestObservationImage?: () => string | undefined;
   getLatestObservationText?: () => string;
 }
 
@@ -56,6 +58,7 @@ export interface OpenAIAgentsSdkRunOutcome {
 export function formatObservationForSdk(state: PageState | null, step: number): string {
   if (!state) return "";
   const lines: string[] = [`[Live Browser Observation — Step ${step} | URL: ${state.url} | Title: "${state.title}"]`];
+  if (state.tabs?.length) lines.push(`Open tabs (switch_tab uses index; * is active):\n${state.tabs.map(tab=>`${tab.index}${tab.active?"*":""}: ${tab.title} | ${tab.url}`).join("\n")}`);
   if (state.pageText) {
     lines.push(`Text:\n${state.pageText}`);
   }
@@ -168,7 +171,12 @@ export async function runWithOpenAIAgentsSdk(
       tracingDisabled: true
     });
 
-    let currentInput: string = options.initialUserPrompt;
+    const buildInput = (text: string): string | AgentInputItem[] => {
+      const snapshot=options.getLatestObservationImage?.();
+      const images=[...(options.taskImages||[]),...(snapshot?[`data:image/jpeg;base64,${snapshot}`]:[])];
+      return images.length ? [user([{type:"input_text",text},...images.map(image=>({type:"input_image" as const,image,detail:"high" as const}))])] : text;
+    };
+    let currentInput = buildInput(options.initialUserPrompt);
     let prematureRetries = 0;
 
     while (true) {
@@ -225,11 +233,11 @@ export async function runWithOpenAIAgentsSdk(
             : "";
 
       if (finalOutput && options.checkPrematureFinish && prematureRetries < 2) {
-        const premature = options.checkPrematureFinish(finalOutput);
+        const premature = await options.checkPrematureFinish(finalOutput);
         if (premature) {
           prematureRetries += 1;
           const latestObs = options.getLatestObservationText ? options.getLatestObservationText() : "";
-          currentInput = `${options.initialUserPrompt}\n\n[PREVIOUS ATTEMPT INCOMPLETE]:\n${premature}\n${latestObs}`;
+          currentInput = buildInput(`${options.initialUserPrompt}\n\n[PREVIOUS ATTEMPT INCOMPLETE]:\n${premature}\n${latestObs}`);
           continue;
         }
       }

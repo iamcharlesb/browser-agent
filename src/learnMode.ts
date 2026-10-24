@@ -503,6 +503,7 @@ export function personaFor(task: string): string {
 }
 
 export interface LearnModeOptions {
+  shouldAbort?: () => boolean;
   task: string;
   bus: MessageBus;
   runner: LearnRunner;
@@ -711,6 +712,7 @@ export class LearnModeSession {
     bus.publish(TOPICS.learnStarted, { sessionId: this.sessionId, task, persona }, { source: "learn-mode", correlationId });
 
     for (let round = 0; round < maxRounds; round += 1) {
+      if (this.options.shouldAbort?.()) break;
       const message = userSimulator({ task, round, transcript });
       if (!message) break;
 
@@ -743,7 +745,7 @@ export class LearnModeSession {
       );
 
       // A dead model or a tripped breaker won't get better on the next round.
-      if (turn.llmError || turn.terminationReason === "crash") break;
+      if (this.options.shouldAbort?.() || turn.llmError || turn.terminationReason === "crash" || turn.terminationReason === "stopped") break;
     }
 
     const scores = scoreExperience(transcript);
@@ -764,7 +766,7 @@ export class LearnModeSession {
     let fixDecision: FixDecisionOutcome = stellar ? "not_needed" : "none_proposed";
     let fixDecisionReason: string | undefined;
 
-    if (!stellar && allowSelfFix && proposePatches) {
+    if (!this.options.shouldAbort?.() && !stellar && allowSelfFix && proposePatches) {
       let patches: ProposedPatch[] = [];
       try {
         patches = await proposePatches({ notes, transcript, task });
@@ -772,7 +774,7 @@ export class LearnModeSession {
         fixDecisionReason = `No patches could be written: ${(err as Error).message}`;
       }
 
-      if (patches.length > 0) {
+      if (!this.options.shouldAbort?.() && patches.length > 0) {
         proposal = {
           sessionId: this.sessionId,
           task,
@@ -804,7 +806,7 @@ export class LearnModeSession {
           { source: "learn-mode", correlationId }
         );
 
-        if (decision.approved) {
+        if (decision.approved && !this.options.shouldAbort?.()) {
           const selected = decision.patchIds
             ? proposal.fixes.filter((item) => decision.patchIds?.includes(item.id))
             : proposal.fixes;

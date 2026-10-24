@@ -16,3 +16,6 @@ artifacts/
 
 # Durable per-bot task continuity (private local runtime data).
 .browser-agent-task-memory/
+
+.browser-agent-attachments/
+.browser-agent-knowledge/

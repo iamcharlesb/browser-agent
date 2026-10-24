@@ -790,3 +790,50 @@ test("agentEngine openai-sdk runs via @openai/agents Runner and completes tool c
   assert.equal(result.success, true);
   assert.match(result.summary, /Completed via OpenAI Agents SDK/);
 });
+
+
+test("payment actions ask every time in Turbo even with task and standing approval", async () => {
+  let prompts = 0, clicks = 0, requests = 0;
+  const browser = {
+    isStarted: true, currentUrl: () => "about:blank",
+    clickBySelectorOrText: async () => { clicks++; }
+  } as unknown as BrowserController;
+  const agent = new AgentOrchestrator({
+    task: "Complete the two requested actions.", model: "gpt-6-luna", apiKey: "test-key",
+    interactionMode: "turbo", standingApproval: true, browser,
+    onTerminalApproval: details => {
+      prompts++;
+      assert.equal(details.approvalKind, "irreversible");
+      return { approved: prompts === 1, scope: "task" };
+    },
+    fetch: async () => {
+      requests++;
+      const output = requests < 3
+        ? [{ type: "function_call", call_id: `pay_${requests}`, name: "click_element", arguments: JSON.stringify({ target: "Pay now", effect: "reversible" }) }]
+        : [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "The second action was denied." }] }];
+      return new Response(JSON.stringify(makeResponsesPayload(output)), { headers: { "content-type": "application/json" } });
+    }
+  });
+  assert.equal((await agent.run()).success, true);
+  assert.equal(prompts, 2);
+  assert.equal(clicks, 1);
+});
+
+test("Stop aborts an in-flight model request", async () => {
+  const controller = new AbortController();
+  let requested = false;
+  const agent = new AgentOrchestrator({
+    task: "Explain the tradeoffs.", model: "gpt-6-luna", apiKey: "test-key",
+    browser: {} as BrowserController, abortSignal: controller.signal,
+    fetch: async (_input, init) => {
+      requested = true;
+      const signal = init?.signal;
+      assert.ok(signal);
+      setTimeout(() => controller.abort(), 10);
+      return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
+    }
+  });
+  const result = await agent.run();
+  assert.equal(requested, true);
+  assert.equal(result.terminationReason, "stopped");
+});

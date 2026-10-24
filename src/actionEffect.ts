@@ -47,6 +47,7 @@ export function maxEffect(a: ActionEffect, b: ActionEffect): ActionEffect {
 
 /** Tools that only observe. Never gated, whatever the model declares. */
 const READ_ONLY_TOOLS = new Set([
+  "list_tabs", "inspect_view", "switch_tab",
   "navigate",
   "scroll",
   "screenshot",
@@ -121,6 +122,7 @@ const IRREVERSIBLE_PATTERNS: RegExp[] = [
   /\bremove\b/,
   /\bclose\s+account\b/,
   /\b(?:pay|purchase|buy|checkout|check\s*out)\b/,
+  /\b(?:payment|billing|charge|recharge|top\s*up|renew\s+(?:plan|subscription)|subscribe\s+(?:now|for)|start\s+(?:paid|subscription))\b/,
   /\bplace\s+(?:the\s+)?order\b/,
   /\bconfirm\s+(?:and\s+)?(?:pay|order|payment|purchase|booking|transfer|deletion|delete|cancellation)\b/,
   /\b(?:transfer|withdraw|donate|refund|chargeback)\b/,

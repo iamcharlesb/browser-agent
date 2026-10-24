@@ -373,3 +373,14 @@ runtime/frame tests run as part of `npm test`.
 
 See [Desktop workspace architecture](docs/desktop-architecture.md) for component
 ownership, reload behavior, the VS Code fork decision, and implementation limits.
+
+
+### Clipboard images and compact knowledge
+
+Paste screenshots into the chat input with Ctrl+V (Cmd+V on macOS), or use **+** to attach images or text files. Images have removable previews and are sent as image inputs on that chat turn. The API engines support these inputs; Local Engine and Claude CLI report that image inspection is unavailable. Up to four images (3 MB each) or eight total attachments are supported. Text/code files can be up to 200 KB. Pasted text longer than 1,200 characters becomes a source attachment; shorter text stays in the input.
+
+Text sources are stored locally and searched with ranked lexical retrieval. The bot receives a compact task summary and relevant excerpts, rather than the full source/history. It can use `knowledge_base` to search, read longer source text, list saved entries, and save a short reusable runbook with preconditions, steps, verification, and pitfalls. Successful browser workflows also produce a compact fallback procedure from their action trace when the model does not save a runbook. Runbooks are guidance to verify, not approval grants. Image contents become reusable knowledge only when the agent interprets them and saves a textual lesson; there is no background OCR or embedding API bill.
+
+Per-reply Like/Dislike feedback is saved into that bot's local learning store. A task-scoped approval is remembered only as a temporary workflow preference; it never grants permission in future tasks. Irreversible browser actions only offer a one-time approval.
+
+Knowledge is scoped by bot and stored in `.browser-agent-knowledge/`; attachment metadata is in `.browser-agent-attachments/`, and image files are local artifacts. These runtime directories are excluded from Git. Renaming a bot currently changes its name-based knowledge scope.

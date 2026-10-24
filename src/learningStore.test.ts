@@ -7,6 +7,7 @@ import {
   MAX_DISTILL_CHARS,
   appendLearning,
   applyApprovalDenial,
+  applyTaskApprovalChoice,
   applyLearningKbTool,
   applyRunOutcome,
   applyUserTurnInput,
@@ -88,6 +89,8 @@ test("applyApprovalDenial and learning_kb tool save/read", () => {
   let state = defaultLearningKb("bot");
   state = applyApprovalDenial(state, "Run shell: rm -rf /tmp/foo");
   assert.ok(state.mistakes.some((m) => /denied approval/i.test(m.text)));
+  state = applyTaskApprovalChoice(state, "Run npm install");
+  assert.ok(state.learnings.some((m) => /temporary; ask again in future tasks/i.test(m.text)));
 
   const saved = applyLearningKbTool(state, {
     action: "save",
