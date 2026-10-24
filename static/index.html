@@ -4925,6 +4925,9 @@ dialog.modal-dialog::backdrop {
   function formatMarkdown(raw) {
     if (!raw) return "";
     var text = esc(raw);
+    // Agent responses sometimes wrap app artifacts in a sandbox URL. These files
+    // are served by this app, so normalize them to the same origin-relative route.
+    text = text.replace(/sandbox:(\/api\/artifacts\/[A-Za-z0-9._%/-]+)/g, "$1");
     // Code blocks
     text = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, function(_, _lang, code) {
       return "<pre><code>" + code.trim() + "</code></pre>";
