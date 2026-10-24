@@ -26,6 +26,7 @@
   --red: #dc2626;
   --red-soft: #fef2f2;
   --amber: #d97706;
+  --message-column-max-width: 960px;
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
   --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.06), 0 2px 6px rgba(15, 23, 42, 0.03);
   --shadow-lg: 0 18px 42px rgba(15, 23, 42, 0.1), 0 4px 12px rgba(15, 23, 42, 0.04);
@@ -249,7 +250,12 @@ button { color: inherit; }
 .agent-row {
   min-height: 48px;
   position: relative;
+  cursor: grab;
+  touch-action: pan-y;
 }
+.agent-row.is-dragging { opacity: .42; cursor: grabbing; }
+.agent-row.drop-before { box-shadow: inset 0 2px 0 var(--brand); }
+.agent-row.drop-after { box-shadow: inset 0 -2px 0 var(--brand); }
 .agent-row .agent-delete {
   opacity: 0;
   border: 0;
@@ -441,12 +447,12 @@ button { color: inherit; }
 @keyframes bot-hop{0%{transform:skewX(0) scale(1,1)}14%{transform:skewX(-22deg) scale(.9,1.08)}28%{transform:skewX(18deg) scale(.86,1.12)}42%{transform:skewX(-10deg) scale(.95,1.04)}60%{transform:skewX(0) scale(1.55,1.55)}74%{transform:skewX(0) scale(1.4,1.4)}86%{transform:skewX(0) scale(.92,.92)}100%{transform:skewX(0) scale(1,1)}}
 
 /* Avatar container sizing for .bot */
-.agent-avatar .bot { --size: 30px; }
+.agent-avatar .bot { --size: 36px; }
 .agent-avatar .bot--capsule,
-.agent-avatar .bot--cloud { --size: 24px; }
-.agent-avatar.small .bot { --size: 25px; }
+.agent-avatar .bot--cloud { --size: 28px; }
+.agent-avatar.small .bot { --size: 29px; }
 .agent-avatar.small .bot--capsule,
-.agent-avatar.small .bot--cloud { --size: 20px; }
+.agent-avatar.small .bot--cloud { --size: 24px; }
 #agent-chip .agent-avatar.small .bot { --size: 21px; }
 #agent-chip .agent-avatar.small .bot--capsule,
 #agent-chip .agent-avatar.small .bot--cloud { --size: 17px; }
@@ -794,13 +800,7 @@ button { color: inherit; }
   text-overflow: ellipsis;
 }
 .agent-subtitle {
-  display: block;
-  margin-top: 1px;
-  color: var(--muted);
-  font-size: 11.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: none;
 }
 #app:not(.sidebar-collapsed) .agent-name,
 #app:not(.sidebar-collapsed) .agent-subtitle {
@@ -1376,18 +1376,19 @@ button { color: inherit; }
   align-items: flex-start;
   gap: 11px;
   margin: 0 auto 18px;
-  max-width: 740px;
+  max-width: min(var(--message-column-max-width), 100%);
   width: 100%;
 }
-.message.agent.is-new { animation: replyRise 200ms ease-out both; }
+.message.agent.is-new { animation: replyRise 320ms cubic-bezier(.2,.8,.2,1) both; }
 @keyframes replyRise {
-  from { opacity: 0; transform: translateY(14px); }
+  from { opacity: 0; transform: translateY(12px) scale(.985); filter: blur(2px); }
   to { opacity: 1; transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .message.agent.is-new { animation: none; }
 }
 .message.user { justify-content: flex-end; }
+.message.user .message-body { max-width: 100%; }
 .msg-bot-avatar {
   width: 28px;
   height: 28px;
@@ -1425,7 +1426,7 @@ button { color: inherit; }
   word-wrap: break-word;
   line-height: 1.58;
   color: var(--text);
-  font-size: 14px;
+  font-size: 16px;
 }
 .message.user .bubble {
   background: #111827;
@@ -1442,7 +1443,7 @@ button { color: inherit; }
   align-items: center;
   gap: 9px;
   width: fit-content;
-  max-width: min(740px, 100%);
+  max-width: min(var(--message-column-max-width), 100%);
   margin: 2px auto 18px;
   color: var(--text-secondary);
   font-size: 13px;
@@ -1784,7 +1785,7 @@ button { color: inherit; }
   outline: 0;
   padding: 5px 7px;
   background: transparent;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.4;
 }
 .composer-toolbar {
@@ -2821,7 +2822,7 @@ dialog.modal-dialog::backdrop {
   #status-bar { width: 100%; justify-content: flex-start; }
   #status-bar #status { text-align: left; }
   #composer { width: 100%; padding: 8px; border-radius: 20px; }
-  #composer textarea { font-size: 15px; }
+  #composer textarea { font-size: 17px; }
   .composer-action { width: 32px; height: 32px; font-size: 14px; }
   .approval-action, .composer-model-wrap { width: 32px; min-width: 32px; max-width: 32px; height: 32px; }
   #voice-button { width: 30px; height: 32px; }
@@ -2862,7 +2863,7 @@ dialog.modal-dialog::backdrop {
   #composer { gap: 2px; padding: 6px; }
   .composer-action { width: 30px; height: 30px; font-size: 13px; }
   .approval-action { width: 30px; min-width: 30px; max-width: 30px; height: 30px; }
-  #composer textarea { font-size: 14px; }
+  #composer textarea { font-size: 16px; }
   .composer-model-wrap { gap: 0; padding: 0; width: 30px; min-width: 30px; max-width: 30px; height: 30px; }
   #composer-model-select { font-size: 12px; }
   #voice-button { width: 28px; height: 28px; }
@@ -3174,6 +3175,13 @@ dialog.modal-dialog::backdrop {
               <div class="template-copy">
                 <strong>SEO Specialist</strong>
                 <span>Keywords → GA4/GTM → funnels → AI visibility — plan first.</span>
+              </div>
+            </button>
+            <button type="button" class="template-card" data-name="Paid Ads Specialist" data-desc="Google Ads and Meta Ads expert. Builds campaign plans, audience and keyword strategies, creative tests, conversion tracking, and reporting. Protects budgets and never launches or changes live campaigns without approval." data-shape="circle" data-color="#8b5cf6">
+              <div class="template-avatar" data-shape="circle" data-color="#8b5cf6"></div>
+              <div class="template-copy">
+                <strong>Paid Ads Specialist</strong>
+                <span>Google Ads, Meta Ads, campaign strategy, creative tests, and measurement.</span>
               </div>
             </button>
             <button type="button" class="template-card" data-name="X / Grok Trend Researcher" data-desc="Monitor real-time conversations, analyze viral posts, and synthesize key takeaways with Grok speed." data-shape="circle" data-color="#000000">
@@ -3635,6 +3643,9 @@ dialog.modal-dialog::backdrop {
   var agents = loadAgents();
   var googleIdentityUser = null;
   var googlePersistTimer = null;
+  var googleSyncTimer = null;
+  var googleSyncInFlight = false;
+  var googleLastSyncedBotsJson = null;
   var activeAgentId = null;
   var isRunning = false;
   var botIsWorking = false;
@@ -3775,11 +3786,39 @@ dialog.modal-dialog::backdrop {
   function applyGooglePersistence(persistence) {
     if (!persistence) return;
     if (Array.isArray(persistence.bots)) {
-      // Merge instead of replacing this device's bots and transcripts on first sign-in.
-      agents = mergeAgentRosters(persistence.bots, agents);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(agents));
-      if (typeof renderSidebar === "function") renderSidebar();
-      scheduleGooglePersist();
+      // Keep device-only bots and messages while incorporating updates from the
+      // other app instance. Only write back when this device contributed data.
+      var remoteBotsJson = JSON.stringify(persistence.bots);
+      var previousActive = activeAgent();
+      var previousTranscript = previousActive ? JSON.stringify(previousActive.transcript || []) : "";
+      var localBotsJson = JSON.stringify(agents);
+      var merged;
+      if (googleLastSyncedBotsJson === null) {
+        // First sign-in on this device: preserve its existing guest-created bots.
+        merged = mergeAgentRosters(persistence.bots, agents);
+      } else if (localBotsJson === googleLastSyncedBotsJson) {
+        // No local edits since the prior sync: the remote roster is authoritative,
+        // including bot deletions made in the other app instance.
+        merged = persistence.bots;
+      } else if (remoteBotsJson === googleLastSyncedBotsJson) {
+        // Only this device changed since the last shared snapshot.
+        merged = agents;
+      } else {
+        // Both instances changed; combine bot additions and transcript updates.
+        merged = mergeAgentRosters(persistence.bots, agents);
+      }
+      var mergedJson = JSON.stringify(merged);
+      googleLastSyncedBotsJson = remoteBotsJson;
+      if (mergedJson !== JSON.stringify(agents)) {
+        agents = merged;
+        localStorage.setItem(STORAGE_KEY, mergedJson);
+        if (typeof renderSidebar === "function") renderSidebar();
+        var nextActive = activeAgent();
+        if (nextActive && JSON.stringify(nextActive.transcript || []) !== previousTranscript && !isRunning) {
+          renderTranscript();
+        }
+      }
+      if (mergedJson !== remoteBotsJson) scheduleGooglePersist();
     }
     var settings = persistence.settings || {};
     if (typeof settings.interactionMode === "string" && (settings.interactionMode === "chat" || settings.interactionMode === "browse" || settings.interactionMode === "act" || settings.interactionMode === "turbo")) {
@@ -3914,7 +3953,10 @@ dialog.modal-dialog::backdrop {
   function applyBotAnimPersonality(el, seedSource) {
     if (!el) return;
     var seed = botAnimSeed(seedSource);
-    el.dataset.botExpression = ["neutral", "happy", "curious", "attentive"][seed % 4];
+    // Give each bot a visibly distinct idle face; execution states still override
+    // these with attentive, surprised, or proud expressions as appropriate.
+    var expressions = ["neutral", "happy", "curious", "attentive", "proud", "shy", "unimpressed", "sleepy"];
+    el.dataset.botExpression = expressions[seed % expressions.length];
     setBotExpression(el, el.dataset.botExpression);
 
   }
@@ -4058,6 +4100,20 @@ dialog.modal-dialog::backdrop {
           "Karma-build schedule for this week"
         ],
         task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", a smart Reddit/community growth marketer") + ". Stay lean. On Reddit/promote/community asks: (1) briefly reason about positioning, target subs, and ban/spam/karma risks, (2) propose a compact plan: Positioning | Target subs | Rules/norms | Account trust | Karma-build | Content angles + drafts | Pacing/schedule | Do-NOT, (3) research a few real subs/rules only as needed, (4) return drafts + weekly cadence for approval, (5) never unsupervised post/comment/upvote or blast links. Prefer aged accounts and value-first participation; disclose affiliation when relevant."
+      };
+    if (/paid ads?|google ads|meta ads|facebook ads|instagram ads|\bppc\b|paid search|paid social|advertising|ad campaign|media buying/.test(lower))
+      return {
+        kind: "paid-ads",
+        expertise: roleText || "Google Ads and Meta Ads strategy, campaign structure, audience and keyword research, creative testing, conversion measurement, and budget optimization",
+        url: "https://ads.google.com/",
+        needsBrowserOnInit: false,
+        summary: roleText || "Campaign goals → targeting → creative tests → measurement → budget control.",
+        suggestions: [
+          "Audit my Google Ads account",
+          "Plan a Meta Ads campaign for my business",
+          "Review ad performance and suggest tests"
+        ],
+        task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", a careful paid advertising strategist") + ". Help with Google Ads, Meta Ads, paid search, and paid social. First establish the business goal, audience, offer, geography, conversion action, and budget constraints. For audits, inspect the signed in account and distinguish observed metrics from estimates. Build practical campaign structure, keyword and audience choices, creative variations, landing page recommendations, conversion tracking, experiments, and reporting. Never invent account data or promise results. Protect the budget: do not launch, pause, edit live campaigns, change targeting or bids, or increase spend without explicit approval. Provide a concise plan and identify what requires approval."
       };
     if (/\bux\b|\bui\b|usability|wireframe|prototype|design system|user journey|user flow|heuristic|a11y|accessibility|information architecture|\bia\b|figma|interaction design|product design/.test(lower))
       return {
@@ -4216,9 +4272,11 @@ dialog.modal-dialog::backdrop {
       var isAgentWorking = agent.id === runningAgentId && botIsWorking;
       var row = document.createElement("div");
       row.className = "agent-row" + (isCurrent ? " active" : "") + (isAgentWorking ? " is-working" : "");
+      row.draggable = true;
+      row.dataset.agentId = agent.id;
       row.style.setProperty("--bot-color", agent.color || "#1677ff");
       row.setAttribute("aria-label", agent.name + (isAgentWorking ? ", working" : ", idle"));
-      row.title = agent.name + (agent.summary ? " — " + agent.summary : "");
+      row.title = agent.name;
       row.innerHTML =
         '<span class="agent-avatar small"></span>' +
         '<span class="agent-copy"><span class="agent-name">' + esc(agent.name) + '</span>' +
@@ -4233,6 +4291,35 @@ dialog.modal-dialog::backdrop {
         e.stopPropagation();
         deleteAgent(agent.id);
       };
+      row.addEventListener("dragstart", function(e) {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", agent.id);
+        row.classList.add("is-dragging");
+      });
+      row.addEventListener("dragend", function() {
+        row.classList.remove("is-dragging");
+        agentList.querySelectorAll(".drop-before, .drop-after").forEach(function(el) { el.classList.remove("drop-before", "drop-after"); });
+      });
+      row.addEventListener("dragover", function(e) {
+        e.preventDefault();
+        var before = e.clientY < row.getBoundingClientRect().top + row.offsetHeight / 2;
+        row.classList.toggle("drop-before", before);
+        row.classList.toggle("drop-after", !before);
+      });
+      row.addEventListener("drop", function(e) {
+        e.preventDefault();
+        var draggedId = e.dataTransfer.getData("text/plain");
+        if (!draggedId || draggedId === agent.id) return;
+        var from = agents.findIndex(function(item) { return item.id === draggedId; });
+        var to = agents.findIndex(function(item) { return item.id === agent.id; });
+        if (from < 0 || to < 0) return;
+        var before = e.clientY < row.getBoundingClientRect().top + row.offsetHeight / 2;
+        var moved = agents.splice(from, 1)[0];
+        if (from < to) to--;
+        agents.splice(to + (before ? 0 : 1), 0, moved);
+        saveAgents();
+        renderSidebar();
+      });
       agentList.appendChild(row);
     });
     newAgentButton.classList.toggle("active", activeAgentId === null);
@@ -4286,6 +4373,7 @@ dialog.modal-dialog::backdrop {
       '<div class="message-label">' + (role === "user" ? "You" : esc(a ? a.name : "Bot")) + '</div>' +
       '<div class="bubble ' + (cls || "") + '">' + html + '</div>';
     row.appendChild(body);
+    bindHumanVerificationActions(body.querySelector(".bubble"));
     // Like / Dislike / Reply on every agent reply. This is the cheapest read we get on whether the
     // bot understood the intent, and it writes straight into the bot's learning KB.
     if (role === "agent") body.appendChild(buildFeedbackRow(body.querySelector(".bubble"), a));
@@ -4293,6 +4381,57 @@ dialog.modal-dialog::backdrop {
     if (visible && followLatest) messages.scrollTop = messages.scrollHeight;
     if (persist !== false) persistMessage(role, html, cls);
     return body.querySelector(".bubble");
+  }
+
+  // Verification cards are persisted as transcript HTML, so their controls must
+  // be rebound every time a transcript is rendered (not only when the event first arrives).
+  function bindHumanVerificationActions(bubble) {
+    if (!bubble || !bubble.querySelector(".open-verify-browser-btn")) return;
+    bubble.dataset.runVerification = bubble.dataset.runVerification || "pending";
+    var openBtn = bubble.querySelector(".open-verify-browser-btn");
+    var optionsBtn = bubble.querySelector(".signin-options-btn");
+    var resumeBtn = bubble.querySelector(".resume-button");
+    if (openBtn && !openBtn.dataset.bound) {
+      openBtn.dataset.bound = "true";
+      openBtn.onclick = function() {
+        var targetUrl = bubble.dataset.verifyUrl;
+        showBrowser();
+        if (targetUrl) {
+          openInteractiveBrowser(targetUrl, false);
+          return;
+        }
+        fetch("/api/status").then(readResponse).then(function(state) {
+          openInteractiveBrowser(state.currentUrl || "about:blank", false);
+        }).catch(function() { openInteractiveBrowser("about:blank", false); });
+      };
+    }
+    if (optionsBtn && !optionsBtn.dataset.bound) {
+      optionsBtn.dataset.bound = "true";
+      optionsBtn.onclick = openConnectModal;
+    }
+    if (resumeBtn && !resumeBtn.dataset.bound) {
+      resumeBtn.dataset.bound = "true";
+      resumeBtn.onclick = function() {
+        resumeBtn.disabled = true;
+        resumeBtn.textContent = "Resuming…";
+        setBrowserVerificationFooter(false);
+        fetch("/api/resume", { method: "POST" })
+          .then(readResponse)
+          .catch(function(err) {
+            resumeBtn.disabled = false;
+            resumeBtn.textContent = "I’ve handled it — resume agent";
+            var note = bubble.querySelector(".verification-action-error");
+            if (!note) {
+              note = document.createElement("div");
+              note.className = "verification-action-error";
+              note.setAttribute("role", "alert");
+              note.style.cssText = "color:#b42318;margin-top:8px;font-size:13px;";
+              bubble.appendChild(note);
+            }
+            note.textContent = err.message || "The run could not resume. Please retry.";
+          });
+      };
+    }
   }
 
   function buildFeedbackRow(bubble, agent) {
@@ -4404,6 +4543,8 @@ dialog.modal-dialog::backdrop {
     var roleLabel = a.description || a.summary || (a.intent.expertise ? a.intent.expertise.split(",")[0] : "Autonomous Bot");
     setChip(a.name, roleLabel, a);
     renderTranscript();
+    // Selecting a bot always opens at the newest part of its conversation.
+    requestAnimationFrame(function() { messages.scrollTop = messages.scrollHeight; });
     renderSidebar();
     renderQuickStarts(a);
     syncPromptPlaceholder();
@@ -5071,7 +5212,7 @@ dialog.modal-dialog::backdrop {
     }
     var peerBots = agents.filter(function(a) { return !currentAgent || a.id !== currentAgent.id; });
     if (peerBots.length === 0) {
-      lines.push("- (No other custom bots created in the sidebar yet. Built-in specialist bots available to spawn or delegate to via `delegate_to_bot`: \"YouTube Concept & Code Learner\", \"Local Terminal & DevOps Bot\", \"Instagram Follower Growth\", \"Reddit Community Growth\", \"SEO Specialist\", \"UX Specialist\", \"X / Grok Trend Researcher\", \"Competitor Intelligence\".)");
+      lines.push("- (No other custom bots created in the sidebar yet. Built-in specialist bots available to spawn or delegate to via `delegate_to_bot`: \"YouTube Concept & Code Learner\", \"Local Terminal & DevOps Bot\", \"Instagram Follower Growth\", \"Reddit Community Growth\", \"SEO Specialist\", \"Paid Ads Specialist\", \"UX Specialist\", \"X / Grok Trend Researcher\", \"Competitor Intelligence\".)");
     } else {
       peerBots.forEach(function(b, idx) {
         var roleDesc = b.description || b.summary || (b.intent && b.intent.summary) || "Specialist Bot";
@@ -5808,20 +5949,7 @@ dialog.modal-dialog::backdrop {
         "</div>"
       );
       bubble.dataset.runVerification = "pending";
-      bubble.querySelector(".signin-options-btn").onclick = openConnectModal;
-      var openBtn = bubble.querySelector(".open-verify-browser-btn");
-      if (openBtn) {
-        openBtn.onclick = function() {
-          showBrowser();
-          openInteractiveBrowser(e.url || "about:blank", false);
-        };
-      }
-      bubble.querySelector(".resume-button").onclick = function(ev) {
-        ev.target.disabled = true;
-        ev.target.textContent = "Resuming…";
-        setBrowserVerificationFooter(false);
-        fetch("/api/resume", { method: "POST" });
-      };
+      bubble.dataset.verifyUrl = e.url || "";
       return;
     }
     if (e.type === "human_verification_resolved") {
@@ -6788,6 +6916,8 @@ dialog.modal-dialog::backdrop {
   };
 
   function toggleSidebar() {
+    // A click is an explicit choice, so it takes over from a temporary hover peek.
+    appEl.classList.remove("sidebar-hover-peek");
     var collapsed = appEl.classList.toggle("sidebar-collapsed");
     document.getElementById("toggle-sidebar-btn").classList.toggle("active", !collapsed);
   }
@@ -6808,6 +6938,25 @@ dialog.modal-dialog::backdrop {
 
   document.getElementById("toggle-sidebar-btn").onclick = toggleSidebar;
   document.getElementById("sidebar-collapse-btn").onclick = toggleSidebar;
+
+  // In compact desktop mode, hovering the rail temporarily opens the sidebar.
+  // It returns to compact mode when the pointer leaves; touch users keep the
+  // existing explicit toggle behavior.
+  var sidebar = document.getElementById("sidebar");
+  sidebar.addEventListener("pointerenter", function(event) {
+    if (event.pointerType === "mouse" && appEl.classList.contains("sidebar-collapsed")) {
+      appEl.classList.remove("sidebar-collapsed");
+      appEl.classList.add("sidebar-hover-peek");
+      document.getElementById("toggle-sidebar-btn").classList.add("active");
+    }
+  });
+  sidebar.addEventListener("pointerleave", function(event) {
+    if (event.pointerType === "mouse" && appEl.classList.contains("sidebar-hover-peek")) {
+      appEl.classList.remove("sidebar-hover-peek");
+      appEl.classList.add("sidebar-collapsed");
+      document.getElementById("toggle-sidebar-btn").classList.remove("active");
+    }
+  });
 
   // Draggable Resizer: Left Sidebar (#sidebar-resizer)
   var sidebarResizer = document.getElementById("sidebar-resizer");
@@ -7152,6 +7301,7 @@ dialog.modal-dialog::backdrop {
     var email = document.getElementById("google-signin-session-email");
     var guestBtn = document.getElementById("google-login-guest-btn");
     var desktopButton = document.getElementById("google-signin-desktop-button");
+    if (!user || !googleIdentityUser || googleIdentityUser.id !== user.id) googleLastSyncedBotsJson = null;
     googleIdentityUser = user || null;
     if (user) {
       if (button) button.hidden = true;
@@ -7178,6 +7328,24 @@ dialog.modal-dialog::backdrop {
     }
     renderSessionModeUI();
   }
+
+  function refreshGooglePersistence() {
+    // A running turn owns its in-memory transcript references; let it finish before
+    // swapping in a cloud snapshot. Other app instances still see each saved turn.
+    if (!googleIdentityUser || googleSyncInFlight || document.hidden || isRunning) return;
+    googleSyncInFlight = true;
+    fetch("/api/user/data", { credentials: "same-origin", cache: "no-store" })
+      .then(readResponse)
+      .then(function(data) { applyGooglePersistence(data); })
+      .catch(function() { /* retry on the next poll; local data remains available */ })
+      .finally(function() { googleSyncInFlight = false; });
+  }
+
+  googleSyncTimer = window.setInterval(refreshGooglePersistence, 3000);
+  document.addEventListener("visibilitychange", function() {
+    if (!document.hidden) refreshGooglePersistence();
+  });
+  window.addEventListener("focus", refreshGooglePersistence);
 
   function loadGoogleIdentityScript() {
     if (window.google && window.google.accounts && window.google.accounts.id) return Promise.resolve();
