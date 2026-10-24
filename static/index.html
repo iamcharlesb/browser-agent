@@ -802,6 +802,18 @@ button { color: inherit; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+#app:not(.sidebar-collapsed) .agent-name,
+#app:not(.sidebar-collapsed) .agent-subtitle {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+#app:not(.sidebar-collapsed) .agent-row {
+  align-items: flex-start;
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
 
 .connect-apps {
   border-top: 1px solid var(--border);
