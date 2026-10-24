@@ -1061,7 +1061,7 @@ export async function executeTool(
       }
       case "upload_file": {
         const raw = String(toolInput.filename ?? "").trim();
-        const filename = raw.startsWith("/artifacts/") ? decodeURIComponent(raw.slice("/artifacts/".length)) : raw;
+        const filename = /^\/(?:api\/)?artifacts\//.test(raw) ? decodeURIComponent(raw.replace(/^\/(?:api\/)?artifacts\//, "")) : raw;
         if (!filename || filename === "." || filename === ".." || /[/\\]/.test(filename)) {
           return { ok: false, message: "upload_file requires a filename inside the generated artifacts directory." };
         }
