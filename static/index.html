@@ -3703,6 +3703,7 @@ dialog.modal-dialog::backdrop {
 
   // Light-dismiss fallback for browsers without native <dialog closedby="any"> support
   document.querySelectorAll("dialog.modal-dialog").forEach(function(dialog) {
+    dialog.addEventListener("close", function() { window.setTimeout(focusComposer, 0); });
     if (!("closedBy" in HTMLDialogElement.prototype)) {
       dialog.addEventListener("click", function(event) {
         if (event.target !== dialog) return;
@@ -4388,6 +4389,7 @@ dialog.modal-dialog::backdrop {
     if (a.intent && a.intent.url) {
       browserAddress.value = a.intent.url;
     }
+    focusComposer();
   }
 
   function resetNewAgent(force) {
@@ -5181,6 +5183,12 @@ dialog.modal-dialog::backdrop {
     runningAgentId = null;
     runningAgentName = "";
     sendButton.disabled = false;
+    focusComposer();
+  }
+
+  function focusComposer() {
+    if (document.hidden || document.querySelector("dialog[open]")) return;
+    prompt.focus({ preventScroll: true });
   }
 
   function startRun(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, conversationAgentId) {
@@ -6000,10 +6008,16 @@ dialog.modal-dialog::backdrop {
     if (document.hidden) {
       closeBrowserFrames();
       framePresenter.clear();
-    } else if (isRunning || setupSessionOpen || workspace.classList.contains("has-browser")) {
-      connectBrowserFrames(true);
-      syncBrowserFromStatus();
+    } else {
+      if (isRunning || setupSessionOpen || workspace.classList.contains("has-browser")) {
+        connectBrowserFrames(true);
+        syncBrowserFromStatus();
+      }
+      if (document.activeElement === document.body || document.activeElement === document.documentElement) focusComposer();
     }
+  });
+  window.addEventListener("focus", function() {
+    if (document.activeElement === document.body || document.activeElement === document.documentElement) focusComposer();
   });
   window.addEventListener("pagehide", function() { closeBrowserFrames(); framePresenter.clear(); });
 
@@ -6219,6 +6233,7 @@ dialog.modal-dialog::backdrop {
   }
 
   function submitPrompt() {
+    focusComposer();
     if (attachmentUploads) { status.textContent = "Attachments are still preparing. Please send once they appear."; return; }
     var value = prompt.value.trim() || (attachments.length ? "Use the attached evidence for the current task." : "");
     if (!value) return;
@@ -7378,6 +7393,7 @@ dialog.modal-dialog::backdrop {
         currentAgentEngine === "cheap"
           ? "Cheap mode active: using token-lean custom loop."
           : "OpenAI Agents SDK active (@openai/agents Runner).";
+      focusComposer();
     });
   });
 
@@ -7400,6 +7416,7 @@ dialog.modal-dialog::backdrop {
             : currentInteractionMode === "turbo"
               ? "⚡ Turbo mode: routine actions auto-run. Payments and irreversible actions always ask."
               : "Act mode: full browser with approval gates.";
+      focusComposer();
     });
   });
   renderInteractionModeUI();
