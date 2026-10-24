@@ -7,6 +7,7 @@ import { loadKnowledge, persistKnowledge, saveKnowledge, searchKnowledge, knowle
 import { FrameStream } from "./frameStream";
 import { canAutoApprove } from "./approvalPolicy";
 import { randomUUID } from "node:crypto";
+import { GoogleSignInHandoffStore } from "./googleSignInHandoff";
 import { existsSync, readFileSync, watch } from "node:fs";
 import { IncomingMessage, ServerResponse, createServer } from "node:http";
 import { readFile, writeFile } from "node:fs/promises";
@@ -118,8 +119,14 @@ const PORT = Number(process.env.BROWSER_AGENT_UI_PORT ?? 8765);
 const HOST = process.env.BROWSER_AGENT_UI_HOST ?? "127.0.0.1";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 const GOOGLE_SESSION_COOKIE = "openbots_google_session";
-const pendingGoogleSignInNonces = new Map<string, number>();
+const googleSignInHandoffs = new GoogleSignInHandoffStore<{
+  credential: string;
+  maxAge: number;
+  user: VerifiedGoogleUser;
+  persistence: Record<string, unknown>;
+}>();
 const GOOGLE_SIGN_IN_NONCE_TTL_MS = 24 * 60 * 60 * 1000;
+const GOOGLE_SIGN_IN_HANDOFF_TTL_MS = 5 * 60 * 1000;
 /**
  * Learn mode is on in the production copy (`npm run built` sets this) and off in dev unless asked
  * for, because a learn session rebuilds and re-runs the test suite - that would fight tsc --watch.
@@ -1687,19 +1694,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     try {
       const body = (await readJsonBody(req)) as Record<string, unknown>;
       const nonce = typeof body.nonce === "string" ? body.nonce : "";
-      if (!/^[a-f0-9]{48,128}$/i.test(nonce)) {
-        sendJson(res, 400, { detail: "A valid Google sign-in nonce is required." });
+      const handoffVerifier = typeof body.handoffVerifier === "string" ? body.handoffVerifier : "";
+      if (!/^[a-f0-9]{48,128}$/i.test(nonce) || !/^[a-f0-9]{48,128}$/i.test(handoffVerifier)) {
+        sendJson(res, 400, { detail: "Valid Google sign-in state and handoff verifier are required." });
         return;
       }
       const now = Date.now();
-      for (const [value, expiresAt] of pendingGoogleSignInNonces) {
-        if (expiresAt <= now) pendingGoogleSignInNonces.delete(value);
-      }
-      if (pendingGoogleSignInNonces.size >= 512) {
-        const oldest = pendingGoogleSignInNonces.keys().next().value;
-        if (oldest) pendingGoogleSignInNonces.delete(oldest);
-      }
-      pendingGoogleSignInNonces.set(nonce, now + GOOGLE_SIGN_IN_NONCE_TTL_MS);
+      googleSignInHandoffs.register(nonce, handoffVerifier, now + GOOGLE_SIGN_IN_NONCE_TTL_MS, now);
       sendJson(res, 200, { ready: true });
     } catch {
       sendJson(res, 400, { detail: "Could not prepare Google sign-in." });
@@ -1708,7 +1709,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (req.method === "POST" && url.pathname === "/api/auth/google/callback") {
+    let callbackState = "";
     const fail = (): void => {
+      if (callbackState) googleSignInHandoffs.invalidate(callbackState);
       res.writeHead(303, { Location: "/?googleSignIn=error", "Cache-Control": "no-store" });
       res.end();
     };
@@ -1722,13 +1725,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const csrfCookie = cookieValue(req, "g_csrf_token");
       const csrfBody = body.g_csrf_token || "";
       const nonce = body.state || "";
-      const nonceExpiresAt = pendingGoogleSignInNonces.get(nonce);
+      callbackState = nonce;
       if (!credential || credential.length > 16_000 || !csrfCookie || !csrfBody || csrfCookie !== csrfBody ||
-          !nonceExpiresAt || nonceExpiresAt <= Date.now()) {
+          !googleSignInHandoffs.isPending(nonce)) {
         fail();
         return;
       }
-      pendingGoogleSignInNonces.delete(nonce);
       const ticket = await googleOAuthClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
       const payload = ticket.getPayload();
       if (!payload?.sub || !payload.email || payload.email_verified !== true || payload.nonce !== nonce) {
@@ -1741,18 +1743,62 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         email: payload.email,
         picture: typeof payload.picture === "string" ? payload.picture : null
       };
-      await upsertGoogleUser(REPO_ROOT, {
+      const { user: stored, backend } = await upsertGoogleUser(REPO_ROOT, {
         googleSub: user.id,
         email: user.email,
         name: user.name,
         picture: user.picture
       });
       const maxAge = Math.max(1, Math.min(3600, (payload.exp ?? 0) - Math.floor(Date.now() / 1000)));
+      const persistence = {
+        ...persistenceMeta(),
+        backend,
+        bots: stored.bots,
+        settings: stored.settings
+      };
+      if (!googleSignInHandoffs.complete(nonce, { credential, maxAge, user, persistence }, Date.now() + GOOGLE_SIGN_IN_HANDOFF_TTL_MS)) {
+        fail();
+        return;
+      }
       setGoogleSessionCookie(res, credential, maxAge);
       res.writeHead(303, { Location: "/?googleSignIn=success", "Cache-Control": "no-store" });
       res.end();
     } catch {
       fail();
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/auth/google/exchange") {
+    if (!isSameOriginRequest(req)) {
+      sendJson(res, 403, { detail: "Google sign-in handoff must come from this app." });
+      return;
+    }
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const nonce = typeof body.nonce === "string" ? body.nonce : "";
+      const handoffVerifier = typeof body.handoffVerifier === "string" ? body.handoffVerifier : "";
+      if (!/^[a-f0-9]{48,128}$/i.test(nonce) || !/^[a-f0-9]{48,128}$/i.test(handoffVerifier)) {
+        sendJson(res, 400, { detail: "Valid Google sign-in handoff details are required." });
+        return;
+      }
+      const exchange = googleSignInHandoffs.exchange(nonce, handoffVerifier);
+      if (exchange.status === "pending") {
+        sendJson(res, 202, { pending: true });
+        return;
+      }
+      if (exchange.status !== "complete") {
+        sendJson(res, 410, { detail: "This Google sign-in handoff expired or was already used." });
+        return;
+      }
+      setGoogleSessionCookie(res, exchange.value.credential, exchange.value.maxAge);
+      sendJson(res, 200, {
+        authenticated: true,
+        user: exchange.value.user,
+        persistence: exchange.value.persistence
+      });
+    } catch {
+      sendJson(res, 400, { detail: "Could not complete the Google sign-in handoff." });
     }
     return;
   }
