@@ -1308,6 +1308,33 @@ export class BrowserController {
     return el;
   }
 
+  /** Native file attachment, including hidden inputs used by custom CMS upload controls. */
+  async uploadFile(filePath: string, selector?: string, markId?: number): Promise<void> {
+    const page = await this.ensureActivePage();
+    const marked = markId === undefined ? undefined : this.getElementByMark(markId);
+    if (markId !== undefined && marked?.domIndex === undefined) {
+      throw new BrowserActionError(`Upload mark #${markId} is unavailable. Refresh the observation.`);
+    }
+    const target = marked
+      ? page.locator(INTERACTIVE_SELECTOR).nth(marked.domIndex!)
+      : page.locator(selector?.trim() || 'input[type="file"]');
+    const count = await target.count();
+    if (count !== 1) {
+      throw new BrowserActionError(`Upload target matched ${count} elements. Specify the exact file input or upload button selector/markId.`);
+    }
+    const isInput = await target.evaluate(node => node.tagName === "INPUT" && (node as HTMLInputElement).type === "file");
+    if (isInput) {
+      await target.setInputFiles(filePath, { timeout: this.config.actionTimeoutMs });
+    } else {
+      const [chooser] = await Promise.all([
+        page.waitForEvent("filechooser", { timeout: this.config.actionTimeoutMs }),
+        target.click({ timeout: this.config.actionTimeoutMs })
+      ]);
+      await chooser.setFiles(filePath, { timeout: this.config.actionTimeoutMs });
+    }
+    await this.waitForIdle(undefined, 160);
+  }
+
   async typeMark(markId: number, text: string, clear = true, pressEnter = false): Promise<InteractiveElement> {
     const el = this.getElementByMark(markId);
     if (!el) {

@@ -40,10 +40,11 @@ const ZERO_DELTA_WARNING =
   "Warning: Last action produced zero visual or DOM changes. Choose an alternate element or approach.";
 const MAX_API_RETRIES_DEFAULT = 3;
 /** Local mutation and paid-generation tools excluded from scheduled/unattended runs. */
-const PRIVILEGED_TOOL_NAMES = new Set(["run_terminal_command", "workspace_file", "create_document", "generate_image"]);
-const INTERACTIVE_BROWSER_TOOL_NAMES = new Set(["click_mark", "type_mark", "click_element", "click_coords", "type_text", "key_press"]);
+const PRIVILEGED_TOOL_NAMES = new Set(["run_terminal_command", "workspace_file", "create_document", "generate_image", "upload_file"]);
+const INTERACTIVE_BROWSER_TOOL_NAMES = new Set(["upload_file", "click_mark", "type_mark", "click_element", "click_coords", "type_text", "key_press"]);
 /** All tools that drive Playwright (excluded in Chat mode). */
 const BROWSER_TOOL_NAMES = new Set([
+  "upload_file",
   "navigate",
   "click_mark",
   "type_mark",
@@ -493,11 +494,13 @@ export class AgentOrchestrator {
       "- This is the same question on every site, so you never need a platform-specific rule: ask what the click does to the world, not which app you are in.\n" +
       "- Declaring a higher effect than needed costs one question. Declaring a lower one is a lie the gate will catch anyway, and it is how real damage happens.\n";
 
-    const approvalRules = this.standingApproval
+    const approvalRules = this.standingApproval && this.interactionMode === "turbo"
+      ? "TURBO APPROVAL — execute the user's scoped task end-to-end, including requested uploads, saves, and publication, without asking for routine or outward confirmation. This takes precedence over role templates that say to ask before publishing. A prior yes continues the established task; never ask the same question again. Preserve explicit limits (draft-only stays draft-only). Never expand the scope. Payments, destructive or irreversible actions and human verification still use their existing gates. Scheduled runs remain research-and-draft only.\n"
+      : this.standingApproval
       ? "STANDING APPROVAL — the user has turned on 'Approve for me'. They have already said yes:\n" +
         "- Engagement they've scoped (follows, likes, comments on targets you shortlisted) is APPROVED. Do it in paced batches without asking again.\n" +
         "- Do NOT re-ask for what is already approved. Re-asking after a yes is the exact thing they complained about. Announce what you're doing, then do it.\n" +
-        "- Still stop and ask, every time, for: publishing new posts/content, direct messages, payments, profile/bio/password changes, deletions, and anything irreversible or public under their name.\n" +
+        "- For publishing new content, direct messages, or profile changes, ask once only if the user has not already explicitly authorized that specific action in the conversation. Payments, deletions and irreversible actions still use their tool approval gates.\n" +
         "- Scheduled/unattended runs are still research-and-draft only; standing approval does not extend to them.\n" +
         "- If part of a request is in scope and part isn't, do the in-scope part now and name the rest in one line.\n"
       : "APPROVALS — the user has NOT granted standing approval:\n" +
@@ -534,7 +537,7 @@ export class AgentOrchestrator {
       approvalRules +
       "SCHEDULING: schedule_task for one-time/daily jobs (tz=" + this.scheduleTimeZone + "). Schedules are read-only for engagement (research/monitor/draft only). Never like/follow/comment/post from a schedule. Ask before recurring paid model runs; set costApproved only after explicit yes.\n" +
       "VOICE: warm, direct, specific — like a sharp social-media co-founder texting. Never corporate filler ('Certainly!', 'Here are several strategies:', 'In conclusion').\n" +
-      "CAPABILITIES: delegate_to_bot (workspace roster in CONTEXT); learning_kb (durable local memory); run_terminal_command; headless web_search/reddit_search/google_property/calculate/create_document/workspace_file/understand_youtube_video; generate_image (one clear prompt); browser navigate/click_*/type_*/extract_page_data/scroll/wait (when mode allows).\n" +
+      "CAPABILITIES: upload_file (attach saved generated artifacts through hidden file inputs or upload buttons); delegate_to_bot (workspace roster in CONTEXT); learning_kb (durable local memory); run_terminal_command; headless web_search/reddit_search/google_property/calculate/create_document/workspace_file/understand_youtube_video; generate_image (one clear prompt); browser navigate/click_*/type_*/extract_page_data/scroll/wait (when mode allows).\n" +
       "Rules:\n" +
       "1. SPEED after the plan: batch tools; minimum steps; don't stall asking what the niche is if the profile can tell you.\n" +
       "2. PEER BOTS: answer from OPEN BOTS WORKSPACE ROSTER — never generic 'what is a bot' definitions.\n" +
@@ -546,14 +549,14 @@ export class AgentOrchestrator {
       "4. Check [Detected Stats] and Text first; if the ask is only for numbers/bio, finish_task immediately.\n" +
       "5. After SPA profile clicks (IG/X), extract_page_data or wait(1s) before failing.\n" +
       "6. YouTube → understand_youtube_video, never navigate for transcripts.\n" +
-      "7. Never expose credentials; ask before money or public post/delete.\n" +
+      "7. Never expose credentials. Money and destructive actions use their approval gates; public actions follow the approval rules above.\n" +
       (this.standingApproval
         ? "8. RESEARCH YOURSELF for niche targets: infer niche from profile, find real candidates, draft comments, then EXECUTE the paced batch — they've already approved engagement. Report what you did; don't ask first.\n"
         : "8. RESEARCH YOURSELF for niche targets: infer niche from profile, find real candidates, draft comments, return a shortlist for approval. Never follow/like/comment/message until they approve specific targets+wording.\n") +
       "9. PACE engagement: ≤5–8 likes/follows/comments per run with wait between; leave the rest for later.\n" +
       "10. CONFIRM UI state (Follow→Following, toast, visible comment) before claiming success.\n" +
       "11. CONTINUOUS SELF-IMPROVEMENT (LEARNINGS/KB in CONTEXT): Recall niche, user rules, prior mistakes, and what worked from LEARNINGS/KB. Every time the user gives feedback, corrects an action, states a preference/rule, or teaches you how a site/workflow operates, call learning_kb(action='save', kind='mistake'|'learning'|'intent'|'hypothesis', text=...) so you permanently improve across runs and never repeat the same mistake.\n" +
-      "12. FORMS, DROPDOWNS & HERO IMAGES: To select an option in a `<select>` dropdown, call `type_mark(markId, text='<option label or value>')` (do NOT click and press ArrowDown). If form fields or editors are below the fold, call `scroll_page(direction='down')` or use the marks listed in `Elements:`. When creating a blog post or article that needs a hero/featured image, `generate_image` is pre-authorized — call it directly without stopping to ask permission.\n" +
+      "12. FORMS, DROPDOWNS & HERO IMAGES: To select an option in a `<select>` dropdown, call `type_mark(markId, text='<option label or value>')` (do NOT click and press ArrowDown). If form fields or editors are below the fold, call `scroll_page(direction='down')` or use the marks listed in `Elements:`. When creating a blog post or article that needs a hero/featured image, `generate_image` is pre-authorized — call it directly without stopping to ask permission. Then use upload_file with its saved filename to attach it; do not type a local path into an upload button or stop at opening a file chooser. Reuse the existing artifact after a yes or retry. Verify the preview, save the draft, and reopen it to confirm the image persists. A selected file alone is not proof of a completed upload.\n" +
       "INSTAGRAM / FOLLOWER GROWTH PLAYBOOK (be a proactive marketing specialist):\n" +
       "- On 'grow followers / increase engagement / help me market': do NOT dump generic tips and stop. Reason → plan → audit/research → propose concrete next actions for approval.\n" +
       "- Plan shape (keep lean): Goal & niche | Profile audit | Content angle (2–3 post ideas) | Engagement (who to like/comment + draft lines) | Follow targets (5–8 handles + why) | Pacing (≤5–8 actions/run) | Schedule (optional daily research-only check-in).\n" +
@@ -700,11 +703,12 @@ export class AgentOrchestrator {
    * model's description of it.
    */
   private resolveActionTarget(toolName: string, input: Record<string, unknown>): { label?: string; role?: string } {
-    if (toolName === "click_mark" || toolName === "type_mark") {
+    if (toolName === "click_mark" || toolName === "type_mark" || (toolName === "upload_file" && input.markId !== undefined)) {
       const markId = Math.trunc(Number(input.markId));
       const el = Number.isNaN(markId) ? undefined : this.browser.getElementByMark(markId);
       return { label: el?.text, role: el?.role };
     }
+    if (toolName === "upload_file") return {};
     if (toolName === "click_element") {
       const target = typeof input.target === "string" ? input.target : undefined;
       // A CSS selector carries no human label, so do not mine it for verbs.
