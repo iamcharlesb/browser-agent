@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AgentOrchestrator, AgentOrchestratorOptions, extractArithmeticExpression, requiresInitialBrowserState } from "./promptLoop";
+import {
+  AgentOrchestrator,
+  AgentOrchestratorOptions,
+  detectPrematureFail,
+  extractArithmeticExpression,
+  requiresInitialBrowserState
+} from "./promptLoop";
 import { classifyBrowserAction } from "./actionEffect";
 import { BrowserController, PageState } from "./browserController";
 import { WORKSPACE_ROOT } from "./agentTools";
@@ -732,4 +738,50 @@ test("follow-up turns recognize an already-open browser screen and do not gate C
     });
     assert.equal(decision.effect, "reversible", `"${label}" must not prompt for outward approval`);
   }
+});
+
+test("detectPrematureFail rejects giving up on <select> ArrowDown or asking permission for generate_image", () => {
+  const rejection = detectPrematureFail(
+    "The editor form only exposed title and dropdown controls in the current connected-browser snapshot. The namespace selection did not change after click/ArrowDown; no content/SEO inputs or usable image URL are available yet. Need permission to use a generated image (which costs money)."
+  );
+  assert.ok(rejection);
+  assert.match(rejection!, /type_mark/);
+  assert.match(rejection!, /generate_image/);
+});
+
+test("agentEngine openai-sdk runs via @openai/agents Runner and completes tool calls", async () => {
+  let requests = 0;
+  const mockFetch: typeof fetch = async () => {
+    requests += 1;
+    const output =
+      requests === 1
+        ? [
+            {
+              type: "function_call",
+              call_id: "call_finish_sdk",
+              name: "finish_task",
+              arguments: JSON.stringify({ summary: "Completed via OpenAI Agents SDK." })
+            }
+          ]
+        : [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Done." }] }];
+    return new Response(JSON.stringify(makeResponsesPayload(output, `resp_sdk_${requests}`)), {
+      headers: { "content-type": "application/json" }
+    });
+  };
+
+  const result = await new AgentOrchestrator({
+    task: "Complete this task using the OpenAI Agents SDK",
+    model: "gpt-6-luna",
+    apiKey: "test-key",
+    browser: {
+      isStarted: false,
+      sessionMode: "persistent",
+      currentUrl: () => "about:blank"
+    } as unknown as BrowserController,
+    fetch: mockFetch,
+    agentEngine: "openai-sdk"
+  }).run();
+
+  assert.equal(result.success, true);
+  assert.match(result.summary, /Completed via OpenAI Agents SDK/);
 });

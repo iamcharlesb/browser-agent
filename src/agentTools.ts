@@ -61,7 +61,8 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "type_mark",
-      description: "Click an input field by its #markId, type text into it, and optionally press Enter.",
+      description:
+        "Fill an input, textarea, contenteditable editor, or select an option in a <select> dropdown by its #markId (for <select>, pass the option text or value as `text`), and optionally press Enter.",
       parameters: {
         type: "object",
         properties: {
