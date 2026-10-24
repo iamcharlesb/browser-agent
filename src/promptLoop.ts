@@ -1823,6 +1823,7 @@ export class AgentOrchestrator {
           max_tokens: MAX_TOKENS
         }, { signal: this.abortSignal });
       } catch (err) {
+        if (this.aborted()) throw err;
         if (!isRetryableOpenAIError(err)) {
           throw err;
         }
