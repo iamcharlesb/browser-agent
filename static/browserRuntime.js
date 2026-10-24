@@ -24,6 +24,9 @@
         last.y = payload.y;
         last.deltaX += payload.deltaX;
         last.deltaY += payload.deltaY;
+      } else if (last && last.type === "resize" && payload.type === "resize") {
+        last.width = payload.width;
+        last.height = payload.height;
       } else if (last && last.type === "type" && payload.type === "type") {
         last.text += payload.text;
       } else {

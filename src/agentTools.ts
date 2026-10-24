@@ -463,6 +463,25 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "run_action_script",
+      description:
+        "Code-as-action: run a short async JavaScript snippet in a sandboxed worker to compose multiple tool calls, loop over items, filter/compute data, or fill multi-field forms in a single model turn. Every allowed tool is available as `await <toolName>({ ... })` returning `{ ok, message, data }`. Use `state.<key>` to persist data across steps, `console.log(...)` to record observations, and optionally `final_answer(summary)` when the user's goal is completely finished and verified.",
+      parameters: {
+        type: "object",
+        properties: {
+          code: {
+            type: "string",
+            description:
+              "Async JavaScript body (e.g. `const res = await web_search({ query: '...' }); state.last = res.data; return res.message;`)."
+          }
+        },
+        required: ["code"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "finish_task",
       description:
         "Complete the task and text the user back like a close, sharp friend — casual, warm, direct, and human (1–3 short conversational paragraphs separated by blank lines; avoid robotic preambles or textbook bullet-point essays).",

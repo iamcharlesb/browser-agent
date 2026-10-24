@@ -37,15 +37,17 @@ import {
   applyApprovalDenial,
   applyLearningKbTool,
   applyRunOutcome,
+  applyUserTurnInput,
   botIdFromName,
   distillLearningKb,
+  isUserCorrectionOrRule,
   loadLearningKb,
   updateLearningKb,
   type LearningKind
 } from "./learningStore";
 import { AgentEvent, AgentOrchestrator, AgentResult, DEFAULT_MODEL, requiresInitialBrowserState } from "./promptLoop";
 import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
-import { TerminalApprovalDecision } from "./approvalPolicy";
+import { TaskApprovalScope, TerminalApprovalDecision } from "./approvalPolicy";
 import { nextDailyOccurrence } from "./scheduler";
 import { AgentHandoffRequest, TOPICS, localBus } from "./messageBus";
 import { MAX_HANDOFF_DEPTH, decideHandoff } from "./handoff";
@@ -292,6 +294,7 @@ interface BrowserSession {
 }
 
 interface RunRequestBody {
+  sessionMode?: SessionMode;
   task: string;
   botName?: string;
   expertise?: string;
@@ -337,6 +340,29 @@ function resolveDefaultSessionMode(): SessionMode {
 let activeSessionMode: SessionMode = resolveDefaultSessionMode();
 let schedules: ScheduledTask[] = [];
 const scheduleTimers = new Map<string, NodeJS.Timeout>();
+
+interface BotSessionMemory {
+  taskApproval: TaskApprovalScope;
+  recentSteps: string[];
+  lastUrl: string;
+  lastTitle: string;
+}
+
+const botSessionMemory = new Map<string, BotSessionMemory>();
+
+function getBotSessionMemory(botKey: string): BotSessionMemory {
+  let mem = botSessionMemory.get(botKey);
+  if (!mem) {
+    mem = {
+      taskApproval: new TaskApprovalScope(),
+      recentSteps: [],
+      lastUrl: "",
+      lastTitle: ""
+    };
+    botSessionMemory.set(botKey, mem);
+  }
+  return mem;
+}
 
 /**
  * $ per 1M tokens, verified directly before use (not guessed). Models not listed here (local
@@ -437,6 +463,15 @@ function validateRunRequest(body: unknown): RunRequestBody {
     : [];
   return {
     task,
+    sessionMode: parseSessionMode(record.sessionMode),
+    interactionMode:
+      record.interactionMode === "chat" ||
+      record.interactionMode === "browse" ||
+      record.interactionMode === "act" ||
+      record.interactionMode === "turbo"
+        ? record.interactionMode
+        : undefined,
+    observeMode: record.observeMode === "text" || record.observeMode === "vision" ? record.observeMode : undefined,
     headless,
     maxSteps,
     maxDurationSeconds,
@@ -662,6 +697,14 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
       terminationReason: "no_result"
     };
     try {
+      // A server restart or mode change must not silently send a Chrome task into Electron.
+      if (body.sessionMode) activeSessionMode = body.sessionMode;
+      if (activeSession && sessionModeMismatch(activeSession.controller, activeSessionMode)) {
+        const old = activeSession;
+        activeSession = null;
+        old.frameQueue.push(null);
+        await old.controller.close().catch(() => undefined);
+      }
       const existingUrl = activeSession ? activeSession.controller.currentUrl() : "about:blank";
       const needsBrowserImmediately = requiresInitialBrowserState(body.task, existingUrl);
 
@@ -704,21 +747,70 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
       const learningBotId = botIdFromName(body.botName || botKey);
       let learningContext = "";
       try {
-        const kb = await loadLearningKb(LEARNINGS_DIR, learningBotId);
-        learningContext = distillLearningKb(kb);
+        const kb = await updateLearningKb(LEARNINGS_DIR, learningBotId, (current) =>
+          applyUserTurnInput(current, body.task)
+        );
+        let mergedKb = kb;
+        if (isUserCorrectionOrRule(body.task)) {
+          await updateLearningKb(LEARNINGS_DIR, "_workspace", (shared) =>
+            applyUserTurnInput(shared, body.task)
+          ).catch(() => undefined);
+        }
+        const sharedKb = await loadLearningKb(LEARNINGS_DIR, "_workspace").catch(() => null);
+        if (sharedKb) {
+          for (const entry of sharedKb.mistakes) {
+            mergedKb = appendLearning(mergedKb, {
+              kind: "mistake",
+              text: entry.text,
+              source: entry.source
+            });
+          }
+          for (const entry of sharedKb.learnings.filter((l) => l.source === "user_correction")) {
+            mergedKb = appendLearning(mergedKb, {
+              kind: "learning",
+              text: entry.text,
+              source: entry.source
+            });
+          }
+        }
+        learningContext = distillLearningKb(mergedKb);
       } catch (err) {
         console.warn(`Learning KB load failed for ${learningBotId}:`, (err as Error).message);
       }
-      const collaborationContext = [body.collaborationContext?.trim() || "", learningContext]
+      const botMem = getBotSessionMemory(botKey);
+      const liveBrowserUrl = controller.isStarted ? controller.currentUrl() : botMem.lastUrl;
+      const sessionContinuityLines: string[] = [];
+      if (liveBrowserUrl && liveBrowserUrl !== "about:blank") {
+        sessionContinuityLines.push(
+          `ACTIVE BROWSER SESSION STATE: The browser is currently open on ${liveBrowserUrl}${
+            botMem.lastTitle ? ` ("${botMem.lastTitle}")` : ""
+          }. Do NOT restart navigation from the home/listing page if the screen or form you need is already open.`
+        );
+      }
+      if (botMem.recentSteps.length > 0) {
+        sessionContinuityLines.push(
+          `RECENTLY EXECUTED STEPS & ARTIFACTS IN THIS SESSION (do not repeat completed work or regenerate images already created):\n` +
+            botMem.recentSteps.slice(-12).map((s) => `- ${s}`).join("\n")
+        );
+      }
+      const collaborationContext = [
+        body.collaborationContext?.trim() || "",
+        sessionContinuityLines.join("\n\n"),
+        learningContext
+      ]
         .filter(Boolean)
         .join("\n\n");
 
       const interactionMode: InteractionMode =
-        body.interactionMode === "chat" || body.interactionMode === "browse" || body.interactionMode === "act"
+        body.interactionMode === "chat" ||
+        body.interactionMode === "browse" ||
+        body.interactionMode === "act" ||
+        body.interactionMode === "turbo"
           ? body.interactionMode
           : "act";
       const observeMode: ObserveMode =
         body.observeMode === "vision" || body.observeMode === "text" ? body.observeMode : "text";
+      const effectiveAutoApprove = Boolean(body.autoApprove) || interactionMode === "turbo";
 
       const orchestrator = new AgentOrchestrator({
         task: body.task,
@@ -731,7 +823,24 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
         maxDurationSeconds: body.maxDurationSeconds,
         interactionMode,
         observeMode,
+        taskApprovalScope: body.scheduleId ? undefined : botMem.taskApproval,
         onEvent: (event) => {
+          if (event.type === "observe") {
+            if (typeof event.url === "string" && event.url !== "about:blank") botMem.lastUrl = event.url;
+            if (typeof event.title === "string" && event.title) botMem.lastTitle = event.title;
+          }
+          if (event.type === "step") {
+            if (typeof event.url === "string" && event.url !== "about:blank") botMem.lastUrl = event.url;
+            if (typeof event.title === "string" && event.title) botMem.lastTitle = event.title;
+            const msg = typeof event.message === "string" ? event.message : "";
+            const artifact = typeof event.artifactUrl === "string" ? ` [artifact: ${event.artifactUrl}]` : "";
+            if (msg) {
+              botMem.recentSteps.push(`${msg}${artifact}`);
+              if (botMem.recentSteps.length > 24) {
+                botMem.recentSteps.splice(0, botMem.recentSteps.length - 24);
+              }
+            }
+          }
           if (event.type === "usage" && typeof event.model === "string") {
             recordUsage(
               event.model,
@@ -809,9 +918,9 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
         // at all (filtered out of the model's tool list below) - nobody is present to approve them.
         allowPrivilegedTools: !body.scheduleId,
         allowBrowserInteraction: !body.scheduleId,
-        // "Approve for me" is the only thing that grants this, and never for a scheduled run -
+        // "Approve for me" or Turbo mode grants standing approval, and never for a scheduled run -
         // nobody is watching those, so they stay research-and-draft only.
-        standingApproval: Boolean(body.autoApprove) && !body.scheduleId,
+        standingApproval: effectiveAutoApprove && !body.scheduleId,
         scheduleTimeZone: body.scheduleTimeZone,
         onScheduleTask: async (input) => {
           try {
@@ -846,12 +955,17 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
               message = result.message;
               return result.state;
             });
+            if (kind === "mistake" && text) {
+              await updateLearningKb(LEARNINGS_DIR, "_workspace", (shared) =>
+                applyLearningKbTool(shared, { action: "save", kind: "mistake", text }).state
+              ).catch(() => undefined);
+            }
             return { ok: true, message };
           } catch (error) {
             return { ok: false, message: (error as Error).message };
           }
         },
-        onTerminalApproval: body.scheduleId ? undefined : body.autoApprove ? () => true : (details) => onTerminalApproval(run, details.approvalId),
+        onTerminalApproval: body.scheduleId ? undefined : effectiveAutoApprove ? () => true : (details) => onTerminalApproval(run, details.approvalId),
         // "Stop" used to be cosmetic: it told the UI the run had ended while the loop kept calling
         // the model and clicking the page. The orchestrator now polls this before every step.
         shouldAbort: () => run.cancelled
@@ -1052,22 +1166,34 @@ function startLearnSession(input: {
     proposePatches: createPatchProposer({ repoRoot: REPO_ROOT, model: input.model ?? DEFAULT_MODEL }),
     // Patches are written, documented, and then held here until the user says yes.
     onFixApproval: fixApprovalGate.request,
-    runner: ({ message, round }) =>
-      runLearnTurn({
+    runner: ({ message, round, transcript }) => {
+      const priorHistory =
+        round > 0 && transcript.length > 0
+          ? "\n\nPrior self-play turns in this session:\n" +
+            transcript
+              .map(
+                (t) =>
+                  `Round ${t.round + 1} User: ${t.userMessage}\nRound ${t.round + 1} Your Reply: ${t.botSummary}`
+              )
+              .join("\n\n")
+          : "";
+      return runLearnTurn({
         task: message,
         botName,
         expertise: input.expertise,
         collaborationContext:
-          round === 0
+          (round === 0
             ? "LEARN MODE: this is a self-play rehearsal. Behave exactly as you would for the real user."
-            : "LEARN MODE follow-up: the simulated user is pushing back on your previous answer.",
+            : "LEARN MODE follow-up: the simulated user is pushing back on your previous answer. Carry forward the exact step/proposal from your prior reply below and execute it.") +
+          priorHistory,
         approvedCategories: [],
         autoApprove: false,
         model: input.model,
         headless: true,
         maxSteps: 40,
         maxDurationSeconds: 900
-      }),
+      });
+    },
     onLearning: async ({ kind, text }) => {
       await updateLearningKb(LEARNINGS_DIR, learningBotId, (kb) =>
         appendLearning(kb, { kind, text: `learn mode: ${text}`, source: "auto" })
@@ -1757,10 +1883,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         sendJson(res, 403, { detail: risk.reason, code: "credential_exposure_blocked" });
         return;
       }
+      const effectiveAutoApprove = Boolean(body.autoApprove) || body.interactionMode === "turbo";
       const missingApprovals = risk.approvalsRequired.filter(
         (category) =>
           !body.approvedCategories?.includes(category) &&
-          (category === "financial_transaction" || !body.autoApprove)
+          (category === "financial_transaction" || !effectiveAutoApprove)
       );
       if (missingApprovals.length > 0) {
         sendJson(res, 428, {
@@ -2150,6 +2277,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const body = (await readJsonBody(req)) as Record<string, unknown>;
       const inputType = String(body.type ?? "");
       switch (inputType) {
+        case "resize": {
+          const size = await controller.resizeViewport(body.width, body.height);
+          session.viewportWidth = size.width;
+          session.viewportHeight = size.height;
+          break;
+        }
         case "navigate": {
           const targetUrl = String(body.url ?? "");
           const useNewTab = Boolean(body.newTab) || body.mode === "new_tab";
@@ -2206,7 +2339,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           return;
       }
       const tabs = await controller.getTabs();
-      sendJson(res, 200, { status: "ok", url: controller.currentUrl(), tabs });
+      sendJson(res, 200, { status: "ok", url: controller.currentUrl(), tabs, viewportWidth: controller.viewportSize.width, viewportHeight: controller.viewportSize.height });
     } catch (err) {
       sendJson(res, 400, { detail: (err as Error).message });
     }

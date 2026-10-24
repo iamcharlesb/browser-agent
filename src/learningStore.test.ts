@@ -9,9 +9,11 @@ import {
   applyApprovalDenial,
   applyLearningKbTool,
   applyRunOutcome,
+  applyUserTurnInput,
   botIdFromName,
   defaultLearningKb,
   distillLearningKb,
+  isUserCorrectionOrRule,
   learningFilePath,
   loadLearningKb,
   sanitizeLearningText,
@@ -173,4 +175,48 @@ test("a failed update does not poison the queue for the next one", async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("applyRunOutcome skips apology and unsaved-editor admissions instead of storing them as Worked", () => {
+  let kb = defaultLearningKb("Blog_Writer");
+  kb = applyRunOutcome(kb, {
+    task: "write and save article 1 in MagicSite",
+    success: true,
+    summary:
+      "I'm back in the MagicSite editor and have generated the article's hero image. I haven't saved or published anything yet—the editor is still blank."
+  });
+  kb = applyRunOutcome(kb, {
+    task: "why you didnt saved?",
+    success: true,
+    summary: "I should have saved it. I got stuck describing the editor and the image instead of completing the post."
+  });
+  assert.equal(kb.learnings.length, 0, "apologies and unsaved-editor admissions must never pollute learnings");
+});
+
+test("applyUserTurnInput immediately records user corrections, rules, and evicts disputed Worked entries", () => {
+  let kb = defaultLearningKb("Blog_Writer");
+  kb = appendLearning(kb, {
+    kind: "learning",
+    text: "Worked: Created and saved the post in the editor.",
+    source: "auto"
+  });
+  assert.equal(kb.learnings.length, 1);
+
+  // User follows up saying the bot didn't actually save:
+  kb = applyUserTurnInput(kb, "why you didnt saved? always click Save Draft before leaving the editor");
+  assert.equal(
+    kb.learnings.some((l) => l.text.startsWith("Worked:")),
+    false,
+    "disputed auto Worked entry should be evicted when user corrects it"
+  );
+  assert.ok(
+    kb.mistakes.some((m) => m.source === "user_correction" && /why you didnt saved/i.test(m.text)),
+    "user correction should be recorded immediately in mistakes"
+  );
+  assert.ok(
+    kb.learnings.some((l) => l.source === "user_correction" && /User rule:.*always click Save Draft/i.test(l.text)),
+    "standing user rule should be recorded in learnings"
+  );
+  assert.equal(isUserCorrectionOrRule("always verify the save toast before finishing"), true);
+  assert.equal(isUserCorrectionOrRule("you broke the code"), true);
 });

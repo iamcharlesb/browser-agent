@@ -45,6 +45,7 @@ export type LearnRunner = (input: {
   round: number;
   sessionId: string;
   correlationId: string;
+  transcript: readonly LearnTurn[];
 }) => Promise<LearnRunOutcome>;
 
 export interface LearnTurn {
@@ -185,7 +186,7 @@ function clamp(score: number): number {
 }
 
 const STOPWORDS = new Set(
-  ("a an and are as at be but by can could do does for from get give has have how i if in is it its me my of on " +
+  ("a an and are as at be but by can could do does for from get give good has have how i if in is it its me my of on " +
     "or please show so tell that the then there these this to us want was what when where which who why will with " +
     "you your now just actually result first concrete step proposed").split(" ")
 );
@@ -420,7 +421,19 @@ export function scoreExperience(transcript: LearnTurn[]): LearnScore[] {
 
   // relevance - is the long reply even about what was asked?
   const judged = transcript
-    .map((turn) => ({ turn, overlap: relevanceOverlap(turn.userMessage, turn.botSummary) }))
+    .map((turn, index) => {
+      // Follow-up prompts like "Good. Now actually do the first concrete step you proposed..." have
+      // no standalone topic nouns of their own; judge them against the established session topic
+      // (round 0's task + the immediately preceding bot proposal) so on-topic execution isn't
+      // misclassified as off-topic while genuine off-topic dumps (e.g. random Wikipedia articles)
+      // still score 1.0/5.
+      const directWords = contentWords(turn.userMessage);
+      const referencePrompt =
+        directWords.length >= 2 || index === 0
+          ? turn.userMessage
+          : `${transcript[0].userMessage} ${transcript[index - 1].botSummary} ${turn.userMessage}`;
+      return { turn, overlap: relevanceOverlap(referencePrompt, turn.botSummary) };
+    })
     .filter((item): item is { turn: LearnTurn; overlap: number } => item.overlap !== null);
   if (judged.length > 0) {
     // Scored on the WORST round, not the average. One long reply about nothing the user asked for
@@ -709,7 +722,7 @@ export class LearnModeSession {
 
       let outcome: LearnRunOutcome;
       try {
-        outcome = await runner({ message, round, sessionId: this.sessionId, correlationId });
+        outcome = await runner({ message, round, sessionId: this.sessionId, correlationId, transcript });
       } catch (err) {
         outcome = {
           summary: `The run crashed: ${(err as Error).message}`,

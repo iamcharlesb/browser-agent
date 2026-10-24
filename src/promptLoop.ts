@@ -26,10 +26,12 @@ import {
   toolsCatalogForClaudeCli
 } from "./claudeCli";
 import { CircuitBreakerTriggered, LoopGuard, PrunableMessage } from "./loopGuard";
+import { runActionScript } from "./scriptRunner";
+import { ScriptToolResult } from "./scriptProtocol";
 
 export const DEFAULT_MODEL = "gpt-6-luna";
-/** Keep replies short — Grok-like usefulness without dumping tokens into long essays. */
-const MAX_TOKENS = 800;
+/** Leave room for complete article text and tool arguments; the prompt keeps ordinary replies concise. */
+const MAX_TOKENS = 4096;
 const GPT6_REASONING_EFFORT = "low" as const;
 /** Cap tool output text fed back into the model (full UI events can still show more). */
 const MAX_TOOL_RESULT_CHARS = 1400;
@@ -64,10 +66,41 @@ const HEADLESS_RESEARCH_TOOL_NAMES = new Set([
   "run_terminal_command"
 ]);
 const MUTATING_WORKSPACE_FILE_ACTIONS = new Set(["write", "append"]);
+const NON_SCRIPTABLE_META_TOOLS = new Set([
+  "run_action_script",
+  "delegate_to_bot",
+  "schedule_task",
+  "finish_task",
+  "fail_task"
+]);
+const MAX_PREMATURE_FINISH_REJECTIONS = 2;
+const PREMATURE_FINISH_ADMISSION =
+  /\b(i (?:haven['’]t|have not) (?:[a-z]+(?:\s+or\s+[a-z]+)?\s+)?(?:saved|published|completed|typed|entered|filled|verified|created|written|submitted|updated|anything)|no (?:posts?|articles?|drafts?|items?|changes?) (?:have been|were) (?:created|saved|published|written|drafted)|(?:editor|form|fields?|draft) (?:is|are) still (?:blank|empty|unsaved)|not attached to a (?:post|draft|article) yet|i['’]m paused at|i need to finish (?:checking|creating|writing|drafting|filling|verifying)|verify the (?:form|page|editor|site) supports [^\n.]{1,40} before (?:saving|creating|writing)|i should have saved|i got stuck|i['’]ll continue from|i (?:can|will) (?:now )?(?:prepare|create|draft|write|fill|check) [^.\n]{1,80} (?:as drafts?|next|before)|i should check for overlap before|haven['’]t verified that [a-z0-9 _-]+ was saved)\b/i;
+const EXTERNAL_BLOCKER_MENTION =
+  /\b(captcha|sign[- ]?in|log[- ]?in|403|access denied|blocked|approval|permission|missing credentials|cannot access)\b/i;
+
+/**
+ * Detects when the model calls `finish_task` while admitting in its own summary that it stopped
+ * mid-workflow (e.g. opened the editor and generated an image, left the editor blank, or promised
+ * "I'll continue from the editor and check the save state" instead of actually doing it).
+ */
+export function detectPrematureFinish(summary: string): string | null {
+  const text = (summary ?? "").trim();
+  if (!text) return null;
+  if (text.endsWith("?")) return null;
+  if (EXTERNAL_BLOCKER_MENTION.test(text)) return null;
+  if (PREMATURE_FINISH_ADMISSION.test(text)) {
+    return (
+      "Premature finish_task rejected: your summary states that the work is still unsaved or the editor is still blank. " +
+      "Do not stop to narrate status or apologize — execute the remaining actions now (fill the editor fields, click Save/Draft, or use run_action_script) and verify the saved state before calling finish_task."
+    );
+  }
+  return null;
+}
 
 export type ObserveMode = "text" | "vision";
-/** Chat = text tools only; Browse = browser read+nav; Act = full click/type with effect gates. */
-export type InteractionMode = "chat" | "browse" | "act";
+/** Chat = text tools only; Browse = browser read+nav; Act = full click/type with effect gates; Turbo = full autonomous auto-run. */
+export type InteractionMode = "chat" | "browse" | "act" | "turbo";
 
 function requiresPrivilegedApproval(toolName: string, input: Record<string, unknown>): boolean {
   if (toolName === "run_terminal_command") return !isReadOnlyCommand(String(input.command ?? ""));
@@ -115,6 +148,7 @@ export type OnLearningKb = (input: Record<string, unknown>) => Promise<ToolExecu
 export type ShouldAbort = () => boolean;
 
 interface ExtractedToolCall {
+  argumentError?: string;
   id: string;
   name: string;
   input: Record<string, unknown>;
@@ -149,6 +183,8 @@ export interface AgentOrchestratorOptions {
    * yes - it asked, got a yes, then asked again on the next turn.
    */
   standingApproval?: boolean;
+  /** Shared per-bot approval scope so "Allowed for this task" persists across follow-up chat turns. */
+  taskApprovalScope?: TaskApprovalScope;
   /** Set false for scheduled/unattended runs: removes local writes and paid image generation. */
   allowPrivilegedTools?: boolean;
   /** Set false for unattended tasks so they can inspect pages but cannot click or type. */
@@ -180,31 +216,49 @@ function isRetryableOpenAIError(err: unknown): boolean {
 
 /**
  * Heuristic check: does this user request work in Codex text/tool mode without needing
- * a live browser screenshot on Step 1?
- * We only capture an initial browser state if the user explicitly asks to interact with
- * a live webpage/social account (and NOT when analyzing a YouTube video, coding, researching, etc.).
+ * a live browser observation on Step 1?
+ * Whenever a live browser page is ALREADY open (`browserUrl` is non-empty and not `about:blank`),
+ * we always include the current browser state (unless the user is running a direct `$` command,
+ * pure arithmetic, or headless YouTube transcript analysis) so follow-up turns ("yes sir",
+ * "continue", "namespace should be magicsite.ai") recognize the already-opened screen instead of
+ * restarting from scratch.
  */
 export function requiresInitialBrowserState(task: string, browserUrl: string): boolean {
-  const lower = task.toLowerCase();
+  const marker = "User request:";
+  const idx = task.lastIndexOf(marker);
+  const coreRequest = (idx >= 0 ? task.slice(idx + marker.length) : task).trim();
+  const lower = coreRequest.toLowerCase();
+  const fullLower = task.toLowerCase();
+
+  // Direct shell command or pure arithmetic does not need browser observation
+  if (/^\$\s*[^\n]+$/.test(coreRequest) || extractArithmeticExpression(coreRequest) !== null) {
+    return false;
+  }
+
   // YouTube understanding is always handled headlessly via `understand_youtube_video` (Codex-style)
   if (/youtube\.com|youtu\.be|\byoutube\b|understand_youtube_video/.test(lower) && !/\b(open in browser|watch in browser)\b/.test(lower)) {
     return false;
   }
-  // Explicit headless Codex & Local Terminal tool requests never need initial browser state
+  // Explicit headless Codex & Local Terminal tool requests never need initial browser state unless a page is already open and referenced
   if (
     /\b(run_terminal_command|terminal|shell|bash|zsh|git status|git log|npm |npx |python3? |node |ls |grep |web_search|workspace_file|create_document|calculate|other bots|my bots|workspace bots|delegate_to_bot)\b/.test(lower) &&
-    !/\b(click|instagram|x\.com|twitter|linkedin|current page|on this page)\b/.test(lower)
+    !/\b(click|instagram|x\.com|twitter|linkedin|current page|on this page|browser|website|site|page|screen|admin|blog|module)\b/.test(lower)
   ) {
     return false;
   }
-  const explicitBrowserIntent =
-    /\b(open in browser|navigate to|go to|browse|click|scroll|follower|following|post|profile|bio|account|instagram|twitter|x\.com|linkedin|github|login|sign in|scrape|on this page|current page|on screen)\b/.test(
-      lower
-    );
-  if (explicitBrowserIntent) return true;
-  if (browserUrl && browserUrl !== "about:blank" && /\b(this page|current page|here|on screen)\b/.test(lower)) {
+
+  // If a real browser screen is ALREADY open in the active session, always show it on Step 1
+  // so the agent recognizes the open page/form on follow-up turns ("yes sir", "continue", etc.).
+  if (browserUrl && browserUrl !== "about:blank") {
     return true;
   }
+
+  const explicitBrowserIntent =
+    /\b(open in browser|open|visit|navigate to|go to|browse|click|scroll|follower|following|post|article|blog|admin|module|editor|form|draft|website|site|page|profile|bio|account|instagram|twitter|x\.com|linkedin|github|login|sign in|scrape|on this page|current page|on screen)\b/.test(
+      fullLower
+    ) ||
+    /https?:\/\/|\b[a-z0-9-]+\.(?:com|ai|io|pro|org|net|co|app|dev)\b|\/admin\b/i.test(coreRequest);
+  if (explicitBrowserIntent) return true;
   return false;
 }
 
@@ -249,7 +303,7 @@ export class AgentOrchestrator {
   private readonly onEvent?: OnEvent;
   private readonly onHumanVerification?: OnHumanVerification;
   private readonly onTerminalApproval?: OnTerminalApproval;
-  private readonly taskApproval = new TaskApprovalScope();
+  private readonly taskApproval: TaskApprovalScope;
   private readonly standingApproval: boolean;
   private readonly allowPrivilegedTools: boolean;
   private readonly onScheduleTask?: OnScheduleTask;
@@ -261,6 +315,8 @@ export class AgentOrchestrator {
   private readonly interactionMode: InteractionMode;
   private forceVisionOnce = false;
   private consecutiveClickFailures = 0;
+  private prematureFinishRejections = 0;
+  private scriptState: Record<string, unknown> = {};
   private readonly toolsForModel: OpenAI.Chat.Completions.ChatCompletionTool[];
   private readonly loopGuard: LoopGuard;
   private readonly messages: ChatMessage[] = [];
@@ -335,13 +391,15 @@ export class AgentOrchestrator {
     this.onEvent = options.onEvent;
     this.onHumanVerification = options.onHumanVerification;
     this.onTerminalApproval = options.onTerminalApproval;
-    this.standingApproval = options.standingApproval ?? false;
+    this.taskApproval = options.taskApprovalScope ?? new TaskApprovalScope();
     this.allowPrivilegedTools = options.allowPrivilegedTools ?? true;
+    this.interactionMode = options.interactionMode ?? "act";
+    this.standingApproval =
+      (options.standingApproval ?? this.interactionMode === "turbo") && this.allowPrivilegedTools;
     this.onScheduleTask = options.onScheduleTask;
     this.onLearningKb = options.onLearningKb;
     this.shouldAbort = options.shouldAbort;
     this.scheduleTimeZone = options.scheduleTimeZone || "UTC";
-    this.interactionMode = options.interactionMode ?? "act";
     this.observeMode = options.observeMode ?? "text";
     // Chat never drives the browser; browse/act honor allowBrowserInteraction for scheduled runs.
     this.allowBrowserInteraction =
@@ -423,7 +481,7 @@ export class AgentOrchestrator {
       "Local personal agent in Open Bots (runs behind the user's browser).\n" +
       "TOKEN DISCIPLINE (critical — stay useful like Grok, not expensive):\n" +
       "- Prefer tools over long explanations once a plan is agreed. Act, then give a short result.\n" +
-      "- User-facing replies: ≤150 words unless they ask for detail. No essays, no filler, no textbook walls.\n" +
+      "- User-facing replies: ≤150 words unless they ask for detail. Requested articles/drafts are deliverables: honor their requested length, and return the full text if the external editor cannot save it. Never claim a draft is saved without checking save status and reopening it.\n" +
       "- Structured plans beat paragraphs: short labeled lines, not bold bullet essays.\n" +
       "- Finish as soon as you have the answer or a concrete next ask. Don't narrate every click.\n" +
       "- Batch independent tool calls. Prefer extract_page_data / Detected Stats over re-navigating.\n" +
@@ -433,7 +491,9 @@ export class AgentOrchestrator {
         ? "text tools only — no browser navigate/click"
         : this.interactionMode === "browse"
           ? "navigate/read/extract only — no click/type"
-          : "full browser with effect gates") +
+          : this.interactionMode === "turbo"
+            ? "autonomous turbo execution — auto-run browser actions, multi-step scripts via run_action_script, shell commands, and file writes end-to-end without stopping for routine/outward confirmation"
+            : "full browser with effect gates") +
       ").\n" +
       "- Reddit/Google bot walls: prefer reddit_search / google_property / web_search, or tell the user to switch to Connected Chrome — do not hammer Playwright Chrome.\n" +
       "PLAN FIRST ON COMPLEX ASKS (marketing, growth, Reddit, SEO, multi-step work):\n" +
@@ -463,7 +523,7 @@ export class AgentOrchestrator {
         : "8. RESEARCH YOURSELF for niche targets: infer niche from profile, find real candidates, draft comments, return a shortlist for approval. Never follow/like/comment/message until they approve specific targets+wording.\n") +
       "9. PACE engagement: ≤5–8 likes/follows/comments per run with wait between; leave the rest for later.\n" +
       "10. CONFIRM UI state (Follow→Following, toast, visible comment) before claiming success.\n" +
-      "11. LEARNINGS/KB in CONTEXT: recall niche, prior mistakes, and what worked; when the user corrects you, call learning_kb save (mistake/intent) so the next run is smarter. For growth/SEO/Reddit, reuse prior niche and avoid repeating failed approaches.\n" +
+      "11. CONTINUOUS SELF-IMPROVEMENT (LEARNINGS/KB in CONTEXT): Recall niche, user rules, prior mistakes, and what worked from LEARNINGS/KB. Every time the user gives feedback, corrects an action, states a preference/rule, or teaches you how a site/workflow operates, call learning_kb(action='save', kind='mistake'|'learning'|'intent'|'hypothesis', text=...) so you permanently improve across runs and never repeat the same mistake.\n" +
       "INSTAGRAM / FOLLOWER GROWTH PLAYBOOK (be a proactive marketing specialist):\n" +
       "- On 'grow followers / increase engagement / help me market': do NOT dump generic tips and stop. Reason → plan → audit/research → propose concrete next actions for approval.\n" +
       "- Plan shape (keep lean): Goal & niche | Profile audit | Content angle (2–3 post ideas) | Engagement (who to like/comment + draft lines) | Follow targets (5–8 handles + why) | Pacing (≤5–8 actions/run) | Schedule (optional daily research-only check-in).\n" +
@@ -475,6 +535,7 @@ export class AgentOrchestrator {
       "REDDIT / COMMUNITY GROWTH PLAYBOOK (smart marketer — never naive spam):\n" +
       "- On 'Reddit bot / promote on Reddit / community growth': refuse unsupervised auto-posting. Reason → lean plan → research rules/subs → drafts + schedule for approval. Never blast links or spam identical comments.\n" +
       "- Plan shape (≤8 lines): Positioning | Target subs (3–5 + why) | Rules/self-promo norms | Account trust (aged > throwaway; karma/comment history; ban/shadowban/spam-filter risk) | Karma-build phase (value-only first) | Content angles (2–3 value-first drafts, disclosure when relevant) | Engagement + pacing | Schedule (research/draft-only unless they approve a specific post) | Do-NOT list.\n" +
+      "- If reddit_search returns 403, do not repeat the same API requests. Try navigate to the relevant community in the connected browser; an API block does not prove that the browser is blocked. If both browser and web search fail, preserve useful draft templates, label unverified details, and state the blocker.\n" +
       "- Risks to name briefly: subreddit rules, karma/min-age gates, spam filters, shadowbans, ban evasion, throwaway accounts, pacing, undisclosed self-promo.\n" +
       "- Value-first: helpful answers/teardowns/checklists before any product mention; soft disclosure; link only when rules allow and after trust is earned.\n" +
       "- Output: concrete shortlist + 1–2 draft posts/comments + proposed weekly cadence; ask what to approve. Never post/comment/upvote from a schedule without explicit per-item approval.\n" +
@@ -1123,6 +1184,17 @@ export class AgentOrchestrator {
       if (toolCalls.length === 0) {
         const directReply = (message.content ?? "").trim();
         if (directReply) {
+          const premature =
+            this.prematureFinishRejections < MAX_PREMATURE_FINISH_REJECTIONS
+              ? detectPrematureFinish(directReply)
+              : null;
+          if (premature) {
+            this.prematureFinishRejections += 1;
+            pendingToolOutputs = [];
+            warningText = null;
+            directiveText = premature;
+            continue;
+          }
           return this.finish({
             success: true,
             summary: directReply,
@@ -1149,6 +1221,12 @@ export class AgentOrchestrator {
         // Checked per call, not per batch: a batch of eight clicks must not finish after Stop.
         if (this.aborted()) return this.abortResult(step);
 
+        if (toolCall.argumentError) {
+          const result = { ok: false, message: toolCall.argumentError };
+          pendingToolOutputs.push({ id: toolCall.id, result });
+          this.emit({type: "step", step, toolName: toolCall.name, ok: false, message: result.message});
+          continue;
+        }
         if (toolCall.name === "delegate_to_bot") {
           const targetBotName = String(toolCall.input.targetBotName ?? "").trim() || "Specialist Bot";
           const delegatedTask = String(toolCall.input.task ?? "").trim() || this.extractUserRequestCore();
@@ -1207,8 +1285,155 @@ export class AgentOrchestrator {
           continue;
         }
 
+        if (toolCall.name === "run_action_script") {
+          const code = typeof toolCall.input.code === "string" ? toolCall.input.code : "";
+          const allowedToolNames = this.toolsForModel
+            .flatMap((t) => (t.type === "function" ? [t.function.name] : []))
+            .filter((name) => !NON_SCRIPTABLE_META_TOOLS.has(name));
+
+          const scriptResult = await runActionScript({
+            code,
+            toolNames: allowedToolNames,
+            state: this.scriptState,
+            shouldAbort: () => this.aborted(),
+            onToolCall: async (subName, subInput): Promise<ScriptToolResult> => {
+              if (this.aborted()) {
+                return { ok: false, message: "Run aborted by user." };
+              }
+              if (subName === "learning_kb") {
+                const kbRes = this.onLearningKb
+                  ? await this.onLearningKb(subInput)
+                  : { ok: false, message: "Learning KB is unavailable in this app instance." };
+                return { ok: kbRes.ok, message: kbRes.message, data: kbRes.data };
+              }
+
+              const subIsNonBrowser =
+                HEADLESS_RESEARCH_TOOL_NAMES.has(subName) || subName === "generate_image";
+              if (!subIsNonBrowser) {
+                touchedBrowserInBatch = true;
+                if (!this.browser.isStarted) {
+                  await this.browser.start();
+                }
+              }
+
+              let subResult: ToolExecutionResult;
+              const effectRefusal = await this.gateBrowserAction(subName, subInput);
+              if (effectRefusal) {
+                subResult = effectRefusal;
+              } else if (requiresPrivilegedApproval(subName, subInput)) {
+                const approved = await this.requestPrivilegedApproval(subName, subInput);
+                subResult = approved
+                  ? await executeTool(subName, subInput, this.browser)
+                  : { ok: false, message: "This action was not approved by the user and was not executed." };
+              } else {
+                subResult = await executeTool(subName, subInput, this.browser);
+              }
+
+              let obsData = subResult.data;
+              if (!subIsNonBrowser && this.browser.isStarted) {
+                try {
+                  state = await this.captureObservation();
+                  const marksPreview = (state.elements ?? [])
+                    .slice(0, 25)
+                    .map((el) => `#${el.markId} [${el.tag}] ${el.text}`)
+                    .join(" | ");
+                  obsData = [
+                    subResult.data,
+                    `URL: ${state.url}`,
+                    `Title: ${state.title}`,
+                    marksPreview ? `Marks: ${marksPreview}` : ""
+                  ]
+                    .filter(Boolean)
+                    .join("\n");
+                } catch {
+                  // Ignore post-subtool observation error; outer loop still tracks state.
+                }
+              }
+
+              this.emit({
+                type: "step",
+                step,
+                toolName: subName,
+                toolInput: subInput,
+                ok: subResult.ok,
+                message: `[script] ${subResult.message.split("\n")[0].slice(0, 160)}`,
+                artifactUrl: subResult.artifactUrl,
+                terminalEntry: subResult.terminalEntry,
+                url: subIsNonBrowser ? undefined : state?.url,
+                title: subIsNonBrowser ? undefined : state?.title
+              });
+
+              return {
+                ok: subResult.ok,
+                message: subResult.message,
+                data: obsData
+              };
+            }
+          });
+
+          this.scriptState = scriptResult.state;
+          this.emit({
+            type: "step",
+            step,
+            toolName: "run_action_script",
+            toolInput: { code: code.slice(0, 240) },
+            ok: scriptResult.ok,
+            message: scriptResult.summaryMessage.split("\n")[0].slice(0, 180)
+          });
+
+          if (scriptResult.ok && scriptResult.finalAnswer !== undefined) {
+            const premature =
+              this.prematureFinishRejections < MAX_PREMATURE_FINISH_REJECTIONS
+                ? detectPrematureFinish(scriptResult.finalAnswer)
+                : null;
+            if (!premature) {
+              return this.finish({
+                success: true,
+                summary: scriptResult.finalAnswer,
+                stepsTaken: step,
+                elapsedSeconds: this.loopGuard.elapsedSeconds(),
+                terminationReason: "finish_task"
+              });
+            }
+            this.prematureFinishRejections += 1;
+            pendingToolOutputs.push({
+              id: toolCall.id,
+              result: { ok: false, message: premature }
+            });
+            continue;
+          }
+
+          pendingToolOutputs.push({
+            id: toolCall.id,
+            result: {
+              ok: scriptResult.ok,
+              message: scriptResult.summaryMessage,
+              data: scriptResult.returned
+            }
+          });
+          continue;
+        }
+
         if (toolCall.name === "finish_task") {
           const summary = typeof toolCall.input.summary === "string" ? toolCall.input.summary : "Task completed.";
+          const premature =
+            this.prematureFinishRejections < MAX_PREMATURE_FINISH_REJECTIONS
+              ? detectPrematureFinish(summary)
+              : null;
+          if (premature) {
+            this.prematureFinishRejections += 1;
+            const result = { ok: false, message: premature };
+            pendingToolOutputs.push({ id: toolCall.id, result });
+            this.emit({
+              type: "step",
+              step,
+              toolName: "finish_task",
+              toolInput: toolCall.input,
+              ok: false,
+              message: premature.slice(0, 180)
+            });
+            continue;
+          }
           return this.finish({
             success: true,
             summary,
@@ -1367,6 +1592,12 @@ export class AgentOrchestrator {
       lines.push(`TASK: ${this.task}`);
       if (preExecutedContext) {
         lines.push(preExecutedContext);
+      } else if (state && state.url && state.url !== "about:blank") {
+        lines.push(
+          `[ACTIVE BROWSER SCREEN ALREADY OPEN — URL: ${state.url} | Title: "${state.title}". ` +
+            `Do NOT call navigate("${state.url}") again or restart from the beginning if the page or form you need is already open on screen below. ` +
+            `Inspect Text and Elements below and continue directly from the current screen.]`
+        );
       }
     }
     if (state) {
@@ -1461,7 +1692,6 @@ export class AgentOrchestrator {
           this.responsesPreviousId = response.id;
           const calls = response.output
             .filter((item): item is OpenAI.Responses.ResponseFunctionToolCall => item.type === "function_call")
-            .slice(0, 4)
             .map((call) => ({
               id: call.call_id,
               type: "function" as const,
@@ -1598,14 +1828,17 @@ export class AgentOrchestrator {
     if (!message.tool_calls || message.tool_calls.length === 0) {
       return [];
     }
-    return message.tool_calls.slice(0, 4).map((call) => {
+    return message.tool_calls.slice(0, this.useResponsesApi ? undefined : 4).map((call) => {
       let input: Record<string, unknown> = {};
+      let argumentError: string | undefined;
       try {
         input = call.function.arguments ? JSON.parse(call.function.arguments) : {};
+        if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Expected object");
       } catch {
         input = {};
+        argumentError = "Tool arguments were incomplete or invalid JSON. No action was taken. Retry with complete arguments; split large article text into smaller paragraphs if needed.";
       }
-      return { id: call.id, name: call.function.name, input };
+      return { id: call.id, name: call.function.name, input, argumentError };
     });
   }
 }

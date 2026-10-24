@@ -76,15 +76,26 @@ class BrowserWorkspace {
       if (this.tabs.includes(tab)) this.removeTab(tab);
     });
     if (!popupOptions) void view.webContents.loadURL(target).catch(() => this.changed());
-    this.layout();
-    this.changed();
+    if (popupOptions) {
+      // Return the new webContents before asking Chromium for its DevTools target ID.
+      // The opener is waiting synchronously for createWindow to return.
+      setImmediate(() => { if (!view.webContents.isDestroyed()) { this.layout(); this.changed(); } });
+    } else {
+      this.layout();
+      this.changed();
+    }
     return tab;
   }
 
   layout() {
     for (const tab of this.tabs) {
-      tab.view.setBounds(this.visible && tab.id === this.activeId
-        ? this.bounds : { x: 0, y: 0, width: 0, height: 0 });
+      // Hiding the pane must not turn the actual webpage into a zero-sized viewport.
+      tab.view.setBounds({
+        ...this.bounds,
+        width: this.bounds.width || 1280,
+        height: this.bounds.height || 800
+      });
+      tab.view.setVisible(this.visible && tab.id === this.activeId);
     }
   }
 

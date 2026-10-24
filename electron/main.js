@@ -170,6 +170,8 @@ function createWindow(port) {
     minWidth: 960,
     minHeight: 640,
     title: "Open Bots",
+    show: false,
+    ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 14, y: 16 } } : {}),
     backgroundColor: "#f8f9fb",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -179,6 +181,10 @@ function createWindow(port) {
     }
   });
 
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.maximize();
+    mainWindow.show();
+  });
   mainWindow.loadURL(`http://127.0.0.1:${port}/`);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

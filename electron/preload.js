@@ -6,6 +6,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("openBotsDesktop", {
   isDesktop: true,
+  platform: process.platform,
   reportBrowserBounds(bounds) {
     ipcRenderer.send("live-browser:bounds", bounds);
   },

@@ -585,3 +585,26 @@ test("one off-topic round is not averaged away by a good one", () => {
   assert.ok((relevance?.score ?? 5) < STELLAR_THRESHOLD, relevance?.evidence);
   assert.match(relevance?.evidence ?? "", /round 1 .*sharing nothing/);
 });
+
+test("follow-up round with defaultUserSimulator prompt is judged against established session topic", () => {
+  const round0Proposal =
+    "MagicSite serves home-service contractors (HVAC, plumbing, roofing) with website + lead capture. " +
+    "Step 1 is a starter keyword map and pillar page brief targeting contractor website software.";
+  const round1Execution =
+    "First step done: a starter keyword map for MagicSite targeting home-service contractors across the country. " +
+    "Commercial pages to prioritize include Website builder for contractors, HVAC marketing software, " +
+    "plumbing website design, and roofing lead capture pages with clear booking CTAs, local SEO proof, " +
+    "service area landing pages, customer review widgets, and instant quote request forms for field teams.";
+
+  const scores = scoreExperience([
+    toLearnTurn(0, "improve our MagicSite SEO content strategy", repeatOutcome(round0Proposal)),
+    toLearnTurn(
+      1,
+      "Good. Now actually do the first concrete step you proposed, and show me the result.",
+      repeatOutcome(round1Execution)
+    )
+  ]);
+  const relevance = scores.find((score) => score.dimension === "relevance");
+  assert.ok(relevance, "relevance score is present");
+  assert.ok((relevance?.score ?? 0) >= STELLAR_THRESHOLD, relevance?.evidence);
+});

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   artifactContentType,
+  browserViewportSize,
   artifactUrlFor,
   isImageArtifactUrl,
   isRunInProgressMessage,
@@ -9,6 +10,7 @@ import {
 } from "./apiContract";
 import {
   browserSessionConfig,
+  normalizeBrowserKey,
   googleSignInRejected,
   accessDeniedRecoveryHint,
   DEFAULT_CHROME_PROFILE_DIR,
@@ -126,5 +128,30 @@ describe("Google browser sign-in rejection", () => {
     assert.match(accessDeniedRecoveryHint("embedded", url), /not a CAPTCHA/);
     assert.match(accessDeniedRecoveryHint("cdp", url), /already active/);
     assert.match(accessDeniedRecoveryHint("persistent", url), /email sign-in/);
+  });
+});
+
+
+describe("live browser viewport sizing", () => {
+  it("matches tall, wide, and fractional pane sizes within supported limits", () => {
+    assert.deepEqual(browserViewportSize(940.4, 1320.7), { width: 940, height: 1321 });
+    assert.deepEqual(browserViewportSize(1600, 950), { width: 1600, height: 950 });
+    assert.deepEqual(browserViewportSize(20, 10), { width: 320, height: 240 });
+    assert.deepEqual(browserViewportSize(99999, 99999), { width: 4096, height: 4096 });
+  });
+  it("rejects invalid dimensions before reaching the browser process", () => {
+    for (const size of [[0, 800], [1000, -1], [NaN, 300], [500, Infinity]]) {
+      assert.throws(() => browserViewportSize(size[0], size[1]));
+    }
+  });
+});
+
+
+describe("browser keyboard aliases", () => {
+  it("accepts model key spellings without changing literal character case", () => {
+    assert.equal(normalizeBrowserKey("END"), "End");
+    assert.equal(normalizeBrowserKey("CTRL+SHIFT+END"), "Control+Shift+End");
+    assert.equal(normalizeBrowserKey("Command+a"), "Meta+a");
+    assert.equal(normalizeBrowserKey("A"), "A");
   });
 });
