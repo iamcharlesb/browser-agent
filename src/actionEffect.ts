@@ -121,7 +121,7 @@ const IRREVERSIBLE_PATTERNS: RegExp[] = [
   /\b(?:delete|erase|wipe|destroy|deactivate|permanently)\b/,
   /\bremove\b/,
   /\bclose\s+account\b/,
-  /\b(?:pay|purchase|buy|checkout|check\s*out)\b/,
+  /\b(?:pay|purchase|buy|checkout|check\s*out|subscribe)\b/,
   /\b(?:payment|billing|charge|recharge|top\s*up|renew\s+(?:plan|subscription)|subscribe\s+(?:now|for)|start\s+(?:paid|subscription))\b/,
   /\bplace\s+(?:the\s+)?order\b/,
   /\bconfirm\s+(?:and\s+)?(?:pay|order|payment|purchase|booking|transfer|deletion|delete|cancellation)\b/,
@@ -329,7 +329,7 @@ export function classifyBrowserAction(context: BrowserActionContext): EffectDeci
   const floor: ActionEffect = observed ?? "reversible";
   const isKnownDraftEntry = !isTyping && isLocalVerbLabel(context.label);
   const effect =
-    isKnownDraftEntry && declared === "outward"
+    isKnownDraftEntry && floor !== "irreversible" && declared === "outward"
       ? "reversible"
       : declared
         ? maxEffect(declared, floor)

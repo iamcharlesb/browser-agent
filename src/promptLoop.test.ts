@@ -837,3 +837,21 @@ test("Stop aborts an in-flight model request", async () => {
   assert.equal(requested, true);
   assert.equal(result.terminationReason, "stopped");
 });
+
+test("financial shell operations cannot use standing approval", async () => {
+  let prompts = 0;
+  const events: Array<Record<string, unknown>> = [];
+  const result = await new AgentOrchestrator({
+    task: "$ payment-client pay invoice", model: "local-engine", browser: {} as BrowserController,
+    interactionMode: "turbo", standingApproval: true,
+    onEvent: event => events.push(event),
+    onTerminalApproval: details => {
+      prompts++;
+      assert.equal(details.approvalKind, "irreversible");
+      return false;
+    }
+  }).run();
+  assert.equal(result.success, false);
+  assert.equal(prompts, 1);
+  assert.ok(events.some(event => event.type === "privileged_approval_required" && event.approvalKind === "irreversible"));
+});

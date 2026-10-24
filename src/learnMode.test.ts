@@ -608,3 +608,20 @@ test("follow-up round with defaultUserSimulator prompt is judged against establi
   assert.ok(relevance, "relevance score is present");
   assert.ok((relevance?.score ?? 0) >= STELLAR_THRESHOLD, relevance?.evidence);
 });
+
+test("Stop prevents more rehearsal rounds and patch proposals", async () => {
+  let stopped = false, rounds = 0, proposals = 0;
+  const session = new LearnModeSession({
+    task: "Inspect this page", bus: new MessageBus(), repoRoot: process.cwd(),
+    shouldAbort: () => stopped,
+    userSimulator: () => "Continue inspecting",
+    runner: async () => {
+      rounds++; stopped = true;
+      return repeatOutcome("Stopped by user", { success: false, terminationReason: "stopped" });
+    },
+    proposePatches: async () => { proposals++; return []; }
+  });
+  await session.run();
+  assert.equal(rounds, 1);
+  assert.equal(proposals, 0);
+});

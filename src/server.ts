@@ -1134,7 +1134,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
       // Delegation goes out as a message, not a direct call into another bot. A bus subscriber
       // picks it up, so a handoff now also happens for scheduled runs and survives the UI closing
       // mid-run - both of which silently dropped the handoff when the browser owned it.
-      if (result.delegateTo?.targetBotName) {
+      if (!run.cancelled && result.delegateTo?.targetBotName) {
         localBus.publish<AgentHandoffRequest>(
           TOPICS.handoffRequested,
           {
