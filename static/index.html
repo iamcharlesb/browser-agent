@@ -3675,6 +3675,7 @@ dialog.modal-dialog::backdrop {
   var googleIdentityClientId = "";
   var googleIdentityNonce = "";
   var googleSignInAttemptTimer = 0;
+  var googleSignInReturn = new URLSearchParams(location.search).get("googleSignIn") || "";
 
   var appEl = document.getElementById("app");
   var workspace = document.getElementById("workspace");
@@ -7242,47 +7243,40 @@ dialog.modal-dialog::backdrop {
             return loadGoogleIdentityScript().then(function() {
               googleIdentityNonce = Array.from(crypto.getRandomValues(new Uint8Array(24)))
                 .map(function(value) { return value.toString(16).padStart(2, "0"); }).join("");
+              return fetch("/api/auth/google/nonce", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ nonce: googleIdentityNonce })
+              }).then(readResponse);
+            }).then(function() {
               window.google.accounts.id.initialize({
                 client_id: googleIdentityClientId,
                 nonce: googleIdentityNonce,
-                callback: function(result) {
-                  window.clearTimeout(googleSignInAttemptTimer);
-                  setGoogleSignInStatus("Verifying your Google account…");
-                  fetch("/api/auth/google", {
-                    method: "POST",
-                    credentials: "same-origin",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ credential: result.credential, nonce: googleIdentityNonce })
-                  })
-                    .then(readResponse)
-                    .then(function(response) {
-                      setGoogleIdentitySession(response.user, response.persistence);
-                      if (!response.persistence || !Array.isArray(response.persistence.bots) || !response.persistence.bots.length) {
-                        scheduleGooglePersist();
-                      }
-                      setGoogleSignInStatus("");
-                    })
-                    .catch(function(error) {
-                      setGoogleSignInStatus((error.message || "Google sign-in failed.") + " You can keep using Open Bots as a guest.", true);
-                    });
-                }
+                ux_mode: "redirect",
+                login_uri: config.loginUri
               });
               try {
                 button.innerHTML = "";
                 window.google.accounts.id.renderButton(button, {
                   type: "standard", theme: "outline", size: "large", shape: "pill", text: "signin_with", width: 280,
+                  state: googleIdentityNonce,
                   click_listener: function() {
                     window.clearTimeout(googleSignInAttemptTimer);
-                    setGoogleSignInStatus("Waiting for Google sign-in…");
+                    setGoogleSignInStatus("Opening Google sign-in…");
                     googleSignInAttemptTimer = window.setTimeout(function() {
                       if (!googleIdentityUser) {
-                        setGoogleSignInStatus("Google sign-in did not return. Allow pop-ups for this app, then try again. If Google shows an origin error, add " + (config.authorizedOrigin || location.origin) + " under Authorized JavaScript origins in Google Cloud.", true);
+                        setGoogleSignInStatus("Google sign-in did not return. Add " + config.loginUri + " under Authorized redirect URIs in Google Cloud.", true);
                       }
                     }, 10000);
                   }
                 });
                 googleIdentityReady = true;
-                setGoogleSignInStatus("");
+                if (googleSignInReturn === "error") {
+                  setGoogleSignInStatus("Google sign-in could not complete. Add " + config.loginUri + " under Authorized redirect URIs in Google Cloud, then try again.", true);
+                } else {
+                  setGoogleSignInStatus("");
+                }
                 watchGoogleButtonRender(button, config.authorizedOrigin);
               } catch (error) {
                 setGoogleSignInStatus((error && error.message ? error.message : "Google button failed.") + " " + googleSignInOriginHint(config.authorizedOrigin), true);
@@ -7360,7 +7354,12 @@ dialog.modal-dialog::backdrop {
   if (googleLoginGuestBtn) googleLoginGuestBtn.onclick = function() { activateGuestSession(true); };
   // First visit (or cleared storage): enter Guest immediately — no interstitial choice.
   if (!storedSessionMode) activateGuestSession(false);
-  setupGoogleIdentitySignIn();
+  if (googleSignInReturn) {
+    history.replaceState(null, "", location.pathname + location.hash);
+    openConnectModal();
+  } else {
+    setupGoogleIdentitySignIn();
+  }
 
   var useEmbeddedBtn = document.getElementById("use-embedded-btn");
   if (useEmbeddedBtn) {
