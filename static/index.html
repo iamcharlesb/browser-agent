@@ -3674,7 +3674,10 @@ dialog.modal-dialog::backdrop {
   var googleIdentityReady = false;
   var googleIdentityClientId = "";
   var googleIdentityNonce = "";
+  var googleIdentityHandoffVerifier = "";
   var googleSignInAttemptTimer = 0;
+  var googleSignInHandoffTimer = 0;
+  var googleSignInHandoffDeadline = 0;
   var googleSignInReturn = new URLSearchParams(location.search).get("googleSignIn") || "";
 
   var appEl = document.getElementById("app");
@@ -7217,6 +7220,42 @@ dialog.modal-dialog::backdrop {
     }, 1800);
   }
 
+  function pollGoogleSignInHandoff() {
+    if (!googleIdentityNonce || !googleIdentityHandoffVerifier || googleIdentityUser) return;
+    if (Date.now() >= googleSignInHandoffDeadline) {
+      window.clearTimeout(googleSignInHandoffTimer);
+      googleSignInHandoffTimer = 0;
+      setGoogleSignInStatus("Google sign-in is still waiting. Finish it in the browser window, then retry here.", true);
+      return;
+    }
+    fetch("/api/auth/google/exchange", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nonce: googleIdentityNonce, handoffVerifier: googleIdentityHandoffVerifier })
+    }).then(function(response) {
+      if (response.status === 202) return null;
+      return readResponse(response);
+    }).then(function(result) {
+      if (result && result.authenticated && result.user) {
+        window.clearTimeout(googleSignInHandoffTimer);
+        window.clearTimeout(googleSignInAttemptTimer);
+        googleSignInHandoffTimer = 0;
+        setGoogleIdentitySession(result.user, result.persistence);
+        return;
+      }
+      googleSignInHandoffTimer = window.setTimeout(pollGoogleSignInHandoff, 900);
+    }).catch(function(error) {
+      if (error && error.status === 410) {
+        window.clearTimeout(googleSignInHandoffTimer);
+        googleSignInHandoffTimer = 0;
+        setGoogleSignInStatus(error.message || "Google sign-in expired. Please try again.", true);
+        return;
+      }
+      googleSignInHandoffTimer = window.setTimeout(pollGoogleSignInHandoff, 1500);
+    });
+  }
+
   function setupGoogleIdentitySignIn() {
     var button = document.getElementById("google-signin-button");
     fetch("/api/auth/google/config")
@@ -7243,11 +7282,13 @@ dialog.modal-dialog::backdrop {
             return loadGoogleIdentityScript().then(function() {
               googleIdentityNonce = Array.from(crypto.getRandomValues(new Uint8Array(24)))
                 .map(function(value) { return value.toString(16).padStart(2, "0"); }).join("");
+              googleIdentityHandoffVerifier = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+                .map(function(value) { return value.toString(16).padStart(2, "0"); }).join("");
               return fetch("/api/auth/google/nonce", {
                 method: "POST",
                 credentials: "same-origin",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ nonce: googleIdentityNonce })
+                body: JSON.stringify({ nonce: googleIdentityNonce, handoffVerifier: googleIdentityHandoffVerifier })
               }).then(readResponse);
             }).then(function() {
               window.google.accounts.id.initialize({
@@ -7264,11 +7305,14 @@ dialog.modal-dialog::backdrop {
                   click_listener: function() {
                     window.clearTimeout(googleSignInAttemptTimer);
                     setGoogleSignInStatus("Opening Google sign-in…");
+                    googleSignInHandoffDeadline = Date.now() + 120000;
+                    window.clearTimeout(googleSignInHandoffTimer);
+                    googleSignInHandoffTimer = window.setTimeout(pollGoogleSignInHandoff, 700);
                     googleSignInAttemptTimer = window.setTimeout(function() {
                       if (!googleIdentityUser) {
-                        setGoogleSignInStatus("Google sign-in did not return. Add " + config.loginUri + " under Authorized redirect URIs in Google Cloud.", true);
+                        setGoogleSignInStatus("Finish Google sign-in in the browser window to continue here.");
                       }
-                    }, 10000);
+                    }, 7000);
                   }
                 });
                 googleIdentityReady = true;
