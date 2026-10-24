@@ -186,15 +186,30 @@ function defaultComplete(options: PatchProposerOptions): ((input: { systemPrompt
   });
 
   return async ({ systemPrompt, userPrompt }) => {
-    const response = await client.chat.completions.create({
-      model: model || "gpt-4o-mini",
-      max_tokens: 4_000,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ]
-    });
-    return response.choices[0]?.message?.content ?? "";
+    const resolvedModel = model || "gpt-4o-mini";
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ];
+    try {
+      const response = await client.chat.completions.create({
+        model: resolvedModel,
+        ...(isClaudeApi ? { max_tokens: 4_000 } : { max_completion_tokens: 4_000 }),
+        messages
+      });
+      return response.choices[0]?.message?.content ?? "";
+    } catch (err) {
+      // Fallback if an older OpenAI-compatible endpoint only accepts max_tokens.
+      if (!isClaudeApi && /max_completion_tokens/i.test((err as Error)?.message ?? "")) {
+        const fallbackResponse = await client.chat.completions.create({
+          model: resolvedModel,
+          max_tokens: 4_000,
+          messages
+        });
+        return fallbackResponse.choices[0]?.message?.content ?? "";
+      }
+      throw err;
+    }
   };
 }
 

@@ -79,3 +79,12 @@ export function resolveLoginDuringRun(opts: {
 export function isRunInProgressMessage(message: string): boolean {
   return /in progress/i.test(message || "");
 }
+
+/** Bound live-preview sizes before applying Chromium device metrics. */
+export function browserViewportSize(width: unknown, height: unknown): { width: number; height: number } {
+  const w = Number(width), h = Number(height);
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+    throw new Error("Browser viewport dimensions must be positive finite numbers.");
+  }
+  return { width: Math.max(320, Math.min(4096, Math.round(w))), height: Math.max(240, Math.min(4096, Math.round(h))) };
+}

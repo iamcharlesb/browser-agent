@@ -18,8 +18,29 @@ test("labels classify by verb, not by platform", () => {
   for (const label of ["Delete", "Delete account", "Pay now", "Buy now", "Place order", "Confirm payment"]) {
     assert.equal(classifyLabel(label), "irreversible", `${label} should be irreversible`);
   }
-  for (const label of ["Save", "Filter", "Next", "Close", "Download", "Edit", "Show more"]) {
+  for (const label of [
+    "Save",
+    "Filter",
+    "Next",
+    "Close",
+    "Download",
+    "Edit",
+    "Show more",
+    "Create New Post",
+    "New Post",
+    "Edit Post",
+    "New Message",
+    "Draft Reply",
+    "Edit Comment",
+    "View Campaign",
+    "Filter Posts",
+    "Open Request",
+    "Save Draft"
+  ]) {
     assert.equal(classifyLabel(label), "reversible", `${label} should be reversible`);
+  }
+  for (const label of ["Create and Send", "Save and Publish", "Add Friend", "Add Connection"]) {
+    assert.equal(classifyLabel(label), "outward", `${label} should still be outward`);
   }
 });
 

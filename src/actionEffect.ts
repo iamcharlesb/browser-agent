@@ -211,6 +211,31 @@ export function normalizeLabel(label: string): string {
  * Classify a single element label. Returns null when the label carries no usable signal (empty,
  * icon-only, or a bare number) so callers can tell "safe" apart from "unknown".
  */
+/**
+ * Verb-first local/draft/navigation prefixes.
+ *
+ * Across any web app (CMS, CRM, email client, ad manager, ticketing system, social tool), buttons
+ * like "Create New Post", "New Message", "Edit Comment", "Draft Reply", "View Campaign",
+ * "Open Request", "Filter Posts", "Manage Invites", or "Save Draft" contain words that also appear
+ * in `OUTWARD_PATTERNS` ("post", "message", "comment", "reply", "request", "invite"), but here
+ * those words are NOUNS being opened, viewed, filtered, or drafted — not sent to another person.
+ *
+ * As long as the label starts with a local/drafting/viewing prefix and does NOT join an outward or
+ * destructive verb ("Create and Send", "Save and Publish", "Add Friend", "Add Connection"), the
+ * leading verb governs and the action is reversible.
+ */
+const LOCAL_VERB_PREFIX =
+  /^(?:create|new|add|edit|draft|write|compose|open|view|show|hide|expand|collapse|preview|filter|sort|search|find|manage|configure|select|choose|copy|download|export|back\s+to|go\s+to|return\s+to|see\s+all|see\s+more|load\s+more|save\s+(?:as\s+)?draft)\b/;
+
+const COMPOUND_OUTWARD_OVERRIDE =
+  /\b(?:and\s+(?:send|publish|post|submit|share|launch)|save\s+and\s+(?:publish|send|post|submit)|add\s+(?:friend|connection|contact)s?|publish\s+now|send\s+now|post\s+now|go\s+live)\b/;
+
+export function isLocalVerbLabel(label: string | undefined): boolean {
+  const text = normalizeLabel(label ?? "");
+  if (!text) return false;
+  return LOCAL_VERB_PREFIX.test(text) && !COMPOUND_OUTWARD_OVERRIDE.test(text);
+}
+
 export function classifyLabel(label: string | undefined, role?: string): ActionEffect | null {
   const text = normalizeLabel(label ?? "");
   if (!text || /^[\d\s.,kmb+]+$/.test(text)) return null;
@@ -221,6 +246,10 @@ export function classifyLabel(label: string | undefined, role?: string): ActionE
   // A destination, not a verb - but only when the role says it navigates. Instagram's "Following"
   // button unfollows; its "Followers" link does not.
   if (NAV_NOUN_LABELS.has(text) && LINK_ROLES.has((role ?? "").toLowerCase())) return "read";
+
+  // Leading local/draft/navigation verb ("Create New Post", "New Message", "Edit Comment",
+  // "View Requests", "Draft Reply") where an outward word is the noun object, not the verb.
+  if (LOCAL_VERB_PREFIX.test(text) && !COMPOUND_OUTWARD_OVERRIDE.test(text)) return "reversible";
 
   if (OUTWARD_PATTERNS.some((pattern) => pattern.test(text))) return "outward";
   if (REVERSIBLE_PATTERNS.some((pattern) => pattern.test(text))) return "reversible";
@@ -288,9 +317,17 @@ export function classifyBrowserAction(context: BrowserActionContext): EffectDeci
   }
 
   // A known label stands on its own; the baseline is only for elements we could not read. The
-  // declaration is then layered on top, and can only push the level up.
+  // declaration is then layered on top, and can only push the level up - except when the button
+  // label is an explicit CMS draft-entry or draft-save noun phrase ("Create New Post", "Save Draft")
+  // where models routinely over-declare "outward" because of the word "Post".
   const floor: ActionEffect = observed ?? "reversible";
-  const effect = declared ? maxEffect(declared, floor) : floor;
+  const isKnownDraftEntry = !isTyping && isLocalVerbLabel(context.label);
+  const effect =
+    isKnownDraftEntry && declared === "outward"
+      ? "reversible"
+      : declared
+        ? maxEffect(declared, floor)
+        : floor;
   return { effect, declared, observed, reason };
 }
 

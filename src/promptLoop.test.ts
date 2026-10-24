@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AgentOrchestrator, AgentOrchestratorOptions, extractArithmeticExpression } from "./promptLoop";
+import { AgentOrchestrator, AgentOrchestratorOptions, extractArithmeticExpression, requiresInitialBrowserState } from "./promptLoop";
+import { classifyBrowserAction } from "./actionEffect";
 import { BrowserController, PageState } from "./browserController";
 import { WORKSPACE_ROOT } from "./agentTools";
 
@@ -141,6 +142,7 @@ test("GPT-6 Luna uses Responses API with reasoning enabled", { concurrency: fals
   assert.equal(requestBodies.length, 2);
   assert.equal(requestBodies[0].model, "gpt-6-luna");
   assert.equal(requestBodies[0].reasoning.effort, "low");
+  assert.ok(requestBodies[0].max_output_tokens >= 4096, "Article tool arguments must fit without truncation");
   assert.match(requestBodies[0].instructions, /TOKEN DISCIPLINE/);
   assert.match(requestBodies[0].instructions, /PLAN FIRST ON COMPLEX ASKS/);
   assert.match(requestBodies[0].instructions, /FOLLOWER GROWTH PLAYBOOK|proactive marketing specialist/i);
@@ -484,4 +486,250 @@ test("the effect gate stops an outward click no task-text rule anticipated", { c
   const destructive = await run({ markId: 3, standingApproval: true, approve: false });
   assert.equal(destructive.asked.length, 1, "standing approval must never cover an irreversible click");
   assert.equal(destructive.clicks, 0);
+});
+
+
+test("Responses returns an output for every call in batches larger than four", async () => {
+  const bodies: any[] = [];
+  const mockFetch: typeof fetch = async (_input, init) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    const output = bodies.length === 1
+      ? Array.from({length: 6}, (_, i) => ({id: "fc_" + i, type: "function_call", status: "completed", call_id: "call_" + i, name: "calculate", arguments: JSON.stringify({expression: "2+2"})}))
+      : [{id: "msg_done", type: "message", status: "completed", role: "assistant", content: [{type: "output_text", text: "All six calculations finished."}]}];
+    return new Response(JSON.stringify(makeResponsesPayload(output, "resp_" + bodies.length)), {status: 200, headers: {"content-type": "application/json"}});
+  };
+  const agent = new AgentOrchestrator({task: "Calculate six values.", model: "gpt-6-luna", apiKey: "test-key", fetch: mockFetch, browser: {} as BrowserController, maxApiRetries: 1});
+  const result = await agent.run();
+  assert.equal(result.success, true, result.summary);
+  assert.deepEqual(bodies[1].input.filter((item: any) => item.type === "function_call_output").map((item: any) => item.call_id), Array.from({length: 6}, (_, i) => "call_" + i));
+});
+
+
+test("truncated completion arguments cannot produce a false task-completed result", async () => {
+  const bodies: any[] = [];
+  const mockFetch: typeof fetch = async (_input, init) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    const output = bodies.length === 1
+      ? [{id:"fc_bad",type:"function_call",status:"completed",call_id:"call_bad",name:"finish",arguments:'{"summary":"cut off'}]
+      : [{id:"msg_done",type:"message",status:"completed",role:"assistant",content:[{type:"output_text",text:"The previous tool input was incomplete; no completion was recorded."}]}];
+    return new Response(JSON.stringify(makeResponsesPayload(output, "resp_bad_" + bodies.length)), {status:200,headers:{"content-type":"application/json"}});
+  };
+  const agent = new AgentOrchestrator({task:"Prepare an article.",model:"gpt-6-luna",apiKey:"test-key",fetch:mockFetch,browser:{} as BrowserController,maxApiRetries:1});
+  const result = await agent.run();
+  assert.match(result.summary, /no completion was recorded/);
+  assert.ok(bodies[1].input.some((item:any) => item.call_id === "call_bad" && /No action was taken/.test(item.output)));
+});
+
+test("premature finish_task admitting blank/unsaved editor is rejected so the agent completes the save", async () => {
+  const bodies: any[] = [];
+  const mockFetch: typeof fetch = async (_input, init) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    if (bodies.length === 1) {
+      return new Response(
+        JSON.stringify(
+          makeResponsesPayload(
+            [
+              {
+                id: "fc_premature",
+                type: "function_call",
+                status: "completed",
+                call_id: "call_premature",
+                name: "finish_task",
+                arguments: JSON.stringify({
+                  summary:
+                    "I'm back in the MagicSite editor and have generated the article's hero image. I haven't saved or published anything yet—the editor is still blank."
+                })
+              }
+            ],
+            "resp_1"
+          )
+        ),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    }
+    return new Response(
+      JSON.stringify(
+        makeResponsesPayload(
+          [
+            {
+              id: "fc_done",
+              type: "function_call",
+              status: "completed",
+              call_id: "call_done",
+              name: "finish_task",
+              arguments: JSON.stringify({
+                summary: "Filled the title, tags, and content in the MagicSite editor and saved the draft."
+              })
+            }
+          ],
+          "resp_2"
+        )
+      ),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
+  };
+
+  const agent = new AgentOrchestrator({
+    task: "Write and save article 1 in MagicSite.",
+    model: "gpt-6-luna",
+    apiKey: "test-key",
+    fetch: mockFetch,
+    browser: {} as BrowserController,
+    maxApiRetries: 1
+  });
+  const result = await agent.run();
+  assert.equal(result.success, true);
+  assert.match(result.summary, /saved the draft/);
+  assert.equal(bodies.length, 2, "must reject the premature finish and force a second turn");
+  assert.ok(
+    bodies[1].input.some(
+      (item: any) => item.call_id === "call_premature" && /Premature finish_task rejected/.test(item.output)
+    )
+  );
+});
+
+test("AgentOrchestrator executes run_action_script and completes when final_answer is called", async () => {
+  const mockFetch: typeof fetch = async () => {
+    return new Response(
+      JSON.stringify(
+        makeResponsesPayload(
+          [
+            {
+              id: "fc_script",
+              type: "function_call",
+              status: "completed",
+              call_id: "call_script",
+              name: "run_action_script",
+              arguments: JSON.stringify({
+                code: `
+                  const a = await calculate({ expression: "10 + 15" });
+                  const b = await calculate({ expression: "25 * 2" });
+                  final_answer("Combined script result: " + a.message + " and " + b.message);
+                `
+              })
+            }
+          ],
+          "resp_script_1"
+        )
+      ),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
+  };
+
+  const agent = new AgentOrchestrator({
+    task: "Run two calculations in one script.",
+    model: "gpt-6-luna",
+    apiKey: "test-key",
+    fetch: mockFetch,
+    browser: {} as BrowserController,
+    maxApiRetries: 1
+  });
+  const result = await agent.run();
+  assert.equal(result.success, true);
+  assert.match(result.summary, /Combined script result:.*25.*50/);
+});
+
+test("interactionMode turbo auto-runs outward browser actions without prompting", async () => {
+  const asked: string[] = [];
+  let clicks = 0;
+  const pageState: PageState = {
+    url: "https://example.test/editor",
+    title: "Editor",
+    pageText: "Editor",
+    screenshotB64: "",
+    stateHash: "h1",
+    capturedAt: 0,
+    accessDenied: false,
+    requiresHumanVerification: false,
+    elements: [
+      {
+        markId: 1,
+        tag: "button",
+        role: "button",
+        elementType: "button",
+        text: "Publish article",
+        x: 10,
+        y: 10,
+        width: 80,
+        height: 24
+      }
+    ]
+  };
+  const browser = {
+    sessionMode: "persistent",
+    isStarted: true,
+    currentUrl: () => pageState.url,
+    start: async () => {},
+    captureState: async () => pageState,
+    getElementByMark: (id: number) => pageState.elements.find((el) => el.markId === id),
+    clickMark: async (id: number) => {
+      clicks += 1;
+      return pageState.elements.find((el) => el.markId === id)!;
+    }
+  } as unknown as BrowserController;
+
+  let requests = 0;
+  const mockFetch: typeof fetch = async () => {
+    requests += 1;
+    const output =
+      requests === 1
+        ? [
+            {
+              type: "function_call",
+              call_id: "call_pub",
+              name: "click_mark",
+              arguments: JSON.stringify({ markId: 1, effect: "outward" })
+            }
+          ]
+        : [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Published." }] }];
+    return new Response(JSON.stringify(makeResponsesPayload(output, `resp_turbo_${requests}`)), {
+      headers: { "content-type": "application/json" }
+    });
+  };
+
+  await new AgentOrchestrator({
+    task: "Publish the article on this page",
+    model: "gpt-6-luna",
+    apiKey: "test-key",
+    browser,
+    fetch: mockFetch,
+    interactionMode: "turbo",
+    onTerminalApproval: ({ description }) => {
+      asked.push(description);
+      return false;
+    }
+  }).run();
+
+  assert.equal(asked.length, 0, "Turbo mode must not prompt on outward actions");
+  assert.equal(clicks, 1, "Turbo mode executes the click automatically");
+});
+
+test("follow-up turns recognize an already-open browser screen and do not gate Create New Post", async () => {
+  for (const followUp of [
+    "yes sir",
+    "continue",
+    "namespace should be magicsite.ai",
+    "I was referring to the one in the /admin module there is a blog management",
+    "now can you write 5 articles with images in this blog management module?"
+  ]) {
+    assert.equal(
+      requiresInitialBrowserState(
+        `Continue acting as magic seo. User request: ${followUp}`,
+        "https://www.magicsite.ai/admin/blog"
+      ),
+      true,
+      `follow-up "${followUp}" must include the already-open screen`
+    );
+  }
+
+  // Opening a CMS draft form ("Create New Post", "+ Create New Post", "Save Draft") stays reversible
+  // even when the model conservatively declares "outward" because of the noun "Post".
+  for (const label of ["Create New Post", "+ Create New Post", "New Post", "Save Draft", "Save as Draft"]) {
+    const decision = classifyBrowserAction({
+      toolName: "click_element",
+      label,
+      declaredEffect: "outward"
+    });
+    assert.equal(decision.effect, "reversible", `"${label}" must not prompt for outward approval`);
+  }
 });

@@ -1,5 +1,6 @@
 /** Browser operations and state capture, backed by Playwright for Node. */
 
+import { browserViewportSize } from "./apiContract";
 import { ensureManagedChrome, managedChromeEnabled } from "./managedChrome";
 import { desktopBrowserAvailable, desktopBrowserRequest } from "./desktopBrowser";
 import { createHash } from "node:crypto";
@@ -61,7 +62,7 @@ const INTERACTIVE_SELECTOR =
   'a[href], button, input, select, textarea, ' +
   '[role="button"], [role="link"], [role="checkbox"], [role="radio"], ' +
   '[role="tab"], [role="menuitem"], [role="combobox"], [role="switch"], ' +
-  '[onclick], [contenteditable="true"]';
+  '[onclick], [contenteditable="true"], [contenteditable="true"] h1, [contenteditable="true"] h2, [contenteditable="true"] h3, [contenteditable="true"] p';
 
 /** Executed inside the page via page.evaluate — must be a real function, not a string, so
  * Playwright's Node binding actually invokes it with the given argument. */
@@ -70,7 +71,10 @@ function extractInteractiveElements(selector: string): RawElement[] {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const results: RawElement[] = [];
-  for (const el of nodes) {
+  for (const [domIndex, el] of nodes.entries()) {
+    const editable = (el as HTMLElement).isContentEditable;
+    // Rich editors expose an editable section containing independent title/body blocks.
+    if (editable && el.querySelector("h1, h2, h3, p")) continue;
     const rect = el.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) continue;
     if (rect.bottom < 0 || rect.top > vh || rect.right < 0 || rect.left > vw) continue;
@@ -82,6 +86,8 @@ function extractInteractiveElements(selector: string): RawElement[] {
     let label: string =
       el.getAttribute("aria-label") ||
       el.getAttribute("placeholder") ||
+      el.getAttribute("data-placeholder") ||
+      el.getAttribute("data-default-value") ||
       el.getAttribute("title") ||
       el.getAttribute("alt") ||
       (el as HTMLElement).innerText ||
@@ -103,7 +109,8 @@ function extractInteractiveElements(selector: string): RawElement[] {
     }
     results.push({
       tag: el.tagName.toLowerCase(),
-      elementType: el.getAttribute("type") || "",
+      domIndex,
+      elementType: editable ? "contenteditable" : el.getAttribute("type") || "",
       role: el.getAttribute("role") || "",
       text: label,
       x: cx,
@@ -357,6 +364,39 @@ export async function probeCdpEndpoint(endpoint = DEFAULT_CDP_ENDPOINT): Promise
   }
 }
 
+/**
+ * On macOS, closing all windows of the dedicated Chrome instance leaves the Chrome process running
+ * in the Dock with `/json/version` reachable but `/json/list` empty (`[]`). Playwright's
+ * `connectOverCDP` then fails with `Protocol error (Browser.setDownloadBehavior): Browser context
+ * management is not supported`. Opening a `about:blank` page target via `/json/new` wakes up a
+ * browser window/context before Playwright attaches.
+ */
+export async function ensureCdpPageTarget(endpoint = DEFAULT_CDP_ENDPOINT): Promise<void> {
+  const base = endpoint.replace(/\/$/, "");
+  try {
+    const listRes = await fetch(`${base}/json/list`, { signal: AbortSignal.timeout(1500) });
+    if (listRes.ok) {
+      const targets = (await listRes.json()) as Array<{ type?: string }>;
+      if (Array.isArray(targets) && targets.some((t) => t && t.type === "page")) {
+        return;
+      }
+    }
+    const putRes = await fetch(`${base}/json/new?about:blank`, {
+      method: "PUT",
+      signal: AbortSignal.timeout(3000)
+    });
+    if (!putRes.ok) {
+      await fetch(`${base}/json/new?about:blank`, { signal: AbortSignal.timeout(3000) }).catch(() => undefined);
+    }
+  } catch {
+    // Ignore; reachability errors are handled by probeCdpEndpoint / connectOverCDP.
+  }
+}
+
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
 export function resolveEmbeddedCdpEndpoint(explicit?: string): string {
   return (
     explicit ||
@@ -494,6 +534,7 @@ async function pickEmbeddedLivePage(
 }
 
 export interface InteractiveElement {
+  domIndex?: number;
   markId: number;
   tag: string;
   role: string;
@@ -526,6 +567,7 @@ export interface BrowserTabInfo {
 }
 
 interface RawElement {
+  domIndex?: number;
   tag?: string;
   elementType?: string;
   role?: string;
@@ -541,6 +583,18 @@ function computeStateHash(url: string, title: string, interactiveCount: number, 
     .update(`${url}|${title}|${interactiveCount}|${textSnippet.slice(0, 400)}`, "utf8")
     .digest("hex")
     .slice(0, 16);
+}
+
+/** Normalize common model key spellings while preserving literal character case. */
+export function normalizeBrowserKey(key: string): string {
+  const aliases: Record<string, string> = {
+    end: "End", home: "Home", enter: "Enter", return: "Enter", escape: "Escape", esc: "Escape",
+    backspace: "Backspace", delete: "Delete", tab: "Tab", space: "Space",
+    arrowup: "ArrowUp", arrowdown: "ArrowDown", arrowleft: "ArrowLeft", arrowright: "ArrowRight",
+    pageup: "PageUp", pagedown: "PageDown", ctrl: "Control", control: "Control",
+    cmd: "Meta", command: "Meta", meta: "Meta", shift: "Shift", alt: "Alt", option: "Alt"
+  };
+  return key.trim().split("+").map(part => aliases[part.toLowerCase()] || part).join("+");
 }
 
 export class BrowserController {
@@ -605,6 +659,19 @@ export class BrowserController {
     return { width: this.config.viewportWidth, height: this.config.viewportHeight };
   }
 
+  async resizeViewport(width: unknown, height: unknown): Promise<{ width: number; height: number }> {
+    const size = browserViewportSize(width, height);
+    const page = await this.ensureActivePage();
+    if (page.viewportSize()?.width === size.width && page.viewportSize()?.height === size.height) return size;
+    await page.setViewportSize(size);
+    this.config.viewportWidth = size.width;
+    this.config.viewportHeight = size.height;
+    this.lastElements = [];
+    // Screencast max dimensions were negotiated when the feed started.
+    if (this.screencastCallback) await this.startScreencast(this.screencastCallback);
+    return size;
+  }
+
   get latestFrame(): string | null {
     return this.lastScreencastFrame;
   }
@@ -658,6 +725,7 @@ export class BrowserController {
     const target = pages[index];
     if (target === this.page) return;
     this.page = target;
+    if (!this.config.embeddedMode) await target.setViewportSize(this.viewportSize);
     await this.maybeBringToFront(target);
     if (this.screencastCallback) {
       await this.startScreencast(this.screencastCallback).catch(() => undefined);
@@ -681,6 +749,7 @@ export class BrowserController {
     }
     const newPage = await this.context.newPage();
     newPage.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
+    await newPage.setViewportSize(this.viewportSize);
     this.page = newPage;
     if (this.screencastCallback) {
       await this.startScreencast(this.screencastCallback).catch(() => undefined);
@@ -751,6 +820,9 @@ export class BrowserController {
             `Connected Chrome is not running at ${endpoint}. Start it once, then retry:\n${command}`
           );
         }
+        if (!this.config.embeddedMode) {
+          await ensureCdpPageTarget(endpoint);
+        }
         const browser = await chromium.connectOverCDP(endpoint);
         this.attachedBrowser = browser;
         if (this.config.embeddedMode) {
@@ -817,6 +889,7 @@ export class BrowserController {
       if (!this.page || this.page.isClosed()) {
         this.page = this.context.pages()[0] ?? (await this.context.newPage());
       }
+      if (!this.config.embeddedMode) await this.page.setViewportSize(this.viewportSize);
       this.page.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
       for (const page of this.context.pages()) this.trackPageClose(page);
       // Automatically adopt popups/new tabs opened by target="_blank" links
@@ -833,21 +906,22 @@ export class BrowserController {
     } catch (err) {
       await this.close();
       if (err instanceof BrowserActionError) throw err;
+      const cleanMessage = stripAnsi((err as Error).message || String(err));
       if (this.config.cdpEndpoint) {
         if (this.config.embeddedMode) {
           throw new BrowserActionError(
-            `Could not attach to the in-app browser at ${this.config.cdpEndpoint}. ${(err as Error).message}`
+            `Could not attach to the in-app browser at ${this.config.cdpEndpoint}. ${cleanMessage}`
           );
         }
         const { command } = chromeCdpLaunchCommand(this.config.cdpEndpoint, this.config.userDataDir);
         throw new BrowserActionError(
-          `Could not attach to Connected Chrome at ${this.config.cdpEndpoint}. ${(err as Error).message}\nStart Chrome with:\n${command}`
+          `Could not attach to Connected Chrome at ${this.config.cdpEndpoint}. ${cleanMessage}\nStart Chrome with:\n${command}`
         );
       }
       if (this.config.channel === "chrome") {
-        throw new BrowserActionError(`Could not open Buddy Bot's Chrome session. Make sure Google Chrome is installed and this profile is not already open in another Buddy Bot instance. ${(err as Error).message}`);
+        throw new BrowserActionError(`Could not open Buddy Bot's Chrome session. Make sure Google Chrome is installed and this profile is not already open in another Buddy Bot instance. ${cleanMessage}`);
       }
-      throw new BrowserActionError(`Failed to start the browser: ${(err as Error).message}`);
+      throw new BrowserActionError(`Failed to start the browser: ${cleanMessage}`);
     }
   }
 
@@ -969,7 +1043,7 @@ export class BrowserController {
 
   async remoteKeyPress(key: string): Promise<void> {
     if (!key) return;
-    await this.requirePage().keyboard.press(key);
+    await this.requirePage().keyboard.press(normalizeBrowserKey(key));
   }
 
   async remoteScroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
@@ -979,19 +1053,19 @@ export class BrowserController {
   }
 
   async goBack(): Promise<void> {
-    const page = this.requirePage();
+    const page = await this.ensureActivePage();
     await page.goBack({ waitUntil: "domcontentloaded", timeout: this.config.navigationTimeoutMs }).catch(() => null);
     await this.waitForIdle();
   }
 
   async goForward(): Promise<void> {
-    const page = this.requirePage();
+    const page = await this.ensureActivePage();
     await page.goForward({ waitUntil: "domcontentloaded", timeout: this.config.navigationTimeoutMs }).catch(() => null);
     await this.waitForIdle();
   }
 
   async reload(): Promise<void> {
-    const page = this.requirePage();
+    const page = await this.ensureActivePage();
     await page.reload({ waitUntil: "domcontentloaded", timeout: this.config.navigationTimeoutMs }).catch(() => null);
     await this.waitForIdle();
   }
@@ -1031,7 +1105,7 @@ export class BrowserController {
     return this.page;
   }
 
-  /** Prefer a live page; adopt another open tab or create one when the active page died. */
+  /** Prefer a live page; adopt another open tab or create/reconnect one when the active page or window died. */
   private async ensureActivePage(): Promise<Page> {
     await this.syncEmbeddedPage();
     if (this.page && !this.page.isClosed()) {
@@ -1050,13 +1124,28 @@ export class BrowserController {
       }
       return this.page;
     }
-    const fresh = await this.context.newPage();
-    fresh.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
-    this.page = fresh;
-    if (this.screencastCallback) {
-      await this.startScreencast(this.screencastCallback).catch(() => undefined);
+    try {
+      if (this.config.cdpEndpoint && !this.config.embeddedMode) {
+        await ensureCdpPageTarget(this.config.cdpEndpoint);
+      }
+      const fresh = await this.context.newPage();
+      fresh.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
+      this.page = fresh;
+      this.trackPageClose(fresh);
+      if (this.screencastCallback) {
+        await this.startScreencast(this.screencastCallback).catch(() => undefined);
+      }
+      return fresh;
+    } catch {
+      // Context or attached Chrome window was closed mid-session; reconnect cleanly.
+      const savedCallback = this.screencastCallback;
+      await this.close();
+      await this.start();
+      if (savedCallback) {
+        await this.startScreencast(savedCallback).catch(() => undefined);
+      }
+      return this.requirePage();
     }
-    return fresh;
   }
 
   private resolveNavigateUrl(url: string): string {
@@ -1146,7 +1235,7 @@ export class BrowserController {
   }
 
   async click(x: number, y: number): Promise<void> {
-    const page = this.requirePage();
+    const page = await this.ensureActivePage();
     this.validateCoords(x, y);
     try {
       await page.mouse.click(x, y);
@@ -1170,12 +1259,30 @@ export class BrowserController {
     if (!el) {
       throw new BrowserActionError(`Mark #${markId} not found in current viewport elements. Check the latest element list.`);
     }
-    await this.typeText(el.x, el.y, text, clear, pressEnter);
+    if (el.domIndex !== undefined && (el.elementType === "contenteditable" || el.tag === "input" || el.tag === "textarea")) {
+      const page = await this.ensureActivePage();
+      const field = page.locator(INTERACTIVE_SELECTOR).nth(el.domIndex);
+      if (el.elementType === "contenteditable" && text.includes("\n")) {
+        // Fill the first paragraph to establish a caret in the exact editable block.
+        const lines = text.split("\n");
+        if (clear) await field.fill(lines[0]);
+        else { await field.focus(); await page.keyboard.insertText(lines[0]); }
+        for (let i = 1; i < lines.length; i++) {
+          await page.keyboard.press("Enter");
+          if (lines[i]) await page.keyboard.insertText(lines[i]);
+        }
+      } else if (clear) await field.fill(text);
+      else { await field.focus(); await page.keyboard.insertText(text); }
+      if (pressEnter) await field.press("Enter");
+      await this.waitForIdle(undefined, pressEnter ? 160 : 40);
+    } else {
+      await this.typeText(el.x, el.y, text, clear, pressEnter);
+    }
     return el;
   }
 
   async typeText(x: number, y: number, text: string, clear = true, pressEnter = false): Promise<void> {
-    const page = this.requirePage();
+    const page = await this.ensureActivePage();
     this.validateCoords(x, y);
     try {
       await page.mouse.click(x, y);
@@ -1204,7 +1311,7 @@ export class BrowserController {
     if (amount <= 0) {
       throw new BrowserActionError("scroll amount must be a positive integer");
     }
-    const page = this.requirePage();
+    const page = await this.ensureActivePage();
     const delta = normalized === "down" ? amount : -amount;
     try {
       await page.mouse.wheel(0, delta);
@@ -1218,9 +1325,9 @@ export class BrowserController {
     if (!key || !key.trim()) {
       throw new BrowserActionError("keyPress requires a non-empty key name");
     }
-    const page = this.requirePage();
+    const page = await this.ensureActivePage();
     try {
-      await page.keyboard.press(key.trim());
+      await page.keyboard.press(normalizeBrowserKey(key));
     } catch (err) {
       throw new BrowserActionError(`Failed to press key '${key}': ${(err as Error).message}`);
     }
@@ -1229,7 +1336,7 @@ export class BrowserController {
 
   async wait(seconds: number): Promise<void> {
     const clamped = Math.max(0.1, Math.min(seconds, 10.0));
-    const page = this.requirePage();
+    const page = await this.ensureActivePage();
     try {
       await page.waitForTimeout(clamped * 1000);
     } catch (err) {
@@ -1242,7 +1349,7 @@ export class BrowserController {
    * directly from the live DOM so any agent can scrape, audit, or analyze page data reliably.
    */
   async extractPageData(selector?: string, mode: "text" | "links" | "tables" | "headings" | "html" = "text"): Promise<string> {
-    const page = this.requirePage();
+    const page = await this.ensureActivePage();
     try {
       return await page.evaluate(
         ({ sel, extractMode }) => {
@@ -1298,7 +1405,7 @@ export class BrowserController {
    * Gives agents a fast, reliable fallback when pixel coordinates are small or shifting.
    */
   async clickBySelectorOrText(target: string): Promise<string> {
-    const page = this.requirePage();
+    const page = await this.ensureActivePage();
     const query = target.trim();
     if (!query) {
       throw new BrowserActionError("clickBySelectorOrText requires a non-empty target");
@@ -1383,9 +1490,19 @@ export class BrowserController {
     }
   }
 
+  private async captureScreenshot(page: Page): Promise<Buffer> {
+    const capture = () => page.screenshot({ type: "jpeg", quality: 55, animations: "disabled" });
+    try {
+      return await capture();
+    } catch (error) {
+      if (!/zero.width|0 width|width.*(?:0|zero)|height.*(?:0|zero)/i.test(String(error))) throw error;
+      await page.setViewportSize({ width: this.config.viewportWidth || 1280, height: this.config.viewportHeight || 800 });
+      return capture();
+    }
+  }
+
   async captureState(options: { includeScreenshot?: boolean } = {}): Promise<PageState> {
-    await this.syncEmbeddedPage();
-    const page = this.requirePage();
+    const page = await this.ensureActivePage();
     const includeScreenshot = options.includeScreenshot !== false;
     let screenshotB64 = "";
     let url: string;
@@ -1397,7 +1514,7 @@ export class BrowserController {
       url = page.url();
       const [shotBuf, pageTitle, elementsRes, textRes, challengeRes] = await Promise.all([
         includeScreenshot
-          ? page.screenshot({ type: "jpeg", quality: 55, animations: "disabled" })
+          ? this.captureScreenshot(page)
           : Promise.resolve(null as Buffer | null),
         page.title().catch(() => ""),
         page.evaluate(extractInteractiveElements, INTERACTIVE_SELECTOR).catch(() => [] as RawElement[]),
@@ -1423,6 +1540,7 @@ export class BrowserController {
     const limited = Array.isArray(rawElements) ? rawElements.slice(0, this.config.maxElements) : [];
     const elements: InteractiveElement[] = limited.map((item, index) => ({
       markId: index + 1,
+      domIndex: item.domIndex,
       tag: String(item.tag ?? ""),
       role: String(item.role ?? ""),
       elementType: String(item.elementType ?? ""),

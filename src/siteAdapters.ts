@@ -39,7 +39,7 @@ export async function redditSearch(options: RedditSearchOptions): Promise<string
     });
     if (!res.ok) {
       return truncate(
-        `Reddit search HTTP ${res.status}. Prefer Connected Chrome for browsing, or try web_search. ` +
+        `Reddit search HTTP ${res.status}. This API request failed; it does not establish whether the browser is blocked. Use navigate to inspect the relevant community in Connected Chrome, or try web_search. ` +
           `Do not scrape reddit.com in Playwright-launched Chrome if you hit a bot wall.`
       );
     }

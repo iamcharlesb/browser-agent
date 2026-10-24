@@ -20,6 +20,7 @@ function fixture() {
       });
     }
     setBounds(bounds) { this.bounds = bounds; }
+    setVisible(visible) { this.visible = visible; }
   }
   const children = new Set();
   const window = { contentView: { addChildView(view) { children.add(view); }, removeChildView(view) { children.delete(view); } } };
@@ -36,7 +37,8 @@ test("tabs retain separate native views and only the selected tab is painted", a
   first.view.webContents.pageState = "draft text";
   await workspace.command({ type: "new_tab", url: "https://example.com" });
   assert.equal(workspace.snapshot().tabs.length, 2);
-  assert.equal(first.view.bounds.width, 0);
+  assert.equal(first.view.visible, false);
+  assert.equal(first.view.bounds.width, 800);
   assert.equal(workspace.active().view.bounds.width, 800);
   await workspace.command({ type: "switch_tab", index: 0 });
   assert.equal(workspace.active(), first);
@@ -56,6 +58,8 @@ test("UI refresh and pane hiding change bounds without reloading or destroying p
   assert.equal(workspace.active(), tab);
   assert.equal(tab.view.webContents.url, "https://example.com/path");
   assert.equal(tab.view.webContents.destroyed, false);
+  assert.equal(tab.view.bounds.width, 800);
+  assert.equal(tab.view.bounds.height, 600);
 });
 
 test("closing the last tab leaves a usable blank tab and destroys removed webContents", async () => {

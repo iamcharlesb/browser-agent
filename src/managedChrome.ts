@@ -35,9 +35,34 @@ function installedChrome(): string {
   return binary;
 }
 
+async function ensureWindowTarget(endpoint: string): Promise<void> {
+  const base = endpoint.replace(/\/$/, "");
+  try {
+    const listRes = await fetch(`${base}/json/list`, { signal: AbortSignal.timeout(1500) });
+    if (listRes.ok) {
+      const targets = (await listRes.json()) as Array<{ type?: string }>;
+      if (Array.isArray(targets) && targets.some((t) => t && t.type === "page")) {
+        return;
+      }
+    }
+    const putRes = await fetch(`${base}/json/new?about:blank`, {
+      method: "PUT",
+      signal: AbortSignal.timeout(3000)
+    });
+    if (!putRes.ok) {
+      await fetch(`${base}/json/new?about:blank`, { signal: AbortSignal.timeout(3000) }).catch(() => undefined);
+    }
+  } catch {
+    // Ignore; caller handles connection errors if Chrome is unreachable.
+  }
+}
+
 const starts = new Map<string, Promise<void>>();
 export async function ensureManagedChrome(endpoint: string, profileDir: string, probe: (endpoint: string) => Promise<boolean>): Promise<void> {
-  if (await probe(endpoint)) return;
+  if (await probe(endpoint)) {
+    await ensureWindowTarget(endpoint);
+    return;
+  }
   const existing = starts.get(endpoint);
   if (existing) return existing;
   const start = (async () => {
@@ -49,7 +74,10 @@ export async function ensureManagedChrome(endpoint: string, profileDir: string, 
     const deadline = Date.now() + 15000;
     do {
       if (launchError) throw launchError;
-      if (await probe(endpoint)) return;
+      if (await probe(endpoint)) {
+        await ensureWindowTarget(endpoint);
+        return;
+      }
       await new Promise(resolve => setTimeout(resolve, 200));
     } while (Date.now() < deadline);
     throw new Error("Chrome did not become ready. Close the app’s dedicated Chrome window and retry; your personal Chrome can stay open.");

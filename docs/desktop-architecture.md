@@ -116,3 +116,31 @@ Browser/agent run approval rules are unchanged.
 Electron was upgraded to 45.0.0 for the desktop shell. Native tab selection now uses
 CDP target IDs on the private broker; internal bot/tab markers are no longer added
 to user-agent strings sent to websites.
+
+## Full-window and responsive browser layout
+
+The browser pane reports its CSS size after resizing, splitting, or expanding. A
+bounded, debounced resize input changes Chrome's actual page viewport and restarts
+the screencast with matching limits. Pages reflow to the pane, instead of scaling a
+fixed 1280×800 picture into a tall area. The input coordinate mapping receives the
+updated dimensions. Resize preserves page state and clears obsolete element marks.
+
+The expand button hides chat and navigation to use the full window width while
+keeping the app header and URL bar. Escape restores the split. On macOS the desktop
+uses an inset native title bar and a draggable unified app header; new windows
+maximize to the available screen area. Native tabs are hidden with view visibility,
+retaining nonzero webpage bounds for agent observations while chat is open.
+
+The message composer uses a full-width text row above a fixed-width toolbar. Its height
+is bounded for long drafts, and the welcome area retains spare space so typing does not
+move the input. The selected bot is restored after renderer reloads.
+
+Each run carries the selected browser mode to the server. Before starting it, the server
+releases any controller from a different mode. Run events are routed to the requesting
+conversation even when another bot is selected; queued requests retain their bot owner.
+
+Rich editors expose individual editable title/body blocks as marks. Text fields are filled
+through their DOM locator, while coordinate typing remains available for other targets.
+Model keyboard aliases (such as `END`) are normalized before Playwright dispatch.
+Responses tool batches are processed in full so every function call receives an output.
+The output allowance accommodates complete article text inside tool arguments.

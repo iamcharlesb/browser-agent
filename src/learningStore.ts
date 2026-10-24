@@ -386,11 +386,93 @@ export function distillLearningKb(state: LearningKbState, maxChars = MAX_DISTILL
 }
 
 const CORRECTION_PATTERN =
-  /\b(don'?t|do not|stop|wrong|instead|never\b|not that|i (?:said|meant|told you|want)|correct(?:ion)?|mistake|avoid|no more)\b/i;
+  /\b(don'?t|do not|didn'?t|didnt|stop|wrong|instead|never\b|not that|why\s+(?:didn'?t|didnt|you\s+didn'?t|you\s+didnt|haven'?t|havent)|you\s+(?:forgot|missed|broke|skipped|ignored|failed)|still\s+not|i\s+(?:said|meant|told you|want|asked)|should\s+(?:have|be)|supposed\s+to|correct(?:ion)?|mistake|avoid|no more)\b/i;
+const PREFERENCE_RULE_PATTERN =
+  /\b(always\b|from now on|make sure|remember\s+(?:to|that)|prefer\b|whenever\b|every\s+time|keep\s+in\s+mind|must\s+always)\b/i;
 const NICHE_PATTERN =
   /\b(?:niche|audience|target\s+(?:market|audience)|vertical|in\s+the\s+([a-z0-9 &\-]{3,40})\s+(?:space|niche|market))\b/i;
 const GOAL_PATTERN =
-  /\b(?:grow|increase|rank|seo|reddit|instagram|followers?|engagement|keyword|funnel|ga4|gtm)\b/i;
+  /\b(?:grow|increase|rank|seo|reddit|instagram|followers?|engagement|keyword|funnel|ga4|gtm|write|create|publish|draft|build|design|audit|research|automate|schedule|fix|update|optimize|launch|manage)\b/i;
+/**
+ * Summaries where the bot apologizes, admits it missed a step, or reports an unsaved/blank editor
+ * must never be stored as "Worked: ..." learnings in the KB.
+ */
+const INCOMPLETE_OR_APOLOGY_SUMMARY_PATTERN =
+  /\b(i should have saved|i got stuck describing|i haven['’]t (?:saved|published|completed|verified|created)|the editor is still blank|i can['’]t see the exact ['"“]?first step|i missed when you said|you['’]re right\s*[—\-]\s*the weak spot)\b/i;
+
+export function isUserCorrectionOrRule(text: string): boolean {
+  const cleaned = sanitizeLearningText(text, 200);
+  if (!cleaned) return false;
+  return CORRECTION_PATTERN.test(cleaned) || PREFERENCE_RULE_PATTERN.test(cleaned);
+}
+
+/**
+ * Ingest a user message/prompt immediately at the start of a turn so corrections, preferences,
+ * and goals are persisted right away and false "Worked:" entries from a disputed previous turn
+ * are evicted before the prompt runs.
+ */
+export function applyUserTurnInput(
+  state: LearningKbState,
+  rawTask: string,
+  now?: Date
+): LearningKbState {
+  let next = state;
+  const task = sanitizeLearningText(rawTask, 200);
+  if (!task) return state;
+
+  const isCorrection = CORRECTION_PATTERN.test(task);
+  const isRule = PREFERENCE_RULE_PATTERN.test(task);
+
+  if (isCorrection) {
+    // If the user is pushing back ("why didn't you save?", "you broke...", "still not..."),
+    // drop the most recent auto "Worked:" claim if one was recorded right before this correction.
+    if (
+      /\b(why\s+(?:didn'?t|didnt|you)|you\s+(?:forgot|missed|broke|didn'?t|didnt)|still\s+not|didn'?t\s+(?:save|work|finish|complete))\b/i.test(
+        task
+      ) &&
+      next.learnings.length > 0 &&
+      next.learnings[next.learnings.length - 1].source === "auto" &&
+      next.learnings[next.learnings.length - 1].text.startsWith("Worked:")
+    ) {
+      next = {
+        ...next,
+        learnings: next.learnings.slice(0, -1),
+        updatedAt: nowIso(now)
+      };
+    }
+    next = appendLearning(
+      next,
+      { kind: "mistake", text: `User correction: ${task}`, source: "user_correction" },
+      now
+    );
+  }
+
+  if (isRule) {
+    next = appendLearning(
+      next,
+      { kind: "learning", text: `User rule: ${task}`, source: "user_correction" },
+      now
+    );
+  }
+
+  if (!isCorrection && GOAL_PATTERN.test(task)) {
+    next = appendLearning(
+      next,
+      { kind: "intent", text: task.slice(0, MAX_ENTRY_CHARS), source: "auto" },
+      now
+    );
+  }
+
+  const nicheMatch = NICHE_PATTERN.exec(task);
+  if (nicheMatch?.[1]) {
+    const inferred = sanitizeLearningText(nicheMatch[1], 80);
+    if (inferred && inferred.length > 2) {
+      next = setNiche(next, inferred, now);
+    }
+  }
+
+  return next;
+}
 
 /** Light auto-extract from a finished run (summarized, not full transcript). */
 export function applyRunOutcome(
@@ -403,22 +485,10 @@ export function applyRunOutcome(
   },
   now?: Date
 ): LearningKbState {
-  let next = state;
+  let next = applyUserTurnInput(state, input.task, now);
   const task = sanitizeLearningText(input.task, 200);
   const summary = sanitizeLearningText(input.summary, 200);
   if (!task && !summary) return state;
-
-  if (task && CORRECTION_PATTERN.test(task)) {
-    next = appendLearning(
-      next,
-      { kind: "mistake", text: `User correction: ${task}`, source: "user_correction" },
-      now
-    );
-  }
-
-  if (task && GOAL_PATTERN.test(task)) {
-    next = appendLearning(next, { kind: "intent", text: task.slice(0, MAX_ENTRY_CHARS), source: "auto" }, now);
-  }
 
   const nicheMatch = NICHE_PATTERN.exec(`${task} ${summary}`);
   if (nicheMatch?.[1]) {
@@ -429,11 +499,13 @@ export function applyRunOutcome(
   }
 
   if (input.success && summary) {
-    next = appendLearning(
-      next,
-      { kind: "learning", text: `Worked: ${summary}`, source: "auto" },
-      now
-    );
+    if (!INCOMPLETE_OR_APOLOGY_SUMMARY_PATTERN.test(summary)) {
+      next = appendLearning(
+        next,
+        { kind: "learning", text: `Worked: ${summary}`, source: "auto" },
+        now
+      );
+    }
   } else if (!input.success && summary) {
     const reason = input.terminationReason ? ` (${input.terminationReason})` : "";
     next = appendLearning(
