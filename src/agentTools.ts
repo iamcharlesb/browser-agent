@@ -1,7 +1,7 @@
 /** OpenAI function-calling tool schemas for the browser agent, plus local dispatch. */
 
 import { exec } from "node:child_process";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import OpenAI from "openai";
 import { artifactUrlFor } from "./apiContract";
@@ -54,6 +54,23 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           }
         },
         required: ["markId"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "upload_file",
+      description: "Attach an existing generated artifact to the current page. Supports hidden file inputs and upload buttons opening a file chooser. Use the saved filename from generate_image; do not regenerate it. Verify the site's preview and save status afterward.",
+      parameters: {
+        type: "object",
+        properties: {
+          filename: { type: "string", description: "Artifact filename or /artifacts/ URL returned by generate_image/create_document." },
+          selector: { type: "string", description: "CSS selector for a file input (may be hidden) or upload button. Omit only when the page has exactly one file input." },
+          markId: { type: "integer", description: "Upload input/button mark from the latest observation, instead of selector." },
+          effect: { type: "string", enum: ["reversible", "outward", "irreversible"], description: "Use outward if attaching immediately shares the file; reversible for a private draft." }
+        },
+        required: ["filename", "effect"]
       }
     }
   },
@@ -1042,6 +1059,25 @@ export async function executeTool(
         const el = await controller.clickMark(markId);
         return { ok: true, message: `Clicked #${markId} (${el.text || el.tag}) at (${el.x}, ${el.y}).` };
       }
+      case "upload_file": {
+        const raw = String(toolInput.filename ?? "").trim();
+        const filename = raw.startsWith("/artifacts/") ? decodeURIComponent(raw.slice("/artifacts/".length)) : raw;
+        if (!filename || filename === "." || filename === ".." || /[/\\]/.test(filename)) {
+          return { ok: false, message: "upload_file requires a filename inside the generated artifacts directory." };
+        }
+        const root = await realpath(ARTIFACTS_DIR);
+        const path = await realpath(join(root, filename));
+        const rel = relative(root, path);
+        if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel) || !(await stat(path)).isFile()) {
+          return { ok: false, message: "Only regular files within the generated artifacts directory can be uploaded." };
+        }
+        const markId = toolInput.markId === undefined ? undefined : Number(toolInput.markId);
+        if (markId !== undefined && (!Number.isInteger(markId) || markId < 1)) {
+          return { ok: false, message: "Invalid upload markId: must be a positive integer." };
+        }
+        await controller.uploadFile(path, typeof toolInput.selector === "string" ? toolInput.selector : undefined, markId);
+        return { ok: true, message: `Attached "${filename}" to the page's file input. Check the uploaded preview, save the draft, and reopen it to verify the image persisted before claiming success.` };
+      }
       case "type_mark": {
         const markId = Math.trunc(Number(toolInput.markId));
         const text = String(toolInput.text ?? "");
@@ -1200,7 +1236,8 @@ export async function executeTool(
           message:
             `Generated image "${safeFilename}" (${size}, ${quality} quality).\n` +
             `![${safeFilename}](${artifactUrl})\n` +
-            `Download: ${artifactUrl}`,
+            `Download: ${artifactUrl}\n` +
+            `To attach this image, call upload_file(filename="${safeFilename}", effect="reversible") on the editor.`,
           imageUsage: usage
             ? {
                 model: "gpt-image-2",

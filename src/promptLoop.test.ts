@@ -422,7 +422,7 @@ test("standing approval changes the prompt from 'always ask' to 'go do it'", { c
   assert.doesNotMatch(approved, /Never follow\/like\/comment\/message until they approve/);
 
   // The limits that must survive a blanket yes.
-  assert.match(approved, /publishing new posts\/content, direct messages, payments/);
+  assert.match(approved, /ask once only if the user has not already explicitly authorized/);
   assert.match(approved, /Scheduled\/unattended runs are still research-and-draft only/);
   assert.match(approved, /paced batches/);
 });
@@ -675,7 +675,12 @@ test("interactionMode turbo auto-runs outward browser actions without prompting"
   } as unknown as BrowserController;
 
   let requests = 0;
-  const mockFetch: typeof fetch = async () => {
+  const mockFetch: typeof fetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body));
+    assert.match(body.instructions, /TURBO APPROVAL/);
+    assert.match(body.instructions, /requested uploads, saves, and publication/);
+    assert.doesNotMatch(body.instructions, /Still stop and ask, every time/);
+    assert.ok(body.tools.some((tool: any) => tool.name === "upload_file"));
     requests += 1;
     const output =
       requests === 1

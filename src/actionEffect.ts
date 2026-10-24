@@ -62,6 +62,7 @@ const READ_ONLY_TOOLS = new Set([
 
 /** Tools that put a real event into the page. These are the ones worth classifying. */
 export const INTERACTIVE_TOOLS = new Set([
+  "upload_file",
   "click_mark",
   "type_mark",
   "click_element",
@@ -291,6 +292,9 @@ export function classifyBrowserAction(context: BrowserActionContext): EffectDeci
     return { effect: "read", declared, observed: null, reason: `${context.toolName} is not a page interaction` };
   }
 
+  if (context.toolName === "upload_file" && !declared) {
+    return { effect: "outward", declared, observed: "outward", reason: "file upload can share an artifact with the destination site" };
+  }
   const isTyping = context.toolName === "type_mark" || context.toolName === "type_text";
   let observed = classifyLabel(context.label, context.role);
   let reason: string;

@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:production": "tsc -p tsconfig.json --outDir build",
-    "test": "npm run build && node --test dist/approvalPolicy.test.js dist/security.test.js dist/promptLoop.test.js dist/scheduler.test.js dist/apiContract.test.js dist/claudeCli.test.js dist/learningStore.test.js dist/messageBus.test.js dist/selfFix.test.js dist/learnMode.test.js dist/patchProposer.test.js dist/actionEffect.test.js dist/handoff.test.js dist/fixApproval.test.js dist/userStore.test.js dist/frameStream.test.js dist/browserRuntime.test.js dist/managedChrome.test.js dist/scriptRunner.test.js electron/browserWorkspace.test.cjs",
+    "test": "npm run build && node --test dist/uploadFile.test.js dist/approvalPolicy.test.js dist/security.test.js dist/promptLoop.test.js dist/scheduler.test.js dist/apiContract.test.js dist/claudeCli.test.js dist/learningStore.test.js dist/messageBus.test.js dist/selfFix.test.js dist/learnMode.test.js dist/patchProposer.test.js dist/actionEffect.test.js dist/handoff.test.js dist/fixApproval.test.js dist/userStore.test.js dist/frameStream.test.js dist/browserRuntime.test.js dist/managedChrome.test.js dist/scriptRunner.test.js electron/browserWorkspace.test.cjs",
     "test:desktop": "npm run build && node scripts/testDesktop.js",
     "cli": "node dist/cli.js",
     "server": "node dist/server.js",
