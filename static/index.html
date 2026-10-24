@@ -3674,6 +3674,7 @@ dialog.modal-dialog::backdrop {
   var googleIdentityReady = false;
   var googleIdentityClientId = "";
   var googleIdentityNonce = "";
+  var googleSignInAttemptTimer = 0;
 
   var appEl = document.getElementById("app");
   var workspace = document.getElementById("workspace");
@@ -3751,10 +3752,12 @@ dialog.modal-dialog::backdrop {
   }
   function applyGooglePersistence(persistence) {
     if (!persistence) return;
-    if (Array.isArray(persistence.bots) && persistence.bots.length) {
-      agents = persistence.bots;
+    if (Array.isArray(persistence.bots)) {
+      // Merge instead of replacing this device's bots and transcripts on first sign-in.
+      agents = mergeAgentRosters(persistence.bots, agents);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(agents));
       if (typeof renderSidebar === "function") renderSidebar();
+      scheduleGooglePersist();
     }
     var settings = persistence.settings || {};
     if (typeof settings.interactionMode === "string" && (settings.interactionMode === "chat" || settings.interactionMode === "browse" || settings.interactionMode === "act" || settings.interactionMode === "turbo")) {
@@ -7118,7 +7121,13 @@ dialog.modal-dialog::backdrop {
       if (guestBtn) guestBtn.hidden = true;
       session.hidden = false;
       email.textContent = "Signed in as " + user.email;
-      setGoogleSignInStatus("Signed in — bots sync across devices when available.");
+      if (persistence && persistence.backend === "mongodb") {
+        setGoogleSignInStatus("Signed in — bots and chat history sync through MongoDB.");
+      } else if (persistence && persistence.mongodbConfigured) {
+        setGoogleSignInStatus("Signed in, but MongoDB is unavailable. Changes are saved on this machine only until the connection returns.", true);
+      } else {
+        setGoogleSignInStatus("Signed in — data is saved on this machine. Configure MongoDB to sync across devices.");
+      }
       applyGooglePersistence(persistence);
     } else {
       session.hidden = true;
@@ -7151,6 +7160,35 @@ dialog.modal-dialog::backdrop {
     return "Add this exact origin in Google Cloud → Credentials → Authorized JavaScript origins: " +
       (authorizedOrigin || location.origin) +
       " — then restart. Until then you remain a guest on this device.";
+  }
+
+  function mergeAgentRosters(accountAgents, deviceAgents) {
+    var merged = (Array.isArray(accountAgents) ? accountAgents : []).map(function(agent) {
+      return Object.assign({}, agent);
+    });
+    (Array.isArray(deviceAgents) ? deviceAgents : []).forEach(function(deviceAgent) {
+      if (!deviceAgent || typeof deviceAgent !== "object") return;
+      var index = merged.findIndex(function(accountAgent) {
+        return accountAgent && accountAgent.id === deviceAgent.id;
+      });
+      if (index < 0) {
+        merged.push(deviceAgent);
+        return;
+      }
+      var accountAgent = merged[index];
+      var accountTranscript = Array.isArray(accountAgent.transcript) ? accountAgent.transcript : [];
+      var deviceTranscript = Array.isArray(deviceAgent.transcript) ? deviceAgent.transcript : [];
+      var sharedPrefix = 0;
+      while (sharedPrefix < accountTranscript.length && sharedPrefix < deviceTranscript.length &&
+          JSON.stringify(accountTranscript[sharedPrefix]) === JSON.stringify(deviceTranscript[sharedPrefix])) {
+        sharedPrefix++;
+      }
+      var transcript = sharedPrefix === Math.min(accountTranscript.length, deviceTranscript.length)
+        ? (deviceTranscript.length > accountTranscript.length ? deviceTranscript : accountTranscript)
+        : accountTranscript.concat(deviceTranscript.slice(sharedPrefix));
+      merged[index] = Object.assign({}, accountAgent, deviceAgent, { transcript: transcript });
+    });
+    return merged;
   }
 
   function watchGoogleButtonRender(button, authorizedOrigin) {
@@ -7193,6 +7231,7 @@ dialog.modal-dialog::backdrop {
                 client_id: googleIdentityClientId,
                 nonce: googleIdentityNonce,
                 callback: function(result) {
+                  window.clearTimeout(googleSignInAttemptTimer);
                   setGoogleSignInStatus("Verifying your Google account…");
                   fetch("/api/auth/google", {
                     method: "POST",
@@ -7216,7 +7255,16 @@ dialog.modal-dialog::backdrop {
               try {
                 button.innerHTML = "";
                 window.google.accounts.id.renderButton(button, {
-                  type: "standard", theme: "outline", size: "large", shape: "pill", text: "signin_with", width: 280
+                  type: "standard", theme: "outline", size: "large", shape: "pill", text: "signin_with", width: 280,
+                  click_listener: function() {
+                    window.clearTimeout(googleSignInAttemptTimer);
+                    setGoogleSignInStatus("Waiting for Google sign-in…");
+                    googleSignInAttemptTimer = window.setTimeout(function() {
+                      if (!googleIdentityUser) {
+                        setGoogleSignInStatus("Google sign-in did not return. Allow pop-ups for this app, then try again. If Google shows an origin error, add " + (config.authorizedOrigin || location.origin) + " under Authorized JavaScript origins in Google Cloud.", true);
+                      }
+                    }, 10000);
+                  }
                 });
                 googleIdentityReady = true;
                 setGoogleSignInStatus("");
