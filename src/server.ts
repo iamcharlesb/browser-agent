@@ -1,6 +1,7 @@
 /** Local web UI for the browser agent: a chat-style task box with a live step feed. */
 
 import { ensureManagedChrome, managedChromeEnabled } from "./managedChrome";
+import { emptyTaskMemory, loadTaskMemory, parseConversationMemory, rememberEvent, rememberTurn, saveTaskMemory, taskMemoryContext } from "./taskMemory";
 import { FrameStream } from "./frameStream";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, watch } from "node:fs";
@@ -83,6 +84,7 @@ const ENV_FILE = join(__dirname, "..", ".env");
 const SCHEDULE_FILE = join(__dirname, "..", ".browser-agent-schedules.json");
 const USAGE_FILE = join(__dirname, "..", ".browser-agent-usage.json");
 /** Per-bot durable learning KB (intents / mistakes / learnings). Local JSON only. */
+const TASK_MEMORY_DIR = join(__dirname, "..", ".browser-agent-task-memory");
 const LEARNINGS_DIR = join(__dirname, "..", ".browser-agent-learnings");
 /** Learn-mode self-play reports and pre-fix file snapshots. */
 const LEARN_REPORT_DIR = join(__dirname, "..", ".browser-agent-learn");
@@ -307,6 +309,8 @@ interface RunRequestBody {
   expertise?: string;
   initialUrl?: string;
   collaborationContext?: string;
+  conversationTurns?: Array<{ role: "user" | "agent"; text: string }>;
+  conversationArtifacts?: string[];
   approvedCategories?: ApprovalCategory[];
   /** Opt-in for lower-risk tool approvals. Financial actions always need task-specific approval. */
   autoApprove?: boolean;
@@ -488,6 +492,7 @@ function validateRunRequest(body: unknown): RunRequestBody {
     botName: typeof record.botName === "string" ? record.botName.slice(0, 120) : undefined,
     expertise: typeof record.expertise === "string" ? record.expertise.slice(0, 500) : undefined,
     initialUrl: typeof record.initialUrl === "string" ? record.initialUrl.trim().slice(0, 1000) : undefined,
+    ...parseConversationMemory(record),
     collaborationContext:
       typeof record.collaborationContext === "string" ? record.collaborationContext.slice(0, 10_000) : undefined,
     approvedCategories,
@@ -786,6 +791,36 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
       } catch (err) {
         console.warn(`Learning KB load failed for ${learningBotId}:`, (err as Error).message);
       }
+      let taskMemory = await loadTaskMemory(TASK_MEMORY_DIR, learningBotId).catch((error) => {
+        console.warn("Task memory load failed:", (error as Error).message);
+        return emptyTaskMemory();
+      });
+      // Bootstrap existing chats after upgrading; client history is data, never authority.
+      if (!taskMemory.turns.length && Array.isArray(body.conversationTurns)) {
+        for (const turn of body.conversationTurns.slice(-40)) {
+          if (turn && (turn.role === "user" || turn.role === "agent") && typeof turn.text === "string") {
+            taskMemory = rememberTurn(taskMemory, turn.role, turn.text);
+            if (turn.role === "user") {
+              await updateLearningKb(LEARNINGS_DIR, learningBotId, kb => applyUserTurnInput(kb, turn.text));
+            }
+          }
+        }
+        learningContext = distillLearningKb(await loadLearningKb(LEARNINGS_DIR, learningBotId));
+      }
+      if (Array.isArray(body.conversationArtifacts)) {
+        for (const artifactUrl of body.conversationArtifacts.slice(-16)) taskMemory = rememberEvent(taskMemory, { artifactUrl });
+      }
+      taskMemory = rememberTurn(taskMemory, "user", body.task);
+      await saveTaskMemory(TASK_MEMORY_DIR, learningBotId, taskMemory);
+      let memoryWrites = Promise.resolve();
+      const rememberRunEvent = (event: Record<string, unknown>) => {
+        taskMemory = rememberEvent(taskMemory, event);
+        if (event.type === "step" || event.type === "terminal") {
+          const snapshot = taskMemory;
+          memoryWrites = memoryWrites.then(() => saveTaskMemory(TASK_MEMORY_DIR, learningBotId, snapshot))
+            .catch(error => console.warn("Task memory save failed:", (error as Error).message));
+        }
+      };
       const botMem = getBotSessionMemory(botKey);
       const liveBrowserUrl = controller.isStarted ? controller.currentUrl() : botMem.lastUrl;
       const sessionContinuityLines: string[] = [];
@@ -803,6 +838,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
         );
       }
       const collaborationContext = [
+        taskMemoryContext(taskMemory),
         body.collaborationContext?.trim() || "",
         sessionContinuityLines.join("\n\n"),
         learningContext
@@ -837,6 +873,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
         agentEngine,
         taskApprovalScope: body.scheduleId ? undefined : botMem.taskApproval,
         onEvent: (event) => {
+          rememberRunEvent(event);
           if (event.type === "observe") {
             if (typeof event.url === "string" && event.url !== "about:blank") botMem.lastUrl = event.url;
             if (typeof event.title === "string" && event.title) botMem.lastTitle = event.title;
@@ -983,6 +1020,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
         shouldAbort: () => run.cancelled
       });
       result = await orchestrator.run();
+      await memoryWrites;
     } catch (err) {
       result = {
         success: false,

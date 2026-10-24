@@ -1508,14 +1508,17 @@ button { color: inherit; }
   color: var(--text-secondary);
 }
 .step-chevron {
-  font-size: 10px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
   color: var(--muted);
-  transition: transform 0.15s ease;
   flex: 0 0 auto;
 }
-.step-details[open] .step-chevron {
-  transform: rotate(90deg);
-}
+.step-chevron::before { content: "+"; }
+.step-details[open] .step-chevron::before { content: "−"; }
+.step-details summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; border-radius: 4px; }
 .step-items-list {
   margin-top: 6px;
   padding-top: 6px;
@@ -3621,6 +3624,7 @@ dialog.modal-dialog::backdrop {
   var viewport = { width: 1280, height: 800 };
   var searchQuery = "";
   var liveStepFeedBubble = null;
+  var liveStepFeedRecord = null;
   var queuedRunsAfterActive = [];
   var queuedRunPoll = null;
   var waitingForRunInput = false;
@@ -4206,8 +4210,10 @@ dialog.modal-dialog::backdrop {
     var a = eventMessageAgent || activeAgent();
     if (!a) return;
     a.transcript = a.transcript || [];
-    a.transcript.push({ role: role, html: html, cls: cls || "" });
+    var record = { role: role, html: html, cls: cls || "" };
+    a.transcript.push(record);
     saveAgents();
+    return record;
   }
 
   function isNearLatestMessage() {
@@ -4313,6 +4319,7 @@ dialog.modal-dialog::backdrop {
     ((a && a.transcript) || []).forEach(function(e) {
       var cleanCls = e.cls === "success" ? "" : (e.cls || "");
       var cleanedHtml = (e.html || "").replace(/^<strong>Done\.<\/strong>\s*/i, "");
+      cleanedHtml = cleanedHtml.replace(/(<details\b[^>]*class="step-details"[^>]*?)\sopen(?=[\s>])/g, "$1");
       appendMessage(e.role, cleanedHtml, cleanCls, false);
     });
   }
@@ -5024,6 +5031,26 @@ dialog.modal-dialog::backdrop {
     return lines.join("\n");
   }
 
+  function conversationMemoryPayload(agent) {
+    var turns = [];
+    var artifacts = [];
+    ((agent && agent.transcript) || []).forEach(function(item) {
+      var html = item.html || "";
+      var container = document.createElement("div");
+      container.innerHTML = html;
+      container.querySelectorAll("a[href], img[src]").forEach(function(el) {
+        try {
+          var url = new URL(el.getAttribute("href") || el.getAttribute("src"), window.location.origin);
+          if (url.origin === window.location.origin && /^\/(?:api\/)?artifacts\//.test(url.pathname)) artifacts.push(url.pathname);
+        } catch (_) {}
+      });
+      if (/step-details|approve-btn|approve-task-btn|fix-approve-btn/.test(html)) return;
+      var text = extractPlainText(html).slice(0, 2400);
+      if (text && (item.role === "user" || item.role === "agent")) turns.push({ role: item.role, text: text });
+    });
+    return { conversationTurns: turns.length > 40 ? turns.slice(0, 4).concat(turns.slice(-36)) : turns, conversationArtifacts: Array.from(new Set(artifacts)).slice(-16) };
+  }
+
   function buildConversationHistory(agent) {
     if (!agent || !Array.isArray(agent.transcript) || !agent.transcript.length) return "";
     // Keep conversation turns and a compact summary of executed steps so follow-up turns
@@ -5112,6 +5139,7 @@ dialog.modal-dialog::backdrop {
     status.textContent = "Thinking…";
     stepCounter.textContent = "";
     liveStepFeedBubble = null;
+    liveStepFeedRecord = null;
     setRunPresence("Thinking");
 
     var rosterContext = buildWorkspaceBotsContext(agent);
@@ -5119,6 +5147,7 @@ dialog.modal-dialog::backdrop {
     var combinedContext = [rosterContext, collaborationContext || "", historyContext].filter(Boolean).join("\n\n");
     var initialUrl = (agent && agent.intent && agent.intent.url) || browserAddress.value || "https://www.google.com/";
     var selectedModel = document.getElementById("model-select").value || "gpt-6-luna";
+    var memoryPayload = conversationMemoryPayload(agent);
 
     fetch("/api/run", {
       method: "POST",
@@ -5131,6 +5160,8 @@ dialog.modal-dialog::backdrop {
         initialUrl: initialUrl,
         scheduleTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
         collaborationContext: combinedContext,
+        conversationTurns: memoryPayload.conversationTurns,
+        conversationArtifacts: memoryPayload.conversationArtifacts,
         approvedCategories: approvedCategories || [],
         autoApprove: autoApproveEnabled || currentInteractionMode === "turbo",
         model: selectedModel,
@@ -5621,13 +5652,13 @@ dialog.modal-dialog::backdrop {
       if (!liveStepFeedBubble) {
         liveStepFeedBubble = appendMessage(
           "agent",
-          '<details class="step-details" open>' +
+          '<details class="step-details">' +
             '<summary title="Click to expand or collapse step details">' +
               '<span class="step-summary-left">' +
                 '<span class="step-badge step-count-badge">1 step</span>' +
                 '<span class="step-summary-latest">' + esc(activity) + "</span>" +
               "</span>" +
-              '<span class="step-chevron">▸</span>' +
+              '<span class="step-chevron" aria-hidden="true"></span>' +
             "</summary>" +
             '<div class="step-items-list">' + stepRowHtml + "</div>" +
           "</details>",
@@ -5650,6 +5681,11 @@ dialog.modal-dialog::backdrop {
         }
         if (followLatest) messages.scrollTop = messages.scrollHeight;
       }
+      // Persist the grouped feed while streaming so reloads and follow-ups retain every step.
+      var savedSteps = liveStepFeedBubble.cloneNode(true);
+      savedSteps.querySelectorAll("details").forEach(function(details) { details.removeAttribute("open"); });
+      if (!liveStepFeedRecord) liveStepFeedRecord = persistMessage("agent", savedSteps.innerHTML, "step-feed");
+      else { liveStepFeedRecord.html = savedSteps.innerHTML; saveAgents(); }
       // Keep the thinking presence below the live step list.
       if (runPresenceEl && runConversationAgentId === activeAgentId) messages.appendChild(runPresenceEl);
       return;
@@ -5788,6 +5824,7 @@ dialog.modal-dialog::backdrop {
       status.textContent = e.success ? (isDirectReply ? "Answered directly" : "Done") : "Ready for your next instruction";
       stepCounter.textContent = "";
       liveStepFeedBubble = null;
+      liveStepFeedRecord = null;
       if (runEvents) {
         runEvents.close();
         runEvents = null;

@@ -329,7 +329,15 @@ export function appendLearning(
     source,
     createdAt: nowIso(now)
   };
-  const next = [...existing, entry].slice(-KIND_CAPS[kind]);
+  const all = [...existing, entry];
+  const cap = KIND_CAPS[kind];
+  // Explicit user guidance survives routine automatic run-outcome churn.
+  const protectedEntries = all.filter(item => item.source === "user_correction").slice(-cap);
+  const protectedIds = new Set(protectedEntries.map(item => item.id));
+  const remaining = cap - protectedEntries.length;
+  const automatic = remaining > 0 ? all.filter(item => !protectedIds.has(item.id)).slice(-remaining) : [];
+  const keptIds = new Set([...protectedEntries, ...automatic].map(item => item.id));
+  const next = all.filter(item => keptIds.has(item.id));
   return { ...withKindList(state, kind, next), updatedAt: nowIso(now) };
 }
 
@@ -344,17 +352,22 @@ export function distillLearningKb(state: LearningKbState, maxChars = MAX_DISTILL
   const lines: string[] = ["LEARNINGS / KB (local, distilled — use & update; do not dump full history):"];
   if (state.niche) lines.push(`Niche: ${state.niche}`);
 
+  const mostRelevant = (entries: LearningEntry[], take: number) => [
+    ...entries.filter(entry => entry.source !== "user_correction"),
+    ...entries.filter(entry => entry.source === "user_correction")
+  ].slice(-take).reverse();
   const pushSection = (label: string, entries: LearningEntry[], take: number) => {
     if (!entries.length) return;
-    const recent = entries.slice(-take);
+    const recent = mostRelevant(entries, take);
     lines.push(`${label}:`);
     for (const e of recent) {
       lines.push(`- ${e.text}`);
     }
   };
 
-  pushSection("Intents/goals", state.intents, 4);
   pushSection("Mistakes/corrections (avoid repeating)", state.mistakes, 4);
+  pushSection("User rules", state.learnings.filter(e => e.source === "user_correction"), 4);
+  pushSection("Intents/goals", state.intents, 4);
   pushSection("What worked", state.learnings, 5);
   pushSection("Check next", state.hypotheses, 2);
 
@@ -367,6 +380,7 @@ export function distillLearningKb(state: LearningKbState, maxChars = MAX_DISTILL
   const trimmed: string[] = [lines[0]];
   if (state.niche) trimmed.push(`Niche: ${state.niche}`);
   pushOnto(trimmed, "Mistakes/corrections (avoid repeating)", state.mistakes, 3);
+  pushOnto(trimmed, "User rules", state.learnings.filter(e => e.source === "user_correction"), 3);
   pushOnto(trimmed, "Intents/goals", state.intents, 2);
   pushOnto(trimmed, "What worked", state.learnings, 3);
   pushOnto(trimmed, "Check next", state.hypotheses, 1);
@@ -379,14 +393,14 @@ export function distillLearningKb(state: LearningKbState, maxChars = MAX_DISTILL
   function pushOnto(target: string[], label: string, entries: LearningEntry[], take: number): void {
     if (!entries.length) return;
     target.push(`${label}:`);
-    for (const e of entries.slice(-take)) {
+    for (const e of mostRelevant(entries, take)) {
       target.push(`- ${e.text}`);
     }
   }
 }
 
 const CORRECTION_PATTERN =
-  /\b(don'?t|do not|didn'?t|didnt|stop|wrong|instead|never\b|not that|why\s+(?:didn'?t|didnt|you\s+didn'?t|you\s+didnt|haven'?t|havent)|you\s+(?:forgot|missed|broke|skipped|ignored|failed)|still\s+not|i\s+(?:said|meant|told you|want|asked)|should\s+(?:have|be)|supposed\s+to|correct(?:ion)?|mistake|avoid|no more)\b/i;
+  /\b(don'?t|do not|didn'?t|didnt|stop|wrong|instead|never\b|not that|why\s+(?:didn'?t|didnt|you\s+didn'?t|you\s+didnt|haven'?t|havent)|you\s+(?:forgot|missed|broke|skipped|ignored|failed)|still\s+not|i\s+(?:said|meant|told you|want|asked)|should\s+(?:have|be)|supposed\s+to|correct(?:ion)?|mistake|avoid|no more|you (?:have|need) to|you have (?:edit|upload|open)|(?:edit|upload|open|find|use) (?:it |the [a-z ]{0,30})?(?:from|through|via)|(?:it |was |is )?not (?:uploaded|saved|attached|published))\b/i;
 const PREFERENCE_RULE_PATTERN =
   /\b(always\b|from now on|make sure|remember\s+(?:to|that)|prefer\b|whenever\b|every\s+time|keep\s+in\s+mind|must\s+always)\b/i;
 const NICHE_PATTERN =
@@ -398,7 +412,7 @@ const GOAL_PATTERN =
  * must never be stored as "Worked: ..." learnings in the KB.
  */
 const INCOMPLETE_OR_APOLOGY_SUMMARY_PATTERN =
-  /\b(i should have saved|i got stuck describing|i haven['’]t (?:saved|published|completed|verified|created)|the editor is still blank|i can['’]t see the exact ['"“]?first step|i missed when you said|you['’]re right\s*[—\-]\s*the weak spot)\b/i;
+  /\b(i should have saved|i got stuck describing|i haven['’]t (?:saved|published|completed|verified|created)|(?:upload|save|attach)(?: control)? (?:didn['’]?t|did not)|without (?:a |the )?(?:featured|hero) image|not (?:uploaded|attached|saved)|the editor is still blank|i can['’]t see the exact ['"“]?first step|i missed when you said|you['’]re right\s*[—\-]\s*the weak spot)\b/i;
 
 export function isUserCorrectionOrRule(text: string): boolean {
   const cleaned = sanitizeLearningText(text, 200);
@@ -427,7 +441,7 @@ export function applyUserTurnInput(
     // If the user is pushing back ("why didn't you save?", "you broke...", "still not..."),
     // drop the most recent auto "Worked:" claim if one was recorded right before this correction.
     if (
-      /\b(why\s+(?:didn'?t|didnt|you)|you\s+(?:forgot|missed|broke|didn'?t|didnt)|still\s+not|didn'?t\s+(?:save|work|finish|complete))\b/i.test(
+      /\b(why\s+(?:didn'?t|didnt|you)|you\s+(?:forgot|missed|broke|didn'?t|didnt)|still\s+not|didn'?t\s+(?:save|work|finish|complete|upload|attach)|not (?:uploaded|attached|saved))\b/i.test(
         task
       ) &&
       next.learnings.length > 0 &&
@@ -499,12 +513,19 @@ export function applyRunOutcome(
   }
 
   if (input.success && summary) {
-    if (!INCOMPLETE_OR_APOLOGY_SUMMARY_PATTERN.test(summary)) {
+    if (!INCOMPLETE_OR_APOLOGY_SUMMARY_PATTERN.test(input.summary)) {
       next = appendLearning(
         next,
         { kind: "learning", text: `Worked: ${summary}`, source: "auto" },
         now
       );
+    } else {
+      const incomplete = INCOMPLETE_OR_APOLOGY_SUMMARY_PATTERN.exec(input.summary);
+      next = appendLearning(next, {
+        kind: "mistake",
+        text: `Incomplete workflow: ${sanitizeLearningText(input.summary.slice(Math.max(0, (incomplete?.index ?? 0) - 40)), 130)}`,
+        source: "auto"
+      }, now);
     }
   } else if (!input.success && summary) {
     const reason = input.terminationReason ? ` (${input.terminationReason})` : "";

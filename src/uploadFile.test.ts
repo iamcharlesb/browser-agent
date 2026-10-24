@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { ARTIFACTS_DIR, executeTool } from "./agentTools";
+import { artifactUrlFor } from "./apiContract";
 import { BrowserController } from "./browserController";
 import { classifyBrowserAction, effectRequiresApproval } from "./actionEffect";
 
@@ -15,7 +16,7 @@ test("upload reuses an existing artifact, including its artifact URL, without re
   const calls: unknown[][] = [];
   const browser = { uploadFile: async (...args: unknown[]) => { calls.push(args); } } as unknown as BrowserController;
   try {
-    const result = await executeTool("upload_file", { filename: `/artifacts/${filename}`, selector: '#hero', effect: "reversible" }, browser);
+    const result = await executeTool("upload_file", { filename: artifactUrlFor(filename), selector: '#hero', effect: "reversible" }, browser);
     assert.equal(result.ok, true, result.message);
     assert.equal(calls.length, 1);
     assert.equal(calls[0][0], join(ARTIFACTS_DIR, filename));
