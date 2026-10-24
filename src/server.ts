@@ -118,6 +118,8 @@ const PORT = Number(process.env.BROWSER_AGENT_UI_PORT ?? 8765);
 const HOST = process.env.BROWSER_AGENT_UI_HOST ?? "127.0.0.1";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 const GOOGLE_SESSION_COOKIE = "openbots_google_session";
+const pendingGoogleSignInNonces = new Map<string, number>();
+const GOOGLE_SIGN_IN_NONCE_TTL_MS = 24 * 60 * 60 * 1000;
 /**
  * Learn mode is on in the production copy (`npm run built` sets this) and off in dev unless asked
  * for, because a learn session rebuilds and re-runs the test suite - that would fight tsc --watch.
@@ -1558,7 +1560,7 @@ function resumeCurrentRun(): boolean {
   return true;
 }
 
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+async function readRawBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   let bytes = 0;
   for await (const chunk of req) {
@@ -1566,11 +1568,24 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
     if (bytes > 20 * 1024 * 1024) throw new Error("Request exceeds the 20 MB limit.");
     chunks.push(chunk as Buffer);
   }
-  const raw = Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const raw = await readRawBody(req);
   if (!raw) {
     return {};
   }
   return JSON.parse(raw);
+}
+
+async function readGoogleCredentialBody(req: IncomingMessage): Promise<Record<string, string>> {
+  const raw = await readRawBody(req);
+  if ((req.headers["content-type"] ?? "").includes("application/json")) {
+    const body = JSON.parse(raw || "{}");
+    return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  }
+  return Object.fromEntries(new URLSearchParams(raw));
 }
 
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
@@ -1657,8 +1672,88 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       clientId: GOOGLE_CLIENT_ID || null,
       /** Exact origin the GIS button needs in Google Cloud Authorized JavaScript origins. */
       authorizedOrigin: `${protocol}://${host}`,
+      /** Full-page GIS redirect URI; add this exact URL to Authorized redirect URIs. */
+      loginUri: `${protocol}://${host}/api/auth/google/callback`,
       ...persistenceMeta()
     });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/auth/google/nonce") {
+    if (!isSameOriginRequest(req)) {
+      sendJson(res, 403, { detail: "Google sign-in setup must come from this app." });
+      return;
+    }
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const nonce = typeof body.nonce === "string" ? body.nonce : "";
+      if (!/^[a-f0-9]{48,128}$/i.test(nonce)) {
+        sendJson(res, 400, { detail: "A valid Google sign-in nonce is required." });
+        return;
+      }
+      const now = Date.now();
+      for (const [value, expiresAt] of pendingGoogleSignInNonces) {
+        if (expiresAt <= now) pendingGoogleSignInNonces.delete(value);
+      }
+      if (pendingGoogleSignInNonces.size >= 512) {
+        const oldest = pendingGoogleSignInNonces.keys().next().value;
+        if (oldest) pendingGoogleSignInNonces.delete(oldest);
+      }
+      pendingGoogleSignInNonces.set(nonce, now + GOOGLE_SIGN_IN_NONCE_TTL_MS);
+      sendJson(res, 200, { ready: true });
+    } catch {
+      sendJson(res, 400, { detail: "Could not prepare Google sign-in." });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/auth/google/callback") {
+    const fail = (): void => {
+      res.writeHead(303, { Location: "/?googleSignIn=error", "Cache-Control": "no-store" });
+      res.end();
+    };
+    if (!GOOGLE_CLIENT_ID) {
+      fail();
+      return;
+    }
+    try {
+      const body = await readGoogleCredentialBody(req);
+      const credential = body.credential || "";
+      const csrfCookie = cookieValue(req, "g_csrf_token");
+      const csrfBody = body.g_csrf_token || "";
+      const nonce = body.state || "";
+      const nonceExpiresAt = pendingGoogleSignInNonces.get(nonce);
+      if (!credential || credential.length > 16_000 || !csrfCookie || !csrfBody || csrfCookie !== csrfBody ||
+          !nonceExpiresAt || nonceExpiresAt <= Date.now()) {
+        fail();
+        return;
+      }
+      pendingGoogleSignInNonces.delete(nonce);
+      const ticket = await googleOAuthClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+      const payload = ticket.getPayload();
+      if (!payload?.sub || !payload.email || payload.email_verified !== true || payload.nonce !== nonce) {
+        fail();
+        return;
+      }
+      const user = {
+        id: payload.sub,
+        name: payload.name ?? "Google user",
+        email: payload.email,
+        picture: typeof payload.picture === "string" ? payload.picture : null
+      };
+      await upsertGoogleUser(REPO_ROOT, {
+        googleSub: user.id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture
+      });
+      const maxAge = Math.max(1, Math.min(3600, (payload.exp ?? 0) - Math.floor(Date.now() / 1000)));
+      setGoogleSessionCookie(res, credential, maxAge);
+      res.writeHead(303, { Location: "/?googleSignIn=success", "Cache-Control": "no-store" });
+      res.end();
+    } catch {
+      fail();
+    }
     return;
   }
 
