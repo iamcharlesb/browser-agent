@@ -45,7 +45,14 @@ import {
   updateLearningKb,
   type LearningKind
 } from "./learningStore";
-import { AgentEvent, AgentOrchestrator, AgentResult, DEFAULT_MODEL, requiresInitialBrowserState } from "./promptLoop";
+import {
+  AgentEngine,
+  AgentEvent,
+  AgentOrchestrator,
+  AgentResult,
+  DEFAULT_MODEL,
+  requiresInitialBrowserState
+} from "./promptLoop";
 import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
 import { TaskApprovalScope, TerminalApprovalDecision } from "./approvalPolicy";
 import { nextDailyOccurrence } from "./scheduler";
@@ -312,6 +319,8 @@ interface RunRequestBody {
   /** chat = text tools only; browse = nav/read; act = full (default). */
   interactionMode?: InteractionMode;
   observeMode?: ObserveMode;
+  /** "openai-sdk" = @openai/agents Runner (default); "cheap" = token-lean custom loop. */
+  agentEngine?: AgentEngine;
 }
 
 interface ScheduledTask {
@@ -810,6 +819,8 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
           : "act";
       const observeMode: ObserveMode =
         body.observeMode === "vision" || body.observeMode === "text" ? body.observeMode : "text";
+      const agentEngine: AgentEngine =
+        body.agentEngine === "cheap" ? "cheap" : "openai-sdk";
       const effectiveAutoApprove = Boolean(body.autoApprove) || interactionMode === "turbo";
 
       const orchestrator = new AgentOrchestrator({
@@ -823,6 +834,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
         maxDurationSeconds: body.maxDurationSeconds,
         interactionMode,
         observeMode,
+        agentEngine,
         taskApprovalScope: body.scheduleId ? undefined : botMem.taskApproval,
         onEvent: (event) => {
           if (event.type === "observe") {

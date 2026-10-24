@@ -72,27 +72,69 @@ function extractInteractiveElements(selector: string): RawElement[] {
   const vh = window.innerHeight;
   const results: RawElement[] = [];
   for (const [domIndex, el] of nodes.entries()) {
+    const tagLower = el.tagName.toLowerCase();
     const editable = (el as HTMLElement).isContentEditable;
-    // Rich editors expose an editable section containing independent title/body blocks.
-    if (editable && el.querySelector("h1, h2, h3, p")) continue;
+    const isDirectEditableRoot = el.getAttribute("contenteditable") === "true";
+    // Rich editors with both headings and paragraphs expose sub-blocks; single-block editors (TipTap/Quill <div contenteditable="true"><p><br></p></div>) should expose the root editor.
+    if (isDirectEditableRoot) {
+      const hasHeading = Boolean(el.querySelector("h1, h2, h3"));
+      const pCount = el.querySelectorAll("p").length;
+      if (hasHeading && pCount > 0) continue;
+    } else if (editable) {
+      const rootEditable = el.closest('[contenteditable="true"]');
+      if (rootEditable) {
+        const hasHeading = Boolean(rootEditable.querySelector("h1, h2, h3"));
+        const pCount = rootEditable.querySelectorAll("p").length;
+        if (!(hasHeading && pCount > 0)) continue;
+      }
+    }
+    const isFormControl =
+      tagLower === "input" ||
+      tagLower === "textarea" ||
+      tagLower === "select" ||
+      editable ||
+      el.getAttribute("type") === "submit";
     const rect = el.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) continue;
-    if (rect.bottom < 0 || rect.top > vh || rect.right < 0 || rect.left > vw) continue;
+    const maxBottom = isFormControl ? vh * 3.5 : vh;
+    if (rect.bottom < 0 || rect.top > maxBottom || rect.right < 0 || rect.left > vw) continue;
     const style = window.getComputedStyle(el);
     if (style.visibility === "hidden" || style.display === "none") continue;
     if (parseFloat(style.opacity || "1") === 0) continue;
-    const cx = Math.round(rect.left + rect.width / 2);
-    const cy = Math.round(rect.top + rect.height / 2);
-    let label: string =
-      el.getAttribute("aria-label") ||
-      el.getAttribute("placeholder") ||
-      el.getAttribute("data-placeholder") ||
-      el.getAttribute("data-default-value") ||
-      el.getAttribute("title") ||
-      el.getAttribute("alt") ||
-      (el as HTMLElement).innerText ||
-      (el as HTMLInputElement).value ||
-      "";
+    const cx = Math.max(1, Math.min(vw - 1, Math.round(rect.left + rect.width / 2)));
+    const cy = Math.max(1, Math.min(vh - 1, Math.round(rect.top + rect.height / 2)));
+    let label = "";
+    if (tagLower === "select") {
+      const sel = el as HTMLSelectElement;
+      const selectedText = (sel.selectedOptions?.[0]?.text || sel.value || "").trim().replace(/\s+/g, " ");
+      const opts = Array.from(sel.options)
+        .map((o) => (o.text || o.value || "").trim().replace(/\s+/g, " "))
+        .filter(Boolean)
+        .slice(0, 6)
+        .join(" | ");
+      label = `Selected: "${selectedText}" [Options: ${opts}]`;
+    } else {
+      label =
+        el.getAttribute("aria-label") ||
+        el.getAttribute("placeholder") ||
+        el.getAttribute("data-placeholder") ||
+        el.getAttribute("data-default-value") ||
+        el.getAttribute("name") ||
+        el.getAttribute("title") ||
+        el.getAttribute("alt") ||
+        (el as HTMLElement).innerText ||
+        (el as HTMLInputElement).value ||
+        "";
+    }
+    if (!label && isFormControl) {
+      const prev = el.previousElementSibling;
+      const parentLabel = el.closest("label");
+      const associatedLabel =
+        (prev && prev.tagName.toLowerCase() === "label" ? (prev as HTMLElement).innerText : "") ||
+        (parentLabel ? parentLabel.innerText : "");
+      if (associatedLabel) label = associatedLabel;
+      else if (editable) label = "Rich text content editor";
+    }
     if (!label) {
       const img = el.querySelector("img[alt]");
       if (img) label = img.getAttribute("alt") || "";
@@ -102,13 +144,13 @@ function extractInteractiveElements(selector: string): RawElement[] {
       if (svgTitle) label = svgTitle.getAttribute("aria-label") || svgTitle.textContent || "";
     }
     const href = el.getAttribute("href") || "";
-    label = label.trim().replace(/\s+/g, " ").slice(0, 90);
+    label = label.trim().replace(/\s+/g, " ").slice(0, 110);
     if (href && !href.startsWith("javascript:") && href !== "#" && label.length < 60) {
       const shortHref = href.length > 45 ? href.slice(0, 42) + "..." : href;
       label = label ? `${label} -> ${shortHref}` : shortHref;
     }
     results.push({
-      tag: el.tagName.toLowerCase(),
+      tag: tagLower,
       domIndex,
       elementType: editable ? "contenteditable" : el.getAttribute("type") || "",
       role: el.getAttribute("role") || "",
@@ -1250,6 +1292,18 @@ export class BrowserController {
     if (!el) {
       throw new BrowserActionError(`Mark #${markId} not found in current viewport elements. Check the latest element list.`);
     }
+    if (el.domIndex !== undefined) {
+      try {
+        const page = await this.ensureActivePage();
+        const locator = page.locator(INTERACTIVE_SELECTOR).nth(el.domIndex);
+        await locator.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => undefined);
+        await locator.click({ timeout: this.config.actionTimeoutMs });
+        await this.waitForIdle(undefined, 160);
+        return el;
+      } catch {
+        // Fallback to coordinate click if DOM index shifted
+      }
+    }
     await this.click(el.x, el.y);
     return el;
   }
@@ -1259,9 +1313,33 @@ export class BrowserController {
     if (!el) {
       throw new BrowserActionError(`Mark #${markId} not found in current viewport elements. Check the latest element list.`);
     }
+    if (el.domIndex !== undefined && el.tag === "select") {
+      const page = await this.ensureActivePage();
+      const field = page.locator(INTERACTIVE_SELECTOR).nth(el.domIndex);
+      await field.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => undefined);
+      const selectedLabel = await field.evaluate((node, query) => {
+        const select = node as HTMLSelectElement;
+        const q = String(query ?? "").trim().toLowerCase();
+        const options = Array.from(select.options);
+        const match =
+          options.find((o) => o.value.toLowerCase() === q || (o.text || "").trim().toLowerCase() === q) ||
+          options.find((o) => (o.text || "").toLowerCase().includes(q) || o.value.toLowerCase().includes(q));
+        if (!match) return null;
+        select.value = match.value;
+        select.dispatchEvent(new Event("input", { bubbles: true }));
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        return (match.text || match.value).trim();
+      }, text);
+      if (!selectedLabel) {
+        await field.selectOption({ label: text }).catch(() => field.selectOption(text));
+      }
+      await this.waitForIdle(undefined, 120);
+      return el;
+    }
     if (el.domIndex !== undefined && (el.elementType === "contenteditable" || el.tag === "input" || el.tag === "textarea")) {
       const page = await this.ensureActivePage();
       const field = page.locator(INTERACTIVE_SELECTOR).nth(el.domIndex);
+      await field.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => undefined);
       if (el.elementType === "contenteditable" && text.includes("\n")) {
         // Fill the first paragraph to establish a caret in the exact editable block.
         const lines = text.split("\n");

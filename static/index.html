@@ -833,6 +833,37 @@ svg.bot-char-svg.bot-mood-3 .bot-eyes { animation-name: botEyeBlinkD; }
   font-weight: 700;
 }
 
+.header-engine-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid var(--border);
+  margin-right: 4px;
+}
+.header-engine-btn {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
+}
+.header-engine-btn:hover {
+  color: var(--text);
+}
+.header-engine-btn.active {
+  background: var(--brand-gradient);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(246, 67, 15, 0.25);
+}
+
 /* Workspace Split & Draggable Panel Resizers */
 #workspace {
   position: relative;
@@ -2868,6 +2899,10 @@ dialog.modal-dialog::backdrop {
       </div>
 
       <div class="topbar-right">
+        <div class="header-engine-switch" role="group" aria-label="Agent execution engine">
+          <button type="button" class="header-engine-btn active" data-agent-engine="openai-sdk" title="OpenAI Agents SDK (@openai/agents Runner) — default">OpenAI</button>
+          <button type="button" class="header-engine-btn" data-agent-engine="cheap" title="Cheap mode — token-lean local loop">Cheap</button>
+        </div>
         <button id="stop-run-btn" class="header-pill-btn danger" hidden title="Stop current bot run" aria-label="Stop current bot run">
           <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
         </button>
@@ -4923,6 +4958,7 @@ dialog.modal-dialog::backdrop {
         autoApprove: autoApproveEnabled || currentInteractionMode === "turbo",
         model: selectedModel,
         interactionMode: currentInteractionMode || "act",
+        agentEngine: currentAgentEngine || "openai-sdk",
         observeMode: "text",
         headless: true,
         maxSteps: 120,
@@ -6709,6 +6745,9 @@ dialog.modal-dialog::backdrop {
     document.querySelectorAll("[data-interaction-mode]").forEach(function(btn) {
       btn.classList.toggle("active", btn.getAttribute("data-interaction-mode") === currentInteractionMode);
     });
+    document.querySelectorAll("[data-agent-engine]").forEach(function(btn) {
+      btn.classList.toggle("active", btn.getAttribute("data-agent-engine") === currentAgentEngine);
+    });
   }
 
   function setGoogleSignInStatus(message, isError) {
@@ -6930,6 +6969,19 @@ dialog.modal-dialog::backdrop {
     document.getElementById("connect-modal").close();
     openInteractiveBrowser(browserAddress.value.trim() || "https://www.google.com/", true, "persistent");
   };
+
+  var currentAgentEngine = localStorage.getItem("openBotsAgentEngine") === "cheap" ? "cheap" : "openai-sdk";
+  document.querySelectorAll("[data-agent-engine]").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      currentAgentEngine = btn.getAttribute("data-agent-engine") === "cheap" ? "cheap" : "openai-sdk";
+      localStorage.setItem("openBotsAgentEngine", currentAgentEngine);
+      renderInteractionModeUI();
+      status.textContent =
+        currentAgentEngine === "cheap"
+          ? "Cheap mode active: using token-lean custom loop."
+          : "OpenAI Agents SDK active (@openai/agents Runner).";
+    });
+  });
 
   document.querySelectorAll("[data-interaction-mode]").forEach(function(btn) {
     btn.addEventListener("click", function() {
