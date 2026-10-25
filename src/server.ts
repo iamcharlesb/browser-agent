@@ -1852,6 +1852,24 @@ async function handleSharedEventsStream(req: IncomingMessage, res: ServerRespons
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
+  // Bot profile artwork is shipped with the local UI and served through this
+  // narrow allowlist; never turn a URL path into an arbitrary filesystem read.
+  if (req.method === "GET" && url.pathname.startsWith("/avatars/")) {
+    const match = /^\/avatars\/(revenue-architect|value-architect|neural-architect|blog-writer)\.png$/.exec(url.pathname);
+    if (!match) {
+      sendJson(res, 404, { detail: "Avatar not found." });
+      return;
+    }
+    try {
+      const image = await readFile(join(STATIC_DIR, "avatars", `${match[1]}.png`));
+      res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff" });
+      res.end(image);
+    } catch {
+      sendJson(res, 404, { detail: "Avatar not found." });
+    }
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/browserRuntime.js") {
     const script = await readFile(join(STATIC_DIR, "browserRuntime.js"), "utf8");
     res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
