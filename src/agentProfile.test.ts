@@ -157,3 +157,19 @@ test("oversized trusted instructions fail explicitly instead of dropping operati
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("inspired-by catalog names load the corresponding specialist instructions and playbooks", () => {
+  for (const [name, legacyName, playbook] of [
+    ["Inspired by Alex Hormozi", "The Value Architect", "value-architect"],
+    ["Inspired by Sabri Suby", "The Revenue Architect", ""],
+    ["Inspired by Addy Osmani", "The Engineering Craftsman", "engineering-craftsman"],
+    ["Inspired by Andrej Karpathy", "The Neural Architect", "neural-architect"]
+  ]) {
+    const profile = loadAgentProfile({ botName: name, task: "Help with my work", root });
+    const legacy = loadAgentProfile({ botName: legacyName, task: "Help with my work", root });
+    assert.equal(profile.instructions, legacy.instructions);
+    assert.equal(profile.soul, legacy.soul);
+    if (playbook) assert.ok(profile.selected.includes(playbook), name + " must select its specialist playbook");
+    else assert.match(profile.playbooks, /allowable cost per lead/);
+  }
+});

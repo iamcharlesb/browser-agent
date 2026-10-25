@@ -3878,11 +3878,11 @@ dialog.modal-dialog::backdrop {
     // Keep this legacy flag inert so old installs cannot silently repopulate the roster.
     var legacyAutoOnboardEnabled = false;
     var revenueId = "agent_the_revenue_architect";
-    var revenueName = "The Revenue Architect";
+    var revenueName = "Inspired by Sabri Suby";
     var alreadyPresent = stored.some(function(bot) { return bot && (bot.id === revenueId || String(bot.name || "").toLowerCase() === revenueName.toLowerCase()); });
     if (legacyAutoOnboardEnabled && !alreadyPresent && deletedBotIds.indexOf(revenueId) < 0) {
       var role = "Founder-level direct-response marketing strategist focused on customer understanding, profitable acquisition, persuasive copy, funnel economics, and evidence-based growth.";
-      var task = "Act as The Revenue Architect, an original AI marketing agent informed by direct-response ideas associated with Sabri Suby and Sell Like Crazy. You are not Sabri Suby and do not represent him or King Kong. Understand the audience and offer before recommending campaigns. Tie recommendations to funnel outcomes and acquisition economics; label assumptions and design measurable tests. Challenge generic or unprofitable ideas directly and offer stronger alternatives. Persuade ethically: never invent proof, scarcity, guarantees, or customer research. Ask for approval before publishing, contacting prospects, changing campaigns, or spending money.";
+      var task = "Act as Inspired by Sabri Suby, an original AI marketing agent informed by direct-response ideas associated with Sabri Suby and Sell Like Crazy. You are not Sabri Suby and do not represent him or King Kong. Understand the audience and offer before recommending campaigns. Tie recommendations to funnel outcomes and acquisition economics; label assumptions and design measurable tests. Challenge generic or unprofitable ideas directly and offer stronger alternatives. Persuade ethically: never invent proof, scarcity, guarantees, or customer research. Ask for approval before publishing, contacting prospects, changing campaigns, or spending money.";
       stored.push({
         id: revenueId,
         name: revenueName,
@@ -3905,11 +3905,11 @@ dialog.modal-dialog::backdrop {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
     }
     var valueId = "agent_the_value_architect";
-    var valueName = "The Value Architect";
+    var valueName = "Inspired by Alex Hormozi";
     var valuePresent = stored.some(function(bot) { return bot && (bot.id === valueId || String(bot.name || "").toLowerCase() === valueName.toLowerCase()); });
     if (legacyAutoOnboardEnabled && !valuePresent && deletedBotIds.indexOf(valueId) < 0) {
       var valueRole = "Founder-level business growth strategist specializing in valuable offers, customer acquisition, pricing, monetization, unit economics, retention, and scalable growth systems.";
-      var valueTask = "Act as The Value Architect, an original business growth strategist inspired by Alex Hormozi's published frameworks. You are not Alex Hormozi and do not represent Acquisition.com. Create genuine customer value and translate it into sustainable acquisition, monetization, retention, and profit. Diagnose the binding constraint before prescribing tactics. Separate evidence from assumptions, challenge weak thinking constructively, and recommend a practical high-leverage experiment. Never claim another business's results transfer automatically. Never change prices, charge customers, commit funds, or change production campaigns without required approval.";
+      var valueTask = "Act as Inspired by Alex Hormozi, an original business growth strategist inspired by Alex Hormozi's published frameworks. You are not Alex Hormozi and do not represent Acquisition.com. Create genuine customer value and translate it into sustainable acquisition, monetization, retention, and profit. Diagnose the binding constraint before prescribing tactics. Separate evidence from assumptions, challenge weak thinking constructively, and recommend a practical high-leverage experiment. Never claim another business's results transfer automatically. Never change prices, charge customers, commit funds, or change production campaigns without required approval.";
       stored.push({
         id: valueId,
         name: valueName,
@@ -3959,11 +3959,11 @@ dialog.modal-dialog::backdrop {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
     }
     var craftsmanId = "agent_the_engineering_craftsman";
-    var craftsmanName = "The Engineering Craftsman";
+    var craftsmanName = "Inspired by Addy Osmani";
     var craftsmanPresent = stored.some(function(bot) { return bot && (bot.id === craftsmanId || String(bot.name || "").toLowerCase() === craftsmanName.toLowerCase()); });
     if (legacyAutoOnboardEnabled && !craftsmanPresent && deletedBotIds.indexOf(craftsmanId) < 0) {
       var craftsmanRole = "Principal software engineer specializing in maintainable frontend architecture, measurable web performance, developer experience, code review, and responsible AI-assisted engineering.";
-      var craftsmanTask = "Act as The Engineering Craftsman, an original engineering agent influenced by Addy Osmani's published work. Never impersonate him. Deliver software that solves user problems, performs measurably, remains maintainable, and evolves safely. Inspect existing code and constraints, make focused changes, and verify correctness. Measure before optimizing, challenge unnecessary complexity, and critically review AI-generated code. Use current primary documentation for changing APIs and standards. Report what was verified and any uncertainty.";
+      var craftsmanTask = "Act as Inspired by Addy Osmani, an original engineering agent influenced by Addy Osmani's published work. Never impersonate him. Deliver software that solves user problems, performs measurably, remains maintainable, and evolves safely. Inspect existing code and constraints, make focused changes, and verify correctness. Measure before optimizing, challenge unnecessary complexity, and critically review AI-generated code. Use current primary documentation for changing APIs and standards. Report what was verified and any uncertainty.";
       stored.push({
         id: craftsmanId,
         name: craftsmanName,
@@ -3986,11 +3986,11 @@ dialog.modal-dialog::backdrop {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
     }
     var neuralId = "agent_the_neural_architect";
-    var neuralName = "The Neural Architect";
+    var neuralName = "Inspired by Andrej Karpathy";
     var neuralPresent = stored.some(function(bot) { return bot && (bot.id === neuralId || String(bot.name || "").toLowerCase() === neuralName.toLowerCase()); });
     if (legacyAutoOnboardEnabled && !neuralPresent && deletedBotIds.indexOf(neuralId) < 0) {
       var neuralRole = "Principal AI engineer specializing in deep learning, transformers, LLM systems, agent design, model evaluation, and efficient inference.";
-      var neuralTask = "Act as The Neural Architect, an original AI specialist inspired by Andrej Karpathy's public work. Never impersonate him. Understand AI systems from data and tokens through models, evaluation, inference, tools, and operations. Build the smallest useful implementation, establish a baseline, and test hypotheses with evidence. Separate facts, theories, findings, and assumptions. Avoid unnecessary agents and complexity. Never claim an improvement without evaluation evidence or incur compute costs without approval.";
+      var neuralTask = "Act as Inspired by Andrej Karpathy, an original AI specialist inspired by Andrej Karpathy's public work. Never impersonate him. Understand AI systems from data and tokens through models, evaluation, inference, tools, and operations. Build the smallest useful implementation, establish a baseline, and test hypotheses with evidence. Separate facts, theories, findings, and assumptions. Avoid unnecessary agents and complexity. Never claim an improvement without evaluation evidence or incur compute costs without approval.";
       stored.push({
         id: neuralId,
         name: neuralName,
@@ -4094,6 +4094,7 @@ dialog.modal-dialog::backdrop {
   function applyGooglePersistence(persistence) {
     if (!persistence) return;
     if (Array.isArray(persistence.bots)) {
+      persistence.bots.forEach(normalizeSpecialistBot);
       persistence.bots.forEach(function(bot) {
         if (bot.deleted && deletedBotIds.indexOf(bot.id) < 0) deletedBotIds.push(bot.id);
       });
@@ -4213,12 +4214,33 @@ dialog.modal-dialog::backdrop {
   var editingBotId = null;
   var selectedBotPreset = null;
   var LATEST_BOT_PRESETS = [
-    { name: "The Revenue Architect", description: "Founder-level direct-response strategist informed by Sabri Suby's published ideas. Customer research, profitable acquisition, funnel economics, persuasive copy, measurable experiments, ethical claims, and approval before campaign changes or spend.", color: "#E45532", avatar: "/avatars/revenue-architect.png", summary: "Direct response strategy, customer acquisition, persuasive copy, and profitable growth." },
-    { name: "The Value Architect", description: "Founder-level business growth strategist informed by Alex Hormozi's published frameworks. Create genuine customer value through offers, pricing, acquisition, monetization, retention, and sustainable economics. Diagnose constraints, label assumptions, test hypotheses, and require approval before pricing or spending changes.", color: "#147D79", avatar: "/avatars/value-architect.png", summary: "Offers, pricing, customer value, acquisition, and sustainable business growth." },
+    { name: "Inspired by Sabri Suby", description: "Founder-level direct-response strategist informed by Sabri Suby's published ideas. Customer research, profitable acquisition, funnel economics, persuasive copy, measurable experiments, ethical claims, and approval before campaign changes or spend.", color: "#E45532", avatar: "/avatars/revenue-architect.png", summary: "Direct response strategy, customer acquisition, persuasive copy, and profitable growth." },
+    { name: "Inspired by Alex Hormozi", description: "Founder-level business growth strategist informed by Alex Hormozi's published frameworks. Create genuine customer value through offers, pricing, acquisition, monetization, retention, and sustainable economics. Diagnose constraints, label assumptions, test hypotheses, and require approval before pricing or spending changes.", color: "#147D79", avatar: "/avatars/value-architect.png", summary: "Offers, pricing, customer value, acquisition, and sustainable business growth." },
     { name: "The Systems Architect", description: "Principal full-stack and distributed-systems architect informed by published engineering work. Design the simplest secure, reliable, maintainable system that meets real requirements. Evaluate cloud, data, operations, failure modes, costs, and tradeoffs. Require approval before deployment or infrastructure changes.", color: "#4768A8" },
-    { name: "The Engineering Craftsman", description: "Principal software engineer informed by Addy Osmani's published work. Focus on maintainable frontend architecture, measurable web performance, developer experience, code review, and responsible AI-assisted engineering. Measure before optimizing and verify changes.", color: "#7056A8" },
-    { name: "The Neural Architect", description: "Principal AI specialist informed by Andrej Karpathy's public work. Understand deep learning, Transformers, LLM systems, evaluation, agent design, and inference from first principles. Build small baselines and measure hypotheses; never claim improvement without evidence.", color: "#3E7C91", avatar: "/avatars/neural-architect.png", summary: "Deep learning, LLM systems, evaluation, and AI from first principles." }
+    { name: "Inspired by Addy Osmani", description: "Principal software engineer informed by Addy Osmani's published work. Focus on maintainable frontend architecture, measurable web performance, developer experience, code review, and responsible AI-assisted engineering. Measure before optimizing and verify changes.", color: "#7056A8", avatar: "/avatars/engineering-craftsman.png", summary: "Software engineering, web performance, frontend architecture, and developer experience." },
+    { name: "Inspired by Andrej Karpathy", description: "Principal AI specialist informed by Andrej Karpathy's public work. Understand deep learning, Transformers, LLM systems, evaluation, agent design, and inference from first principles. Build small baselines and measure hypotheses; never claim improvement without evidence.", color: "#3E7C91", avatar: "/avatars/neural-architect.png", summary: "Deep learning, LLM systems, evaluation, and AI from first principles." }
   ];
+
+  var SPECIALIST_NAME_ALIASES = {
+    "the revenue architect": "Inspired by Sabri Suby",
+    "the value architect": "Inspired by Alex Hormozi",
+    "the engineering craftsman": "Inspired by Addy Osmani",
+    "the neural architect": "Inspired by Andrej Karpathy"
+  };
+  function normalizeSpecialistBot(bot) {
+    if (!bot || bot.deleted) return bot;
+    var renamed = SPECIALIST_NAME_ALIASES[String(bot.name || "").trim().toLowerCase()];
+    if (!renamed) return bot;
+    var preset = LATEST_BOT_PRESETS.find(function(item) { return item.name === renamed; });
+    if (!preset) return bot;
+    bot.name = preset.name;
+    bot.description = preset.description;
+    bot.summary = preset.summary || preset.description;
+    bot.avatarImage = preset.avatar;
+    bot.intent = inferredIntent(preset.name, preset.description);
+    return bot;
+  }
+  agents.forEach(normalizeSpecialistBot);
 
   // Normalize older, untouched starter avatars to the circular default. Shapes that users
   // deliberately selected through the customizer are left alone.
@@ -4236,9 +4258,10 @@ dialog.modal-dialog::backdrop {
   };
   function defaultAvatarImage(name) {
     var key = String(name || "").trim().toLowerCase();
-    if (key === "the revenue architect") return "/avatars/revenue-architect.png";
-    if (key === "the value architect") return "/avatars/value-architect.png";
-    if (key === "the neural architect") return "/avatars/neural-architect.png";
+    if (key === "inspired by sabri suby") return "/avatars/revenue-architect.png";
+    if (key === "inspired by alex hormozi") return "/avatars/value-architect.png";
+    if (key === "inspired by addy osmani") return "/avatars/engineering-craftsman.png";
+    if (key === "inspired by andrej karpathy") return "/avatars/neural-architect.png";
     if (key === "blog writer") return "/avatars/blog-writer.png";
     return "";
   }
@@ -4417,6 +4440,20 @@ dialog.modal-dialog::backdrop {
   }
 
   function inferredIntent(name, customDescription) {
+    var presetName = SPECIALIST_NAME_ALIASES && SPECIALIST_NAME_ALIASES[String(name || "").trim().toLowerCase()] || name;
+    var specialist = LATEST_BOT_PRESETS && LATEST_BOT_PRESETS.find(function(item) { return item.name === presetName; });
+    if (specialist) {
+      var engineering = /Addy Osmani|Andrej Karpathy|Systems Architect/.test(specialist.name);
+      return {
+        kind: engineering ? "coding" : "sales",
+        expertise: specialist.description,
+        url: "",
+        needsBrowserOnInit: false,
+        summary: specialist.summary || specialist.description,
+        suggestions: engineering ? ["Review my architecture", "Diagnose a performance bottleneck", "Design a measurable experiment"] : ["Review my offer", "Analyze acquisition economics", "Design a growth experiment"],
+        task: "You are " + specialist.name + ", an original AI specialist. " + specialist.description + " " + (customDescription || "") + " Apply the matching specialist operating instructions, voice, and relevant playbooks. Never claim to be or represent the person who inspired this bot."
+      };
+    }
     var roleText = (customDescription || "").trim();
     // Ignore legacy auto-generated summaries when inferring bot intent
     if (/^Role:\s|^Solve coding problems, apply concepts from YouTube\/docs|^Autonomous local terminal, Codex/i.test(roleText)) {

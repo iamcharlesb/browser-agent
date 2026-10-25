@@ -1855,7 +1855,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   // Bot profile artwork is shipped with the local UI and served through this
   // narrow allowlist; never turn a URL path into an arbitrary filesystem read.
   if (req.method === "GET" && url.pathname.startsWith("/avatars/")) {
-    const match = /^\/avatars\/(revenue-architect|value-architect|neural-architect|blog-writer)\.png$/.exec(url.pathname);
+    const match = /^\/avatars\/(revenue-architect|value-architect|neural-architect|engineering-craftsman|blog-writer)\.png$/.exec(url.pathname);
     if (!match) {
       sendJson(res, 404, { detail: "Avatar not found." });
       return;
