@@ -41,7 +41,7 @@ const names = ['Inspired by Alex Hormozi', 'Inspired by Sabri Suby', 'Inspired b
     const page = await context.newPage();
     page.on('pageerror', err => errors.push(err.message));
     await page.goto('http://openbots.audit/');
-    await page.waitForSelector('.template-card[data-name="Inspired by Alex Hormozi"]');
+    await page.waitForSelector('.template-card[data-name="Inspired by Alex Hormozi"]', { state: 'attached' });
     return { page, context };
   }
   try {
@@ -57,6 +57,7 @@ const names = ['Inspired by Alex Hormozi', 'Inspired by Sabri Suby', 'Inspired b
       assert.ok((await card.getAttribute('data-desc')).includes(name.replace('Inspired by ', '')), 'Role must name the matching inspiration');
       await image.evaluate(img => img.decode());
       assert.equal(await image.evaluate(img => img.naturalWidth > 0), true);
+      assert.notEqual(await image.evaluate(img => getComputedStyle(img).transform), 'none', name + ' must use its headshot crop');
     }
     assert.equal(await page.locator('.template-grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 3);
     assert.equal(await page.locator('#settings-modal #observer-chip').count(), 1);
@@ -82,11 +83,13 @@ const names = ['Inspired by Alex Hormozi', 'Inspired by Sabri Suby', 'Inspired b
     assert.equal(await page.locator('#agent-list .agent-avatar').evaluate(el => getComputedStyle(el).width), '29px');
     await page.evaluate(() => sessionStorage.removeItem("openBotsSelectedBot"));
     await page.reload();
-    await page.waitForSelector('.template-card[data-name="Inspired by Alex Hormozi"]');
+    await page.waitForSelector('.template-card[data-name="Inspired by Alex Hormozi"]', { state: 'attached' });
     assert.equal(await page.locator('#agent-list .agent-row').count(), 1);
-    const flags = await page.locator('.template-card[data-name]').evaluateAll(cards => cards.map(card => card.classList.contains('is-onboarded')));
-    assert.deepEqual(flags, [...flags].sort(), 'Available bots must precede added bots');
-    await page.locator('.template-card[data-name="Inspired by Alex Hormozi"]').click();
+    assert.equal(await page.locator('.template-card[data-name="Inspired by Alex Hormozi"]').isVisible(), false, 'Added bots must be hidden in the catalog');
+    assert.equal(await page.locator('#bot-preset-select option[value="Inspired by Alex Hormozi"]').count(), 0, 'Added bots must be absent from onboarding dropdown');
+    const visibleNames = await page.locator('.template-card[data-name]:visible').evaluateAll(cards => cards.map(card => card.dataset.name));
+    assert.equal(visibleNames.includes(names[0]), false);
+    await page.locator('#agent-list .agent-row').click();
     assert.equal(await page.locator('#agent-list .agent-row').count(), 1, 'Open added bot must not duplicate it');
     await page.locator('.fb-dislike').first().click();
     await page.locator('.fb-reason-input').fill('Consider the full discussion before answering.');
@@ -94,6 +97,11 @@ const names = ['Inspired by Alex Hormozi', 'Inspired by Sabri Suby', 'Inspired b
     await page.waitForFunction(() => !!document.querySelector('.msg-feedback-note'));
     assert.equal(feedback[0].kind, 'correction');
     assert.match(feedback[0].reason, /full discussion/);
+    await page.locator('#agent-list .agent-row').hover();
+    await page.waitForFunction(() => !document.getElementById("app").classList.contains("sidebar-collapsed"));
+    await page.locator('#agent-list .agent-delete').click();
+    assert.equal(await page.locator('.template-card[data-name="Inspired by Alex Hormozi"]').isVisible(), true, 'Deleting a bot restores its onboarding card');
+    assert.equal(await page.locator('#bot-preset-select option[value="Inspired by Alex Hormozi"]').count(), 1);
     await context.close();
     const legacy = await open([
       { id: 'agent_123', name: 'The Value Architect', description: 'Keep my custom target of independent SaaS founders.', transcript: [{ role: 'user', html: 'Review my offer' }] },
@@ -118,6 +126,6 @@ const names = ['Inspired by Alex Hormozi', 'Inspired by Sabri Suby', 'Inspired b
     assert.equal(await many.page.locator('#agent-list').evaluate(el => el.scrollHeight > el.clientHeight), true);
     await many.context.close();
     assert.deepEqual(errors, [], 'UI should not throw JavaScript errors');
-    console.log(JSON.stringify({ success: true, checks: ['fresh roster empty', 'four exact inspired-by names', 'all portraits decode', 'three columns', 'matching preset role', 'matching portrait preview', 'explicit onboarding only', '29px sidebar icons', 'reload persistence', 'no duplicates', 'correction feedback', 'legacy rename preserves custom instructions and history', 'unused automatic seeds hidden', 'settings-only observer/workflow/cost controls', 'flat welcome and new-bot icons', 'available bots sorted first', 'long sidebar scrolls', 'estimated dollars visible in settings', 'provider credentials collapsed'], screenshot: out }, null, 2));
+    console.log(JSON.stringify({ success: true, checks: ['fresh roster empty', 'four exact inspired-by names', 'all portraits decode with headshot crops', 'three columns', 'matching preset role', 'matching portrait preview', 'explicit onboarding only', '29px sidebar icons', 'reload persistence', 'no duplicates', 'correction feedback', 'legacy rename preserves custom instructions and history', 'unused automatic seeds hidden', 'settings-only observer/workflow/cost controls', 'flat welcome and new-bot icons', 'added bots hidden from catalog and dropdown', 'deleted bots available again', 'long sidebar scrolls', 'estimated dollars visible in settings', 'provider credentials collapsed'], screenshot: out }, null, 2));
   } finally { await browser.close(); }
 })().catch(err => { console.error(err); process.exitCode = 1; });

@@ -300,6 +300,13 @@ button { color: inherit; }
 }
 .agent-avatar.photo-avatar { border-radius: 50%; overflow: hidden; background: #f2f4f7; }
 .agent-avatar.photo-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bot-portrait { object-position: 50% 0%; transform-origin: 50% 0%; }
+.bot-portrait[src*="addy-osmani.jpg"] { transform: scale(2); }
+.bot-portrait[src*="alex-hormozi.webp"] { transform: scale(1.8); }
+.bot-portrait[src*="sabri-suby.jpg"] { transform: scale(1.3); }
+.bot-portrait[src*="andrej-karpathy.jpg"] { transform: scale(1.35); }
+.bot-portrait-preview { display: block; width: 96px; height: 96px; overflow: hidden; border-radius: 24px; }
+.bot-portrait-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .agent-avatar.small {
   width: 29px;
   height: 29px;
@@ -1296,6 +1303,7 @@ button { color: inherit; }
 .template-card:not(.is-onboarded) .template-status { color: #b42318; background: #fff1ed; }
 .template-card .template-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
 .template-card .template-avatar {
+  overflow: hidden;
   width: 32px;
   height: 32px;
   flex: 0 0 32px;
@@ -4172,7 +4180,7 @@ dialog.modal-dialog::backdrop {
       el.classList.add("photo-avatar");
       el.classList.remove("is-working");
       el.style.removeProperty("--bot-color");
-      el.innerHTML = '<img src="' + esc(avatarImage) + '" alt="" draggable="false">';
+      el.innerHTML = '<img class="bot-portrait" src="' + esc(avatarImage) + '" alt="" draggable="false">';
       el.classList.toggle("is-working", Boolean(working));
       return;
     } else if (agent && (agent.shape || agent.color)) {
@@ -5046,7 +5054,7 @@ dialog.modal-dialog::backdrop {
     var editing = editingBotId && agents.find(function(bot) { return bot.id === editingBotId; });
     var image = selectedBotPreset && selectedBotPreset.avatar || editing && editing.avatarImage;
     preview.innerHTML = image
-      ? '<img src="' + esc(image) + '" alt="Selected bot portrait" style="width:96px;height:96px;object-fit:cover;border-radius:24px;">'
+      ? '<span class="bot-portrait-preview"><img class="bot-portrait" src="' + esc(image) + '" alt="Selected bot headshot"></span>'
       : renderBotIcon(selectedBotShape, selectedBotColor);
   }
 
@@ -5182,6 +5190,7 @@ dialog.modal-dialog::backdrop {
       }
       var isAdded = agents.some(function(bot) { return String(bot.name || "").trim().toLowerCase() === key; });
       card.classList.toggle("is-onboarded", isAdded);
+      card.hidden = isAdded;
       card.setAttribute("aria-label", (isAdded ? "Open " : "Add ") + preset.name);
       var copyEl = card.querySelector(".template-copy");
       if (copyEl) {
@@ -5191,7 +5200,7 @@ dialog.modal-dialog::backdrop {
       }
       var avatarHolder = card.querySelector(".template-avatar");
       if (avatarHolder && preset.avatar) {
-        avatarHolder.innerHTML = '<img src="' + esc(preset.avatar) + '" alt="" draggable="false">';
+        avatarHolder.innerHTML = '<img class="bot-portrait" src="' + esc(preset.avatar) + '" alt="" draggable="false">';
       }
     });
     var ordered = presets.map(function(preset) {
@@ -5215,7 +5224,7 @@ dialog.modal-dialog::backdrop {
       if (a.onboarded !== b.onboarded) return a.onboarded ? 1 : -1;
       return a.preset.name.localeCompare(b.preset.name);
     });
-    ordered.forEach(function(entry, index) {
+    ordered.filter(function(entry) { return !entry.onboarded; }).forEach(function(entry) {
       var preset = entry.preset;
       var onboarded = entry.onboarded;
       var option = document.createElement("option");
