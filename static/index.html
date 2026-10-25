@@ -898,6 +898,11 @@ button { color: inherit; }
 #observer-chip, #header-cost-chip { flex: 0 0 auto; padding-inline: 8px; gap: 5px; font-size: 11px; }
 #observer-chip svg { width: 15px; height: 15px; }
 #header-cost-chip { min-width: 62px; font-variant-numeric: tabular-nums; }
+.observer-count { display:inline-grid; place-items:center; min-width:16px; height:16px; padding:0 4px; border-radius:999px; background:#ea580c; color:#fff; font-size:10px; font-weight:700; }
+.observer-suggestions { display:grid; gap:10px; max-height:60vh; overflow:auto; }
+.observer-card { border:1px solid var(--border); border-radius:12px; padding:12px; background:#fff; }
+.observer-card p { white-space:pre-wrap; margin:8px 0; line-height:1.5; }
+.observer-card-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:10px; }
 
 #agent-chip {
   display: inline-flex;
@@ -2781,9 +2786,13 @@ dialog.modal-dialog::backdrop {
   margin-top: 14px;
   border-top: 1px solid var(--border);
   padding-top: 12px;
-  max-height: 180px;
+  max-height: min(42vh, 420px);
   overflow-y: auto;
 }
+.schedule-bot-group { border:1px solid var(--border); border-radius:10px; margin:8px 0; padding:0 10px; background:#fff; }
+.schedule-bot-group > summary { cursor:pointer; padding:10px 2px; font-weight:650; font-size:12.5px; }
+.schedule-bot-group > summary span { color:var(--muted); font-weight:500; margin-left:5px; }
+.schedule-bot-tasks { border-top:1px solid var(--border-subtle); }
 .schedule-item {
   display: flex;
   align-items: center;
@@ -3158,11 +3167,6 @@ dialog.modal-dialog::backdrop {
           <span id="chip-meta">Open Bots · Codex &amp; Live Browser</span>
         </div>
       </div>
-      <button id="observer-chip" class="header-pill-btn" type="button" title="Observer watches the conversation and suggests improvements for bot voice and playbooks. Suggestions are drafts; nothing is changed automatically." aria-label="Conversation observer">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.5"/></svg><span class="btn-label">Observer</span>
-      </button>
-      <button id="header-cost-chip" class="header-pill-btn" type="button" title="Approximate tracked model spend" aria-label="Approximate model spend">~$0.00</button>
-
       <div class="topbar-right">
         <div class="header-engine-switch" role="group" aria-label="Agent execution engine">
           <button type="button" class="header-engine-btn active" data-agent-engine="openai-sdk" title="OpenAI Agents SDK (@openai/agents Runner) — default">OpenAI</button>
@@ -3427,6 +3431,22 @@ dialog.modal-dialog::backdrop {
   </div>
 </dialog>
 
+<dialog id="observer-modal" class="modal-dialog" closedby="closerequest" aria-labelledby="observer-modal-title" style="width:min(92vw, 660px);">
+  <div class="modal-inner">
+    <div class="modal-header"><div><h2 id="observer-modal-title">Conversation Observer</h2><p style="margin:4px 0 0;color:var(--muted);font-size:12px;">Explicit corrections become drafts. Nothing updates a bot until you approve it.</p></div><button type="button" class="modal-close" data-close-modal="observer-modal" aria-label="Close">✕</button></div>
+    <div id="observer-suggestions" class="observer-suggestions" aria-live="polite">Loading suggestions…</div>
+  </div>
+</dialog>
+
+<dialog id="workflow-modal" class="modal-dialog" closedby="closerequest" aria-labelledby="workflow-modal-title" style="width:min(94vw, 760px);">
+  <div class="modal-inner">
+    <div class="modal-header"><div><h2 id="workflow-modal-title">Workflow Orchestrator</h2><p style="margin:4px 0 0;color:var(--muted);font-size:12px;">Build a task graph. Review the draft, then start it explicitly. Steps run one at a time and advance when dependencies complete.</p></div><button type="button" class="modal-close" data-close-modal="workflow-modal" aria-label="Close">✕</button></div>
+    <label for="workflow-json" class="form-field"><span>Tasks as JSON</span><textarea id="workflow-json" rows="7" spellcheck="false" placeholder='[{"id":"research","botName":"Competitor Intelligence","task":"Compare three competitors","dependsOn":[]},{"id":"plan","botName":"UX Specialist","task":"Review the comparison and propose a landing page","dependsOn":["research"]}]'></textarea><small>Use unique task IDs and dependsOn arrays. Add approvedCategories for tasks that need outward or financial approval.</small></label>
+    <div style="display:flex;gap:8px;align-items:center;margin:10px 0;"><button id="workflow-create-btn" type="button" class="btn-secondary">Save draft</button><button id="workflow-refresh-btn" type="button" class="btn-secondary">Refresh workflows</button><span id="workflow-status" style="font-size:12px;color:var(--muted);"></span></div>
+    <div id="workflow-list" class="observer-suggestions" aria-live="polite">Loading workflows…</div>
+  </div>
+</dialog>
+
 <!-- Sign-In & Connect Apps Modal -->
 <dialog id="connect-modal" class="modal-dialog" closedby="any" aria-labelledby="connect-modal-title" style="width:min(92vw, 420px);">
   <div class="modal-inner">
@@ -3637,6 +3657,16 @@ dialog.modal-dialog::backdrop {
         <button type="submit" class="btn-primary">Save Settings</button>
       </div>
     </form>
+    <section class="form-field" aria-labelledby="settings-tools-title" style="margin:4px 0 12px;border-top:1px solid var(--border);padding-top:14px;">
+      <strong id="settings-tools-title">Agent tools</strong>
+      <p style="margin:4px 0 10px;font-size:11px;color:var(--muted);">Review observer suggestions and manage multi-bot workflows.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button id="observer-chip" class="btn-secondary" type="button" title="Review conversation observer suggestions" aria-label="Conversation observer">
+          <svg style="width:16px;height:16px;vertical-align:-3px;margin-right:5px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>Observer <span id="observer-pending-count" class="observer-count" hidden>0</span>
+        </button>
+        <button id="header-workflow-btn" class="btn-secondary" type="button" title="Review and run dependency-aware workflows" aria-label="Workflows"><svg style="width:16px;height:16px;vertical-align:-3px;margin-right:5px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="12" r="2"/><circle cx="6" cy="19" r="2"/><path d="M8 5h3a4 4 0 0 1 4 4v1M8 19h3a4 4 0 0 0 4-4v-1"/></svg>Workflows</button>
+      </div>
+    </section>
     <details class="form-field" style="margin-top:4px;border-top:1px solid var(--border);padding-top:14px;">
       <summary style="cursor:pointer;font-weight:600;">Bot memory and detailed usage</summary>
       <div style="padding-top:10px;">
@@ -3649,10 +3679,10 @@ dialog.modal-dialog::backdrop {
         Stored only on this machine under <code>.browser-agent-learnings/</code>. Injected into CONTEXT on each run (≤~1k chars). Secrets are redacted.
       </p>
     <div class="form-field" style="margin-top:4px;border-top:1px solid var(--border);padding-top:14px;">
-      <label style="display:flex;align-items:center;justify-content:space-between;">
-        <span>Usage &amp; Estimated Cost</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Usage &amp; Estimated Cost <button id="header-cost-chip" class="btn-secondary" type="button" title="Approximate tracked model spend" aria-label="Approximate model spend" style="padding:4px 8px;margin-left:6px;">~$0.00</button></span>
         <button type="button" id="usage-refresh-btn" class="btn-secondary" style="padding:4px 10px;font-size:11px;">Refresh</button>
-      </label>
+      </div>
       <div id="usage-summary" style="font-size:12.5px;color:var(--muted);margin:8px 0;">Loading…</div>
       <table id="usage-table" style="width:100%;border-collapse:collapse;font-size:12px;">
         <thead>
@@ -3807,8 +3837,146 @@ dialog.modal-dialog::backdrop {
   });
 
   function loadAgents() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
-    catch (_) { return []; }
+    var stored;
+    try { stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
+    catch (_) { stored = []; }
+    if (!Array.isArray(stored)) stored = [];
+    var revenueId = "agent_the_revenue_architect";
+    var revenueName = "The Revenue Architect";
+    var alreadyPresent = stored.some(function(bot) { return bot && (bot.id === revenueId || String(bot.name || "").toLowerCase() === revenueName.toLowerCase()); });
+    if (!alreadyPresent && deletedBotIds.indexOf(revenueId) < 0) {
+      var role = "Founder-level direct-response marketing strategist focused on customer understanding, profitable acquisition, persuasive copy, funnel economics, and evidence-based growth.";
+      var task = "Act as The Revenue Architect, an original AI marketing agent informed by direct-response ideas associated with Sabri Suby and Sell Like Crazy. You are not Sabri Suby and do not represent him or King Kong. Understand the audience and offer before recommending campaigns. Tie recommendations to funnel outcomes and acquisition economics; label assumptions and design measurable tests. Challenge generic or unprofitable ideas directly and offer stronger alternatives. Persuade ethically: never invent proof, scarcity, guarantees, or customer research. Ask for approval before publishing, contacting prospects, changing campaigns, or spending money.";
+      stored.push({
+        id: revenueId,
+        name: revenueName,
+        description: role,
+        summary: "Customer insight → profitable acquisition → measurable tests and direct-response copy.",
+        shape: "circle",
+        shapeCustomized: false,
+        color: "#E45532",
+        intent: {
+          kind: "sales",
+          expertise: role,
+          url: "https://www.google.com/",
+          needsBrowserOnInit: false,
+          summary: "Customer insight → profitable acquisition → measurable tests and direct-response copy.",
+          suggestions: ["Audit my offer and funnel economics", "Write 3 evidence-based landing page angles", "Design a small acquisition test with a stop rule"],
+          task: task
+        },
+        transcript: []
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    }
+    var valueId = "agent_the_value_architect";
+    var valueName = "The Value Architect";
+    var valuePresent = stored.some(function(bot) { return bot && (bot.id === valueId || String(bot.name || "").toLowerCase() === valueName.toLowerCase()); });
+    if (!valuePresent && deletedBotIds.indexOf(valueId) < 0) {
+      var valueRole = "Founder-level business growth strategist specializing in valuable offers, customer acquisition, pricing, monetization, unit economics, retention, and scalable growth systems.";
+      var valueTask = "Act as The Value Architect, an original business growth strategist inspired by Alex Hormozi's published frameworks. You are not Alex Hormozi and do not represent Acquisition.com. Create genuine customer value and translate it into sustainable acquisition, monetization, retention, and profit. Diagnose the binding constraint before prescribing tactics. Separate evidence from assumptions, challenge weak thinking constructively, and recommend a practical high-leverage experiment. Never claim another business's results transfer automatically. Never change prices, charge customers, commit funds, or change production campaigns without required approval.";
+      stored.push({
+        id: valueId,
+        name: valueName,
+        description: valueRole,
+        summary: "Create genuine value, acquire customers, and grow sustainable profit.",
+        shape: "circle",
+        shapeCustomized: false,
+        color: "#147D79",
+        intent: {
+          kind: "sales",
+          expertise: valueRole,
+          url: "https://www.google.com/",
+          needsBrowserOnInit: false,
+          summary: "Create genuine value, acquire customers, and grow sustainable profit.",
+          suggestions: ["Diagnose my biggest business growth constraint", "Improve my offer and value equation", "Map my acquisition and monetization economics"],
+          task: valueTask
+        },
+        transcript: []
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    }
+    var systemsId = "agent_the_systems_architect";
+    var systemsName = "The Systems Architect";
+    var systemsPresent = stored.some(function(bot) { return bot && (bot.id === systemsId || String(bot.name || "").toLowerCase() === systemsName.toLowerCase()); });
+    if (!systemsPresent && deletedBotIds.indexOf(systemsId) < 0) {
+      var systemsRole = "Principal full-stack, cloud, security, reliability, and distributed-systems architect focused on simple, maintainable, production-ready designs.";
+      var systemsTask = "Act as The Systems Architect, an original principal engineering agent informed by published work from Martin Fowler, Kent C. Dodds, Sam Newman, Simon Brown, Charity Majors, Robert C. Martin, and Kelsey Hightower. Never impersonate them. Design the simplest architecture that meets real requirements and can be operated and evolved. State assumptions, failure modes, security, cost, and tradeoffs. Verify changeable technology details against current primary documentation. Do not deploy, modify infrastructure, perform destructive operations, or incur cost without required approval.";
+      stored.push({
+        id: systemsId,
+        name: systemsName,
+        description: systemsRole,
+        summary: "Simple, secure, reliable systems designed for operation and change.",
+        shape: "circle",
+        shapeCustomized: false,
+        color: "#4768A8",
+        intent: {
+          kind: "coding",
+          expertise: systemsRole,
+          url: "https://github.com/",
+          needsBrowserOnInit: false,
+          summary: "Simple, secure, reliable systems designed for operation and change.",
+          suggestions: ["Review this system design and its tradeoffs", "Design a reliable API and data model", "Find the simplest architecture that meets these requirements"],
+          task: systemsTask
+        },
+        transcript: []
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    }
+    var craftsmanId = "agent_the_engineering_craftsman";
+    var craftsmanName = "The Engineering Craftsman";
+    var craftsmanPresent = stored.some(function(bot) { return bot && (bot.id === craftsmanId || String(bot.name || "").toLowerCase() === craftsmanName.toLowerCase()); });
+    if (!craftsmanPresent && deletedBotIds.indexOf(craftsmanId) < 0) {
+      var craftsmanRole = "Principal software engineer specializing in maintainable frontend architecture, measurable web performance, developer experience, code review, and responsible AI-assisted engineering.";
+      var craftsmanTask = "Act as The Engineering Craftsman, an original engineering agent influenced by Addy Osmani's published work. Never impersonate him. Deliver software that solves user problems, performs measurably, remains maintainable, and evolves safely. Inspect existing code and constraints, make focused changes, and verify correctness. Measure before optimizing, challenge unnecessary complexity, and critically review AI-generated code. Use current primary documentation for changing APIs and standards. Report what was verified and any uncertainty.";
+      stored.push({
+        id: craftsmanId,
+        name: craftsmanName,
+        description: craftsmanRole,
+        summary: "Fast for users, clear for maintainers, and verified with evidence.",
+        shape: "circle",
+        shapeCustomized: false,
+        color: "#7056A8",
+        intent: {
+          kind: "coding",
+          expertise: craftsmanRole,
+          url: "https://github.com/",
+          needsBrowserOnInit: false,
+          summary: "Fast for users, clear for maintainers, and verified with evidence.",
+          suggestions: ["Review this change for correctness and maintainability", "Measure and diagnose this web performance issue", "Improve this developer workflow with a focused change"],
+          task: craftsmanTask
+        },
+        transcript: []
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    }
+    var neuralId = "agent_the_neural_architect";
+    var neuralName = "The Neural Architect";
+    var neuralPresent = stored.some(function(bot) { return bot && (bot.id === neuralId || String(bot.name || "").toLowerCase() === neuralName.toLowerCase()); });
+    if (!neuralPresent && deletedBotIds.indexOf(neuralId) < 0) {
+      var neuralRole = "Principal AI engineer specializing in deep learning, transformers, LLM systems, agent design, model evaluation, and efficient inference.";
+      var neuralTask = "Act as The Neural Architect, an original AI specialist inspired by Andrej Karpathy's public work. Never impersonate him. Understand AI systems from data and tokens through models, evaluation, inference, tools, and operations. Build the smallest useful implementation, establish a baseline, and test hypotheses with evidence. Separate facts, theories, findings, and assumptions. Avoid unnecessary agents and complexity. Never claim an improvement without evaluation evidence or incur compute costs without approval.";
+      stored.push({
+        id: neuralId,
+        name: neuralName,
+        description: neuralRole,
+        summary: "Understand AI from first principles; validate behavior with reproducible evidence.",
+        shape: "circle",
+        shapeCustomized: false,
+        color: "#3E7C91",
+        intent: {
+          kind: "coding",
+          expertise: neuralRole,
+          url: "https://github.com/karpathy",
+          needsBrowserOnInit: false,
+          summary: "Understand AI from first principles; validate behavior with reproducible evidence.",
+          suggestions: ["Explain this Transformer from first principles", "Design an evaluation for this AI feature", "Find the bottleneck in this inference pipeline"],
+          task: neuralTask
+        },
+        transcript: []
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    }
+    return stored;
   }
   function scheduleGooglePersist() {
     if (!googleIdentityUser) return;
@@ -5516,6 +5684,17 @@ dialog.modal-dialog::backdrop {
     }).finally(function() { item.submitting = false; renderCommandQueue(); scheduleQueuedRun(); focusComposer(); });
   }
 
+  fetch("/api/run/jobs").then(readResponse).then(function(data) {
+    (data.jobs || []).filter(function(job) { return job.status === "queued" || job.status === "running"; }).forEach(function(job) {
+      if (queuedRunsAfterActive.some(function(item) { return item.serverJobId === job.id; })) return;
+      var input = job.input || {};
+      var agent = agents.find(function(item) { return item.name === input.botName; }) || activeAgent();
+      queuedRunsAfterActive.push({ id: "restored-" + job.id, serverJobId: job.id, task: input.task || "", displayText: input.task || "Restored queued task", approvedCategories: input.approvedCategories || [], collaborationContext: input.collaborationContext || "", runAgentOverride: agent, conversationAgentId: agent && agent.id, recovered: true });
+    });
+    renderCommandQueue();
+    scheduleQueuedRun();
+  }).catch(function() {});
+
   function clearRunClientState() {
     isRunning = false;
     waitingForRunInput = false;
@@ -6715,15 +6894,36 @@ dialog.modal-dialog::backdrop {
           container.innerHTML = '<div style="color:var(--muted);font-size:12px;">No scheduled tasks yet.</div>';
           return;
         }
-        container.innerHTML = "";
+        var groups = Object.create(null);
         list.forEach(function(item) {
+          var botName = String(item.botName || "Scheduled Agent");
+          var key = botName.toLowerCase();
+          if (!groups[key]) groups[key] = { name: botName, schedules: [] };
+          groups[key].schedules.push(item);
+        });
+        var orderedGroups = Object.keys(groups).map(function(key) { return groups[key]; })
+          .sort(function(a, b) { return a.name.localeCompare(b.name); });
+        container.innerHTML = '<div style="color:var(--muted);font-size:11px;margin-bottom:8px;">All scheduled tasks, grouped by bot</div>';
+        orderedGroups.forEach(function(group) {
+          var section = document.createElement("details");
+          section.className = "schedule-bot-group";
+          section.open = group.name.toLowerCase() === String((activeAgent() || {}).name || "").toLowerCase();
+          var summary = document.createElement("summary");
+          summary.textContent = group.name;
+          var count = document.createElement("span");
+          count.textContent = group.schedules.length + (group.schedules.length === 1 ? " task" : " tasks");
+          summary.appendChild(count);
+          section.appendChild(summary);
+          var taskList = document.createElement("div");
+          taskList.className = "schedule-bot-tasks";
+          group.schedules.forEach(function(item) {
           var row = document.createElement("div");
           row.className = "schedule-item";
           var summaryHtml = item.lastResultSummary
             ? '<br><span style="color:var(--text-secondary);font-size:11px;">Last result: ' + esc(item.lastResultSummary.slice(0, 80)) + "</span>"
             : "";
           row.innerHTML =
-            '<div><strong>' + esc(item.botName) + '</strong>: ' + esc(item.task.slice(0, 60)) +
+            '<div><strong>' + esc(item.task.slice(0, 90)) + '</strong>' +
             '<br><span style="color:var(--muted);font-size:11px;">Next: ' + esc(new Date(item.nextRunAt).toLocaleString()) + (item.recurrenceType === "daily" ? ' · daily at ' + esc(item.localTime) + ' ' + esc(item.timeZone) : '') + ' (' + esc(item.status) + ')</span>' +
             summaryHtml + '</div>' +
             '<button type="button" class="btn-secondary" style="padding:4px 8px;font-size:11px;">Delete</button>';
@@ -6731,7 +6931,10 @@ dialog.modal-dialog::backdrop {
             fetch("/api/schedules/" + encodeURIComponent(item.id), { method: "DELETE" })
               .then(function() { loadSchedulesList(); });
           };
-          container.appendChild(row);
+          taskList.appendChild(row);
+          });
+          section.appendChild(taskList);
+          container.appendChild(section);
         });
       })
       .catch(function() {});
@@ -6980,14 +7183,111 @@ dialog.modal-dialog::backdrop {
       .catch(function() {});
   };
   document.getElementById("header-cost-chip").onclick = function() {
-    document.getElementById("settings-modal").showModal();
     loadUsage();
   };
   document.getElementById("observer-chip").onclick = function() {
-    var transcript = document.getElementById("messages");
-    var turns = transcript ? transcript.querySelectorAll(".message").length : 0;
-    alert("Conversation Observer\n\nWatching this conversation locally (" + turns + " visible message(s)). It does not start model runs or edit bot voice/playbooks automatically. Ask a bot to review the conversation when you want a proposed improvement; approve any playbook or soul.md change before saving it.");
+    document.getElementById("observer-modal").showModal();
+    loadObserverSuggestions();
   };
+  function loadObserverSuggestions() {
+    fetch("/api/observer/suggestions").then(readResponse).then(function(data) {
+      var rows = data.suggestions || [];
+      var count = document.getElementById("observer-pending-count");
+      count.hidden = !rows.length;
+      count.textContent = String(rows.length);
+      var list = document.getElementById("observer-suggestions");
+      if (!rows.length) {
+        list.innerHTML = '<div class="empty-state" style="padding:24px;text-align:center;color:var(--muted);">No pending suggestions. The observer turns explicit corrections into drafts without running a model.</div>';
+        return;
+      }
+      list.innerHTML = rows.map(function(item) {
+        return '<article class="observer-card" data-observer-id="' + esc(item.id) + '">' +
+          '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;"><strong>' + esc(item.botName) + ' · ' + (item.kind === "voice" ? 'Voice suggestion' : 'Playbook suggestion') + '</strong><span style="color:var(--muted);font-size:11px;">' + esc(new Date(item.createdAt).toLocaleString()) + '</span></div>' +
+          '<p>' + esc(item.instruction) + '</p><div style="font-size:11px;color:var(--muted);">Evidence: ' + esc((item.evidence || []).join(", ")) + '</div>' +
+          '<div class="observer-card-actions"><button type="button" class="btn-secondary observer-decision" data-decision="reject">Dismiss</button><button type="button" class="btn-primary observer-decision" data-decision="approve">Approve</button></div></article>';
+      }).join("");
+    }).catch(function(error) {
+      document.getElementById("observer-suggestions").textContent = error.message || "Could not load observer suggestions.";
+    });
+  }
+  document.getElementById("observer-suggestions").addEventListener("click", function(event) {
+    var button = event.target.closest(".observer-decision");
+    if (!button) return;
+    var card = button.closest("[data-observer-id]");
+    button.disabled = true;
+    fetch("/api/observer/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: card.getAttribute("data-observer-id"), decision: button.getAttribute("data-decision") }) })
+      .then(readResponse).then(function(result) {
+        loadObserverSuggestions();
+        if (result.target) status.textContent = "Approved and saved to " + result.target;
+      }).catch(function(error) { button.disabled = false; status.textContent = error.message || "Could not save observer decision."; });
+  });
+  function loadWorkflows() {
+    fetch("/api/workflows").then(readResponse).then(function(data) {
+      var list = document.getElementById("workflow-list");
+      if (!(data.workflows || []).length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);">No workflows yet. Save a task graph draft above.</div>'; return; }
+      list.innerHTML = data.workflows.map(function(workflow) {
+        var tasks = (workflow.tasks || []).map(function(task) {
+          var retry = task.status === "failed" ? '<button type="button" class="btn-secondary workflow-retry" data-workflow-id="' + esc(workflow.id) + '" data-task-id="' + esc(task.id) + '">Retry failed step</button>' : '';
+          return '<li style="margin:5px 0;"><strong>' + esc(task.id) + '</strong> · ' + esc(task.botName) + ' · ' + esc(task.status) + (task.error ? ' <span style="color:var(--red);">' + esc(task.error) + '</span>' : '') + ' ' + retry + '</li>';
+        }).join("");
+        var start = workflow.status === "draft" ? '<button type="button" class="btn-primary workflow-start" data-workflow-id="' + esc(workflow.id) + '">Start workflow</button>' : '';
+        var dispatch = workflow.status === "running" ? '<button type="button" class="btn-secondary workflow-dispatch" data-workflow-id="' + esc(workflow.id) + '">Dispatch ready steps</button>' : '';
+        return '<article class="observer-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;"><strong>' + esc(workflow.status.toUpperCase()) + ' · ' + esc(workflow.id.slice(0, 8)) + '</strong><span>' + start + dispatch + '</span></div><ol style="padding-left:20px;margin:10px 0 0;">' + tasks + '</ol></article>';
+      }).join("");
+    }).catch(function(error) { document.getElementById("workflow-list").textContent = error.message || "Could not load workflows."; });
+  }
+  document.getElementById("header-workflow-btn").onclick = function() { document.getElementById("workflow-modal").showModal(); loadWorkflows(); };
+  document.getElementById("workflow-refresh-btn").onclick = loadWorkflows;
+  document.getElementById("workflow-create-btn").onclick = function() {
+    var statusEl = document.getElementById("workflow-status");
+    var tasks;
+    try { tasks = JSON.parse(document.getElementById("workflow-json").value); }
+    catch (_) { statusEl.textContent = "Enter valid JSON for the task list."; return; }
+    statusEl.textContent = "Saving draft…";
+    fetch("/api/workflows", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tasks: tasks }) })
+      .then(readResponse).then(function() { statusEl.textContent = "Draft saved. Review its steps, then start it when ready."; loadWorkflows(); })
+      .catch(function(error) { statusEl.textContent = error.message || "Could not save workflow draft."; });
+  };
+  document.getElementById("workflow-list").addEventListener("click", function(event) {
+    var start = event.target.closest(".workflow-start");
+    if (start) {
+      start.disabled = true;
+      fetch("/api/workflows/" + encodeURIComponent(start.getAttribute("data-workflow-id")) + "/start", { method: "POST" }).then(readResponse)
+        .then(function() { document.getElementById("workflow-status").textContent = "Workflow started. The queue advances steps after their dependencies finish."; loadWorkflows(); })
+        .catch(function(error) { start.disabled = false; document.getElementById("workflow-status").textContent = error.message || "Could not start workflow."; });
+      return;
+    }
+    var dispatch = event.target.closest(".workflow-dispatch");
+    if (dispatch) {
+      dispatch.disabled = true;
+      fetch("/api/workflows/" + encodeURIComponent(dispatch.getAttribute("data-workflow-id")) + "/dispatch", { method: "POST" }).then(readResponse)
+        .then(function(data) { document.getElementById("workflow-status").textContent = data.queuedTaskIds.length ? "Dispatched " + data.queuedTaskIds.join(", ") + "." : "No ready steps need dispatch."; loadWorkflows(); })
+        .catch(function(error) { dispatch.disabled = false; document.getElementById("workflow-status").textContent = error.message || "Could not dispatch steps."; });
+      return;
+    }
+    var retry = event.target.closest(".workflow-retry");
+    if (!retry) return;
+    var workflowId = retry.getAttribute("data-workflow-id"), taskId = retry.getAttribute("data-task-id");
+    fetch("/api/workflows/" + encodeURIComponent(workflowId)).then(readResponse).then(function(data) {
+      var task = data.workflow.tasks.find(function(item) { return item.id === taskId; });
+      var categories = task && task.approvedCategories || [];
+      if (!window.confirm("Retry this failed step? External actions may have already happened. Required approvals: " + (categories.length ? categories.join(", ") : "none detected") + ".")) return;
+      return fetch("/api/workflows/" + encodeURIComponent(workflowId) + "/tasks/" + encodeURIComponent(taskId) + "/retry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmRepeat: true, approvedCategories: categories }) }).then(readResponse);
+    }).then(function(result) { if (result) { document.getElementById("workflow-status").textContent = "Retry queued."; loadWorkflows(); } }).catch(function(error) { document.getElementById("workflow-status").textContent = error.message || "Could not retry task."; });
+  });
+  loadObserverSuggestions();
+  window.setInterval(loadObserverSuggestions, 30000);
+  window.setInterval(function() { if (document.getElementById("workflow-modal").open) loadWorkflows(); }, 10000);
+  fetch("/api/status").then(readResponse).then(function(state) {
+    if (!state.sharedEventsEnabled || !window.EventSource) return;
+    var sharedEvents = new EventSource("/api/agent/events");
+    sharedEvents.addEventListener("observer.suggestion.proposed", loadObserverSuggestions);
+    sharedEvents.addEventListener("observer.suggestion.reviewed", loadObserverSuggestions);
+    sharedEvents.addEventListener("workflow.created", loadWorkflows);
+    sharedEvents.addEventListener("workflow.started", loadWorkflows);
+    sharedEvents.addEventListener("workflow.task.queued", loadWorkflows);
+    sharedEvents.addEventListener("workflow.task.completed", loadWorkflows);
+  }).catch(function() {});
   loadUsage();
   window.setInterval(loadUsage, 30000);
 
