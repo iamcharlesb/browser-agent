@@ -2705,32 +2705,33 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   /**
    * Thumbs up / thumbs down on one agent reply. This is the cheapest signal the bot gets about
    * whether it read the user's intent, so it goes straight into the per-bot learning KB and comes
-   * back as context on the next run - a dislike becomes a "mistake", a like becomes a "learning".
+   * back as context on the next run - a correction gives the bot explicit guidance to apply.
    */
   if (req.method === "POST" && url.pathname === "/api/feedback") {
     try {
       const raw = (await readJsonBody(req)) as Record<string, unknown> | null;
-      const kind = raw?.kind === "like" ? "like" : raw?.kind === "dislike" ? "dislike" : null;
+      const kind = raw?.kind === "like" ? "like" : raw?.kind === "correction" || raw?.kind === "dislike" ? "correction" : null;
       if (!kind) {
-        sendJson(res, 400, { detail: 'kind must be "like" or "dislike".' });
+        sendJson(res, 400, { detail: 'kind must be "like" or "correction".' });
         return;
       }
       const botName = typeof raw?.botName === "string" && raw.botName.trim() ? raw.botName.slice(0, 120) : "default";
       const summary = typeof raw?.summary === "string" ? raw.summary.slice(0, 400) : "";
       const reason = typeof raw?.reason === "string" ? raw.reason.slice(0, 400).trim() : "";
+      if (kind === "correction" && !reason) {
+        sendJson(res, 400, { detail: "Describe the correction you want the bot to apply." });
+        return;
+      }
       if (!summary && !reason) {
         sendJson(res, 400, { detail: "Nothing to record: send the reply text or a reason." });
         return;
       }
 
-      // A dislike with a stated reason is the most useful thing here - keep the reason first so it
-      // survives the KB's per-entry truncation.
+      // Keep the user's correction first so it survives the KB's per-entry truncation.
       const text =
         kind === "like"
           ? `user liked: ${summary}`
-          : reason
-            ? `user disliked (${reason}): ${summary}`
-            : `user disliked: ${summary}`;
+          : `user correction — apply this guidance: ${reason}; reply being corrected: ${summary}`;
 
       const learningBotId = botIdFromName(botName);
       await updateLearningKb(LEARNINGS_DIR, learningBotId, (kb) =>
@@ -2747,7 +2748,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         message:
           kind === "like"
             ? "Noted — I'll keep doing that."
-            : "Noted — I'll avoid that next time."
+            : "Correction saved — I'll apply that guidance in future replies."
       });
     } catch (err) {
       sendJson(res, 400, { detail: (err as Error).message });

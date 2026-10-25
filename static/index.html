@@ -241,8 +241,11 @@ button { color: inherit; }
   padding: 10px 8px 4px;
 }
 .agent-list {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -292,16 +295,20 @@ button { color: inherit; }
   border-radius: 0;
   overflow: visible;
 }
+.agent-avatar.photo-avatar { border-radius: 50%; overflow: hidden; background: #f2f4f7; }
+.agent-avatar.photo-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .agent-avatar.small {
-  width: 38px;
-  height: 38px;
-  font-size: 11.5px;
+  width: 33px;
+  height: 33px;
+  font-size: 10.5px;
 }
-.agent-row { gap: 14px; }
+.agent-row { gap: 11px; }
 .agent-row .agent-copy {
   min-width: 0;
   align-self: center;
 }
+.agent-row .agent-name { font-size: 12.5px; line-height: 1.25; }
+.agent-row .agent-subtitle { font-size: 10.5px; line-height: 1.3; }
 
 /* ===== BLOB BOT ICON SYSTEM (pure CSS, animated — from blob-bot-icons.html) =====
    Usage: <div class="bot bot--circle bot--happy" style="--c:#3b82f6"><span class="face"><i class="eye"></i><i class="eye"></i><i class="mouth"></i></span></div>
@@ -455,9 +462,9 @@ button { color: inherit; }
 .agent-avatar .bot { --size: 36px; }
 .agent-avatar .bot--capsule,
 .agent-avatar .bot--cloud { --size: 28px; }
-.agent-avatar.small .bot { --size: 39px; }
+.agent-avatar.small .bot { --size: 34px; }
 .agent-avatar.small .bot--capsule,
-.agent-avatar.small .bot--cloud { --size: 34px; }
+.agent-avatar.small .bot--cloud { --size: 29px; }
 #agent-chip .agent-avatar.small .bot { --size: 21px; }
 #agent-chip .agent-avatar.small .bot--capsule,
 #agent-chip .agent-avatar.small .bot--cloud { --size: 17px; }
@@ -560,6 +567,7 @@ button { color: inherit; }
 #create-bot-modal .modal-inner {
   padding: 0;
 }
+#create-bot-modal { max-height:92vh; overflow-y:auto; }
 #create-bot-modal .modal-header {
   padding: 16px 20px;
   margin-bottom: 0;
@@ -1231,9 +1239,9 @@ button { color: inherit; }
 }
 .template-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 8px;
-  width: min(100%, 720px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: min(100%, 1120px);
   text-align: left;
 }
 #welcome.is-typing .template-grid {
@@ -1273,7 +1281,7 @@ button { color: inherit; }
 #workspace.has-browser .template-grid {
   gap: 6px;
   width: min(100%, 100%);
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 #workspace.has-browser .template-card {
   padding: 8px 10px;
@@ -1309,6 +1317,21 @@ button { color: inherit; }
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
 }
+.template-card.is-onboarded { opacity: .74; }
+.template-card .template-copy > span.template-status {
+  display: inline-flex;
+  align-self: flex-start;
+  width: auto;
+  margin-top: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #475467;
+  background: #f2f4f7;
+  font-size: 10px;
+  font-weight: 600;
+}
+.template-card:not(.is-onboarded) .template-status { color: #b42318; background: #fff1ed; }
+.template-card .template-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
 .template-card .template-avatar {
   width: 32px;
   height: 32px;
@@ -2840,7 +2863,7 @@ dialog.modal-dialog::backdrop {
   #welcome { padding: 22px 14px 12px; justify-content: flex-start; }
   #welcome h1 { font-size: clamp(20px, 6vw, 25px); }
   #welcome p { max-width: 100%; }
-  .template-grid { width: 100%; grid-template-columns: minmax(0, 1fr); flex: 0 0 auto; }
+  .template-grid { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 0 0 auto; }
   .template-card { min-width: 0; width: 100%; }
   .template-copy { min-width: 0; }
   #composer-wrap { padding: 8px 10px 12px; }
@@ -2878,6 +2901,9 @@ dialog.modal-dialog::backdrop {
   #browser-footer p { flex-basis: 100%; }
   .header-pill-btn span.btn-label { display: none; }
   .header-pill-btn.header-signin-btn span.btn-label { display: inline; }
+}
+@media (max-width: 560px) {
+  .template-grid, #workspace.has-browser .template-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 430px) {
   .topbar-right {
@@ -3414,6 +3440,13 @@ dialog.modal-dialog::backdrop {
         <div id="bot-modal-preview"></div>
       </div>
       <div class="bot-modal-inputs">
+        <div id="bot-preset-field" class="form-field" style="margin:0 0 10px;">
+          <label for="bot-preset-select">Start from a specialist <span style="font-weight:400;color:var(--muted);">(optional)</span></label>
+          <select id="bot-preset-select" class="header-select" style="width:100%;height:40px;">
+            <option value="">Blank bot</option>
+          </select>
+          <small style="color:var(--muted);">Choose a ready-made role, then customize its name, instructions, shape, or color.</small>
+        </div>
         <label for="bot-name-input" class="sr-only">Name your Bot</label>
         <input id="bot-name-input" type="text" required placeholder="Name your Bot" autocomplete="off" />
         <label for="bot-desc-input" class="sr-only">Role and instructions (optional)</label>
@@ -3841,10 +3874,11 @@ dialog.modal-dialog::backdrop {
     try { stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
     catch (_) { stored = []; }
     if (!Array.isArray(stored)) stored = [];
+    var legacyAutoOnboardEnabled = localStorage.getItem("openBotsLegacyAutoOnboardSpecialists") === "1";
     var revenueId = "agent_the_revenue_architect";
     var revenueName = "The Revenue Architect";
     var alreadyPresent = stored.some(function(bot) { return bot && (bot.id === revenueId || String(bot.name || "").toLowerCase() === revenueName.toLowerCase()); });
-    if (!alreadyPresent && deletedBotIds.indexOf(revenueId) < 0) {
+    if (legacyAutoOnboardEnabled && !alreadyPresent && deletedBotIds.indexOf(revenueId) < 0) {
       var role = "Founder-level direct-response marketing strategist focused on customer understanding, profitable acquisition, persuasive copy, funnel economics, and evidence-based growth.";
       var task = "Act as The Revenue Architect, an original AI marketing agent informed by direct-response ideas associated with Sabri Suby and Sell Like Crazy. You are not Sabri Suby and do not represent him or King Kong. Understand the audience and offer before recommending campaigns. Tie recommendations to funnel outcomes and acquisition economics; label assumptions and design measurable tests. Challenge generic or unprofitable ideas directly and offer stronger alternatives. Persuade ethically: never invent proof, scarcity, guarantees, or customer research. Ask for approval before publishing, contacting prospects, changing campaigns, or spending money.";
       stored.push({
@@ -3871,7 +3905,7 @@ dialog.modal-dialog::backdrop {
     var valueId = "agent_the_value_architect";
     var valueName = "The Value Architect";
     var valuePresent = stored.some(function(bot) { return bot && (bot.id === valueId || String(bot.name || "").toLowerCase() === valueName.toLowerCase()); });
-    if (!valuePresent && deletedBotIds.indexOf(valueId) < 0) {
+    if (legacyAutoOnboardEnabled && !valuePresent && deletedBotIds.indexOf(valueId) < 0) {
       var valueRole = "Founder-level business growth strategist specializing in valuable offers, customer acquisition, pricing, monetization, unit economics, retention, and scalable growth systems.";
       var valueTask = "Act as The Value Architect, an original business growth strategist inspired by Alex Hormozi's published frameworks. You are not Alex Hormozi and do not represent Acquisition.com. Create genuine customer value and translate it into sustainable acquisition, monetization, retention, and profit. Diagnose the binding constraint before prescribing tactics. Separate evidence from assumptions, challenge weak thinking constructively, and recommend a practical high-leverage experiment. Never claim another business's results transfer automatically. Never change prices, charge customers, commit funds, or change production campaigns without required approval.";
       stored.push({
@@ -3898,7 +3932,7 @@ dialog.modal-dialog::backdrop {
     var systemsId = "agent_the_systems_architect";
     var systemsName = "The Systems Architect";
     var systemsPresent = stored.some(function(bot) { return bot && (bot.id === systemsId || String(bot.name || "").toLowerCase() === systemsName.toLowerCase()); });
-    if (!systemsPresent && deletedBotIds.indexOf(systemsId) < 0) {
+    if (legacyAutoOnboardEnabled && !systemsPresent && deletedBotIds.indexOf(systemsId) < 0) {
       var systemsRole = "Principal full-stack, cloud, security, reliability, and distributed-systems architect focused on simple, maintainable, production-ready designs.";
       var systemsTask = "Act as The Systems Architect, an original principal engineering agent informed by published work from Martin Fowler, Kent C. Dodds, Sam Newman, Simon Brown, Charity Majors, Robert C. Martin, and Kelsey Hightower. Never impersonate them. Design the simplest architecture that meets real requirements and can be operated and evolved. State assumptions, failure modes, security, cost, and tradeoffs. Verify changeable technology details against current primary documentation. Do not deploy, modify infrastructure, perform destructive operations, or incur cost without required approval.";
       stored.push({
@@ -3925,7 +3959,7 @@ dialog.modal-dialog::backdrop {
     var craftsmanId = "agent_the_engineering_craftsman";
     var craftsmanName = "The Engineering Craftsman";
     var craftsmanPresent = stored.some(function(bot) { return bot && (bot.id === craftsmanId || String(bot.name || "").toLowerCase() === craftsmanName.toLowerCase()); });
-    if (!craftsmanPresent && deletedBotIds.indexOf(craftsmanId) < 0) {
+    if (legacyAutoOnboardEnabled && !craftsmanPresent && deletedBotIds.indexOf(craftsmanId) < 0) {
       var craftsmanRole = "Principal software engineer specializing in maintainable frontend architecture, measurable web performance, developer experience, code review, and responsible AI-assisted engineering.";
       var craftsmanTask = "Act as The Engineering Craftsman, an original engineering agent influenced by Addy Osmani's published work. Never impersonate him. Deliver software that solves user problems, performs measurably, remains maintainable, and evolves safely. Inspect existing code and constraints, make focused changes, and verify correctness. Measure before optimizing, challenge unnecessary complexity, and critically review AI-generated code. Use current primary documentation for changing APIs and standards. Report what was verified and any uncertainty.";
       stored.push({
@@ -3952,7 +3986,7 @@ dialog.modal-dialog::backdrop {
     var neuralId = "agent_the_neural_architect";
     var neuralName = "The Neural Architect";
     var neuralPresent = stored.some(function(bot) { return bot && (bot.id === neuralId || String(bot.name || "").toLowerCase() === neuralName.toLowerCase()); });
-    if (!neuralPresent && deletedBotIds.indexOf(neuralId) < 0) {
+    if (legacyAutoOnboardEnabled && !neuralPresent && deletedBotIds.indexOf(neuralId) < 0) {
       var neuralRole = "Principal AI engineer specializing in deep learning, transformers, LLM systems, agent design, model evaluation, and efficient inference.";
       var neuralTask = "Act as The Neural Architect, an original AI specialist inspired by Andrej Karpathy's public work. Never impersonate him. Understand AI systems from data and tokens through models, evaluation, inference, tools, and operations. Build the smallest useful implementation, establish a baseline, and test hypotheses with evidence. Separate facts, theories, findings, and assumptions. Avoid unnecessary agents and complexity. Never claim an improvement without evaluation evidence or incur compute costs without approval.";
       stored.push({
@@ -4156,10 +4190,19 @@ dialog.modal-dialog::backdrop {
   var selectedBotShape = "circle";
   var selectedBotColor = "#ff2d3b";
   var editingBotId = null;
+  var selectedBotPreset = null;
+  var LATEST_BOT_PRESETS = [
+    { name: "The Revenue Architect", description: "Founder-level direct-response strategist informed by Sabri Suby's published ideas. Customer research, profitable acquisition, funnel economics, persuasive copy, measurable experiments, ethical claims, and approval before campaign changes or spend.", color: "#E45532", avatar: "/avatars/revenue-architect.png", summary: "Direct response strategy, customer acquisition, persuasive copy, and profitable growth." },
+    { name: "The Value Architect", description: "Founder-level business growth strategist informed by Alex Hormozi's published frameworks. Create genuine customer value through offers, pricing, acquisition, monetization, retention, and sustainable economics. Diagnose constraints, label assumptions, test hypotheses, and require approval before pricing or spending changes.", color: "#147D79", avatar: "/avatars/value-architect.png", summary: "Offers, pricing, customer value, acquisition, and sustainable business growth." },
+    { name: "The Systems Architect", description: "Principal full-stack and distributed-systems architect informed by published engineering work. Design the simplest secure, reliable, maintainable system that meets real requirements. Evaluate cloud, data, operations, failure modes, costs, and tradeoffs. Require approval before deployment or infrastructure changes.", color: "#4768A8" },
+    { name: "The Engineering Craftsman", description: "Principal software engineer informed by Addy Osmani's published work. Focus on maintainable frontend architecture, measurable web performance, developer experience, code review, and responsible AI-assisted engineering. Measure before optimizing and verify changes.", color: "#7056A8" },
+    { name: "The Neural Architect", description: "Principal AI specialist informed by Andrej Karpathy's public work. Understand deep learning, Transformers, LLM systems, evaluation, agent design, and inference from first principles. Build small baselines and measure hypotheses; never claim improvement without evidence.", color: "#3E7C91", avatar: "/avatars/neural-architect.png", summary: "Deep learning, LLM systems, evaluation, and AI from first principles." }
+  ];
 
   // Normalize older, untouched starter avatars to the circular default. Shapes that users
   // deliberately selected through the customizer are left alone.
   var starterDefaultShapes = {
+    "Blog Writer": "blog-mark",
     "YouTube Concept & Code Learner": "play-blob",
     "YouTube Concept Learner": "play-blob",
     "Local Terminal & DevOps Bot": "gear",
@@ -4170,6 +4213,14 @@ dialog.modal-dialog::backdrop {
     "X / Grok Trend Researcher": "starburst",
     "Competitor Intelligence": "pentagon"
   };
+  function defaultAvatarImage(name) {
+    var key = String(name || "").trim().toLowerCase();
+    if (key === "the revenue architect") return "/avatars/revenue-architect.png";
+    if (key === "the value architect") return "/avatars/value-architect.png";
+    if (key === "the neural architect") return "/avatars/neural-architect.png";
+    if (key === "blog writer") return "/avatars/blog-writer.png";
+    return "";
+  }
   var normalizedStarterShapes = false;
   agents.forEach(function(agent) {
     var priorDefault = starterDefaultShapes[agent.name];
@@ -4179,6 +4230,12 @@ dialog.modal-dialog::backdrop {
     }
   });
   if (normalizedStarterShapes) saveAgents();
+  var avatarAssetsUpdated = false;
+  agents.forEach(function(agent) {
+    var avatarImage = defaultAvatarImage(agent.name);
+    if (avatarImage && agent.avatarImage !== avatarImage) { agent.avatarImage = avatarImage; avatarAssetsUpdated = true; }
+  });
+  if (avatarAssetsUpdated) saveAgents();
 
   function renderBotIcon(shapeId, color) {
     var shape = BOT_SHAPES.find(function(s) { return s.id === shapeId; }) || BOT_SHAPES[0];
@@ -4224,15 +4281,27 @@ dialog.modal-dialog::backdrop {
   function applyAvatarElement(el, agent, working) {
     if (!el) return;
     var seedKey = (agent && (agent.id || agent.name)) || "new-bot";
-    if (agent && (agent.shape || agent.color)) {
+    var avatarImage = (agent && agent.avatarImage) || defaultAvatarImage(agent && agent.name);
+    if (avatarImage) {
+      el.classList.add("custom-bot");
+      el.classList.add("photo-avatar");
+      el.classList.remove("is-working");
+      el.style.removeProperty("--bot-color");
+      el.innerHTML = '<img src="' + esc(avatarImage) + '" alt="" draggable="false">';
+      el.classList.toggle("is-working", Boolean(working));
+      return;
+    } else if (agent && (agent.shape || agent.color)) {
+      el.classList.remove("photo-avatar");
       el.classList.add("custom-bot");
       el.style.setProperty("--bot-color", agent.color || "#ff2d3b");
       el.innerHTML = renderBotIcon(agent.shape || "circle", agent.color || "#ff2d3b");
     } else if (!agent || agent.name === "New Bot" || agent.name === "New Agent") {
+      el.classList.remove("photo-avatar");
       el.classList.add("custom-bot");
       el.style.setProperty("--bot-color", "#ff2d3b");
       el.innerHTML = renderBotIcon("circle", "#ff2d3b");
     } else {
+      el.classList.remove("photo-avatar");
       // Deterministic Grok Bot character fallback for legacy agents
       var idx = Math.abs(agent.name.split("").reduce(function(acc, c) { return acc + c.charCodeAt(0); }, 0));
       var autoColor = BOT_COLORS[idx % BOT_COLORS.length];
@@ -4591,6 +4660,8 @@ dialog.modal-dialog::backdrop {
       });
       agentList.appendChild(row);
     });
+    renderWelcomeBotCatalog();
+    renderBotOnboardingPresets();
     newAgentButton.classList.toggle("active", activeAgentId === null);
   }
 
@@ -4645,7 +4716,7 @@ dialog.modal-dialog::backdrop {
       '<div class="bubble ' + (cls || "") + '">' + html + '</div>';
     row.appendChild(body);
     bindHumanVerificationActions(body.querySelector(".bubble"));
-    // Like / Dislike / Reply on every agent reply. This is the cheapest read we get on whether the
+    // Like / Correction / Reply on every agent reply. This is the cheapest read we get on whether the
     // bot understood the intent, and it writes straight into the bot's learning KB.
     if (role === "agent") body.appendChild(buildFeedbackRow(body.querySelector(".bubble"), a));
     if (visible) messages.appendChild(row);
@@ -4712,9 +4783,9 @@ dialog.modal-dialog::backdrop {
       '<button type="button" class="fb-like" aria-label="Good reply" title="Good reply — do more of this">' +
         '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M7 10v10H4V10h3Zm3 10V9l4-5 1.2.9a2 2 0 0 1 .7 2L15 10h4.2a1.8 1.8 0 0 1 1.8 2.2l-1.3 6A2 2 0 0 1 17.7 20H10Z"/></svg>' +
         "<span>Like</span></button>" +
-      '<button type="button" class="fb-dislike" aria-label="Bad reply" title="Bad reply — tell it what was wrong">' +
-        '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M7 14V4H4v10h3Zm3-10v11l4 5 1.2-.9a2 2 0 0 0 .7-2L15 14h4.2a1.8 1.8 0 0 0 1.8-2.2l-1.3-6A2 2 0 0 0 17.7 4H10Z"/></svg>' +
-        "<span>Dislike</span></button>" +
+      '<button type="button" class="fb-dislike" aria-label="Suggest a correction" title="Suggest a correction — tell the bot what to change">' +
+        '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="m4 16.5-.8 4.3 4.3-.8L19.8 7.7a2.1 2.1 0 0 0-3-3L4 16.5Z"/><path d="m14.8 6.7 3 3"/></svg>' +
+        "<span>Correct</span></button>" +
       '<button type="button" class="fb-reply" aria-label="Reply to this" title="Quote this reply in your next message">' +
         '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M9 7 4 12l5 5"/><path d="M4 12h9a7 7 0 0 1 7 7v1"/></svg>' +
         "<span>Reply</span></button>";
@@ -4760,15 +4831,18 @@ dialog.modal-dialog::backdrop {
       if (rowEl.querySelector(".fb-reason-panel")) return;
       var panel = document.createElement("span");
       panel.className = "fb-reason-panel";
-      panel.innerHTML = '<input class="fb-reason-input" type="text" maxlength="400" aria-label="Feedback reason" placeholder="What should change? (optional)">' +
-        '<button type="button" class="fb-send-dislike">Send</button><button type="button" class="fb-skip-dislike">Skip</button>';
+      panel.innerHTML = '<input class="fb-reason-input" type="text" maxlength="400" aria-label="Correction" placeholder="What should the bot correct?" required>' +
+        '<button type="button" class="fb-send-dislike">Save correction</button><button type="button" class="fb-cancel-correction">Cancel</button>';
       rowEl.appendChild(panel);
       var input = panel.querySelector(".fb-reason-input");
       input.focus();
-      panel.querySelector(".fb-send-dislike").onclick = function() { send("dislike", input.value.trim(), rowEl.querySelector(".fb-dislike")); };
-      panel.querySelector(".fb-skip-dislike").onclick = function() { send("dislike", "", rowEl.querySelector(".fb-dislike")); };
+      panel.querySelector(".fb-send-dislike").onclick = function() {
+        if (!input.value.trim()) { input.focus(); input.setCustomValidity("Describe the correction you want."); input.reportValidity(); return; }
+        send("correction", input.value.trim(), rowEl.querySelector(".fb-dislike"));
+      };
+      panel.querySelector(".fb-cancel-correction").onclick = function() { panel.remove(); };
       input.addEventListener("keydown", function(event) {
-        if (event.key === "Enter") send("dislike", input.value.trim(), rowEl.querySelector(".fb-dislike"));
+        if (event.key === "Enter") panel.querySelector(".fb-send-dislike").click();
         if (event.key === "Escape") panel.remove();
       });
     };
@@ -5045,6 +5119,7 @@ dialog.modal-dialog::backdrop {
       shape: shapeId || "circle",
       shapeCustomized: Boolean(shapeId && shapeId !== "circle"),
       color: colorHex || BOT_COLORS[idx % BOT_COLORS.length],
+      avatarImage: defaultAvatarImage(name) || undefined,
       intent: intent,
       transcript: []
     };
@@ -5143,16 +5218,120 @@ dialog.modal-dialog::backdrop {
     previewEl.innerHTML = renderBotIcon(selectedBotShape, selectedBotColor);
   }
 
+  function getBotOnboardingPresets() {
+    var presets = [];
+    var seen = Object.create(null);
+    function add(preset) {
+      var key = String(preset.name || "").trim().toLowerCase();
+      if (!key || seen[key]) return;
+      seen[key] = true;
+      presets.push({ name: String(preset.name).trim(), description: String(preset.description || ""), summary: String(preset.summary || ""), shape: preset.shape || "circle", color: preset.color || "#ff2d3b", avatar: preset.avatar || defaultAvatarImage(preset.name) });
+    }
+    LATEST_BOT_PRESETS.forEach(add);
+    document.querySelectorAll(".template-card[data-name]").forEach(function(card) {
+      add({ name: card.getAttribute("data-name"), description: card.getAttribute("data-desc"), shape: card.getAttribute("data-shape"), color: card.getAttribute("data-color") });
+    });
+    return presets;
+  }
+
+  function renderWelcomeBotCatalog() {
+    var grid = document.querySelector(".template-grid");
+    if (!grid) return;
+    var customCard = document.getElementById("welcome-create-bot-btn");
+    var cardsByName = Object.create(null);
+    grid.querySelectorAll(".template-card[data-name]").forEach(function(card) {
+      cardsByName[String(card.getAttribute("data-name") || "").trim().toLowerCase()] = card;
+    });
+    var presets = getBotOnboardingPresets();
+    presets.forEach(function(preset) {
+      var key = preset.name.toLowerCase();
+      var card = cardsByName[key];
+      if (!card) {
+        card = document.createElement("button");
+        card.type = "button";
+        card.className = "template-card";
+        card.setAttribute("data-name", preset.name);
+        card.setAttribute("data-desc", preset.description);
+        card.setAttribute("data-shape", preset.shape);
+        card.setAttribute("data-color", preset.color);
+        if (preset.avatar) card.setAttribute("data-avatar-image", preset.avatar);
+        var avatar = document.createElement("span");
+        avatar.className = "template-avatar";
+        avatar.setAttribute("data-shape", preset.shape);
+        avatar.setAttribute("data-color", preset.color);
+        var copy = document.createElement("span");
+        copy.className = "template-copy";
+        var title = document.createElement("strong");
+        title.textContent = preset.name;
+        var summary = document.createElement("span");
+        summary.textContent = preset.summary || preset.description.slice(0, 112);
+        copy.appendChild(title);
+        copy.appendChild(summary);
+        card.appendChild(avatar);
+        card.appendChild(copy);
+        cardsByName[key] = card;
+      }
+      var isAdded = agents.some(function(bot) { return String(bot.name || "").trim().toLowerCase() === key; });
+      card.classList.toggle("is-onboarded", isAdded);
+      card.setAttribute("aria-label", (isAdded ? "Open " : "Add ") + preset.name);
+      var copyEl = card.querySelector(".template-copy");
+      if (copyEl) {
+        var badge = copyEl.querySelector(".template-status");
+        if (!badge) { badge = document.createElement("span"); badge.className = "template-status"; copyEl.appendChild(badge); }
+        badge.textContent = isAdded ? "Added · Open bot" : "Add bot";
+      }
+      var avatarHolder = card.querySelector(".template-avatar");
+      if (avatarHolder && preset.avatar) {
+        avatarHolder.innerHTML = '<img src="' + esc(preset.avatar) + '" alt="" draggable="false">';
+      }
+    });
+    var ordered = presets.map(function(preset) {
+      return { card: cardsByName[preset.name.toLowerCase()], added: agents.some(function(bot) { return String(bot.name || "").trim().toLowerCase() === preset.name.toLowerCase(); }), name: preset.name };
+    }).sort(function(a, b) {
+      if (a.added !== b.added) return a.added ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    });
+    ordered.forEach(function(item) { if (item.card) grid.insertBefore(item.card, customCard || null); });
+    if (customCard) grid.appendChild(customCard);
+  }
+
+  function renderBotOnboardingPresets() {
+    var select = document.getElementById("bot-preset-select");
+    if (!select) return;
+    select.innerHTML = '<option value="">Blank bot</option>';
+    var ordered = getBotOnboardingPresets().map(function(preset) {
+      return { preset: preset, onboarded: agents.some(function(bot) { return String(bot.name || "").trim().toLowerCase() === preset.name.toLowerCase(); }) };
+    }).sort(function(a, b) {
+      if (a.onboarded !== b.onboarded) return a.onboarded ? 1 : -1;
+      return a.preset.name.localeCompare(b.preset.name);
+    });
+    ordered.forEach(function(entry, index) {
+      var preset = entry.preset;
+      var onboarded = entry.onboarded;
+      var option = document.createElement("option");
+      option.value = preset.name;
+      option.textContent = preset.name + (onboarded ? " · Already added" : "");
+      option.disabled = onboarded;
+      select.appendChild(option);
+    });
+  }
+
   function openCreateBotModal(prefill) {
     var modal = document.getElementById("create-bot-modal");
     var titleEl = document.getElementById("create-bot-modal-title");
     var submitBtn = document.getElementById("create-bot-submit-btn");
     var nameInput = document.getElementById("bot-name-input");
     var descInput = document.getElementById("bot-desc-input");
+    var presetField = document.getElementById("bot-preset-field");
+    var presetSelect = document.getElementById("bot-preset-select");
+    renderBotOnboardingPresets();
 
     if (prefill && prefill.editAgent) {
       var ag = prefill.editAgent;
       editingBotId = ag.id;
+      selectedBotPreset = null;
+      presetField.hidden = true;
+      presetSelect.value = "";
       titleEl.textContent = "Customize Bot";
       submitBtn.textContent = "Save";
       nameInput.value = ag.name || "";
@@ -5161,6 +5340,9 @@ dialog.modal-dialog::backdrop {
       selectedBotColor = ag.color || "#ff2d3b";
     } else {
       editingBotId = null;
+      selectedBotPreset = null;
+      presetField.hidden = false;
+      presetSelect.value = "";
       titleEl.textContent = "Create New Bot";
       submitBtn.textContent = "Create";
       nameInput.value = (prefill && prefill.name) || "";
@@ -5173,6 +5355,23 @@ dialog.modal-dialog::backdrop {
     modal.showModal();
     setTimeout(function() { nameInput.focus(); }, 40);
   }
+
+  document.getElementById("bot-preset-select").addEventListener("change", function() {
+    var presets = getBotOnboardingPresets();
+    var preset = this.value === "" ? null : presets.find(function(item) { return item.name === this.value; }, this);
+    selectedBotPreset = preset;
+    if (!preset) return;
+    document.getElementById("bot-name-input").value = preset.name;
+    document.getElementById("bot-desc-input").value = preset.description;
+    selectedBotShape = preset.shape;
+    selectedBotColor = preset.color;
+    syncBotPickerSelection();
+  });
+  document.getElementById("bot-name-input").addEventListener("input", function() {
+    if (!selectedBotPreset || this.value.trim().toLowerCase() === selectedBotPreset.name.toLowerCase()) return;
+    selectedBotPreset = null;
+    document.getElementById("bot-preset-select").value = "";
+  });
 
   document.getElementById("create-bot-form").addEventListener("submit", function(e) {
     e.preventDefault();
@@ -5191,6 +5390,7 @@ dialog.modal-dialog::backdrop {
         existing.shape = selectedBotShape;
         existing.shapeCustomized = selectedBotShape !== "circle";
         existing.color = selectedBotColor;
+        existing.avatarImage = defaultAvatarImage(nameVal) || undefined;
         existing.intent = inferredIntent(nameVal, descVal);
         saveAgents();
         selectAgent(existing.id);
@@ -8334,21 +8534,24 @@ dialog.modal-dialog::backdrop {
     setBotExpression(welcomeAvatarEl, "excited");
   }
 
-  document.querySelectorAll(".template-card").forEach(function(card, cardIndex) {
+  renderWelcomeBotCatalog();
+  document.querySelectorAll(".template-card[data-name]").forEach(function(card, cardIndex) {
     var avatarHolder = card.querySelector(".template-avatar[data-shape]");
-    if (avatarHolder) {
+    if (avatarHolder && !avatarHolder.querySelector("img")) {
       var s = avatarHolder.getAttribute("data-shape") || "circle";
       var c = avatarHolder.getAttribute("data-color") || "#ff2d3b";
       avatarHolder.innerHTML = renderBotIcon(s, c);
       applyBotAnimPersonality(avatarHolder, (card.getAttribute("data-name") || "template") + ":" + cardIndex);
     }
-    card.addEventListener("click", function() {
-      var name = card.getAttribute("data-name");
-      var desc = card.getAttribute("data-desc") || "";
-      var shape = card.getAttribute("data-shape") || "circle";
-      var color = card.getAttribute("data-color") || "#ff2d3b";
-      if (name) createAgent(name, desc, shape, color);
-    });
+  });
+  var templateGrid = document.querySelector(".template-grid");
+  if (templateGrid) templateGrid.addEventListener("click", function(event) {
+    var card = event.target.closest(".template-card[data-name]");
+    if (!card || !templateGrid.contains(card)) return;
+    var name = card.getAttribute("data-name");
+    var existing = agents.find(function(bot) { return String(bot.name || "").trim().toLowerCase() === String(name || "").trim().toLowerCase(); });
+    if (existing) { selectAgent(existing.id); return; }
+    createAgent(name, card.getAttribute("data-desc") || "", card.getAttribute("data-shape") || "circle", card.getAttribute("data-color") || "#ff2d3b");
   });
 
   document.getElementById("attach-button").onclick = function() {
