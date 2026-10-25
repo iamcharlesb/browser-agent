@@ -1,0 +1,34 @@
+[
+  {
+    "botName": "Inspired by Sabri Suby",
+    "file": "sabri-suby.jpg",
+    "profileSource": "https://kingkong.co/about-us/",
+    "imageSource": "https://kingkong.co/wp-content/uploads/2025/08/sabri.jpg",
+    "sha256": "6746ddc341773360f406186e2b362e27ea5f9663e77a191d93dd11f93e2294a7",
+    "basis": "Named portrait on the linked first-party profile page; not identification from the uploaded photos."
+  },
+  {
+    "botName": "Inspired by Alex Hormozi",
+    "file": "alex-hormozi.webp",
+    "profileSource": "https://www.acquisition.com/about-alex-hormozi-acquisition",
+    "imageSource": "https://www.acquisition.com/images/pages/about-alex-hormozi/alex-hormozi-portrait.webp",
+    "sha256": "cc0a5ae96df8dca8f3e791866e3a37ededad254441d88a5ee994a93430c1bb7b",
+    "basis": "Named portrait on the linked first-party profile page; not identification from the uploaded photos."
+  },
+  {
+    "botName": "Inspired by Addy Osmani",
+    "file": "addy-osmani.jpg",
+    "profileSource": "https://addyosmani.com/press/",
+    "imageSource": "https://addyosmani.com/press/img/thumbnails/7.jpg",
+    "sha256": "29902bd27134e0ac750be64276f06d0bffe811e2b3918128851bc1c1d4377fee",
+    "basis": "Press photo labeled addy osmani photo in the 2020 Photoshoot - Cyan section of his official press page."
+  },
+  {
+    "botName": "Inspired by Andrej Karpathy",
+    "file": "andrej-karpathy.jpg",
+    "profileSource": "https://karpathy.ai/",
+    "imageSource": "https://karpathy.ai/assets/me_new.jpg",
+    "sha256": "2aaa21c78fa61320406e3e0cbd9fd26f88354c7db71ab554200e3b649a267202",
+    "basis": "Named portrait on the linked first-party profile page; not identification from the uploaded photos."
+  }
+]

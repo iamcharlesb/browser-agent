@@ -1,3 +1,4 @@
+import { envInteger } from "./runtimeConfig";
 import { readPlaybookPage } from "./agentProfile";
 import { AsyncAgentQueue } from "./asyncAgentQueue";
 import { DurableEventStream } from "./durableEventStream";
@@ -753,7 +754,7 @@ interface BotDiscussion {
 }
 const botDiscussions = new Map<string, BotDiscussion>();
 // Allow genuine back-and-forth while ensuring every discussion eventually returns a conclusion.
-const MAX_DISCUSSION_ROUNDS = 24;
+const MAX_DISCUSSION_ROUNDS = envInteger("BROWSER_AGENT_MAX_DISCUSSION_ROUNDS", 24, 1, 1000);
 
 function startRun(body: RunRequestBody, options: { handoffDepth?: number; discussionId?: string; specialist?: boolean; finalSynthesis?: boolean } = {}): Promise<AgentResult> {
   if (currentRun && currentRun.isRunning) {
@@ -1855,14 +1856,27 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   // Bot profile artwork is shipped with the local UI and served through this
   // narrow allowlist; never turn a URL path into an arbitrary filesystem read.
   if (req.method === "GET" && url.pathname.startsWith("/avatars/")) {
-    const match = /^\/avatars\/(revenue-architect|value-architect|neural-architect|engineering-craftsman|blog-writer)\.png$/.exec(url.pathname);
-    if (!match) {
+    const assets: Record<string, { file: string; mime: string }> = {
+      "sabri-suby.jpg": { file: "sabri-suby.jpg", mime: "image/jpeg" },
+      "alex-hormozi.webp": { file: "alex-hormozi.webp", mime: "image/webp" },
+      "addy-osmani.jpg": { file: "addy-osmani.jpg", mime: "image/jpeg" },
+      "andrej-karpathy.jpg": { file: "andrej-karpathy.jpg", mime: "image/jpeg" },
+      "blog-writer.svg": { file: "blog-writer.svg", mime: "image/svg+xml" }
+    };
+    const legacy: Record<string, string> = {
+      "blog-writer.png": "blog-writer.svg", "revenue-architect.png": "sabri-suby.jpg", "value-architect.png": "alex-hormozi.webp",
+      "engineering-craftsman.png": "addy-osmani.jpg", "neural-architect.png": "andrej-karpathy.jpg"
+    };
+    const filename = url.pathname.slice("/avatars/".length);
+    const asset = Object.prototype.hasOwnProperty.call(assets, filename) ? assets[filename]
+      : Object.prototype.hasOwnProperty.call(legacy, filename) ? assets[legacy[filename]] : undefined;
+    if (!asset) {
       sendJson(res, 404, { detail: "Avatar not found." });
       return;
     }
     try {
-      const image = await readFile(join(STATIC_DIR, "avatars", `${match[1]}.png`));
-      res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff" });
+      const image = await readFile(join(STATIC_DIR, "avatars", asset.file));
+      res.writeHead(200, { "Content-Type": asset.mime, "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff" });
       res.end(image);
     } catch {
       sendJson(res, 404, { detail: "Avatar not found." });
@@ -1880,7 +1894,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (req.method === "GET" && url.pathname === "/") {
     try {
       const html = await readFile(join(STATIC_DIR, "index.html"), "utf8");
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
       res.end(html);
     } catch {
       sendJson(res, 500, { detail: "Failed to load the UI page." });

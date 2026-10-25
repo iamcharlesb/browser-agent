@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -171,5 +172,21 @@ test("inspired-by catalog names load the corresponding specialist instructions a
     assert.equal(profile.soul, legacy.soul);
     if (playbook) assert.ok(profile.selected.includes(playbook), name + " must select its specialist playbook");
     else assert.match(profile.playbooks, /allowable cost per lead/);
+  }
+});
+
+test("UX and paid media bots load dedicated roles and complete supplied references on demand", () => {
+  for (const [name, id, term] of [
+    ["UX Psychology & Conversion Expert", "ux", "psychologist"],
+    ["Paid Media & Performance Marketing Specialist", "paid-media", "advertising"]
+  ]) {
+    const profile = loadAgentProfile({ botName: name, task: "Review my product funnel", root });
+    assert.match(profile.instructions.toLowerCase(), new RegExp(term));
+    assert.ok(profile.characters < 5600);
+    const file = readFileSync(join(root, "playbooks", id + ".md"), "utf8");
+    const offset = file.indexOf("# Complete supplied role specification");
+    assert.ok(offset > 0);
+    const { readPlaybookPage } = require("./agentProfile") as typeof import("./agentProfile");
+    assert.match(readPlaybookPage(id, offset, root).text, /Complete supplied role specification/);
   }
 });
