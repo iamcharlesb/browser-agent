@@ -271,7 +271,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "create_document",
-      description: "Save a downloadable report or file (md, csv, json, html, svg, txt).",
+      description: "Save a downloadable report or file (md, csv, json, html, svg, txt). For a chart or bar graph, create a self-contained SVG with clear labels, units, legend, accessible title/description, readable colors, and the supplied data only; SVG files are previewable in the app and downloadable as artifacts. You may also save the underlying data as CSV.",
       parameters: {
         type: "object",
         properties: {
