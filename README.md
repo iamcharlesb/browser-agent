@@ -111,6 +111,16 @@ Electron opens Google sign-in in the system browser because Google blocks authen
 
 Do not commit `.env` or real client secrets. `.env.example` documents the keys only.
 
+### Model and budget configuration
+
+The server and CLI load `.env` before deriving defaults; shell environment values take precedence. Set `BROWSER_AGENT_MODEL` for the selected default and provider versions through `OPENAI_MODEL`, `ANTHROPIC_MODEL`, `XAI_MODEL`, and `OLLAMA_MODEL`. `OPENAI_IMAGE_MODEL` enables image generation. With no configured model the default is the explicit Local Engine.
+
+`BROWSER_AGENT_MODELS_JSON` adds models as `{ "id": "deployment-id", "label": "Optional name", "provider": "openai", "api": "responses" }`. Supported providers are `openai`, `anthropic`, `xai`, `ollama`, `claude-cli`, and `local`; API modes are `responses` or `chat`. Explicit registry metadata wins over legacy model-name inference. `OPENAI_API_MODE` controls unregistered OpenAI models. The settings/composer menus are populated from the server catalog, with saved custom selections preserved.
+
+`.env.example` also documents step/output/context limits and reasoning effort. The custom loop removes complete old rounds above the text budget, preserves the task and recent observations, and starts a new Responses chain after compaction. Images have a separate retention limit. Oversized pinned context produces an explicit error. The SDK checks the shared tool step/time budget, but its internal history is not compacted by the custom-loop policy.
+
+Optional `MODEL_PRICING_JSON` contains input/output prices per million tokens. Models without configured prices show no estimate. Provider keys stay server-side; Anthropic and xAI do not borrow the OpenAI key. Key inputs are cleared after saving session settings. Local `.env` remains ignored; never copy it into an artifact or commit.
+
 ### MongoDB (optional cloud persistence)
 
 Signed-in Google users can sync bot roster + key settings to MongoDB Atlas:
@@ -124,6 +134,8 @@ MONGODB_DB=openbots
 - Database default name: `openbots` (override with `MONGODB_DB`)
 - Collection: `users` (indexed on `googleSub`, `email`)
 - If `MONGODB_URI` is unset or unreachable, Google auth still works and data falls back to `.browser-agent-users/`
+- Live synchronization uses a shared MongoDB change stream and authenticated `/api/user/events` notifications. Atlas, a replica set, or a sharded cluster is required for change streams; standalone MongoDB and local-file mode retain a 15-second polling fallback.
+- Saves are debounced and serialized; failed saves stay queued for retry. Notifications reload a current snapshot and never replace a running turn's transcript.
 - Guest explorers are never blocked by missing Mongo
 
 ## Sign-in / browser sessions
@@ -394,3 +406,7 @@ Text sources are stored locally and searched with ranked lexical retrieval. The 
 Per-reply Like/Dislike feedback is saved into that bot's local learning store. A task-scoped approval is remembered only as a temporary workflow preference; it never grants permission in future tasks. Irreversible browser actions only offer a one-time approval.
 
 Knowledge is scoped by bot and stored in `.browser-agent-knowledge/`; attachment metadata is in `.browser-agent-attachments/`, and image files are local artifacts. These runtime directories are excluded from Git. Renaming a bot currently changes its name-based knowledge scope.
+
+### Compact profiles and asynchronous requests
+
+Runtime behavior now loads `AGENTS.md`, `soul.md`, relevant role playbooks, and separately reviewed lessons. Queued bot requests are accepted by the backend and continue when the UI closes; the shared browser still has one execution owner. See [profile configuration, proposal review, Mongo synchronization, async queue and focus behavior](docs/agent-profiles.md).

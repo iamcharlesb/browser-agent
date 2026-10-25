@@ -1,3 +1,4 @@
+import "./environment";
 /** OpenAI function-calling tool schemas for the browser agent, plus local dispatch. */
 
 import { spawn } from "node:child_process";
@@ -490,6 +491,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       parameters: { type: "object", properties: {
         action: { type: "string", enum: ["search", "read", "save", "list"] },
         query: { type: "string" }, id: { type: "string" }, title: { type: "string" },
+        offset: { type: "integer", minimum: 0, description: "For playbook:ID or outcome_ID reads: start character; follow nextOffset for more." },
         text: { type: "string", description: "For save: compact runbook, including when to use it, account/workspace preconditions, procedure, verification and known failure modes. Max 2000 characters." }
       }, required: ["action"] }
     }
@@ -584,7 +586,7 @@ export function clearTerminalHistory(): void {
 }
 
 /** Env var name fragments that indicate a secret. Matched case-insensitively against each key. */
-const SECRET_ENV_KEY_PATTERN = /(API[_-]?KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|PRIVATE[_-]?KEY|ACCESS[_-]?KEY)/i;
+const SECRET_ENV_KEY_PATTERN = /(API[_-]?KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|MONGODB_URI|DATABASE_URL|AUTHORIZATION|COOKIE)/i;
 
 /** Strips anything that looks like a secret out of the environment handed to a spawned shell
  * command, so a command can't read or exfiltrate e.g. OPENAI_API_KEY via `env` or similar. */
@@ -659,7 +661,7 @@ export async function runTerminalCommand(
 
         resolvePromise({
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          command: trimmed,
+          command: redactSecrets(trimmed),
           cwd: resolvedCwd,
           stdout: safeStdout,
           stderr: safeStderr,
@@ -1259,8 +1261,10 @@ export async function executeTool(
         if (!apiKey) {
           return { ok: false, message: "OPENAI_API_KEY is not set; image generation needs an OpenAI API key." };
         }
+        const imageModel = process.env.OPENAI_IMAGE_MODEL?.trim();
+        if (!imageModel) return { ok: false, message: "Set OPENAI_IMAGE_MODEL in .env to enable image generation." };
         const imageClient = new OpenAI({ apiKey });
-        const response = await imageClient.images.generate({ model: "gpt-image-2", prompt, size, quality, n: 1 }, { signal });
+        const response = await imageClient.images.generate({ model: imageModel, prompt, size, quality, n: 1 }, { signal });
         const imageData = response.data?.[0]?.b64_json;
         if (!imageData) {
           return { ok: false, message: "Image generation returned no image data." };
@@ -1284,7 +1288,7 @@ export async function executeTool(
             `To attach this image, call upload_file(filename="${safeFilename}", effect="reversible") on the editor.`,
           imageUsage: usage
             ? {
-                model: "gpt-image-2",
+                model: imageModel,
                 promptTokens: usage.input_tokens ?? 0,
                 outputTokens: usage.output_tokens ?? 0,
                 totalTokens: usage.total_tokens ?? 0

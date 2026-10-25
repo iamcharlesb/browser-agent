@@ -591,15 +591,9 @@ async function pickEmbeddedLivePage(
     }
   }
 
-  // Prefer a non-default context when Electron exposes the persist:open-bots partition separately.
-  const contexts = browser.contexts();
-  const ctx = contexts.length > 1 ? contexts[contexts.length - 1] : contexts[0];
-  if (!ctx) {
-    throw new BrowserActionError("No browser context available for the in-app browser.");
-  }
-  const existing = ctx.pages().find((p) => !p.isClosed());
-  const page = existing ?? (await ctx.newPage());
-  return { context: ctx, page };
+  // Electron owns page creation. Target.createTarget is unsupported; never fall
+  // back to an arbitrary context/page (which may be the workspace UI itself).
+  throw new BrowserActionError("No live in-app browser tab is available. Open a browser tab in the desktop app, or restart the desktop app to restore its browser workspace.");
 }
 
 export interface InteractiveElement {
@@ -897,13 +891,29 @@ export class BrowserController {
         if (!this.config.embeddedMode) {
           await ensureCdpPageTarget(endpoint);
         }
+        if (this.config.embeddedMode && desktopBrowserAvailable()) {
+          const state = await desktopBrowserRequest();
+          if (!state.activeTabId || !state.tabs.some(tab => tab.id === state.activeTabId)) {
+            await desktopBrowserRequest({ type: "new_tab", url: "about:blank" });
+          }
+        }
         const browser = await chromium.connectOverCDP(endpoint);
         this.attachedBrowser = browser;
         if (this.config.embeddedMode) {
-          const picked = await pickEmbeddedLivePage(browser, this.config.uiOrigin);
-          this.context = picked.context;
-          this.page = picked.page;
-          await this.syncEmbeddedPage();
+          if (desktopBrowserAvailable()) {
+            // Select the broker's exact CDP target before inspecting any page.
+            // Electron may expose a newly created target just after broker creation.
+            for (let attempt = 0; ; attempt++) {
+              try { await this.syncEmbeddedPage(); break; } catch (error) {
+                if (attempt >= 19) throw error;
+                await new Promise(resolve => setTimeout(resolve, 50));
+              }
+            }
+          } else {
+            const picked = await pickEmbeddedLivePage(browser, this.config.uiOrigin);
+            this.context = picked.context;
+            this.page = picked.page;
+          }
         } else {
           this.context = browser.contexts()[0] ?? (await browser.newContext({
             viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
@@ -959,15 +969,16 @@ export class BrowserController {
         this.cdpSession = null;
         this.lastScreencastFrame = null;
       });
-      this.context.setDefaultTimeout(this.config.actionTimeoutMs);
+      context.setDefaultTimeout(this.config.actionTimeoutMs);
       if (!this.page || this.page.isClosed()) {
-        this.page = this.context.pages()[0] ?? (await this.context.newPage());
+        if (this.config.embeddedMode) throw new BrowserActionError("The in-app browser tab closed while attaching. Open a desktop tab and retry.");
+        this.page = context.pages()[0] ?? (await context.newPage());
       }
       if (!this.config.embeddedMode) await this.page.setViewportSize(this.viewportSize);
       this.page.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
-      for (const page of this.context.pages()) this.trackPageClose(page);
+      for (const page of context.pages()) this.trackPageClose(page);
       // Automatically adopt popups/new tabs opened by target="_blank" links
-      this.context.on("page", (newPage) => {
+      context.on("page", (newPage) => {
         newPage.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
         this.trackPageClose(newPage);
         // In embedded mode keep driving the docked Live Browser page, not a detached CDP page.
@@ -1002,7 +1013,7 @@ export class BrowserController {
   private trackPageClose(page: Page): void {
     page.on("close", () => {
       if (this.page !== page) return;
-      this.page = this.context?.pages().filter(candidate => !candidate.isClosed()).at(-1) ?? null;
+      this.page = this.config.embeddedMode ? null : this.context?.pages().filter(candidate => !candidate.isClosed()).at(-1) ?? null;
       if (this.page && this.screencastCallback) {
         void this.startScreencast(this.screencastCallback).catch(() => undefined);
       }
@@ -1146,7 +1157,10 @@ export class BrowserController {
 
   private async syncEmbeddedPage(): Promise<void> {
     if (!this.config.embeddedMode || !this.attachedBrowser || !desktopBrowserAvailable()) return;
-    const state = await desktopBrowserRequest();
+    let state = await desktopBrowserRequest();
+    if (!state.activeTabId || !state.tabs.some(tab => tab.id === state.activeTabId)) {
+      state = await desktopBrowserRequest({ type: "new_tab", url: "about:blank" });
+    }
     if (!state.activeTabId) throw new BrowserActionError("No active desktop browser tab.");
     const targetId = state.tabs.find(tab => tab.id === state.activeTabId)?.targetId;
     if (!targetId) throw new BrowserActionError("Desktop browser target is unavailable.");
@@ -1188,6 +1202,9 @@ export class BrowserController {
     if (!this.context) {
       await this.start();
       return this.requirePage();
+    }
+    if (this.config.embeddedMode) {
+      throw new BrowserActionError("The in-app browser tab is closed. Open a tab in the desktop app and retry.");
     }
     const openPages = this.context.pages().filter((p) => !p.isClosed());
     if (openPages.length > 0) {

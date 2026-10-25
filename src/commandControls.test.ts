@@ -28,7 +28,19 @@ test("queued commands can be removed, steered and dispatched in order without st
       var agents=[{id:'bot'}], eventMessageAgent=null;
       function activeAgent(){return agents[0];}
       function readResponse(body){return body;}
-      function fetch(url){calls.push(url); return Promise.resolve({isRunning:serverRunning});}
+      var nextJob=0, serverJobs={};
+      function fetch(url, options){
+        calls.push(url);
+        if(url.indexOf('/api/run/queue')===0) {var id='job_'+(++nextJob);serverJobs[id]={id:id,status:'queued'};return Promise.resolve(serverJobs[id]);}
+        if(url.indexOf('/api/run/jobs/')===0) {
+          var id=url.split('/').pop(),job=serverJobs[id];
+          if(options&&options.method==='DELETE'){job.status='cancelled';return Promise.resolve(job);}
+          if(!serverRunning&&job.status==='queued'){job.status='running';job.runId='run_'+id;}
+          return Promise.resolve(job);
+        }
+        return Promise.resolve({isRunning:serverRunning});
+      }
+      function focusComposer(){}
       function connectRunEvents(){}
       function clearRunClientState(){isRunning=false;}
       function setStatusState(){}
@@ -40,17 +52,19 @@ test("queued commands can be removed, steered and dispatched in order without st
       ${source("queueRunAfterActive", "\n  function clearRunClientState")}
       ${source("scheduleQueuedRun", "\n  function screenshotHtml")}
       ${source("stopRun", "\n  var learnEvents")}
+      buildAgentRunPayload=function(task){return {task:task};};
       queueRunAfterActive('First command'); queueRunAfterActive('Second command');
     ` });
     assert.equal(await page.locator(".queued-command").count(), 2);
     assert.equal(await page.evaluate(() => (window as any).calls.includes("/api/stop")), false);
     await page.getByRole("button", { name: "Remove queued command" }).first().click();
+    await page.waitForFunction(() => document.querySelectorAll('.queued-command').length === 1);
     assert.equal(await page.locator(".queued-command-text").innerText(), "Second command");
     await page.evaluate(() => (window as any).queueRunAfterActive("Updated instruction"));
     await page.getByRole("button", { name: "↳ Steer" }).last().click();
     await page.waitForFunction(() => !(window as any).steeringInFlight);
     assert.match(await page.locator(".queued-command-text").first().innerText(), /Updated instruction/);
-    assert.equal(await page.evaluate(() => (window as any).calls.filter((url: string) => url === "/api/stop").length), 1);
+    assert.equal(await page.evaluate(() => (window as any).calls.filter((url: string) => url.startsWith("/api/stop")).length), 1);
     await page.screenshot({ path: "/tmp/agent-command-queue.png" });
     await page.evaluate(() => { (window as any).serverRunning = false; });
     await page.waitForFunction(() => (window as any).starts.length === 1);
@@ -93,4 +107,26 @@ test("Stop kills terminal child processes before they can perform later work", a
     await new Promise(resolve => setTimeout(resolve, 1100));
     assert.equal(existsSync(marker), false);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("background updates keep the composer focused while deliberate inputs remain usable", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent("<textarea id='prompt'></textarea><button id='send-button'>Send</button><input id='other'><div id='browser-viewport'><input id='browser-input'></div><dialog id='modal'><input></dialog>");
+    await page.addScriptTag({ content: readFileSync(join(__dirname, "../static/browserRuntime.js"), "utf8") });
+    await page.addScriptTag({ content: `var prompt=document.getElementById('prompt'),browserViewport=document.getElementById('browser-viewport');${source("focusComposer", "\n  function startRun")}` });
+    await page.locator("#prompt").focus();
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    assert.equal(await page.locator("#prompt").evaluate(element => element === document.activeElement), true);
+    await page.locator("#other").focus();
+    await page.evaluate(() => (window as any).focusComposer());
+    assert.equal(await page.locator("#other").evaluate(element => element === document.activeElement), true);
+    await page.locator("#browser-input").focus();
+    await page.evaluate(() => (window as any).focusComposer());
+    assert.equal(await page.locator("#browser-input").evaluate(element => element === document.activeElement), true);
+    await page.evaluate(() => (document.getElementById('modal') as HTMLDialogElement).showModal());
+    await page.evaluate(() => (window as any).focusComposer());
+    assert.equal(await page.locator("#modal input").evaluate(element => element === document.activeElement), true);
+  } finally { await browser.close(); }
 });

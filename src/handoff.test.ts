@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { MAX_HANDOFF_DEPTH, decideHandoff, delegatedTaskFor } from "./handoff";
+import { MAX_HANDOFF_DEPTH, decideHandoff, delegatedTaskFor, handoffExecutionContext } from "./handoff";
 import { AgentHandoffRequest } from "./messageBus";
 
 function request(overrides: Partial<AgentHandoffRequest> = {}): AgentHandoffRequest {
@@ -57,4 +57,13 @@ test("an incomplete handoff is rejected", () => {
 test("a very long task is truncated rather than passed through", () => {
   const task = delegatedTaskFor(request({ task: "x".repeat(250_000) }));
   assert.equal(task.length, 200_000);
+});
+
+
+test("specialist consultations stay text-only and retain the originating engine and session", () => {
+  const options = handoffExecutionContext(request({ discussionId: "discussion", interactionMode: "turbo", agentEngine: "cheap", sessionMode: "cdp" }));
+  assert.equal(options.interactionMode, "chat");
+  assert.equal(options.agentEngine, "cheap");
+  assert.equal(options.sessionMode, "cdp");
+  assert.equal(handoffExecutionContext(request({ interactionMode: "browse" })).interactionMode, "browse");
 });

@@ -1,3 +1,5 @@
+import type { SessionMode } from "./browserController";
+import type { AgentEngine, InteractionMode } from "./promptLoop";
 /**
  * Local in-process publish/subscribe bus.
  *
@@ -293,6 +295,7 @@ export const TOPICS = {
 } as const;
 
 export interface AgentHandoffRequest {
+  discussionId?: string;
   fromBot: string;
   toBot: string;
   task: string;
@@ -301,6 +304,9 @@ export interface AgentHandoffRequest {
   depth: number;
   model?: string;
   scheduleTimeZone?: string;
+  sessionMode?: SessionMode;
+  agentEngine?: AgentEngine;
+  interactionMode?: InteractionMode;
   /** True when no human is watching (scheduled runs): privileged tools stay off. */
   unattended?: boolean;
 }

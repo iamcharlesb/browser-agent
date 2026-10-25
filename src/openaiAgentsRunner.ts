@@ -1,3 +1,4 @@
+import { redactSecrets } from "./security";
 /**
  * OpenAI Agents SDK (@openai/agents) runner integration for Open Bots.
  *
@@ -141,7 +142,7 @@ export async function runWithOpenAIAgentsSdk(
               };
               abortController.abort();
             }
-            return res.output;
+            return redactSecrets(res.output);
           }
         });
       });
@@ -183,7 +184,7 @@ export async function runWithOpenAIAgentsSdk(
       let runResult;
       try {
         runResult = await runner.run(agent, currentInput, {
-          maxTurns: Math.max(4, options.maxSteps),
+          maxTurns: Math.max(1, options.maxSteps - stepsTaken),
           signal: abortController.signal
         });
       } catch (err) {

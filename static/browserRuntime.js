@@ -60,7 +60,10 @@
       }
     };
   }
-  var api = { createInputQueue: createInputQueue, createFramePresenter: createFramePresenter };
+  function shouldFocusComposer(state) {
+    return !state.hidden && !state.dialogOpen && !state.otherInput && !state.browserInteraction && !state.textSelected;
+  }
+  var api = { shouldFocusComposer: shouldFocusComposer, createInputQueue: createInputQueue, createFramePresenter: createFramePresenter };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.OpenBotsBrowserRuntime = api;
 })(typeof window !== "undefined" ? window : globalThis);

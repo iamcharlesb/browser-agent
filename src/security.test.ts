@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assessTaskRisk } from "./security";
+import { assessTaskRisk, redactSecrets, redactSecretValues } from "./security";
 
 const approval = "external_side_effect";
 
@@ -116,4 +116,41 @@ test("researching and drafting outreach stays ungated", () => {
   ]) {
     assert.deepEqual(assessTaskRisk(task).approvalsRequired, [], task);
   }
+});
+
+ test("quoted draft titles and payment questions are not purchases", () => {
+  for (const task of [
+    'Draft ideas: “A local service website checklist before spending on ads”. Useful trade communities.',
+    'Write “What should we buy for a better website?”',
+    'Why does this require payment? Explain why we need to pay.',
+    'Do not buy links. Never purchase ads.'
+  ]) assert.ok(!assessTaskRisk(task).approvalsRequired.includes("financial_transaction"), task);
+  for (const task of ['Buy the annual plan.', 'Research options and buy the annual plan.', 'Pay the invoice.'])
+    assert.ok(assessTaskRisk(task).approvalsRequired.includes("financial_transaction"), task);
+});
+
+test("redacts opaque environment credentials, nested events and database URLs", () => {
+  const previous = process.env.AUDIT_TEST_SECRET;
+  const secret = "opaque-" + "credential".repeat(3);
+  process.env.AUDIT_TEST_SECRET = secret;
+  try {
+    assert.ok(!redactSecrets(`provider error: ${secret}`).includes(secret));
+    assert.ok(!redactSecrets("mongodb+srv://" + "user:unknown-password@cluster.invalid/db").includes("unknown-password"));
+    const original = { toolInput: { apiKey: "opaque-key", text: `value ${secret}` }, totalTokens: 12 };
+    const safe = redactSecretValues(original);
+    assert.equal(safe.toolInput.apiKey, "[REDACTED]");
+    assert.ok(!safe.toolInput.text.includes(secret));
+    assert.equal(safe.totalTokens, 12);
+    assert.equal(original.toolInput.apiKey, "opaque-key");
+  } finally {
+    if (previous === undefined) delete process.env.AUDIT_TEST_SECRET;
+    else process.env.AUDIT_TEST_SECRET = previous;
+  }
+});
+
+test("redaction preserves JSON argument syntax for replayed tool calls", () => {
+  const argumentsJson = JSON.stringify({ apiKey: "opaque-credential", target: "report" });
+  const safe = JSON.parse(redactSecrets(argumentsJson));
+  assert.equal(safe.apiKey, "[REDACTED]");
+  assert.equal(safe.target, "report");
 });

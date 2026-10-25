@@ -1,3 +1,9 @@
+import { readPlaybookPage } from "./agentProfile";
+import { AsyncAgentQueue } from "./asyncAgentQueue";
+import { PlaybookStore, formatApprovedPlaybook } from "./playbookStore";
+import { storeRunOutcome, readRunOutcome, outcomeEvent } from "./runOutcomes";
+import "./environment";
+import { modelCatalog, modelPricing } from "./runtimeConfig";
 /** Local web UI for the browser agent: a chat-style task box with a live step feed. */
 
 import { ensureManagedChrome, managedChromeEnabled } from "./managedChrome";
@@ -46,6 +52,7 @@ import {
   applyUserTurnInput,
   botIdFromName,
   distillLearningKb,
+  distillUserCorrections,
   isUserCorrectionOrRule,
   loadLearningKb,
   updateLearningKb,
@@ -59,11 +66,11 @@ import {
   DEFAULT_MODEL,
   requiresInitialBrowserState
 } from "./promptLoop";
-import { ApprovalCategory, assessTaskRisk, redactSecrets } from "./security";
+import { ApprovalCategory, assessTaskRisk, redactSecrets, redactSecretValues } from "./security";
 import { TaskApprovalScope, TerminalApprovalDecision } from "./approvalPolicy";
 import { nextDailyOccurrence } from "./scheduler";
 import { AgentHandoffRequest, TOPICS, localBus } from "./messageBus";
-import { MAX_HANDOFF_DEPTH, decideHandoff } from "./handoff";
+import { MAX_HANDOFF_DEPTH, decideHandoff, handoffExecutionContext } from "./handoff";
 import {
   LearnModeSession,
   LearnReport,
@@ -79,6 +86,7 @@ import {
   mongodbConfigured,
   resolveAuthBackend,
   saveUserBotsAndSettings,
+  subscribeUserChanges,
   upsertGoogleUser,
   type BotRosterEntry,
   type UserSettings
@@ -97,23 +105,16 @@ const LEARNINGS_DIR = join(__dirname, "..", ".browser-agent-learnings");
 const LEARN_REPORT_DIR = join(__dirname, "..", ".browser-agent-learn");
 /** Repo root: `__dirname` is dist/ in dev and build/ in the production copy, both one level down. */
 const REPO_ROOT = join(__dirname, "..");
-
-// Keep local setup dependency-free. Values already provided by the shell always win.
-if (existsSync(ENV_FILE)) {
-  for (const rawLine of readFileSync(ENV_FILE, "utf8").split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const separator = line.indexOf("=");
-    if (separator < 1) continue;
-    const key = line.slice(0, separator).trim();
-    if (process.env[key] !== undefined) continue;
-    let value = line.slice(separator + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-    process.env[key] = value;
-  }
-}
+const PLAYBOOK_DIR = join(REPO_ROOT, ".browser-agent-playbooks");
+const OUTCOME_DIR = join(REPO_ROOT, ".browser-agent-outcomes");
+const playbookStore = new PlaybookStore(PLAYBOOK_DIR);
+let playbookNotifications = 0;
+const profileMetrics = { loads: 0, totalProfileCharacters: 0, totalSystemPromptCharacters: 0, modelCalls: 0 };
+playbookStore.subscribe(event => {
+  // Deterministic invalidation only. No startRun, tool call or model wake-up.
+  localBus.publish("agent.playbook.updated", event, { source: "playbook-store" });
+  playbookNotifications++;
+});
 
 const PORT = Number(process.env.BROWSER_AGENT_UI_PORT ?? 8765);
 const HOST = process.env.BROWSER_AGENT_UI_HOST ?? "127.0.0.1";
@@ -270,6 +271,7 @@ class AsyncQueue<T> {
 }
 
 interface RunState {
+  id: string;
   botName: string;
   headless: boolean;
   isRunning: boolean;
@@ -289,7 +291,7 @@ interface SequencedRunEvent {
 }
 
 function publishRunEvent(run: RunState, event: AgentEvent | null): void {
-  const sequencedEvent = event ? { sequence: run.nextSequence++, event } : null;
+  const sequencedEvent = event ? { sequence: run.nextSequence++, event: redactSecretValues(event) } : null;
   if (sequencedEvent) {
     run.events.push(sequencedEvent);
     // Trim oldest first. Sequence numbers come from a counter, not the array length, so a
@@ -361,6 +363,16 @@ interface ScheduledTask {
 let currentRun: RunState | null = null;
 /** Set while an orchestrator is still executing, which outlasts `currentRun.isRunning` on a stop. */
 let activeRunPromise: Promise<AgentResult> | null = null;
+let completingRunTransitions = 0;
+const recentRuns = new Map<string, RunState>();
+const asyncAgentQueue = new AsyncAgentQueue<RunRequestBody>(
+  () => Boolean(currentRun?.isRunning || activeRunPromise || activeLearnSession || completingRunTransitions),
+  async job => {
+    const pending = startRun(job.input);
+    job.runId = currentRun?.id;
+    await pending;
+  }
+);
 let activeSession: BrowserSession | null = null;
 /** Desktop prefers normal Chrome with an in-app live view; native tabs are an advanced option. */
 function resolveDefaultSessionMode(): SessionMode {
@@ -393,22 +405,8 @@ function getBotSessionMemory(botKey: string): BotSessionMemory {
   return mem;
 }
 
-/**
- * $ per 1M tokens, verified directly before use (not guessed). Models not listed here (local
- * engine, Ollama, xAI/Grok) still have their token counts tracked, just no cost estimate shown.
- */
-const MODEL_PRICING_PER_MILLION: Record<string, { input: number; output: number }> = {
-  "gpt-6-luna": { input: 0.1, output: 0.5 },
-  "gpt-4o-mini": { input: 0.15, output: 0.6 },
-  "gpt-4o": { input: 2.5, output: 10.0 },
-  // Anthropic public list prices (approx; usage tracker is best-effort).
-  "claude-sonnet-4-5": { input: 3.0, output: 15.0 },
-  "claude-haiku-4-5": { input: 1.0, output: 5.0 },
-  "claude-opus-4-5": { input: 15.0, output: 75.0 },
-  // Image generation: $5/1M text-input tokens, $30/1M image-output tokens (verified before use).
-  // Doesn't account for image-input tokens (only relevant for image editing, not implemented).
-  "gpt-image-2": { input: 5.0, output: 30.0 }
-};
+/** Operator-supplied estimates; unknown models have no price estimate. */
+const MODEL_PRICING_PER_MILLION = modelPricing();
 
 interface ModelUsage {
   promptTokens: number;
@@ -680,7 +678,14 @@ function resolvePendingApproval(decision: TerminalApprovalDecision, approvalId: 
  * ignore the promise (it never rejects - a crash resolves as an unsuccessful AgentResult), while
  * learn mode needs to await each self-play turn.
  */
-function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {}): Promise<AgentResult> {
+interface BotDiscussion {
+  coordinator: RunRequestBody;
+  replies: string[];
+  visited: string[];
+}
+const botDiscussions = new Map<string, BotDiscussion>();
+
+function startRun(body: RunRequestBody, options: { handoffDepth?: number; discussionId?: string; specialist?: boolean } = {}): Promise<AgentResult> {
   if (currentRun && currentRun.isRunning) {
     throw new Error("A run is already in progress. Wait for it to finish or stop it first.");
   }
@@ -699,6 +704,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
 
   const botKey = body.botName?.trim() || "default";
   const run: RunState = {
+    id: randomUUID(),
     botName: body.botName?.trim() || "default",
     headless: Boolean(body.headless),
     isRunning: true,
@@ -712,6 +718,8 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
     approvalId: null
   };
   currentRun = run;
+  recentRuns.set(run.id, run);
+  for (const [id, previous] of recentRuns) if (recentRuns.size > 100 && !previous.isRunning) recentRuns.delete(id);
   const handoffDepth = options.handoffDepth ?? 0;
   localBus.publish(
     TOPICS.runStarted,
@@ -737,7 +745,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
         await old.controller.close().catch(() => undefined);
       }
       const existingUrl = activeSession ? activeSession.controller.currentUrl() : "about:blank";
-      const needsBrowserImmediately = requiresInitialBrowserState(body.task, existingUrl);
+      const needsBrowserImmediately = requiresInitialBrowserState(body.task, existingUrl, body.interactionMode);
 
       if (!activeSession && needsBrowserImmediately) {
         const controller = new BrowserController(
@@ -804,7 +812,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
             });
           }
         }
-        learningContext = distillLearningKb(mergedKb);
+        learningContext = distillUserCorrections(mergedKb);
       } catch (err) {
         console.warn(`Learning KB load failed for ${learningBotId}:`, (err as Error).message);
       }
@@ -822,7 +830,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
             }
           }
         }
-        learningContext = distillLearningKb(await loadLearningKb(LEARNINGS_DIR, learningBotId));
+        learningContext = distillUserCorrections(await loadLearningKb(LEARNINGS_DIR, learningBotId));
       }
       if (Array.isArray(body.conversationArtifacts)) {
         for (const artifactUrl of body.conversationArtifacts.slice(-16)) taskMemory = rememberEvent(taskMemory, { artifactUrl });
@@ -910,8 +918,10 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
         body.agentEngine === "cheap" ? "cheap" : "openai-sdk";
       const effectiveAutoApprove = Boolean(body.autoApprove) || interactionMode === "turbo";
 
+      const approvedPlaybook = await playbookStore.approved(learningBotId);
       const orchestrator = new AgentOrchestrator({
         task: body.task,
+        approvedPlaybook: formatApprovedPlaybook(approvedPlaybook) || undefined,
         botName: body.botName,
         expertise: body.expertise,
         collaborationContext: collaborationContext || undefined,
@@ -919,6 +929,19 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
         onKnowledgeBase: async (input) => {
           try {
             const action=String(input.action || "search");
+            if (action === "read" && typeof input.id === "string" && input.id.startsWith("playbook:")) {
+              return { ok: true, message: JSON.stringify(readPlaybookPage(input.id.slice("playbook:".length), input.offset === undefined ? 0 : Number(input.offset))) };
+            }
+            if (action === "read" && typeof input.id === "string" && input.id.startsWith("outcome_")) {
+              const outcome = await readRunOutcome(OUTCOME_DIR, input.id);
+              const offset = input.offset === undefined ? 0 : Number(input.offset);
+              if (!Number.isSafeInteger(offset) || offset < 0) return { ok: false, message: "Use a non-negative integer offset." };
+              const text = outcome.result.summary;
+              return { ok: true, message: JSON.stringify({ id: outcome.id, botName: outcome.botName,
+                success: outcome.result.success, text: text.slice(offset, offset + 900),
+                nextOffset: offset + 900 < text.length ? offset + 900 : null }) };
+
+            }
             if(action === "list") return {ok:true,message:knowledge.entries.slice(-30).map(entry=>`[${entry.id}] ${entry.kind}: ${entry.title}`).join("\n") || "No saved runbooks or source notes yet."};
             if(action === "save") {
               if(!input.title || !input.text) return {ok:false,message:"Provide a runbook title and concise procedure."};
@@ -964,7 +987,13 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
               }
             }
           }
+          if (event.type === "profile_loaded") {
+            profileMetrics.loads++;
+            profileMetrics.totalProfileCharacters += Number(event.profileCharacters) || 0;
+            profileMetrics.totalSystemPromptCharacters += Number(event.systemPromptCharacters) || 0;
+          }
           if (event.type === "usage" && typeof event.model === "string") {
+            profileMetrics.modelCalls++;
             recordUsage(
               event.model,
               Number(event.promptTokens ?? 0),
@@ -991,6 +1020,9 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
           // Tells the UI not to start the next hop itself: the bus owns delegation now, and two
           // starts for one handoff would mean two runs fighting over the same browser.
           if (safeEvent.type === "terminal" && safeEvent.delegateTo) safeEvent.handoffOwnedByServer = true;
+          if (safeEvent.type === "terminal" && options.specialist && options.discussionId && !run.cancelled) {
+            safeEvent.continuationBotName = botDiscussions.get(options.discussionId)?.coordinator.botName;
+          }
           publishRunEvent(run, safeEvent);
 
           // Both of these fire on the same run and used to load/save independently, so whichever
@@ -1085,10 +1117,10 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
               message = result.message;
               return result.state;
             });
-            if (kind === "mistake" && text) {
-              await updateLearningKb(LEARNINGS_DIR, "_workspace", (shared) =>
-                applyLearningKbTool(shared, { action: "save", kind: "mistake", text }).state
-              ).catch(() => undefined);
+            if (text) {
+              const proposal = await playbookStore.propose(learningBotId, text, `learning-kb:${learningBotId}:${new Date().toISOString()}`);
+              localBus.publish("agent.learning.proposed", { event: "learning.proposed", botId: learningBotId, ref: proposal.id }, { source: "learning-store" });
+              message += ` Playbook proposal ${proposal.id} is pending owner review; operational instructions were not changed.`;
             }
             return { ok: true, message };
           } catch (error) {
@@ -1133,20 +1165,57 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
   activeRunPromise = runPromise;
   // Announce the result only after the run slot is free, so a handoff subscriber can start the
   // next hop immediately instead of bouncing off the "already in progress" guard.
+  completingRunTransitions++;
   void runPromise
     .finally(() => {
       if (activeRunPromise === runPromise) activeRunPromise = null;
     })
-    .then((result) => {
-      localBus.publish(TOPICS.runCompleted, { botName: run.botName, result, handoffDepth }, { source: run.botName });
+    .then(async (result) => {
+      let outcome;
+      try {
+        outcome = await storeRunOutcome(OUTCOME_DIR, run.botName, result);
+        localBus.publish(TOPICS.runCompleted, { ...outcomeEvent(outcome), handoffDepth }, { source: run.botName });
+      } catch (error) {
+        // Failure to journal is observable; never invent a persistent reference.
+        console.warn("Could not persist task outcome:", redactSecrets(String(error)));
+      }
+
+      if (run.cancelled || !result.success) {
+        if (options.discussionId) botDiscussions.delete(options.discussionId);
+        return;
+      }
+      const discussion = options.discussionId ? botDiscussions.get(options.discussionId) : undefined;
+      if (discussion && options.specialist) {
+        discussion.replies.push(JSON.stringify({ bot: run.botName, status: result.success ? "completed" : "failed", ref: outcome?.id, summary: result.summary.slice(0, 600) }));
+        void startRun({
+          ...discussion.coordinator,
+          task: "Continue the original shared goal: " + discussion.coordinator.task +
+            "\nSpecialist replies are in CONTEXT. Synthesize the requested response from these outcomes. Consult another bot only for a specific unresolved dependency; do not poll the whole roster. Read a referenced outcome with knowledge_base only when its full details are needed. Finish with owners, goals, dependencies, and next steps when relevant.",
+          collaborationContext: [discussion.coordinator.collaborationContext || "",
+            "BOTS ALREADY CONSULTED: " + discussion.visited.join(", "),
+            ...discussion.replies].join("\n\n")
+        }, { discussionId: options.discussionId });
+        return;
+      }
+      if (!result.delegateTo && options.discussionId) botDiscussions.delete(options.discussionId);
 
       // Delegation goes out as a message, not a direct call into another bot. A bus subscriber
       // picks it up, so a handoff now also happens for scheduled runs and survives the UI closing
       // mid-run - both of which silently dropped the handoff when the browser owned it.
       if (!run.cancelled && result.delegateTo?.targetBotName) {
+        const discussionId = options.discussionId || randomUUID();
+        const state = discussion || { coordinator: body, replies: [], visited: [] };
+        const target = result.delegateTo.targetBotName.trim();
+        if (state.visited.length >= 12 || state.visited.some(name => name.toLowerCase() === target.toLowerCase())) {
+          botDiscussions.delete(discussionId);
+          return;
+        }
+        state.visited.push(target);
+        botDiscussions.set(discussionId, state);
         localBus.publish<AgentHandoffRequest>(
           TOPICS.handoffRequested,
           {
+            discussionId,
             fromBot: run.botName,
             toBot: result.delegateTo.targetBotName,
             task: result.delegateTo.task,
@@ -1154,13 +1223,17 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number } = {})
             depth: handoffDepth + 1,
             model: body.model,
             scheduleTimeZone: body.scheduleTimeZone,
+            sessionMode: body.sessionMode ?? activeSessionMode,
+            agentEngine: body.agentEngine,
+            interactionMode: body.interactionMode,
             unattended: Boolean(body.scheduleId)
           },
           { source: run.botName }
         );
       }
     })
-    .catch(() => undefined);
+    .catch(() => undefined)
+    .finally(() => { completingRunTransitions--; });
 
   return runPromise;
 }
@@ -1174,6 +1247,7 @@ localBus.subscribe<AgentHandoffRequest>(TOPICS.handoffRequested, async (message)
   const request = message.payload;
   const reject = (reason: string): void => {
     console.warn(`Handoff ${request.fromBot} -> ${request.toBot} rejected: ${reason}`);
+    if (request.discussionId) botDiscussions.delete(request.discussionId);
     localBus.publish(TOPICS.handoffRejected, { ...request, reason }, { source: "server" });
   };
 
@@ -1187,8 +1261,13 @@ localBus.subscribe<AgentHandoffRequest>(TOPICS.handoffRequested, async (message)
     void startRun(
       {
         task: decision.delegatedTask,
+        ...handoffExecutionContext(request),
         botName: request.toBot,
-        collaborationContext: `DELEGATION HANDOFF FROM '${request.fromBot}': ${request.handoffNote || request.task}`,
+        collaborationContext: [
+          `DELEGATION HANDOFF FROM '${request.fromBot}': ${request.handoffNote || request.task}`,
+          request.discussionId ? botDiscussions.get(request.discussionId)?.coordinator.collaborationContext || "" : "",
+          "Report your existing goals, evidence, progress, and dependencies to the coordinator. Answer this consultation directly; the coordinator will combine your reply with other specialists."
+        ].join("\n\n"),
         approvedCategories: [],
         autoApprove: false,
         model: request.model,
@@ -1199,7 +1278,7 @@ localBus.subscribe<AgentHandoffRequest>(TOPICS.handoffRequested, async (message)
         // A delegated run started by a schedule stays unattended: no terminal, no file writes.
         ...(request.unattended ? { scheduleId: `handoff-${randomUUID()}` } : {})
       },
-      { handoffDepth: request.depth }
+      { handoffDepth: request.depth, discussionId: request.discussionId, specialist: true }
     );
     localBus.publish(TOPICS.handoffQueued, { ...request, queued: true }, { source: "server" });
   } catch (err) {
@@ -1300,7 +1379,7 @@ function startLearnSession(input: {
     maxRounds: input.maxRounds ?? 3,
     allowSelfFix: LEARN_SELF_FIX_ENABLED && input.allowSelfFix !== false,
     verify: createDefaultVerifier(REPO_ROOT),
-    proposePatches: createPatchProposer({ repoRoot: REPO_ROOT, model: input.model ?? DEFAULT_MODEL }),
+    proposePatches: createPatchProposer({ repoRoot: REPO_ROOT, model: input.model ?? process.env.BROWSER_AGENT_PATCH_MODEL ?? DEFAULT_MODEL }),
     // Patches are written, documented, and then held here until the user says yes.
     onFixApproval: fixApprovalGate.request,
     runner: ({ message, round, transcript }) => {
@@ -1602,11 +1681,13 @@ function sendJson(res: ServerResponse, statusCode: number, payload: unknown): vo
 }
 
 async function handleEventsStream(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  if (!currentRun) {
-    sendJson(res, 404, { detail: "No run has been started yet." });
+  const runId = new URL(req.url || "/api/events", "http://localhost").searchParams.get("runId");
+  const selectedRun = runId ? recentRuns.get(runId) : currentRun;
+  if (!selectedRun) {
+    sendJson(res, 404, { detail: "No matching run has been started yet." });
     return;
   }
-  const run = currentRun;
+  const run = selectedRun;
   const requestedSequence = Number(req.headers["last-event-id"] ?? new URL(req.url ?? "/api/events", "http://localhost").searchParams.get("after") ?? 0);
   const afterSequence = Number.isSafeInteger(requestedSequence) && requestedSequence > 0 ? requestedSequence : 0;
   const history = run.events.filter((item) => item.sequence > afterSequence);
@@ -1889,6 +1970,39 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/user/events") {
+    const user = await verifyGoogleSession(req);
+    if (!user) {
+      sendJson(res, 401, { detail: "Google sign-in required." });
+      return;
+    }
+    if (res.destroyed) return;
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+      Connection: "keep-alive"
+    });
+    const notify = () => {
+      if (res.destroyed) return;
+      // A slow client reconnects and reloads a snapshot instead of buffering forever.
+      if (!res.write('event: changed\ndata: {}\n\n')) res.end();
+    };
+    const unsubscribe = subscribeUserChanges(user.id, notify);
+    notify();
+    const heartbeat = setInterval(() => {
+      void verifyGoogleSession(req).then(session => {
+        if (!session) res.end();
+        else if (!res.destroyed && !res.write(": heartbeat\n\n")) res.end();
+      }).catch(() => res.end());
+    }, 25_000);
+    res.once("close", () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/user/data") {
     const user = await verifyGoogleSession(req);
     if (!user) {
@@ -1971,7 +2085,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       hasClaudeCli: Boolean(resolveClaudeCliBinary()),
       claudeCliPath: process.env.CLAUDE_CLI_PATH || resolveClaudeCliBinary(),
       defaultModel: DEFAULT_MODEL,
-      isRunning: Boolean(currentRun?.isRunning || activeRunPromise),
+      models: modelCatalog(),
+      profileRuntime: { ...profileMetrics, playbookNotifications, modelWakeupsFromNotifications: 0, wakePolicy: "explicit-task-or-approved-schedule" },
+      isRunning: Boolean(currentRun?.isRunning || activeRunPromise || completingRunTransitions),
       runBotName: currentRun?.botName ?? null,
       learnModeEnabled: LEARN_MODE_ENABLED,
       learnSelfFixEnabled: LEARN_MODE_ENABLED && LEARN_SELF_FIX_ENABLED,
@@ -2084,6 +2200,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (req.method === "POST" && url.pathname === "/api/settings") {
+    if (!isSameOriginRequest(req)) {
+      sendJson(res, 403, { detail: "Settings requests must come from this app." });
+      return;
+    }
     try {
       const body = (await readJsonBody(req)) as Record<string, unknown>;
       if (typeof body.openaiApiKey === "string" && body.openaiApiKey.trim()) {
@@ -2129,6 +2249,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (req.method === "POST" && url.pathname === "/api/stop") {
+    if (url.searchParams.get("preserveQueued") !== "1") asyncAgentQueue.clear();
     const stopped = stopCurrentRun();
     sendJson(res, 200, { status: stopped ? "stopped" : "idle" });
     return;
@@ -2175,7 +2296,20 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  if (req.method === "POST" && url.pathname === "/api/run") {
+  if (url.pathname.startsWith("/api/run/jobs/")) {
+    const id = url.pathname.slice("/api/run/jobs/".length);
+    const job = asyncAgentQueue.get(id);
+    if (!job) { sendJson(res, 404, { detail: "Queued request no longer exists." }); return; }
+    if (req.method === "DELETE") {
+      if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Queue updates must come from this app." }); return; }
+      if (job.status === "running" && job.runId === currentRun?.id) {
+        stopCurrentRun(); job.status = "cancelled";
+      } else if (!asyncAgentQueue.cancel(id)) { sendJson(res, 409, { detail: "This request has already finished." }); return; }
+    } else if (req.method !== "GET") { sendJson(res, 405, { detail: "Unsupported queue operation." }); return; }
+    sendJson(res, 200, { id: job.id, status: job.status, runId: job.runId, detail: job.error ? redactSecrets(job.error) : undefined });
+    return;
+  }
+  if (req.method === "POST" && (url.pathname === "/api/run" || url.pathname === "/api/run/queue")) {
     try {
       const body = validateRunRequest(await readJsonBody(req));
       const risk = assessTaskRisk(body.task);
@@ -2197,8 +2331,15 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         });
         return;
       }
-      startRun(body);
-      sendJson(res, 200, { status: "started" });
+      if (url.pathname === "/api/run/queue") {
+        if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Queued requests must come from this app." }); return; }
+        const job = asyncAgentQueue.enqueue(body, url.searchParams.get("priority") === "next");
+        sendJson(res, 202, { status: job.status, id: job.id });
+      } else {
+        if (completingRunTransitions) throw new Error("Another run is already in progress while its outcome is finalized.");
+        startRun(body);
+        sendJson(res, 200, { status: "started", runId: currentRun?.id });
+      }
     } catch (err) {
       const message = (err as Error).message;
       const alreadyRunning = isRunInProgressMessage(message);

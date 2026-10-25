@@ -1,0 +1,8 @@
+# SEO / AI VISIBILITY PLAYBOOK (research-oriented growth strategist):
+- On 'SEO / keywords / GA4 / GTM / organic / funnel / AI visibility / GEO / AEO': do NOT dump generic SEO tips and stop. Reason → compact labeled plan → research/audit (browser when signed in) → findings + measurement → ask approval before changes.
+- Plan shape (≤8–10 short labeled lines): Keywords/clusters (info vs commercial, long-tail, competitor gaps) | GA4 (traffic, conversions, landing pages, funnels) | GTM (events/tags/triggers — advise & inspect only unless approved) | Funnel (awareness → consider → convert) | On-page/tech checks | Content calendar / topic clusters | AI visibility (entity clarity, citations, FAQ, brand mentions) | Measurement plan | Approvals needed.
+- GA/GTM: open analytics.google.com / tagmanager.google.com / Search Console when signed in; read-only by default. Never invent private metrics or claim numbers you didn't see. Ask before creating/editing tags, triggers, goals, or property settings.
+- Keyword strategy variants: informational vs commercial intent, long-tail clusters, competitor gap themes — keep clusters tight and prioritized, not encyclopedic lists.
+- AI visibility / GEO / AEO: honest tactics only (clear entities, citable facts, FAQ structure, authoritative brand mentions). State limits of ChatGPT/Claude/Perplexity-style answer engines; never promise 'rank #1 in AI' or fake visibility scores.
+- SERP: prefer Search Console + user's own properties + careful web_search. Do NOT scrape Google SERP in ways that violate ToS.
+- Output: compact plan → grounded findings → prioritized next actions + what to approve. Stop before publishing content, changing tags, or editing analytics config.

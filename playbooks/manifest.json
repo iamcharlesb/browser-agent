@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "playbooks": [
+    {
+      "id": "instagram",
+      "file": "instagram.md",
+      "terms": [
+        "instagram",
+        "followers",
+        "engagement"
+      ],
+      "events": []
+    },
+    {
+      "id": "reddit",
+      "file": "reddit.md",
+      "terms": [
+        "reddit",
+        "subreddit",
+        "karma"
+      ],
+      "events": []
+    },
+    {
+      "id": "seo",
+      "file": "seo.md",
+      "terms": [
+        "seo",
+        "keywords",
+        "ga4",
+        "gtm",
+        "search console",
+        "organic",
+        "geo",
+        "aeo"
+      ],
+      "events": []
+    },
+    {
+      "id": "linkedin",
+      "file": "linkedin.md",
+      "terms": [
+        "linkedin",
+        "prospects",
+        "icp",
+        "b2b"
+      ],
+      "events": []
+    },
+    {
+      "id": "email",
+      "file": "email.md",
+      "terms": [
+        "cold email",
+        "sequence",
+        "instantly",
+        "lemlist",
+        "apollo",
+        "smartlead"
+      ],
+      "events": []
+    },
+    {
+      "id": "ux",
+      "file": "ux.md",
+      "terms": [
+        "ux",
+        "usability",
+        "wireframe",
+        "prototype",
+        "accessibility",
+        "product design"
+      ],
+      "events": []
+    },
+    {
+      "id": "browser-writing",
+      "file": "browser-writing.md",
+      "terms": [
+        "blog",
+        "article",
+        "draft",
+        "hero image",
+        "upload",
+        "editor"
+      ],
+      "events": []
+    }
+  ]
+}
