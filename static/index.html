@@ -298,8 +298,8 @@ button { color: inherit; }
 .agent-avatar.photo-avatar { border-radius: 50%; overflow: hidden; background: #f2f4f7; }
 .agent-avatar.photo-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .agent-avatar.small {
-  width: 33px;
-  height: 33px;
+  width: 29px;
+  height: 29px;
   font-size: 10.5px;
 }
 .agent-row { gap: 11px; }
@@ -462,9 +462,9 @@ button { color: inherit; }
 .agent-avatar .bot { --size: 36px; }
 .agent-avatar .bot--capsule,
 .agent-avatar .bot--cloud { --size: 28px; }
-.agent-avatar.small .bot { --size: 34px; }
+.agent-avatar.small .bot { --size: 30px; }
 .agent-avatar.small .bot--capsule,
-.agent-avatar.small .bot--cloud { --size: 29px; }
+.agent-avatar.small .bot--cloud { --size: 25px; }
 #agent-chip .agent-avatar.small .bot { --size: 21px; }
 #agent-chip .agent-avatar.small .bot--capsule,
 #agent-chip .agent-avatar.small .bot--cloud { --size: 17px; }
@@ -3874,7 +3874,9 @@ dialog.modal-dialog::backdrop {
     try { stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
     catch (_) { stored = []; }
     if (!Array.isArray(stored)) stored = [];
-    var legacyAutoOnboardEnabled = localStorage.getItem("openBotsLegacyAutoOnboardSpecialists") === "1";
+    // Predefined bots belong in the catalog until someone explicitly adds them.
+    // Keep this legacy flag inert so old installs cannot silently repopulate the roster.
+    var legacyAutoOnboardEnabled = false;
     var revenueId = "agent_the_revenue_architect";
     var revenueName = "The Revenue Architect";
     var alreadyPresent = stored.some(function(bot) { return bot && (bot.id === revenueId || String(bot.name || "").toLowerCase() === revenueName.toLowerCase()); });
@@ -4008,6 +4010,25 @@ dialog.modal-dialog::backdrop {
         },
         transcript: []
       });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    }
+    // Remove only canonical IDs used by the old automatic seeding path. User-created
+    // bots have timestamp IDs and remain untouched. Tombstones keep cloud sync from
+    // reintroducing these implicit roster entries on the next refresh.
+    var legacyPresetIds = [
+      "agent_the_revenue_architect",
+      "agent_the_value_architect",
+      "agent_the_systems_architect",
+      "agent_the_engineering_craftsman",
+      "agent_the_neural_architect"
+    ];
+    var removedLegacyIds = legacyPresetIds.filter(function(id) {
+      return stored.some(function(bot) { return bot && bot.id === id; });
+    });
+    if (removedLegacyIds.length) {
+      deletedBotIds = Array.from(new Set(deletedBotIds.concat(removedLegacyIds)));
+      localStorage.setItem("openBotsDeletedIds", JSON.stringify(deletedBotIds));
+      stored = stored.filter(function(bot) { return !bot || legacyPresetIds.indexOf(bot.id) < 0; });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
     }
     return stored;
