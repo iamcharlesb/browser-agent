@@ -63,6 +63,13 @@ function assertString(value: unknown, label: string): string {
 /** Path-safe bot id from free-form bot display names. */
 export function botIdFromName(name: string): string {
   const raw = assertString(name, "botName").trim();
+  const specialistAliases: Record<string, string> = {
+    "inspired by sabri suby": "The_Revenue_Architect",
+    "inspired by alex hormozi": "The_Value_Architect",
+    "inspired by addy osmani": "The_Engineering_Craftsman",
+    "inspired by andrej karpathy": "The_Neural_Architect"
+  };
+  if (specialistAliases[raw.toLowerCase()]) return specialistAliases[raw.toLowerCase()];
   const slug = raw
     .replace(/[^A-Za-z0-9_-]+/g, "_")
     .replace(/^_+|_+$/g, "")

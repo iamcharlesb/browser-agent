@@ -95,7 +95,7 @@
     {
       "id": "value-architect",
       "file": "value-architect.md",
-      "terms": ["value architect", "value equation", "grand slam offer", "money model", "monetization", "pricing", "unit economics", "customer lifetime value", "acquisition cost", "lead generation", "offer design", "business growth"],
+      "terms": ["value architect", "alex hormozi", "value equation", "grand slam offer", "money model", "monetization", "pricing", "unit economics", "customer lifetime value", "acquisition cost", "lead generation", "offer design", "business growth"],
       "events": ["marketing.strategy.updated", "customer.insight.discovered", "offer.experiment.proposed", "pricing.review.requested", "funnel.conversion.updated", "ads.performance.updated", "sales.objection.detected", "customer.churn.detected", "revenue.economics.updated"]
     },
     {
