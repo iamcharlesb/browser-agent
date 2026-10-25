@@ -2826,6 +2826,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       res.writeHead(200, {
         "Content-Type": contentType,
         "Content-Disposition": `${disposition}; filename="${filename}"`,
+        ...(filename.toLowerCase().endsWith(".svg") ? { "Content-Security-Policy": "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'" } : {}),
         "Cache-Control": "private, max-age=3600"
       });
       res.end(data);

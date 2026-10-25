@@ -171,6 +171,7 @@ function createWindow(port) {
     minWidth: 960,
     minHeight: 640,
     title: "Open Bots",
+    icon: path.join(PROJECT_ROOT, "static", "open-bots-icon.svg"),
     show: false,
     ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 14, y: 16 } } : {}),
     backgroundColor: "#f8f9fb",

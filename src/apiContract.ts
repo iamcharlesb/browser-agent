@@ -48,6 +48,7 @@ export function artifactContentType(filename: string): Pick<ArtifactMeta, "conte
   if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return { contentType: "image/jpeg", inline: true };
   if (lower.endsWith(".webp")) return { contentType: "image/webp", inline: true };
   if (lower.endsWith(".gif")) return { contentType: "image/gif", inline: true };
+  if (lower.endsWith(".svg")) return { contentType: "image/svg+xml", inline: true };
   if (lower.endsWith(".html") || lower.endsWith(".htm")) {
     return { contentType: "text/html; charset=utf-8", inline: true };
   }

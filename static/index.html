@@ -895,6 +895,9 @@ button { color: inherit; }
 }
 .topbar-left { flex: 1 1 0; }
 .topbar-right { flex: 1 1 0; justify-content: flex-end; }
+#observer-chip, #header-cost-chip { flex: 0 0 auto; padding-inline: 8px; gap: 5px; font-size: 11px; }
+#observer-chip svg { width: 15px; height: 15px; }
+#header-cost-chip { min-width: 62px; font-variant-numeric: tabular-nums; }
 
 #agent-chip {
   display: inline-flex;
@@ -3055,10 +3058,40 @@ dialog.modal-dialog::backdrop {
 .fb-reason-input { width: min(220px, 52vw); min-width: 130px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; }
 .fb-reason-panel button { border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; color: var(--text); background: var(--surface); cursor: pointer; font: inherit; font-size: 12px; }
 
-  #command-queue { display: flex; flex-direction: column; gap: 6px; margin: 0 12px 8px; max-height: 180px; overflow-y: auto; }
+  #command-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: min(100% - 32px, 960px);
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    align-self: center;
+    margin: 0 auto 6px;
+    max-height: 180px;
+    overflow-y: auto;
+  }
   #command-queue[hidden], #composer-stop-button[hidden] { display: none; }
-  .queued-command { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 14px; background: #fff; font-size: 14px; }
-  .queued-command-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .queued-command {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 8px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    background: #fff;
+    font-size: 14px;
+  }
+  .queued-command-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .queued-command button { flex-shrink: 0; border: 0; background: transparent; color: #525866; cursor: pointer; padding: 5px; font: inherit; }
   .queued-command button:disabled { opacity: .45; cursor: default; }
   .queued-command button:focus-visible, #composer-stop-button:focus-visible { outline: 2px solid #1677ff; outline-offset: 2px; }
@@ -3125,6 +3158,10 @@ dialog.modal-dialog::backdrop {
           <span id="chip-meta">Open Bots · Codex &amp; Live Browser</span>
         </div>
       </div>
+      <button id="observer-chip" class="header-pill-btn" type="button" title="Observer watches the conversation and suggests improvements for bot voice and playbooks. Suggestions are drafts; nothing is changed automatically." aria-label="Conversation observer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.5"/></svg><span class="btn-label">Observer</span>
+      </button>
+      <button id="header-cost-chip" class="header-pill-btn" type="button" title="Approximate tracked model spend" aria-label="Approximate model spend">~$0.00</button>
 
       <div class="topbar-right">
         <div class="header-engine-switch" role="group" aria-label="Agent execution engine">
@@ -3198,11 +3235,11 @@ dialog.modal-dialog::backdrop {
                 <span>Keywords → GA4/GTM → funnels → AI visibility — plan first.</span>
               </div>
             </button>
-            <button type="button" class="template-card" data-name="Paid Ads Specialist" data-desc="Google Ads and Meta Ads expert. Builds campaign plans, audience and keyword strategies, creative tests, conversion tracking, and reporting. Protects budgets and never launches or changes live campaigns without approval." data-shape="circle" data-color="#8b5cf6">
+            <button type="button" class="template-card" data-name="Paid Media &amp; Performance Marketing Specialist" data-desc="Principal paid media strategist, advertising psychologist, creative strategist, and profitable acquisition analyst. Plan Google, Meta, Microsoft, TikTok, and other suitable campaigns around qualified customer outcomes. Define objective, defensible audience, platform, search intent, offer, creative hypotheses, landing page, measurement, budget proposal, expected outcomes with assumptions, experiment, risks, approvals, and playbook learning. Audit account health, targeting, keywords, creative, offer, funnel, tracking, bidding, budget pacing, attribution, CAC, qualified leads, contribution margin, ROAS, and incrementality. Never invent results, testimonials, scarcity, performance, or attribution certainty. Never launch/publish ads, change live budgets, or spend funds without explicit approval. Respect privacy, consent, platform rules, and user autonomy. Keep /playbooks/paid-media-specialist.md compact, dated, and evidence-backed; unverified lessons remain proposed drafts." data-shape="circle" data-color="#8b5cf6">
               <div class="template-avatar" data-shape="circle" data-color="#8b5cf6"></div>
               <div class="template-copy">
-                <strong>Paid Ads Specialist</strong>
-                <span>Google Ads, Meta Ads, campaign strategy, creative tests, and measurement.</span>
+                <strong>Paid Media &amp; Performance Marketing Specialist</strong>
+                <span>Acquisition strategy, creative tests, measurement, and budget guardrails.</span>
               </div>
             </button>
             <button type="button" class="template-card" data-name="X / Grok Trend Researcher" data-desc="Monitor real-time conversations, analyze viral posts, and synthesize key takeaways with Grok speed." data-shape="circle" data-color="#000000">
@@ -3212,11 +3249,11 @@ dialog.modal-dialog::backdrop {
                 <span>Monitor real-time discussions, viral threads &amp; breaking news.</span>
               </div>
             </button>
-            <button type="button" class="template-card" data-name="UX Specialist" data-desc="Product UX partner: audit flows, heuristics, a11y, IA, and copy — plan first, critique with evidence from the live page, propose fixes you approve." data-shape="tilted-square" data-color="#ea580c">
-              <div class="template-avatar" data-shape="tilted-square" data-color="#ea580c"></div>
+            <button type="button" class="template-card" data-name="UX Psychology &amp; Conversion Expert" data-desc="Principal UX psychologist and conversion architect. Mission: create clear, trusted, accessible digital experiences that support meaningful user actions through ethical persuasion. Review experience objective, user motivations and uncertainties, usability, accessibility, trust, persuasion, responsiveness, and conversion friction. Apply Norman and Nielsen heuristics, Fogg's motivation/ability/prompt model, ethical choice architecture, and evidence-led experimentation as hypotheses, never guarantees. Recommend specific layout, copy, interaction, and measurement changes. Required review: objective; user psychology; UX assessment; persuasion and trust; accessibility and standards; redesign; conversion hypotheses; experiment plan; priority; proposed playbook learning. Respect autonomy, informed consent, and approval before live experience changes. Keep a compact evidence-backed playbook at /playbooks/ux-psychology-conversion.md; store suggestions as drafts until reviewed." data-shape="circle" data-color="#ea580c">
+              <div class="template-avatar" data-shape="circle" data-color="#ea580c"></div>
               <div class="template-copy">
-                <strong>UX Specialist</strong>
-                <span>Audit flows → heuristics &amp; a11y → clear fix proposals you approve.</span>
+                <strong>UX Psychology &amp; Conversion Expert</strong>
+                <span>Ethical persuasion, accessibility, and evidence-led conversion design.</span>
               </div>
             </button>
             <button type="button" class="template-card" data-name="Competitor Intelligence" data-desc="Research competitor websites, compare pricing & features, and synthesize executive comparisons." data-shape="circle" data-color="#1677ff">
@@ -3600,7 +3637,9 @@ dialog.modal-dialog::backdrop {
         <button type="submit" class="btn-primary">Save Settings</button>
       </div>
     </form>
-    <div class="form-field" style="margin-top:4px;border-top:1px solid var(--border);padding-top:14px;">
+    <details class="form-field" style="margin-top:4px;border-top:1px solid var(--border);padding-top:14px;">
+      <summary style="cursor:pointer;font-weight:600;">Bot memory and detailed usage</summary>
+      <div style="padding-top:10px;">
       <label style="display:flex;align-items:center;justify-content:space-between;">
         <span>Bot memory (local learnings)</span>
         <button type="button" id="memory-refresh-btn" class="btn-secondary" style="padding:4px 10px;font-size:11px;">Refresh</button>
@@ -3609,7 +3648,6 @@ dialog.modal-dialog::backdrop {
       <p style="margin:0 0 8px;font-size:11px;color:var(--muted);">
         Stored only on this machine under <code>.browser-agent-learnings/</code>. Injected into CONTEXT on each run (≤~1k chars). Secrets are redacted.
       </p>
-    </div>
     <div class="form-field" style="margin-top:4px;border-top:1px solid var(--border);padding-top:14px;">
       <label style="display:flex;align-items:center;justify-content:space-between;">
         <span>Usage &amp; Estimated Cost</span>
@@ -3632,6 +3670,8 @@ dialog.modal-dialog::backdrop {
         Tracked locally and persisted to disk, so totals carry over across server restarts. Local Engine, Ollama, and other untracked models show token counts without a cost estimate.
       </p>
     </div>
+      </div>
+    </details>
   </div>
 </dialog>
 
@@ -6015,11 +6055,11 @@ dialog.modal-dialog::backdrop {
       status.textContent = "Step " + e.step + ": " + activity;
       setRunPresence(activity);
       stepCounter.textContent = "Step " + e.step;
-      var artifactIsImage = e.artifactUrl && /\.(png|jpe?g|webp|gif)$/i.test(e.artifactUrl);
+      var artifactIsImage = e.artifactUrl && /\.(png|jpe?g|webp|gif|svg)(?:\?|$)/i.test(e.artifactUrl);
       var artifactLink = e.artifactUrl
         ? (artifactIsImage
             ? '<div style="margin-top:6px;"><a href="' + esc(e.artifactUrl) + '" target="_blank" rel="noopener">' +
-              '<img src="' + esc(e.artifactUrl) + '" alt="Generated image" style="max-width:260px;max-height:260px;border-radius:8px;border:1px solid var(--border);display:block;"></a></div>'
+              '<img src="' + esc(e.artifactUrl) + '" alt="Generated chart or image preview" style="max-width:420px;max-height:320px;border-radius:8px;border:1px solid var(--border);display:block;background:#fff;"></a><a href="' + esc(e.artifactUrl) + '" download style="color:var(--blue);font-weight:600;display:inline-block;margin-top:6px;">Download artifact</a></div>'
             : ' <a href="' + esc(e.artifactUrl) + '" download style="color:var(--blue);font-weight:600;margin-left:6px;">Download file</a>')
         : "";
       var stepRowHtml =
@@ -6864,6 +6904,12 @@ dialog.modal-dialog::backdrop {
     fetch("/api/usage")
       .then(readResponse)
       .then(function(data) {
+        var costChip = document.getElementById("header-cost-chip");
+        if (costChip) {
+          costChip.textContent = "~" + formatCost(data.totalEstimatedCostUsd);
+          costChip.title = "Approximate tracked model spend: " + formatCost(data.totalEstimatedCostUsd) + " across " + formatTokens(data.totalTokens) + " tokens. Actual provider billing may differ.";
+          costChip.setAttribute("aria-label", "Approximate model spend " + formatCost(data.totalEstimatedCostUsd));
+        }
         summaryEl.innerHTML =
           "<strong>" + formatTokens(data.totalTokens) + "</strong> tokens total &middot; approx. " +
           "<strong>" + formatCost(data.totalEstimatedCostUsd) + "</strong> spent";
@@ -6933,6 +6979,17 @@ dialog.modal-dialog::backdrop {
       })
       .catch(function() {});
   };
+  document.getElementById("header-cost-chip").onclick = function() {
+    document.getElementById("settings-modal").showModal();
+    loadUsage();
+  };
+  document.getElementById("observer-chip").onclick = function() {
+    var transcript = document.getElementById("messages");
+    var turns = transcript ? transcript.querySelectorAll(".message").length : 0;
+    alert("Conversation Observer\n\nWatching this conversation locally (" + turns + " visible message(s)). It does not start model runs or edit bot voice/playbooks automatically. Ask a bot to review the conversation when you want a proposed improvement; approve any playbook or soul.md change before saving it.");
+  };
+  loadUsage();
+  window.setInterval(loadUsage, 30000);
 
   document.getElementById("settings-form").addEventListener("submit", function(e) {
     e.preventDefault();
