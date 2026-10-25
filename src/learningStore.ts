@@ -365,7 +365,7 @@ export function distillLearningKb(state: LearningKbState, maxChars = MAX_DISTILL
     }
   };
 
-  pushSection("Mistakes/corrections (avoid repeating)", state.mistakes, 4);
+  pushSection("Mistakes/corrections (apply user guidance)", state.mistakes, 4);
   pushSection("User rules", state.learnings.filter(e => e.source === "user_correction"), 4);
   pushSection("Intents/goals", state.intents, 4);
   pushSection("What worked", state.learnings, 5);
@@ -379,7 +379,7 @@ export function distillLearningKb(state: LearningKbState, maxChars = MAX_DISTILL
   // Prefer keeping mistakes + niche when trimming.
   const trimmed: string[] = [lines[0]];
   if (state.niche) trimmed.push(`Niche: ${state.niche}`);
-  pushOnto(trimmed, "Mistakes/corrections (avoid repeating)", state.mistakes, 3);
+  pushOnto(trimmed, "Mistakes/corrections (apply user guidance)", state.mistakes, 3);
   pushOnto(trimmed, "User rules", state.learnings.filter(e => e.source === "user_correction"), 3);
   pushOnto(trimmed, "Intents/goals", state.intents, 2);
   pushOnto(trimmed, "What worked", state.learnings, 3);
