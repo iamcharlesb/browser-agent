@@ -31,10 +31,10 @@ This audit compares the user’s requests in this chat, the six supplied role sp
 | Principal full-stack/cloud/distributed systems bot | Available | `The Systems Architect`, dedicated core/voice and complete supplied reference. This is a role-based bot and has no single-person portrait/name. |
 | Addy Osmani bot | Correct exact public name and profile | `Inspired by Addy Osmani` maps to engineering quality, frontend architecture, performance and AI-assisted engineering. Complete supplied reference retained. |
 | Andrej Karpathy bot | Correct exact public name and profile | `Inspired by Andrej Karpathy` maps to AI/LLM/agent engineering. Complete supplied reference retained. |
-| Correct portraits | Corrected with explicit source provenance | Named first-party images, local assets, content hashes, and browser image decoding checks. These associations no longer depend on the previous guessed attachment order. |
+| Correct portraits | Corrected with explicit source provenance | Named first-party images, local assets, content hashes, browser image decoding checks, and consistent headshot framing in the catalog, sidebar and customizer. These associations no longer depend on the previous guessed attachment order. |
 | Specialist dropdown is optional | Verified in the actual UI | Blank bot remains available. Selecting the Alex preset fills the required name, relevant role and matching portrait preview; creating it adds one sidebar bot. |
 | Show all predefined bots in three columns | Verified on desktop | The browser audit checks the three computed columns and all four exact person-inspired entries. Narrow screens use the responsive column rules. |
-| Sort bots not yet added first | Verified | Available entries precede added entries; each group is sorted by name. An added card opens the existing bot without duplication. |
+| Sort bots not yet added first | Verified | The latest follow-up supersedes the earlier sorting request: added bots are hidden from both the catalog and specialist dropdown. Remaining available bots are alphabetical. Deleting a bot restores its onboarding option. |
 | Sidebar only includes bots the user added | Corrected and verified | Fresh storage yields an empty roster. Catalog entries alone do not create roster entries. Unused canonical seed records are archived/hidden; manually created records and history are preserved. |
 | Smaller bot icons and scrolling | Verified | Final sidebar avatar boxes are 29 CSS pixels: 38 → 33 after the first 5-pixel request, then 33 → 29 after the later 4-pixel request. A 40-bot roster now actually scrolls. |
 | Use 2D icons for New Bot | Corrected and verified | Both New Bot and welcome bot marks have no gradient/background image; photo portraits remain photographs. |
@@ -58,8 +58,8 @@ This audit compares the user’s requests in this chat, the six supplied role sp
 
 ## Verification
 
-- `node scripts/auditBotCatalog.cjs`: 19 checks using the actual HTML, CSS, browser runtime and local portrait files in Chromium; API calls are isolated fixtures so no real user jobs or paid model calls are started.
-- The checks cover fresh onboarding, exact labels, source-to-bot portrait mapping and photo decode, three columns, preset role and preview, explicit roster membership, icon size, reload persistence, no duplicate bots, correction feedback, migration/history preservation, unused seed cleanup, settings placement, flat graphics, available-first sorting, and scrolling with 40 bots.
+- `node scripts/auditBotCatalog.cjs`: 20 checks using the actual HTML, CSS, browser runtime and local portrait files in Chromium; API calls are isolated fixtures so no real user jobs or paid model calls are started.
+- The checks cover fresh onboarding, exact labels, source-to-bot portrait mapping and photo decode, three columns, preset role and preview, explicit roster membership, icon size, reload persistence, no duplicate bots, correction feedback, migration/history preservation, unused seed cleanup, settings placement, flat graphics, hiding added presets, restoration after deletion, and scrolling with 40 bots.
 - `npm test`: includes the repository secret scan and TypeScript test build. 266/266 tests passed. Added profile checks verify dedicated UX/paid roles and bounded access to complete source references.
 - Visual inspection: [saved browser screenshot](audit-evidence/bot-catalog.png), produced from the checked-out current UI.
 - Live services, model reasoning quality and macOS dock rendering are not asserted by the isolated UI check. The dock code is configured; confirming a running dock icon requires launching/restarting the desktop shell.
