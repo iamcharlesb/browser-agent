@@ -71,7 +71,7 @@
         "accessibility",
         "product design"
       ],
-      "events": []
+      "events": ["ux.review.requested", "ux.review.completed", "landing.page.created", "conversion.friction.detected", "funnel.design.proposed", "customer.objection.detected", "pricing.experiment.proposed"]
     },
     {
       "id": "browser-writing",
@@ -85,6 +85,36 @@
         "editor"
       ],
       "events": []
+    },
+    {
+      "id": "paid-media",
+      "file": "paid-media.md",
+      "terms": ["paid media", "paid ads", "advertising", "campaign", "google ads", "meta ads", "cac", "roas", "acquisition"],
+      "events": ["marketing.strategy.updated", "positioning.insight.discovered", "offer.experiment.proposed", "campaign.creative.requested", "campaign.performance.updated", "advertising.audit.requested", "ads.performance.anomaly", "ads.tracking.issue.detected", "product.feature.launched", "experiment.results.available"]
+    },
+    {
+      "id": "value-architect",
+      "file": "value-architect.md",
+      "terms": ["value architect", "value equation", "grand slam offer", "money model", "monetization", "pricing", "unit economics", "customer lifetime value", "acquisition cost", "lead generation", "offer design", "business growth"],
+      "events": ["marketing.strategy.updated", "customer.insight.discovered", "offer.experiment.proposed", "pricing.review.requested", "funnel.conversion.updated", "ads.performance.updated", "sales.objection.detected", "customer.churn.detected", "revenue.economics.updated"]
+    },
+    {
+      "id": "systems-architect",
+      "file": "systems-architect.md",
+      "terms": ["systems architect", "system design", "architecture review", "distributed systems", "cloud architecture", "full stack", "microservices", "database architecture", "scalability", "reliability engineering", "observability", "infrastructure as code"],
+      "events": ["architecture.review.requested", "feature.design.requested", "requirements.updated", "performance.regression.detected", "security.issue.detected", "deployment.failure.detected", "scaling.requirement.updated"]
+    },
+    {
+      "id": "engineering-craftsman",
+      "file": "engineering-craftsman.md",
+      "terms": ["engineering craftsman", "addy osmani", "web performance", "core web vitals", "lcp", "inp", "cls", "frontend architecture", "react patterns", "code review", "developer experience", "ai-generated code", "ai-assisted engineering"],
+      "events": ["architecture.design.proposed", "code.review.requested", "frontend.implementation.completed", "performance.regression.detected", "accessibility.issue.detected", "build.failure.detected", "agent.code.generated", "developer.experience.issue", "production.incident.detected"]
+    },
+    {
+      "id": "neural-architect",
+      "file": "neural-architect.md",
+      "terms": ["neural architect", "andrej karpathy", "deep learning", "neural network", "transformer", "llm training", "tokenization", "micrograd", "nanogpt", "llm evaluation", "agent orchestration", "inference optimization"],
+      "events": ["ai.architecture.review.requested", "agent.design.proposed", "model.performance.regression", "evaluation.failure.detected", "context.cost.anomaly", "agent.orchestration.issue", "model.selection.requested", "training.experiment.completed"]
     }
   ]
 }

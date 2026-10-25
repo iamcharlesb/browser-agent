@@ -410,3 +410,7 @@ Knowledge is scoped by bot and stored in `.browser-agent-knowledge/`; attachment
 ### Compact profiles and asynchronous requests
 
 Runtime behavior now loads `AGENTS.md`, `soul.md`, relevant role playbooks, and separately reviewed lessons. Queued bot requests are accepted by the backend and continue when the UI closes; the shared browser still has one execution owner. See [profile configuration, proposal review, Mongo synchronization, async queue and focus behavior](docs/agent-profiles.md).
+
+### Event-driven orchestration
+
+The app supports shared MongoDB event delivery, resumable workflows with dependencies, restart recovery, bounded event-selected playbooks, and a correction observer with human-reviewed voice/playbook drafts. See [event-driven orchestration](docs/event-driven-orchestration.md) for configuration, API usage, and delivery guarantees.

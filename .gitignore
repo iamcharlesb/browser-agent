@@ -19,6 +19,10 @@ artifacts/
 
 .browser-agent-attachments/
 .browser-agent-knowledge/
+.browser-agent-observer/
+.browser-agent-workflows/
+.browser-agent-event-offsets/
+.browser-agent-queue.json
 
 # Isolate regression builds from the running dev watcher.
 .test-dist/

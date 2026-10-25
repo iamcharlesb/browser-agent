@@ -13,6 +13,59 @@ test("generic bots load compact core and voice without every niche playbook", ()
   assert.match(profile.instructions, /TOKEN DISCIPLINE/);
   assert.match(profile.soul, /Voice/);
 });
+test("The Revenue Architect has a compact direct-response profile with ethical guardrails", () => {
+  const profile = loadAgentProfile({ botName: "The Revenue Architect", task: "Audit acquisition economics", root });
+  assert.match(profile.instructions, /Never claim to be Sabri Suby/);
+  assert.match(profile.instructions, /Never invent proof/);
+  assert.match(profile.soul, /customer-obsessed/);
+  assert.match(profile.playbooks, /allowable cost per lead/);
+  assert.match(profile.playbooks, /approval before publishing/);
+  assert.ok(profile.characters < 5600);
+});
+test("The Value Architect loads its compact role and on-demand offer/economics playbook", () => {
+  const profile = loadAgentProfile({ botName: "The Value Architect", task: "Review offer pricing and unit economics", root });
+  assert.match(profile.instructions, /never impersonate him/);
+  assert.match(profile.soul, /commercially disciplined/);
+  assert.ok(profile.selected.includes("value-architect"));
+  assert.match(profile.playbooks, /value equation/i);
+  const { readPlaybookPage } = require("./agentProfile") as typeof import("./agentProfile");
+  const page = readPlaybookPage("value-architect", 0, root);
+  assert.match(page.text, /North star and diagnosis/);
+  assert.equal(page.text.length, 900);
+});
+test("The Systems Architect loads its compact role and on-demand engineering playbook", () => {
+  const profile = loadAgentProfile({ botName: "The Systems Architect", task: "Review distributed systems architecture", root });
+  assert.match(profile.instructions, /never impersonate them/i);
+  assert.match(profile.instructions, /simplest operable system/);
+  assert.ok(profile.selected.includes("systems-architect"));
+  assert.match(profile.playbooks, /system design method/i);
+  const { readPlaybookPage } = require("./agentProfile") as typeof import("./agentProfile");
+  assert.match(readPlaybookPage("systems-architect", 0, root).text, /simplest architecture/i);
+});
+test("The Engineering Craftsman loads its compact role and on-demand quality/performance playbook", () => {
+  const profile = loadAgentProfile({ botName: "The Engineering Craftsman", task: "Review web performance and AI-generated code", root });
+  assert.match(profile.instructions, /never impersonate him/i);
+  assert.match(profile.soul, /evidence over cleverness/);
+  assert.ok(profile.selected.includes("engineering-craftsman"));
+  assert.match(profile.playbooks, /Core Web Vitals/i);
+  const { readPlaybookPage } = require("./agentProfile") as typeof import("./agentProfile");
+  assert.match(readPlaybookPage("engineering-craftsman", 0, root).text, /Engineering Craftsman/);
+});
+test("The Neural Architect loads its compact identity and on-demand AI research playbook", () => {
+  const profile = loadAgentProfile({ botName: "The Neural Architect", task: "Evaluate transformer inference and agent orchestration", root });
+  assert.match(profile.instructions, /never impersonate him/i);
+  assert.match(profile.soul, /experimentally humble/);
+  assert.ok(profile.selected.includes("neural-architect"));
+  assert.match(profile.playbooks, /First-principles approach/i);
+  const { readPlaybookPage } = require("./agentProfile") as typeof import("./agentProfile");
+  assert.match(readPlaybookPage("neural-architect", 0, root).text, /Neural Architect/);
+});
+test("known event names select only the playbooks mapped to that event", () => {
+  const ux = loadAgentProfile({ botName: "UX Bot", task: "Handle review", event: "ux.review.requested", root });
+  assert.deepEqual(ux.selected, ["ux"]);
+  const paid = loadAgentProfile({ botName: "Ads Bot", task: "Handle update", event: "campaign.performance.updated", root });
+  assert.deepEqual(paid.selected, ["paid-media"]);
+});
 test("deterministic selection isolates bot topics and enforces the context budget", () => {
   const profile = loadAgentProfile({ botName: "Reddit Community Growth", task: "Explain the next plan", root });
   assert.deepEqual(profile.selected, ["reddit"]);

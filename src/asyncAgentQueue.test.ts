@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { AsyncAgentQueue } from "./asyncAgentQueue";
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -36,4 +39,39 @@ test("stop clears pending work and failed jobs do not block later agents", async
   assert.deepEqual(executed, ["fail", "success"]);
   assert.equal(failed.status, "failed");
   assert.equal(cancelled.status, "cancelled");
+});
+
+test("queued jobs survive restart and interrupted running jobs require review", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "agent-queue-recovery-"));
+  try {
+    const file = join(directory, "queue.json");
+    const first = new AsyncAgentQueue<{ task: string }>(() => true, async () => undefined, 50, file);
+    const queued = first.enqueue({ task: "waiting" });
+    const persisted = JSON.parse(await readFile(file, "utf8"));
+    assert.equal(persisted[0].status, "queued");
+    const restored = new AsyncAgentQueue<{ task: string }>(() => true, async () => undefined, 50, file);
+    restored.restore(false);
+    assert.equal(restored.get(queued.id)?.status, "queued");
+
+    let release!: () => void;
+    const started = new Promise<void>(resolve => { release = resolve; });
+    const runningQueue = new AsyncAgentQueue<string>(() => false, async () => started, 50, file);
+    const running = runningQueue.enqueue("may have side effects");
+    for (let attempt = 0; attempt < 20 && running.status !== "running"; attempt++) await pause(10);
+    const afterRestart = new AsyncAgentQueue<string>(() => true, async () => undefined, 50, file);
+    afterRestart.restore(false);
+    assert.equal(afterRestart.get(running.id)?.status, "failed");
+    assert.match(afterRestart.get(running.id)?.error || "", /review its external effects/i);
+    release();
+    await pause(40);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("retrying a failed queued job requires explicit duplicate-effect confirmation", async () => {
+  const queue = new AsyncAgentQueue<string>(() => true, async () => undefined);
+  const job = queue.enqueue("task");
+  job.status = "failed";
+  assert.throws(() => queue.retry(job.id, false), /explicit confirmation/);
+  assert.equal(queue.retry(job.id, true).status, "queued");
+  queue.clear();
 });

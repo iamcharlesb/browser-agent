@@ -189,6 +189,8 @@ export interface AgentOrchestratorOptions {
   expertise?: string;
   /** Only supplied by the reviewed profile repository, never by model tool arguments. */
   approvedPlaybook?: string;
+  /** Known application event name used only for deterministic playbook selection. */
+  eventName?: string;
   collaborationContext?: string;
   taskImages?: string[];
   onKnowledgeBase?: OnLearningKb;
@@ -223,6 +225,8 @@ export interface AgentOrchestratorOptions {
   allowPrivilegedTools?: boolean;
   /** Set false for unattended tasks so they can inspect pages but cannot click or type. */
   allowBrowserInteraction?: boolean;
+  /** Disable coordinator handoffs when the discussion must produce its final synthesis. */
+  allowBotDelegation?: boolean;
   /**
    * Observation budget. Default `text` skips JPEG vision tokens unless CAPTCHA, access wall,
    * icon-only UI, or consecutive click failures force a vision pass.
@@ -466,6 +470,7 @@ export class AgentOrchestrator {
     this.toolsForModel = TOOLS.filter((tool) => {
       if (tool.type !== "function") return true;
       const name = tool.function.name;
+      if (name === "delegate_to_bot" && options.allowBotDelegation === false) return false;
       if (!this.allowPrivilegedTools && PRIVILEGED_TOOL_NAMES.has(name)) return false;
       if (this.interactionMode === "chat" && BROWSER_TOOL_NAMES.has(name)) return false;
       if (this.interactionMode === "browse" && INTERACTIVE_BROWSER_TOOL_NAMES.has(name)) return false;
@@ -473,7 +478,7 @@ export class AgentOrchestrator {
       return true;
     });
     this.loopGuard = new LoopGuard(this.maxStepsConfig, options.maxDurationSeconds ?? envInteger("BROWSER_AGENT_MAX_DURATION_SECONDS", 900));
-    this.profile = loadAgentProfile({ botName: this.botName, expertise: this.expertise, task: this.extractUserRequestCore(), approvedPlaybook: options.approvedPlaybook });
+    this.profile = loadAgentProfile({ botName: this.botName, expertise: this.expertise, task: this.extractUserRequestCore(), event: options.eventName, approvedPlaybook: options.approvedPlaybook });
     this.systemPrompt = this.buildSystemPrompt();
   }
 

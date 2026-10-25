@@ -1,5 +1,8 @@
 import { readPlaybookPage } from "./agentProfile";
 import { AsyncAgentQueue } from "./asyncAgentQueue";
+import { DurableEventStream } from "./durableEventStream";
+import { ConversationObserver, applyApprovedVoice } from "./conversationObserver";
+import { WorkflowOrchestrator, type WorkflowTask, type WorkflowTaskDefinition } from "./workflowOrchestrator";
 import { PlaybookStore, formatApprovedPlaybook } from "./playbookStore";
 import { storeRunOutcome, readRunOutcome, outcomeEvent } from "./runOutcomes";
 import "./environment";
@@ -107,6 +110,12 @@ const LEARN_REPORT_DIR = join(__dirname, "..", ".browser-agent-learn");
 const REPO_ROOT = join(__dirname, "..");
 const PLAYBOOK_DIR = join(REPO_ROOT, ".browser-agent-playbooks");
 const OUTCOME_DIR = join(REPO_ROOT, ".browser-agent-outcomes");
+const observer = new ConversationObserver(join(REPO_ROOT, ".browser-agent-observer"));
+const workflowOrchestrator = new WorkflowOrchestrator(join(REPO_ROOT, ".browser-agent-workflows"));
+const eventStream = new DurableEventStream({
+  stateDirectory: join(REPO_ROOT, ".browser-agent-event-offsets"),
+  onError: error => console.warn("[openbots] shared event stream:", redactSecrets(error.message))
+});
 const playbookStore = new PlaybookStore(PLAYBOOK_DIR);
 let playbookNotifications = 0;
 const profileMetrics = { loads: 0, totalProfileCharacters: 0, totalSystemPromptCharacters: 0, modelCalls: 0 };
@@ -325,6 +334,11 @@ interface RunRequestBody {
   task: string;
   botName?: string;
   expertise?: string;
+  /** Optional known event selector; it changes which compact playbook is loaded, never starts a run by itself. */
+  eventName?: string;
+  /** Internal workflow correlation. Public /api/run validation intentionally drops these fields. */
+  workflowId?: string;
+  workflowTaskId?: string;
   initialUrl?: string;
   collaborationContext?: string;
   conversationTurns?: Array<{ role: "user" | "agent"; text: string }>;
@@ -364,15 +378,68 @@ let currentRun: RunState | null = null;
 /** Set while an orchestrator is still executing, which outlasts `currentRun.isRunning` on a stop. */
 let activeRunPromise: Promise<AgentResult> | null = null;
 let completingRunTransitions = 0;
+let asyncQueueReady = false;
 const recentRuns = new Map<string, RunState>();
 const asyncAgentQueue = new AsyncAgentQueue<RunRequestBody>(
-  () => Boolean(currentRun?.isRunning || activeRunPromise || activeLearnSession || completingRunTransitions),
+  () => !asyncQueueReady || Boolean(currentRun?.isRunning || activeRunPromise || activeLearnSession || completingRunTransitions),
   async job => {
-    const pending = startRun(job.input);
-    job.runId = currentRun?.id;
-    await pending;
-  }
+    const workflowId = job.input.workflowId;
+    const workflowTaskId = job.input.workflowTaskId;
+    if (workflowId && workflowTaskId) await workflowOrchestrator.beginTask(workflowId, workflowTaskId, job.id);
+    try {
+      const pending = startRun(job.input);
+      job.runId = currentRun?.id;
+      const result = await pending;
+      if (workflowId && workflowTaskId) {
+        const update = await workflowOrchestrator.finishTask(workflowId, workflowTaskId, result.success, result.success ? undefined : result.summary);
+        localBus.publish("workflow.task.completed", { workflowId, taskId: workflowTaskId, success: result.success, summary: result.summary.slice(0, 500), revision: update.workflow.revision }, { source: "workflow-orchestrator" });
+        enqueueWorkflowTasks(workflowId, update.ready);
+      }
+      if (!result.success) throw new Error(result.summary || "Agent run failed.");
+    } catch (error) {
+      if (workflowId && workflowTaskId) {
+        const current = await workflowOrchestrator.get(workflowId).catch(() => null);
+        const task = current?.tasks.find(item => item.id === workflowTaskId);
+        if (task?.status === "running") {
+          const update = await workflowOrchestrator.finishTask(workflowId, workflowTaskId, false, error instanceof Error ? error.message : String(error));
+          enqueueWorkflowTasks(workflowId, update.ready);
+        }
+      }
+      throw error;
+    }
+  }, 50, join(REPO_ROOT, ".browser-agent-queue.json")
 );
+
+function enqueueWorkflowTasks(workflowId: string, tasks: WorkflowTask[]): string[] {
+  const accepted: string[] = [];
+  const existing = asyncAgentQueue.list();
+  for (const task of tasks) {
+    if (existing.some(job => job.input.workflowId === workflowId && job.input.workflowTaskId === task.id && (job.status === "queued" || job.status === "running"))) continue;
+    const body: RunRequestBody = {
+      task: task.task, botName: task.botName, expertise: task.expertise, model: task.model,
+      eventName: task.eventName,
+      maxSteps: task.maxSteps, maxDurationSeconds: task.maxDurationSeconds,
+      approvedCategories: task.approvedCategories ?? [], autoApprove: false, headless: true,
+      workflowId, workflowTaskId: task.id
+    };
+    asyncAgentQueue.enqueue(body);
+    accepted.push(task.id);
+    existing.push({ id: "", input: body, status: "queued" });
+    localBus.publish("workflow.task.queued", { workflowId, taskId: task.id, botName: task.botName }, { source: "workflow-orchestrator" });
+  }
+  return accepted;
+}
+
+async function recoverWorkflowQueue(): Promise<void> {
+  const interrupted = await workflowOrchestrator.recoverInterrupted();
+  for (const workflow of interrupted) localBus.publish("workflow.task.completed", { workflowId: workflow.id, recovered: true, status: workflow.status }, { source: "workflow-orchestrator" });
+  const jobs = asyncAgentQueue.list();
+  for (const workflow of await workflowOrchestrator.list()) {
+    if (workflow.status !== "running") continue;
+    const ready = workflow.tasks.filter(task => task.status === "queued" && !jobs.some(job => job.input.workflowId === workflow.id && job.input.workflowTaskId === task.id && (job.status === "queued" || job.status === "running")));
+    enqueueWorkflowTasks(workflow.id, ready);
+  }
+}
 let activeSession: BrowserSession | null = null;
 /** Desktop prefers normal Chrome with an in-app live view; native tabs are an advanced option. */
 function resolveDefaultSessionMode(): SessionMode {
@@ -505,6 +572,7 @@ function validateRunRequest(body: unknown): RunRequestBody {
     model,
     botName: typeof record.botName === "string" ? record.botName.slice(0, 120) : undefined,
     expertise: typeof record.expertise === "string" ? record.expertise.slice(0, 500) : undefined,
+    eventName: typeof record.eventName === "string" && /^[a-z][a-z0-9]*(?:\.[a-z0-9_-]+){1,5}$/.test(record.eventName) ? record.eventName.slice(0, 100) : undefined,
     initialUrl: typeof record.initialUrl === "string" ? record.initialUrl.trim().slice(0, 1000) : undefined,
     ...parseConversationMemory(record),
     collaborationContext:
@@ -684,8 +752,10 @@ interface BotDiscussion {
   visited: string[];
 }
 const botDiscussions = new Map<string, BotDiscussion>();
+// Allow genuine back-and-forth while ensuring every discussion eventually returns a conclusion.
+const MAX_DISCUSSION_ROUNDS = 24;
 
-function startRun(body: RunRequestBody, options: { handoffDepth?: number; discussionId?: string; specialist?: boolean } = {}): Promise<AgentResult> {
+function startRun(body: RunRequestBody, options: { handoffDepth?: number; discussionId?: string; specialist?: boolean; finalSynthesis?: boolean } = {}): Promise<AgentResult> {
   if (currentRun && currentRun.isRunning) {
     throw new Error("A run is already in progress. Wait for it to finish or stop it first.");
   }
@@ -924,6 +994,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number; discus
         approvedPlaybook: formatApprovedPlaybook(approvedPlaybook) || undefined,
         botName: body.botName,
         expertise: body.expertise,
+        eventName: body.eventName,
         collaborationContext: collaborationContext || undefined,
         taskImages,
         onKnowledgeBase: async (input) => {
@@ -1080,6 +1151,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number; discus
         // at all (filtered out of the model's tool list below) - nobody is present to approve them.
         allowPrivilegedTools: !body.scheduleId,
         allowBrowserInteraction: !body.scheduleId,
+        allowBotDelegation: !options.finalSynthesis,
         // "Approve for me" or Turbo mode grants standing approval, and never for a scheduled run -
         // nobody is watching those, so they stay research-and-draft only.
         standingApproval: effectiveAutoApprove && !body.scheduleId,
@@ -1175,6 +1247,8 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number; discus
       try {
         outcome = await storeRunOutcome(OUTCOME_DIR, run.botName, result);
         localBus.publish(TOPICS.runCompleted, { ...outcomeEvent(outcome), handoffDepth }, { source: run.botName });
+        const suggestion = await observer.observeTurn({ botName: run.botName, userText: body.task, outcomeRef: outcome.id });
+        if (suggestion) localBus.publish("observer.suggestion.proposed", suggestion, { source: "conversation-observer" });
       } catch (error) {
         // Failure to journal is observable; never invent a persistent reference.
         console.warn("Could not persist task outcome:", redactSecrets(String(error)));
@@ -1187,14 +1261,17 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number; discus
       const discussion = options.discussionId ? botDiscussions.get(options.discussionId) : undefined;
       if (discussion && options.specialist) {
         discussion.replies.push(JSON.stringify({ bot: run.botName, status: result.success ? "completed" : "failed", ref: outcome?.id, summary: result.summary.slice(0, 600) }));
+        const finalRound = discussion.replies.length >= MAX_DISCUSSION_ROUNDS;
         void startRun({
           ...discussion.coordinator,
           task: "Continue the original shared goal: " + discussion.coordinator.task +
-            "\nSpecialist replies are in CONTEXT. Synthesize the requested response from these outcomes. Consult another bot only for a specific unresolved dependency; do not poll the whole roster. Read a referenced outcome with knowledge_base only when its full details are needed. Finish with owners, goals, dependencies, and next steps when relevant.",
+            `\nThis is discussion round ${discussion.replies.length} of ${MAX_DISCUSSION_ROUNDS}. Specialist replies are in CONTEXT. Compare their evidence, resolve disagreements, and identify what remains unknown. You may ask a bot again or consult another relevant bot for a focused follow-up. Continue the discussion while a material question remains unresolved. Once the evidence is sufficient, stop delegating and give one clear conclusion with rationale, confidence, owners, dependencies, and next steps when relevant.` +
+            (finalRound ? "\nROUND LIMIT REACHED: Do not delegate again. Give the best supported conclusion now, state any unresolved uncertainty, and provide a concrete outcome and next steps." : ""),
           collaborationContext: [discussion.coordinator.collaborationContext || "",
-            "BOTS ALREADY CONSULTED: " + discussion.visited.join(", "),
+            `DISCUSSION PROGRESS: ${discussion.replies.length}/${MAX_DISCUSSION_ROUNDS} specialist replies. Repeated consultations are allowed.`,
+            "BOTS CONSULTED SO FAR: " + (discussion.visited.join(", ") || "none"),
             ...discussion.replies].join("\n\n")
-        }, { discussionId: options.discussionId });
+        }, { discussionId: options.discussionId, finalSynthesis: finalRound });
         return;
       }
       if (!result.delegateTo && options.discussionId) botDiscussions.delete(options.discussionId);
@@ -1206,7 +1283,7 @@ function startRun(body: RunRequestBody, options: { handoffDepth?: number; discus
         const discussionId = options.discussionId || randomUUID();
         const state = discussion || { coordinator: body, replies: [], visited: [] };
         const target = result.delegateTo.targetBotName.trim();
-        if (state.visited.length >= 12 || state.visited.some(name => name.toLowerCase() === target.toLowerCase())) {
+        if (state.replies.length >= MAX_DISCUSSION_ROUNDS || state.visited.length >= MAX_DISCUSSION_ROUNDS) {
           botDiscussions.delete(discussionId);
           return;
         }
@@ -1728,6 +1805,50 @@ async function handleEventsStream(req: IncomingMessage, res: ServerResponse): Pr
   res.end();
 }
 
+async function handleSharedEventsStream(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!eventStream.enabled) {
+    sendJson(res, 503, { detail: "Shared event streaming requires MONGODB_URI and an explicit BROWSER_AGENT_WORKSPACE_ID." });
+    return;
+  }
+  res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+  const topics = ["agent.run.started", "agent.run.completed", "agent.playbook.updated", "observer.suggestion.proposed", "observer.suggestion.reviewed", "workflow.created", "workflow.started", "workflow.task.queued", "workflow.task.completed", "workspace.event"];
+  let replaying = true;
+  const live: Array<{ id: string; topic: string; source?: string; correlationId?: string; publishedAt: string; payload: unknown }> = [];
+  const seen = new Set<string>();
+  const writeEvent = (event: { id: string; topic: string; source?: string; correlationId?: string; publishedAt: string; payload: unknown }, cursor?: string) => {
+    if (seen.has(event.id) || res.destroyed) return;
+    seen.add(event.id);
+    if (seen.size > 1000) seen.delete(seen.values().next().value!);
+    const id = cursor ?? Buffer.from(`${event.publishedAt}|${event.id}`).toString("base64url");
+    const payload = redactSecretValues({ id: event.id, topic: event.topic, source: event.source, correlationId: event.correlationId, publishedAt: event.publishedAt, payload: event.payload });
+    if (!res.write(`id: ${id}\nevent: ${event.topic}\ndata: ${JSON.stringify(payload)}\n\n`)) res.end();
+  };
+  const subscriptions = topics.map(topic => localBus.subscribe(topic, message => {
+    if (res.destroyed) return;
+    const event = { id: message.id, topic: message.topic, source: message.source, correlationId: message.correlationId, publishedAt: message.publishedAt, payload: message.payload };
+    if (replaying) live.push(event); else writeEvent(event);
+  }));
+  const cursorHeader = req.headers["last-event-id"];
+  const cursorQuery = new URL(req.url ?? "/api/agent/events", "http://localhost").searchParams.get("after");
+  const cursor = typeof cursorHeader === "string" && cursorHeader ? cursorHeader : cursorQuery || undefined;
+  if (cursor) {
+    try {
+      let historyCursor: string | undefined = cursor;
+      for (let page = 0; page < 20 && !res.destroyed; page++) {
+        const history = await eventStream.list(historyCursor, 500);
+        for (const event of history) writeEvent({ id: event._id, topic: event.topic, source: event.source, correlationId: event.correlationId,
+          publishedAt: event.publishedAt instanceof Date ? event.publishedAt.toISOString() : event.publishedAt, payload: event.payload }, eventStream.cursor(event));
+        if (history.length < 500) break;
+        historyCursor = eventStream.cursor(history[history.length - 1]);
+      }
+    } catch { /* A stale cursor can be reset by reconnecting without Last-Event-ID. */ }
+  }
+  replaying = false;
+  for (const event of live) writeEvent(event);
+  const heartbeat = setInterval(() => { if (!res.destroyed && !res.write(": heartbeat\n\n")) res.end(); }, 25_000);
+  res.once("close", () => { clearInterval(heartbeat); subscriptions.forEach(off => off()); });
+}
+
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
@@ -2087,6 +2208,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       defaultModel: DEFAULT_MODEL,
       models: modelCatalog(),
       profileRuntime: { ...profileMetrics, playbookNotifications, modelWakeupsFromNotifications: 0, wakePolicy: "explicit-task-or-approved-schedule" },
+      sharedEventsEnabled: eventStream.enabled,
+      sharedEventsWorkspace: eventStream.enabled ? eventStream.workspaceId : null,
       isRunning: Boolean(currentRun?.isRunning || activeRunPromise || completingRunTransitions),
       runBotName: currentRun?.botName ?? null,
       learnModeEnabled: LEARN_MODE_ENABLED,
@@ -2296,8 +2419,110 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/workflows") {
+    try { sendJson(res, 200, { workflows: redactSecretValues(await workflowOrchestrator.list()) }); }
+    catch (error) { sendJson(res, 503, { detail: redactSecrets((error as Error).message) }); }
+    return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/workflows") {
+    if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Workflows must be created by this application." }); return; }
+    try {
+      const body = await readJsonBody(req) as Record<string, unknown>;
+      if (!Array.isArray(body.tasks)) throw new Error("tasks must be an array.");
+      const tasks: WorkflowTaskDefinition[] = body.tasks.map((raw, index) => {
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error(`Task ${index + 1} must be an object.`);
+        const entry = raw as Record<string, unknown>;
+        const validated = validateRunRequest({ ...entry, headless: true, autoApprove: false });
+        const risk = assessTaskRisk(validated.task);
+        if (risk.blocked) throw new Error(`Task ${String(entry.id || index + 1)} is blocked: ${risk.reason}`);
+        const missing = risk.approvalsRequired.filter(category => !validated.approvedCategories?.includes(category));
+        if (missing.length) throw Object.assign(new Error(`Task '${String(entry.id || index + 1)}' requires approval for ${missing.join(", ")}.`), { statusCode: 428, approvalsRequired: missing, taskId: entry.id });
+        const dependsOn = Array.isArray(entry.dependsOn) ? entry.dependsOn.filter((value): value is string => typeof value === "string") : [];
+        return { id: typeof entry.id === "string" ? entry.id : `task-${index + 1}`, task: validated.task, botName: validated.botName || "Primary Bot",
+          expertise: validated.expertise, dependsOn, approvedCategories: validated.approvedCategories, model: validated.model,
+          eventName: validated.eventName, maxSteps: validated.maxSteps, maxDurationSeconds: validated.maxDurationSeconds };
+      });
+      const workflow = await workflowOrchestrator.create(tasks);
+      localBus.publish("workflow.created", { workflowId: workflow.id, tasks: workflow.tasks.map(task => ({ id: task.id, botName: task.botName, dependsOn: task.dependsOn })) }, { source: "workflow-orchestrator" });
+      sendJson(res, 201, { workflow });
+    } catch (error) {
+      const failure = error as Error & { statusCode?: number; approvalsRequired?: string[]; taskId?: string };
+      sendJson(res, failure.statusCode ?? 400, { detail: redactSecrets(failure.message), approvalsRequired: failure.approvalsRequired, taskId: failure.taskId });
+    }
+    return;
+  }
+  if (url.pathname.startsWith("/api/workflows/")) {
+    const rest = url.pathname.slice("/api/workflows/".length).split("/");
+    const workflowId = rest[0];
+    try {
+      if (req.method === "GET" && rest.length === 1) {
+        const workflow = await workflowOrchestrator.get(workflowId);
+        sendJson(res, workflow ? 200 : 404, workflow ? { workflow: redactSecretValues(workflow) } : { detail: "Workflow not found." });
+        return;
+      }
+      if (req.method === "POST" && rest[1] === "start" && rest.length === 2) {
+        if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Workflow start requires an explicit action in this application." }); return; }
+        const { workflow, ready } = await workflowOrchestrator.start(workflowId);
+        const queuedTaskIds = enqueueWorkflowTasks(workflowId, ready);
+        localBus.publish("workflow.started", { workflowId, revision: workflow.revision, queuedTaskIds }, { source: "workflow-orchestrator" });
+        sendJson(res, 202, { workflow, queuedTaskIds });
+        return;
+      }
+      if (req.method === "POST" && rest[1] === "dispatch" && rest.length === 2) {
+        if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Workflow dispatch requires an explicit action in this application." }); return; }
+        const workflow = await workflowOrchestrator.get(workflowId);
+        if (!workflow) { sendJson(res, 404, { detail: "Workflow not found." }); return; }
+        if (workflow.status !== "running") { sendJson(res, 409, { detail: "Only a running workflow can dispatch ready steps." }); return; }
+        const ready = workflow.tasks.filter(task => task.status === "queued");
+        const queuedTaskIds = enqueueWorkflowTasks(workflowId, ready);
+        sendJson(res, 202, { workflow, queuedTaskIds });
+        return;
+      }
+      if (req.method === "POST" && rest[1] === "tasks" && rest[3] === "retry" && rest.length === 4) {
+        if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Workflow retries must come from this application." }); return; }
+        const body = await readJsonBody(req) as Record<string, unknown>;
+        const workflow = await workflowOrchestrator.get(workflowId);
+        const task = workflow?.tasks.find(item => item.id === rest[2]);
+        if (!task) { sendJson(res, 404, { detail: "Workflow task not found." }); return; }
+        if (body.confirmRepeat !== true) { sendJson(res, 400, { detail: "Confirm that retrying may repeat external effects." }); return; }
+        const risk = assessTaskRisk(task.task);
+        if (risk.blocked) { sendJson(res, 403, { detail: risk.reason, code: "credential_exposure_blocked" }); return; }
+        const approvals = Array.isArray(body.approvedCategories) ? body.approvedCategories.filter((value): value is ApprovalCategory => value === "financial_transaction" || value === "external_side_effect") : [];
+        const missing = risk.approvalsRequired.filter(category => !approvals.includes(category));
+        if (missing.length) { sendJson(res, 428, { detail: "Retry requires fresh approval for this task's external effects.", approvalsRequired: missing }); return; }
+        const updated = await workflowOrchestrator.retryTask(workflowId, task.id, true, approvals);
+        const queuedTaskIds = enqueueWorkflowTasks(workflowId, updated.ready);
+        localBus.publish("workflow.task.queued", { workflowId, taskId: task.id, retry: true }, { source: "workflow-orchestrator" });
+        sendJson(res, 202, { workflow: updated.workflow, queuedTaskIds });
+        return;
+      }
+    } catch (error) { sendJson(res, 409, { detail: redactSecrets((error as Error).message) }); return; }
+    sendJson(res, 404, { detail: "Workflow route not found." });
+    return;
+  }
+
   if (url.pathname.startsWith("/api/run/jobs/")) {
     const id = url.pathname.slice("/api/run/jobs/".length);
+    if (id.endsWith("/retry") && req.method === "POST") {
+      if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Job retries must come from this app." }); return; }
+      try {
+        const jobId = id.slice(0, -"/retry".length);
+        const body = await readJsonBody(req) as Record<string, unknown>;
+        const job = asyncAgentQueue.get(jobId);
+        if (!job) { sendJson(res, 404, { detail: "Queued request no longer exists." }); return; }
+        if (job.input.workflowId) { sendJson(res, 400, { detail: "Retry this step through its workflow so dependency state and approvals stay consistent." }); return; }
+        if (body.confirmRepeat !== true) { sendJson(res, 400, { detail: "Confirm that retrying may repeat external effects." }); return; }
+        const risk = assessTaskRisk(job.input.task);
+        if (risk.blocked) { sendJson(res, 403, { detail: risk.reason, code: "credential_exposure_blocked" }); return; }
+        const approvedCategories = Array.isArray(body.approvedCategories)
+          ? body.approvedCategories.filter((value): value is ApprovalCategory => value === "financial_transaction" || value === "external_side_effect") : [];
+        const missing = risk.approvalsRequired.filter(category => !approvedCategories.includes(category));
+        if (missing.length) { sendJson(res, 428, { detail: "Retry requires fresh approval for this task's external effects.", code: "approval_required", approvalsRequired: missing }); return; }
+        const retried = asyncAgentQueue.retry(jobId, true, { ...job.input, approvedCategories, autoApprove: false });
+        sendJson(res, 202, { id: retried.id, status: retried.status, attempts: retried.attempts ?? 0 });
+      } catch (error) { sendJson(res, 409, { detail: redactSecrets((error as Error).message) }); }
+      return;
+    }
     const job = asyncAgentQueue.get(id);
     if (!job) { sendJson(res, 404, { detail: "Queued request no longer exists." }); return; }
     if (req.method === "DELETE") {
@@ -2306,7 +2531,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         stopCurrentRun(); job.status = "cancelled";
       } else if (!asyncAgentQueue.cancel(id)) { sendJson(res, 409, { detail: "This request has already finished." }); return; }
     } else if (req.method !== "GET") { sendJson(res, 405, { detail: "Unsupported queue operation." }); return; }
-    sendJson(res, 200, { id: job.id, status: job.status, runId: job.runId, detail: job.error ? redactSecrets(job.error) : undefined });
+    sendJson(res, 200, { id: job.id, status: job.status, runId: job.runId, attempts: job.attempts ?? 0, updatedAt: job.updatedAt, detail: job.error ? redactSecrets(job.error) : undefined });
+    return;
+  }
+  if (req.method === "GET" && url.pathname === "/api/run/jobs") {
+    sendJson(res, 200, { jobs: asyncAgentQueue.list().map(job => ({ id: job.id, status: job.status, runId: job.runId, attempts: job.attempts ?? 0, updatedAt: job.updatedAt, detail: job.error ? redactSecrets(job.error) : undefined, input: redactSecretValues(job.input) })) });
     return;
   }
   if (req.method === "POST" && (url.pathname === "/api/run" || url.pathname === "/api/run/queue")) {
@@ -2841,6 +3070,55 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/agent/events") {
+    await handleSharedEventsStream(req, res);
+    return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/agent/events") {
+    if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Events must be submitted by this application." }); return; }
+    if (!eventStream.enabled) { sendJson(res, 503, { detail: "Shared event streaming requires MONGODB_URI and an explicit BROWSER_AGENT_WORKSPACE_ID." }); return; }
+    try {
+      const body = await readJsonBody(req) as Record<string, unknown>;
+      const payload = body.payload;
+      if (!payload || typeof payload !== "object" || Array.isArray(payload) || JSON.stringify(payload).length > 16_000) throw new Error("Event payload must be an object under 16 KB.");
+      const eventId = await eventStream.publish("workspace.event", payload, { source: "user" });
+      await localBus.publishAndWait("workspace.event", payload, { ...(eventId ? { id: eventId } : {}), source: "mongo-event-stream" });
+      sendJson(res, 202, { accepted: true, eventId });
+    } catch (error) { sendJson(res, 400, { detail: redactSecrets((error as Error).message) }); }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/observer/suggestions") {
+    sendJson(res, 200, { suggestions: await observer.pending(), mode: "deterministic-correction-review", modelWakeups: 0 });
+    return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/observer/review") {
+    if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Observer decisions must come from this application." }); return; }
+    try {
+      const body = await readJsonBody(req) as Record<string, unknown>;
+      const id = typeof body.id === "string" ? body.id : "";
+      const decision = body.decision === "approve" ? "approve" : body.decision === "reject" ? "reject" : null;
+      if (!decision || !/^[a-f0-9-]{36}$/i.test(id)) throw new Error("Provide a suggestion id and approve or reject decision.");
+      const suggestion = await observer.get(id);
+      if (!suggestion || suggestion.status !== "pending") throw new Error("Observer suggestion is missing or already reviewed.");
+      let target: string | undefined;
+      if (decision === "approve" && suggestion.kind === "voice") {
+        const root = process.env.BROWSER_AGENT_PROFILE_DIR?.trim() || REPO_ROOT;
+        await applyApprovedVoice(root, suggestion);
+        target = `agents/${suggestion.botId}/soul.md`;
+      } else if (decision === "approve") {
+        const current = await playbookStore.approved(suggestion.botId);
+        const proposal = await playbookStore.propose(suggestion.botId, suggestion.instruction, suggestion.evidence.join(", "));
+        await playbookStore.review({ botId: suggestion.botId, proposalId: proposal.id, decision: "approve", reviewer: "local-operator", expectedRevision: current.revision });
+        target = `reviewed playbook revision ${current.revision + 1}`;
+      }
+      const reviewed = await observer.decide(id, decision);
+      localBus.publish("observer.suggestion.reviewed", { id, botName: reviewed.botName, decision, target }, { source: "local-operator" });
+      sendJson(res, 200, { suggestion: reviewed, target });
+    } catch (error) { sendJson(res, 400, { detail: redactSecrets((error as Error).message) }); }
+    return;
+  }
+
   sendJson(res, 404, { detail: "Not found." });
 }
 
@@ -2867,6 +3145,7 @@ async function gracefulShutdown(): Promise<void> {
     sess.frameQueue.push(null);
     await sess.controller.close().catch(() => undefined);
   }
+  await Promise.all([eventStream.close(), playbookStore.close()]);
   if (typeof server.closeAllConnections === "function") {
     server.closeAllConnections();
   }
@@ -2879,4 +3158,9 @@ process.on("SIGINT", () => void gracefulShutdown());
 
 server.listen(PORT, HOST, () => {
   console.log(`Open Bots Server listening on http://${HOST}:${PORT}`);
+  try { asyncAgentQueue.restore(false); }
+  catch (error) { console.error("Could not restore queued agent jobs:", redactSecrets((error as Error).message)); }
+  void recoverWorkflowQueue().catch(error => console.error("Could not recover workflow state:", redactSecrets((error as Error).message)))
+    .finally(() => { asyncQueueReady = true; asyncAgentQueue.resume(); });
+  void eventStream.start(localBus);
 });

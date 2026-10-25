@@ -33,6 +33,8 @@ export type BusHandler<T = unknown> = (message: BusMessage<T>) => void | Promise
 export type Unsubscribe = () => void;
 
 export interface PublishOptions {
+  id?: string;
+  publishedAt?: string;
   source?: string;
   correlationId?: string;
   replyTo?: string;
@@ -144,6 +146,13 @@ export class MessageBus {
     return message;
   }
 
+  /** Publish and reject if any subscriber fails, for durable consumers that must not ack early. */
+  async publishAndWaitStrict<T>(topic: string, payload: T, options: PublishOptions = {}): Promise<BusMessage<T>> {
+    const message = this.record(topic, payload, options);
+    await this.dispatch(message, true);
+    return message;
+  }
+
   /**
    * Request/response over topics. The responder gets `replyTo` on the message and answers with
    * `bus.reply(message, payload)`; nothing holds a reference to the other participant.
@@ -204,10 +213,10 @@ export class MessageBus {
       throw new Error(`Cannot publish to a wildcard topic: ${JSON.stringify(topic)}`);
     }
     const message: BusMessage<T> = {
-      id: randomUUID(),
+      id: options.id ?? randomUUID(),
       topic,
       payload,
-      publishedAt: new Date().toISOString(),
+      publishedAt: options.publishedAt ?? new Date().toISOString(),
       ...(options.source ? { source: options.source } : {}),
       ...(options.correlationId ? { correlationId: options.correlationId } : {}),
       ...(options.replyTo ? { replyTo: options.replyTo } : {})
@@ -221,13 +230,14 @@ export class MessageBus {
     return message;
   }
 
-  private async dispatch(message: BusMessage): Promise<void> {
+  private async dispatch(message: BusMessage, strict = false): Promise<void> {
     // Snapshot first: a handler that subscribes or unsubscribes must not change this delivery.
     const matched = this.subscriptions.filter(
       (subscription) => !subscription.disposed && topicMatches(subscription.pattern, message.topic)
     );
     if (matched.length === 0) return;
 
+    const failures: Error[] = [];
     await Promise.all(
       matched.map(async (subscription) => {
         if (subscription.disposed) return;
@@ -235,10 +245,12 @@ export class MessageBus {
         try {
           await subscription.handler(message as never);
         } catch (err) {
+          failures.push(err instanceof Error ? err : new Error(String(err)));
           this.handleSubscriberError(err, message);
         }
       })
     );
+    if (strict && failures.length) throw new AggregateError(failures, `One or more subscribers failed for "${message.topic}".`);
   }
 
   private handleSubscriberError(err: unknown, message: BusMessage): void {
