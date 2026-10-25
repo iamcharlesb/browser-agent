@@ -113,6 +113,8 @@ button { color: inherit; }
 #sidebar {
   position: relative;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   background: var(--sidebar);
   border-right: 1px solid var(--border);
   display: flex;
@@ -251,6 +253,7 @@ button { color: inherit; }
   gap: 2px;
 }
 .agent-row {
+  flex-shrink: 0;
   min-height: 48px;
   position: relative;
   cursor: grab;
@@ -518,50 +521,10 @@ button { color: inherit; }
   }
 }
 
-/* A compact, sculpted welcome mark with a calm, symmetrical face. */
-#welcome .welcome-mark {
-  width: 68px;
-  height: 68px;
-  background: transparent;
-  box-shadow: none;
-}
-#welcome .welcome-mark:hover { transform: none; }
-#welcome .welcome-mark .bot {
-  --size: 62px;
-  border-radius: 28%;
-  background: radial-gradient(ellipse at 28% 10%, #49444b 0%, #25232b 48%, #17161c 100%);
-  border: 1px solid rgba(255,255,255,.22);
-  box-shadow: 0 10px 24px rgba(28,23,34,.16), 0 2px 3px rgba(255,255,255,.14) inset, 0 -3px 6px rgba(0,0,0,.22) inset;
-}
-#welcome .welcome-mark .bot::after {
-  content: "";
-  position: absolute;
-  width: 13px;
-  height: 13px;
-  right: -4px;
-  top: -4px;
-  background: linear-gradient(135deg, #ffb567, #ff4b26);
-  clip-path: polygon(50% 0, 64% 36%, 100% 50%, 64% 64%, 50% 100%, 36% 64%, 0 50%, 36% 36%);
-}
-#welcome .welcome-mark .eye {
-  top: 32%;
-  width: 11%;
-  height: 25%;
-  background: #fff4eb;
-  box-shadow: 0 0 8px rgba(255,180,120,.25);
-}
-#welcome .welcome-mark .eye:nth-child(1) { left: 32%; }
-#welcome .welcome-mark .eye:nth-child(2) { left: 57%; }
-#welcome .welcome-mark .mouth {
-  opacity: 1;
-  scale: 1;
-  top: 65%;
-  width: 20%;
-  height: 8%;
-  border: 2px solid #ff9a63;
-  border-top: 0;
-  border-radius: 0 0 999px 999px;
-}
+/* Flat bot mark shared with the new-bot control. */
+#welcome .welcome-mark { background: transparent; box-shadow: none; }
+#welcome .welcome-mark .bot { border-radius: 24%; background: var(--c); border: 0; box-shadow: none; }
+#welcome .welcome-mark .bot::after { display: none; }
 
 /* Create Bot Modal (Blob Bot Shape, Expression & Colour Customizer) */
 #create-bot-modal .modal-inner {
@@ -3660,6 +3623,10 @@ dialog.modal-dialog::backdrop {
     <p style="margin:0 0 12px;color:var(--muted);font-size:12.5px;">
       All terminal commands, file operations, YouTube analysis, and Chromium browser sessions run 100% locally behind your browser. Select <strong>Local Engine</strong> or <strong>Ollama</strong> to run with zero cloud API required.
     </p>
+    <div class="form-field" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f8fafc;border-radius:12px;">
+      <span>Estimated model spend</span>
+      <button id="header-cost-chip" class="btn-secondary" type="button" title="Approximate tracked model spend" aria-label="Approximate model spend" style="padding:4px 8px;margin-left:6px;">Loading…</button>
+    </div>
     <form id="settings-form">
       <div class="form-field">
         <label for="model-select">Active Execution Engine / Model</label>
@@ -3668,22 +3635,26 @@ dialog.modal-dialog::backdrop {
 </select>
       </div>
       <p id="claude-cli-status" style="margin:0 0 10px;font-size:12px;color:var(--muted);"></p>
+      <details id="provider-credentials" class="form-field">
+        <summary style="cursor:pointer;font-weight:600;">Provider keys and connection</summary>
+        <p style="font-size:12px;color:var(--muted);">Configure a key for your API provider or a connection for your local model.</p>
       <div class="form-field">
-        <label for="settings-openai-key">OpenAI API Key (optional — not needed for Local Engine, Ollama, or Claude CLI)</label>
+        <label for="settings-openai-key">OpenAI API key</label>
         <input id="settings-openai-key" type="password" placeholder="sk-..." autocomplete="off" />
       </div>
       <div class="form-field">
-        <label for="settings-anthropic-key">Anthropic API Key (for Claude API models — not needed for Claude CLI if `claude` is logged in)</label>
+        <label for="settings-anthropic-key">Anthropic API key</label>
         <input id="settings-anthropic-key" type="password" placeholder="sk-ant-..." autocomplete="off" />
       </div>
       <div class="form-field">
-        <label for="settings-xai-key">xAI Grok API Key (for Grok 2 Vision)</label>
+        <label for="settings-xai-key">xAI API key</label>
         <input id="settings-xai-key" type="password" placeholder="xai-..." autocomplete="off" />
       </div>
       <div class="form-field">
-        <label for="settings-base-url">Custom / Local OpenAI-Compatible Base URL (e.g. http://127.0.0.1:11434/v1)</label>
+        <label for="settings-base-url">Custom or local API connection URL</label>
         <input id="settings-base-url" type="url" placeholder="https://api.openai.com/v1" />
       </div>
+      </details>
       <div id="settings-status" style="font-size:12px;color:var(--green);min-height:18px;"></div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" data-close-modal="settings-modal">Close</button>
@@ -3713,7 +3684,7 @@ dialog.modal-dialog::backdrop {
       </p>
     <div class="form-field" style="margin-top:4px;border-top:1px solid var(--border);padding-top:14px;">
       <div style="display:flex;align-items:center;justify-content:space-between;">
-        <span>Usage &amp; Estimated Cost <button id="header-cost-chip" class="btn-secondary" type="button" title="Approximate tracked model spend" aria-label="Approximate model spend" style="padding:4px 8px;margin-left:6px;">~$0.00</button></span>
+        <span>Usage &amp; Estimated Cost</span>
         <button type="button" id="usage-refresh-btn" class="btn-secondary" style="padding:4px 10px;font-size:11px;">Refresh</button>
       </div>
       <div id="usage-summary" style="font-size:12.5px;color:var(--muted);margin:8px 0;">Loading…</div>
@@ -3874,144 +3845,6 @@ dialog.modal-dialog::backdrop {
     try { stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
     catch (_) { stored = []; }
     if (!Array.isArray(stored)) stored = [];
-    // Predefined bots belong in the catalog until someone explicitly adds them.
-    // Keep this legacy flag inert so old installs cannot silently repopulate the roster.
-    var legacyAutoOnboardEnabled = false;
-    var revenueId = "agent_the_revenue_architect";
-    var revenueName = "Inspired by Sabri Suby";
-    var alreadyPresent = stored.some(function(bot) { return bot && (bot.id === revenueId || String(bot.name || "").toLowerCase() === revenueName.toLowerCase()); });
-    if (legacyAutoOnboardEnabled && !alreadyPresent && deletedBotIds.indexOf(revenueId) < 0) {
-      var role = "Founder-level direct-response marketing strategist focused on customer understanding, profitable acquisition, persuasive copy, funnel economics, and evidence-based growth.";
-      var task = "Act as Inspired by Sabri Suby, an original AI marketing agent informed by direct-response ideas associated with Sabri Suby and Sell Like Crazy. You are not Sabri Suby and do not represent him or King Kong. Understand the audience and offer before recommending campaigns. Tie recommendations to funnel outcomes and acquisition economics; label assumptions and design measurable tests. Challenge generic or unprofitable ideas directly and offer stronger alternatives. Persuade ethically: never invent proof, scarcity, guarantees, or customer research. Ask for approval before publishing, contacting prospects, changing campaigns, or spending money.";
-      stored.push({
-        id: revenueId,
-        name: revenueName,
-        description: role,
-        summary: "Customer insight → profitable acquisition → measurable tests and direct-response copy.",
-        shape: "circle",
-        shapeCustomized: false,
-        color: "#E45532",
-        intent: {
-          kind: "sales",
-          expertise: role,
-          url: "https://www.google.com/",
-          needsBrowserOnInit: false,
-          summary: "Customer insight → profitable acquisition → measurable tests and direct-response copy.",
-          suggestions: ["Audit my offer and funnel economics", "Write 3 evidence-based landing page angles", "Design a small acquisition test with a stop rule"],
-          task: task
-        },
-        transcript: []
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-    }
-    var valueId = "agent_the_value_architect";
-    var valueName = "Inspired by Alex Hormozi";
-    var valuePresent = stored.some(function(bot) { return bot && (bot.id === valueId || String(bot.name || "").toLowerCase() === valueName.toLowerCase()); });
-    if (legacyAutoOnboardEnabled && !valuePresent && deletedBotIds.indexOf(valueId) < 0) {
-      var valueRole = "Founder-level business growth strategist specializing in valuable offers, customer acquisition, pricing, monetization, unit economics, retention, and scalable growth systems.";
-      var valueTask = "Act as Inspired by Alex Hormozi, an original business growth strategist inspired by Alex Hormozi's published frameworks. You are not Alex Hormozi and do not represent Acquisition.com. Create genuine customer value and translate it into sustainable acquisition, monetization, retention, and profit. Diagnose the binding constraint before prescribing tactics. Separate evidence from assumptions, challenge weak thinking constructively, and recommend a practical high-leverage experiment. Never claim another business's results transfer automatically. Never change prices, charge customers, commit funds, or change production campaigns without required approval.";
-      stored.push({
-        id: valueId,
-        name: valueName,
-        description: valueRole,
-        summary: "Create genuine value, acquire customers, and grow sustainable profit.",
-        shape: "circle",
-        shapeCustomized: false,
-        color: "#147D79",
-        intent: {
-          kind: "sales",
-          expertise: valueRole,
-          url: "https://www.google.com/",
-          needsBrowserOnInit: false,
-          summary: "Create genuine value, acquire customers, and grow sustainable profit.",
-          suggestions: ["Diagnose my biggest business growth constraint", "Improve my offer and value equation", "Map my acquisition and monetization economics"],
-          task: valueTask
-        },
-        transcript: []
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-    }
-    var systemsId = "agent_the_systems_architect";
-    var systemsName = "The Systems Architect";
-    var systemsPresent = stored.some(function(bot) { return bot && (bot.id === systemsId || String(bot.name || "").toLowerCase() === systemsName.toLowerCase()); });
-    if (legacyAutoOnboardEnabled && !systemsPresent && deletedBotIds.indexOf(systemsId) < 0) {
-      var systemsRole = "Principal full-stack, cloud, security, reliability, and distributed-systems architect focused on simple, maintainable, production-ready designs.";
-      var systemsTask = "Act as The Systems Architect, an original principal engineering agent informed by published work from Martin Fowler, Kent C. Dodds, Sam Newman, Simon Brown, Charity Majors, Robert C. Martin, and Kelsey Hightower. Never impersonate them. Design the simplest architecture that meets real requirements and can be operated and evolved. State assumptions, failure modes, security, cost, and tradeoffs. Verify changeable technology details against current primary documentation. Do not deploy, modify infrastructure, perform destructive operations, or incur cost without required approval.";
-      stored.push({
-        id: systemsId,
-        name: systemsName,
-        description: systemsRole,
-        summary: "Simple, secure, reliable systems designed for operation and change.",
-        shape: "circle",
-        shapeCustomized: false,
-        color: "#4768A8",
-        intent: {
-          kind: "coding",
-          expertise: systemsRole,
-          url: "https://github.com/",
-          needsBrowserOnInit: false,
-          summary: "Simple, secure, reliable systems designed for operation and change.",
-          suggestions: ["Review this system design and its tradeoffs", "Design a reliable API and data model", "Find the simplest architecture that meets these requirements"],
-          task: systemsTask
-        },
-        transcript: []
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-    }
-    var craftsmanId = "agent_the_engineering_craftsman";
-    var craftsmanName = "Inspired by Addy Osmani";
-    var craftsmanPresent = stored.some(function(bot) { return bot && (bot.id === craftsmanId || String(bot.name || "").toLowerCase() === craftsmanName.toLowerCase()); });
-    if (legacyAutoOnboardEnabled && !craftsmanPresent && deletedBotIds.indexOf(craftsmanId) < 0) {
-      var craftsmanRole = "Principal software engineer specializing in maintainable frontend architecture, measurable web performance, developer experience, code review, and responsible AI-assisted engineering.";
-      var craftsmanTask = "Act as Inspired by Addy Osmani, an original engineering agent influenced by Addy Osmani's published work. Never impersonate him. Deliver software that solves user problems, performs measurably, remains maintainable, and evolves safely. Inspect existing code and constraints, make focused changes, and verify correctness. Measure before optimizing, challenge unnecessary complexity, and critically review AI-generated code. Use current primary documentation for changing APIs and standards. Report what was verified and any uncertainty.";
-      stored.push({
-        id: craftsmanId,
-        name: craftsmanName,
-        description: craftsmanRole,
-        summary: "Fast for users, clear for maintainers, and verified with evidence.",
-        shape: "circle",
-        shapeCustomized: false,
-        color: "#7056A8",
-        intent: {
-          kind: "coding",
-          expertise: craftsmanRole,
-          url: "https://github.com/",
-          needsBrowserOnInit: false,
-          summary: "Fast for users, clear for maintainers, and verified with evidence.",
-          suggestions: ["Review this change for correctness and maintainability", "Measure and diagnose this web performance issue", "Improve this developer workflow with a focused change"],
-          task: craftsmanTask
-        },
-        transcript: []
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-    }
-    var neuralId = "agent_the_neural_architect";
-    var neuralName = "Inspired by Andrej Karpathy";
-    var neuralPresent = stored.some(function(bot) { return bot && (bot.id === neuralId || String(bot.name || "").toLowerCase() === neuralName.toLowerCase()); });
-    if (legacyAutoOnboardEnabled && !neuralPresent && deletedBotIds.indexOf(neuralId) < 0) {
-      var neuralRole = "Principal AI engineer specializing in deep learning, transformers, LLM systems, agent design, model evaluation, and efficient inference.";
-      var neuralTask = "Act as Inspired by Andrej Karpathy, an original AI specialist inspired by Andrej Karpathy's public work. Never impersonate him. Understand AI systems from data and tokens through models, evaluation, inference, tools, and operations. Build the smallest useful implementation, establish a baseline, and test hypotheses with evidence. Separate facts, theories, findings, and assumptions. Avoid unnecessary agents and complexity. Never claim an improvement without evaluation evidence or incur compute costs without approval.";
-      stored.push({
-        id: neuralId,
-        name: neuralName,
-        description: neuralRole,
-        summary: "Understand AI from first principles; validate behavior with reproducible evidence.",
-        shape: "circle",
-        shapeCustomized: false,
-        color: "#3E7C91",
-        intent: {
-          kind: "coding",
-          expertise: neuralRole,
-          url: "https://github.com/karpathy",
-          needsBrowserOnInit: false,
-          summary: "Understand AI from first principles; validate behavior with reproducible evidence.",
-          suggestions: ["Explain this Transformer from first principles", "Design an evaluation for this AI feature", "Find the bottleneck in this inference pipeline"],
-          task: neuralTask
-        },
-        transcript: []
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-    }
     // Remove only canonical IDs used by the old automatic seeding path. User-created
     // bots have timestamp IDs and remain untouched. Tombstones keep cloud sync from
     // reintroducing these implicit roster entries on the next refresh.
@@ -4023,12 +3856,20 @@ dialog.modal-dialog::backdrop {
       "agent_the_neural_architect"
     ];
     var removedLegacyIds = legacyPresetIds.filter(function(id) {
-      return stored.some(function(bot) { return bot && bot.id === id; });
+      return stored.some(function(bot) { return bot && bot.id === id && !(bot.transcript || []).some(function(message) { return message.role === "user"; }); });
     });
     if (removedLegacyIds.length) {
       deletedBotIds = Array.from(new Set(deletedBotIds.concat(removedLegacyIds)));
       localStorage.setItem("openBotsDeletedIds", JSON.stringify(deletedBotIds));
-      stored = stored.filter(function(bot) { return !bot || legacyPresetIds.indexOf(bot.id) < 0; });
+      var archiveKey = "openBotsLegacyPresetArchive";
+      var archived = [];
+      try { archived = JSON.parse(localStorage.getItem(archiveKey) || "[]"); } catch (_) {}
+      if (!Array.isArray(archived)) archived = [];
+      stored.forEach(function(bot) {
+        if (bot && removedLegacyIds.indexOf(bot.id) >= 0 && !archived.some(function(item) { return item.id === bot.id; })) archived.push(bot);
+      });
+      localStorage.setItem(archiveKey, JSON.stringify(archived));
+      stored = stored.filter(function(bot) { return !bot || removedLegacyIds.indexOf(bot.id) < 0; });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
     }
     return stored;
@@ -4214,11 +4055,11 @@ dialog.modal-dialog::backdrop {
   var editingBotId = null;
   var selectedBotPreset = null;
   var LATEST_BOT_PRESETS = [
-    { name: "Inspired by Sabri Suby", description: "Founder-level direct-response strategist informed by Sabri Suby's published ideas. Customer research, profitable acquisition, funnel economics, persuasive copy, measurable experiments, ethical claims, and approval before campaign changes or spend.", color: "#E45532", avatar: "/avatars/revenue-architect.png", summary: "Direct response strategy, customer acquisition, persuasive copy, and profitable growth." },
-    { name: "Inspired by Alex Hormozi", description: "Founder-level business growth strategist informed by Alex Hormozi's published frameworks. Create genuine customer value through offers, pricing, acquisition, monetization, retention, and sustainable economics. Diagnose constraints, label assumptions, test hypotheses, and require approval before pricing or spending changes.", color: "#147D79", avatar: "/avatars/value-architect.png", summary: "Offers, pricing, customer value, acquisition, and sustainable business growth." },
+    { name: "Inspired by Sabri Suby", description: "Founder-level direct-response strategist informed by Sabri Suby's published ideas. Customer research, profitable acquisition, funnel economics, persuasive copy, measurable experiments, ethical claims, and approval before campaign changes or spend.", color: "#E45532", avatar: "/avatars/sabri-suby.jpg?v=6746ddc34177", summary: "Direct response strategy, customer acquisition, persuasive copy, and profitable growth." },
+    { name: "Inspired by Alex Hormozi", description: "Founder-level business growth strategist informed by Alex Hormozi's published frameworks. Create genuine customer value through offers, pricing, acquisition, monetization, retention, and sustainable economics. Diagnose constraints, label assumptions, test hypotheses, and require approval before pricing or spending changes.", color: "#147D79", avatar: "/avatars/alex-hormozi.webp?v=cc0a5ae96df8", summary: "Offers, pricing, customer value, acquisition, and sustainable business growth." },
     { name: "The Systems Architect", description: "Principal full-stack and distributed-systems architect informed by published engineering work. Design the simplest secure, reliable, maintainable system that meets real requirements. Evaluate cloud, data, operations, failure modes, costs, and tradeoffs. Require approval before deployment or infrastructure changes.", color: "#4768A8" },
-    { name: "Inspired by Addy Osmani", description: "Principal software engineer informed by Addy Osmani's published work. Focus on maintainable frontend architecture, measurable web performance, developer experience, code review, and responsible AI-assisted engineering. Measure before optimizing and verify changes.", color: "#7056A8", avatar: "/avatars/engineering-craftsman.png", summary: "Software engineering, web performance, frontend architecture, and developer experience." },
-    { name: "Inspired by Andrej Karpathy", description: "Principal AI specialist informed by Andrej Karpathy's public work. Understand deep learning, Transformers, LLM systems, evaluation, agent design, and inference from first principles. Build small baselines and measure hypotheses; never claim improvement without evidence.", color: "#3E7C91", avatar: "/avatars/neural-architect.png", summary: "Deep learning, LLM systems, evaluation, and AI from first principles." }
+    { name: "Inspired by Addy Osmani", description: "Principal software engineer informed by Addy Osmani's published work. Focus on maintainable frontend architecture, measurable web performance, developer experience, code review, and responsible AI-assisted engineering. Measure before optimizing and verify changes.", color: "#7056A8", avatar: "/avatars/addy-osmani.jpg?v=29902bd27134", summary: "Software engineering, web performance, frontend architecture, and developer experience." },
+    { name: "Inspired by Andrej Karpathy", description: "Principal AI specialist informed by Andrej Karpathy's public work. Understand deep learning, Transformers, LLM systems, evaluation, agent design, and inference from first principles. Build small baselines and measure hypotheses; never claim improvement without evidence.", color: "#3E7C91", avatar: "/avatars/andrej-karpathy.jpg?v=2aaa21c78fa6", summary: "Deep learning, LLM systems, evaluation, and AI from first principles." }
   ];
 
   var SPECIALIST_NAME_ALIASES = {
@@ -4234,10 +4075,10 @@ dialog.modal-dialog::backdrop {
     var preset = LATEST_BOT_PRESETS.find(function(item) { return item.name === renamed; });
     if (!preset) return bot;
     bot.name = preset.name;
-    bot.description = preset.description;
-    bot.summary = preset.summary || preset.description;
+    bot.description = bot.description || preset.description;
+    bot.summary = bot.summary || preset.summary || preset.description;
     bot.avatarImage = preset.avatar;
-    bot.intent = inferredIntent(preset.name, preset.description);
+    bot.intent = inferredIntent(preset.name, bot.description);
     return bot;
   }
   agents.forEach(normalizeSpecialistBot);
@@ -4258,11 +4099,11 @@ dialog.modal-dialog::backdrop {
   };
   function defaultAvatarImage(name) {
     var key = String(name || "").trim().toLowerCase();
-    if (key === "inspired by sabri suby") return "/avatars/revenue-architect.png";
-    if (key === "inspired by alex hormozi") return "/avatars/value-architect.png";
-    if (key === "inspired by addy osmani") return "/avatars/engineering-craftsman.png";
-    if (key === "inspired by andrej karpathy") return "/avatars/neural-architect.png";
-    if (key === "blog writer") return "/avatars/blog-writer.png";
+    if (key === "inspired by sabri suby") return "/avatars/sabri-suby.jpg?v=6746ddc34177";
+    if (key === "inspired by alex hormozi") return "/avatars/alex-hormozi.webp?v=cc0a5ae96df8";
+    if (key === "inspired by addy osmani") return "/avatars/addy-osmani.jpg?v=29902bd27134";
+    if (key === "inspired by andrej karpathy") return "/avatars/andrej-karpathy.jpg?v=2aaa21c78fa6";
+    if (key === "blog writer") return "/avatars/blog-writer.svg?v=d0b894c295e3";
     return "";
   }
   var normalizedStarterShapes = false;
@@ -4325,7 +4166,7 @@ dialog.modal-dialog::backdrop {
   function applyAvatarElement(el, agent, working) {
     if (!el) return;
     var seedKey = (agent && (agent.id || agent.name)) || "new-bot";
-    var avatarImage = (agent && agent.avatarImage) || defaultAvatarImage(agent && agent.name);
+    var avatarImage = defaultAvatarImage(agent && agent.name) || (agent && agent.avatarImage);
     if (avatarImage) {
       el.classList.add("custom-bot");
       el.classList.add("photo-avatar");
@@ -5199,13 +5040,23 @@ dialog.modal-dialog::backdrop {
   // Important: do NOT destroy the clicked control during the click. With
   // <dialog closedby="any">, removing the event target mid-click is treated as a
   // light-dismiss and closes the modal — so shape/color picks looked "broken".
+  function renderBotPickerPreview() {
+    var preview = document.getElementById("bot-modal-preview");
+    if (!preview) return;
+    var editing = editingBotId && agents.find(function(bot) { return bot.id === editingBotId; });
+    var image = selectedBotPreset && selectedBotPreset.avatar || editing && editing.avatarImage;
+    preview.innerHTML = image
+      ? '<img src="' + esc(image) + '" alt="Selected bot portrait" style="width:96px;height:96px;object-fit:cover;border-radius:24px;">'
+      : renderBotIcon(selectedBotShape, selectedBotColor);
+  }
+
   function syncBotPickerSelection() {
     var previewEl = document.getElementById("bot-modal-preview");
     var shapeGrid = document.getElementById("bot-shape-grid");
     var colorGrid = document.getElementById("bot-color-grid");
     if (!previewEl || !shapeGrid || !colorGrid) return;
 
-    previewEl.innerHTML = renderBotIcon(selectedBotShape, selectedBotColor);
+    renderBotPickerPreview();
 
     Array.prototype.forEach.call(shapeGrid.querySelectorAll(".bot-shape-btn"), function(btn) {
       var id = btn.getAttribute("data-shape");
@@ -5273,7 +5124,7 @@ dialog.modal-dialog::backdrop {
       colorGrid.appendChild(btn);
     });
 
-    previewEl.innerHTML = renderBotIcon(selectedBotShape, selectedBotColor);
+    renderBotPickerPreview();
   }
 
   function getBotOnboardingPresets() {
@@ -5356,6 +5207,7 @@ dialog.modal-dialog::backdrop {
   function renderBotOnboardingPresets() {
     var select = document.getElementById("bot-preset-select");
     if (!select) return;
+    var previousValue = select.value;
     select.innerHTML = '<option value="">Blank bot</option>';
     var ordered = getBotOnboardingPresets().map(function(preset) {
       return { preset: preset, onboarded: agents.some(function(bot) { return String(bot.name || "").trim().toLowerCase() === preset.name.toLowerCase(); }) };
@@ -5372,6 +5224,7 @@ dialog.modal-dialog::backdrop {
       option.disabled = onboarded;
       select.appendChild(option);
     });
+    if (Array.from(select.options).some(function(option) { return option.value === previousValue && !option.disabled; })) select.value = previousValue;
   }
 
   function openCreateBotModal(prefill) {
@@ -8586,6 +8439,7 @@ dialog.modal-dialog::backdrop {
     });
   });
 
+  applyAvatarElement(newAgentButton.querySelector(".agent-avatar"), null, false);
   var welcomeAvatarEl = document.getElementById("welcome-avatar");
   if (welcomeAvatarEl) {
     welcomeAvatarEl.innerHTML = renderBotIcon("circle", "#ff2d3b");

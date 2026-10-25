@@ -3,7 +3,7 @@
  * Default browsing surface: docked WebContentsView (in-app), driven via Electron CDP.
  * Optional escape hatch: external Connected Chrome on port 9222 (handled by the agent server).
  */
-const { app, BrowserWindow, WebContentsView, session, shell, Menu, ipcMain } = require("electron");
+const { app, BrowserWindow, WebContentsView, session, shell, Menu, ipcMain, nativeImage } = require("electron");
 const { spawn } = require("node:child_process");
 const http = require("node:http");
 const net = require("node:net");
@@ -171,7 +171,7 @@ function createWindow(port) {
     minWidth: 960,
     minHeight: 640,
     title: "Open Bots",
-    icon: path.join(PROJECT_ROOT, "static", "open-bots-icon.svg"),
+    icon: path.join(PROJECT_ROOT, "static", "open-bots-icon.png"),
     show: false,
     ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 14, y: 16 } } : {}),
     backgroundColor: "#f8f9fb",
@@ -299,6 +299,10 @@ ipcMain.handle("auth:google-sign-in", async (event, handoff) => {
 });
 
 async function boot() {
+  if (process.platform === "darwin" && app.dock) {
+    const icon = nativeImage.createFromPath(path.join(PROJECT_ROOT, "static", "open-bots-icon.png"));
+    if (!icon.isEmpty()) app.dock.setIcon(icon);
+  }
   buildMenu();
   // Attach to an already-running server (e.g. `npm run dev` on 8765) without spawning dist/.
   const attachExisting = process.env.BROWSER_AGENT_ATTACH_EXISTING === "1";
