@@ -14,6 +14,7 @@ import {
   botIdFromName,
   defaultLearningKb,
   distillLearningKb,
+  distillUserCorrections,
   isUserCorrectionOrRule,
   learningFilePath,
   loadLearningKb,
@@ -35,7 +36,7 @@ test("botIdFromName slugs display names and rejects path escapes", () => {
 });
 
 test("sanitizeLearningText redacts secrets and caps length", () => {
-  const redacted = sanitizeLearningText("password=hunter2 and sk-abcdefghijklmnopqrstuvwxyz123456");
+  const redacted = sanitizeLearningText("password=hunter2 and sk-" + "a".repeat(32));
   assert.match(redacted, /\[REDACTED/);
   assert.ok(!redacted.includes("hunter2"));
   const long = sanitizeLearningText("x".repeat(500), 40);
@@ -222,4 +223,27 @@ test("applyUserTurnInput immediately records user corrections, rules, and evicts
   );
   assert.equal(isUserCorrectionOrRule("always verify the save toast before finishing"), true);
   assert.equal(isUserCorrectionOrRule("you broke the code"), true);
+});
+
+test("learning IDs differing only in case remain compatible", async () => {
+  const root = await mkdtemp(join(tmpdir(), "learning-case-"));
+  try {
+    await saveLearningKb(root, defaultLearningKb("medium"));
+    // The requested path casing can vary on macOS while the JSON retains the older ID.
+    const raw = await readFile(learningFilePath(root, "medium"), "utf8");
+    const { validateLearningKb } = await import("./learningStore");
+    assert.equal(validateLearningKb(JSON.parse(raw), "Medium").botId, "medium");
+    assert.throws(() => validateLearningKb(JSON.parse(raw), "Other"), /does not match/);
+  } finally { await rm(root, {recursive: true, force: true}); }
+});
+
+
+test("unreviewed model notes are excluded from automatic operational context", () => {
+  let state = defaultLearningKb("bot");
+  state = appendLearning(state, { kind: "learning", text: "Unreviewed model suggestion", source: "tool" });
+  state = appendLearning(state, { kind: "mistake", text: "Use the intended workspace", source: "user_correction" });
+  const distilled = distillUserCorrections(state);
+  assert.match(distilled, /intended workspace/);
+  assert.doesNotMatch(distilled, /Unreviewed model suggestion/);
+  assert.match(distillLearningKb(state), /Unreviewed model suggestion/);
 });

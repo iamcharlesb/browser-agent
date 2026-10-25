@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:production": "tsc -p tsconfig.json --outDir build",
-    "test": "npm run build && node --test dist/commandControls.test.js dist/findingEvidence.test.js dist/googleSignInHandoff.test.js dist/knowledgeStore.test.js dist/chatAttachments.test.js dist/taskMemory.test.js dist/uploadFile.test.js dist/approvalPolicy.test.js dist/security.test.js dist/promptLoop.test.js dist/scheduler.test.js dist/apiContract.test.js dist/claudeCli.test.js dist/learningStore.test.js dist/messageBus.test.js dist/selfFix.test.js dist/learnMode.test.js dist/patchProposer.test.js dist/actionEffect.test.js dist/handoff.test.js dist/fixApproval.test.js dist/userStore.test.js dist/frameStream.test.js dist/browserRuntime.test.js dist/managedChrome.test.js dist/scriptRunner.test.js electron/browserWorkspace.test.cjs electron/googleSignIn.test.cjs",
+    "test": "npm run check:secrets && npm run build:test && node --test .test-dist/commandControls.test.js .test-dist/findingEvidence.test.js .test-dist/googleSignInHandoff.test.js .test-dist/knowledgeStore.test.js .test-dist/chatAttachments.test.js .test-dist/taskMemory.test.js .test-dist/uploadFile.test.js .test-dist/approvalPolicy.test.js .test-dist/security.test.js .test-dist/promptLoop.test.js .test-dist/scheduler.test.js .test-dist/apiContract.test.js .test-dist/claudeCli.test.js .test-dist/learningStore.test.js .test-dist/messageBus.test.js .test-dist/selfFix.test.js .test-dist/learnMode.test.js .test-dist/patchProposer.test.js .test-dist/actionEffect.test.js .test-dist/handoff.test.js .test-dist/fixApproval.test.js .test-dist/userStore.test.js .test-dist/userSync.test.js .test-dist/runtimeConfig.test.js .test-dist/contextBudget.test.js .test-dist/agentProfile.test.js .test-dist/playbookStore.test.js .test-dist/asyncAgentQueue.test.js .test-dist/runOutcomes.test.js .test-dist/frameStream.test.js .test-dist/browserRuntime.test.js .test-dist/managedChrome.test.js .test-dist/embeddedAttach.test.js .test-dist/scriptRunner.test.js electron/browserWorkspace.test.cjs electron/googleSignIn.test.cjs",
     "benchmark:navigation": "npm run build && node scripts/benchmarkNavigation.cjs",
     "test:desktop": "npm run build && node scripts/testDesktop.js",
     "cli": "node dist/cli.js",
@@ -18,7 +18,10 @@
     "desktop": "node scripts/desktop.js",
     "desktop:dev": "node scripts/desktopDev.js",
     "desktop:built": "node scripts/desktop.js",
-    "desktop:attach": "node scripts/desktop.js --attach"
+    "desktop:attach": "node scripts/desktop.js --attach",
+    "build:test": "tsc -p tsconfig.json --outDir .test-dist",
+    "check:secrets": "node scripts/checkSecrets.cjs",
+    "profiles:review": "npm run build && node dist/reviewPlaybook.js"
   },
   "engines": {
     "node": ">=18.0.0"

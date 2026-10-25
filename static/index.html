@@ -293,9 +293,14 @@ button { color: inherit; }
   overflow: visible;
 }
 .agent-avatar.small {
-  width: 28px;
-  height: 28px;
+  width: 38px;
+  height: 38px;
   font-size: 11.5px;
+}
+.agent-row { gap: 14px; }
+.agent-row .agent-copy {
+  min-width: 0;
+  align-self: center;
 }
 
 /* ===== BLOB BOT ICON SYSTEM (pure CSS, animated — from blob-bot-icons.html) =====
@@ -450,9 +455,9 @@ button { color: inherit; }
 .agent-avatar .bot { --size: 36px; }
 .agent-avatar .bot--capsule,
 .agent-avatar .bot--cloud { --size: 28px; }
-.agent-avatar.small .bot { --size: 29px; }
+.agent-avatar.small .bot { --size: 39px; }
 .agent-avatar.small .bot--capsule,
-.agent-avatar.small .bot--cloud { --size: 24px; }
+.agent-avatar.small .bot--cloud { --size: 34px; }
 #agent-chip .agent-avatar.small .bot { --size: 21px; }
 #agent-chip .agent-avatar.small .bot--capsule,
 #agent-chip .agent-avatar.small .bot--cloud { --size: 17px; }
@@ -660,7 +665,7 @@ button { color: inherit; }
   gap: 8px;
   margin-bottom: 16px;
 }
-.bot-modal-inputs input {
+.bot-modal-inputs input, .bot-modal-inputs textarea {
   width: 100%;
   height: 40px;
   border: 1px solid #e2e8f0;
@@ -681,9 +686,13 @@ button { color: inherit; }
   box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.05);
 }
 .bot-Modal-role-input {
-  font-size: 12.5px !important;
-  height: 36px !important;
-  background: #f8fafc !important;
+  font-size: 14px !important;
+  height: 112px !important;
+  min-height: 112px;
+  padding: 12px 14px !important;
+  background: #fff !important;
+  white-space: pre-wrap;
+  text-align: left;
 }
 .bot-picker-box {
   border: 0;
@@ -1368,6 +1377,14 @@ button { color: inherit; }
   padding: 24px 24px 12px;
 }
 #messages[hidden] { display: none; }
+#saved-bot-instructions { margin: 12px 16px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; flex-shrink: 0; }
+#saved-bot-instructions[hidden] { display: none; }
+.saved-instructions-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); }
+#edit-bot-instructions { border: 0; background: transparent; color: var(--text); cursor: pointer; padding: 6px; border-radius: 6px; }
+#edit-bot-instructions:hover { background: rgba(127,127,127,.12); }
+#saved-bot-instructions details { margin-top: 6px; font-size: 13px; }
+#saved-bot-instructions summary { cursor: pointer; }
+#saved-bot-instructions-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 160px; overflow-y: auto; margin-top: 8px; font-size: 12px; }
 /* Fill spare space above the conversation without reversing reading/keyboard order. */
 #messages::before { content: ""; margin-top: auto; }
 #messages > * { flex-shrink: 0; }
@@ -1981,12 +1998,16 @@ button { color: inherit; }
 #send-button svg { width: 18px; height: 18px; }
 
 #attachment-list {
-  width: min(100%, 1480px);
-  margin: 6px auto 0;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  grid-area: attachments;
+  padding: 2px 0 4px;
 }
+#attachment-list:empty { display: none; }
 .attachment-chip {
   font-size: 11.5px;
   color: #1e40af;
@@ -3215,6 +3236,10 @@ dialog.modal-dialog::backdrop {
           </div>
         </div>
 
+        <section id="saved-bot-instructions" hidden aria-label="Saved bot instructions">
+          <div class="saved-instructions-header"><span>✓ Instructions saved</span><button id="edit-bot-instructions" type="button" aria-label="Edit bot instructions" title="Edit bot instructions"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/></svg></button></div>
+          <details><summary>View instructions</summary><div id="saved-bot-instructions-text"></div></details>
+        </section>
         <div id="messages" hidden></div>
 
         <div id="composer-wrap">
@@ -3223,6 +3248,7 @@ dialog.modal-dialog::backdrop {
           <form id="composer-form">
             <div id="composer">
               <label for="prompt" class="sr-only">Message or command</label>
+              <div id="attachment-list"></div>
               <textarea id="prompt" rows="1" placeholder="Ask anything, run $ command, or paste a URL…"></textarea>
               <div class="composer-toolbar">
               <input id="attachment-input" type="file" multiple hidden accept="image/png,image/jpeg,image/webp,image/gif,.txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.py,.html,.css,.yaml,.yml,.xml,.sql,.sh"/>
@@ -3232,20 +3258,8 @@ dialog.modal-dialog::backdrop {
               <button type="button" id="learn-mode-button" class="composer-action" aria-label="Learn mode" title="Learn mode: rehearse this task, grade the experience, and show me what to fix" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4 3 8l9 4 9-4-9-4Z"/><path d="M7 10.5V15c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5v-4.5"/><path d="M21 8v5"/></svg><span class="composer-action-label" aria-hidden="true">Learn</span></button>
               <label class="sr-only" for="composer-model-select">Choose model</label>
               <div class="composer-model-wrap" title="Choose model"><select id="composer-model-select" aria-label="Choose model" title="Choose model">
-                <option value="gpt-6-luna">GPT-6 Luna · Reasoning</option>
-                <option value="claude-cli">Claude CLI (local)</option>
-                <option value="claude-cli:sonnet">Claude CLI · Sonnet</option>
-                <option value="claude-cli:opus">Claude CLI · Opus</option>
-                <option value="claude-sonnet-4-5">Claude Sonnet 4.5</option>
-                <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
-                <option value="claude-opus-4-5">Claude Opus 4.5</option>
-                <option value="gpt-4o-mini">GPT-4o Mini</option>
-                <option value="local-engine">Local Engine</option>
-                <option value="ollama:llama3.2">Ollama Llama 3.2</option>
-                <option value="ollama:qwen2.5-coder">Ollama Qwen 2.5 Coder</option>
-                <option value="gpt-4o">GPT-4o</option>
-                <option value="grok-2-vision-1212">Grok 2 Vision</option>
-              </select></div>
+<option value="local-engine">Local Engine</option>
+</select></div>
               <button type="button" id="voice-button" aria-label="Start voice input" title="Start voice input">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5M9 21.5h6"/></svg>
               </button>
@@ -3258,7 +3272,6 @@ dialog.modal-dialog::backdrop {
               </div>
             </div>
           </form>
-          <div id="attachment-list"></div>
           <div class="composer-meta">
             <div class="interaction-mode-switch" role="tablist" aria-label="Agent mode">
               <button type="button" class="interaction-mode-btn" data-interaction-mode="chat" title="Text tools only — cheapest">Chat</button>
@@ -3363,7 +3376,7 @@ dialog.modal-dialog::backdrop {
         <label for="bot-name-input" class="sr-only">Name your Bot</label>
         <input id="bot-name-input" type="text" required placeholder="Name your Bot" autocomplete="off" />
         <label for="bot-desc-input" class="sr-only">Role and instructions (optional)</label>
-        <input id="bot-desc-input" type="text" class="bot-Modal-role-input" placeholder="Role &amp; instructions (optional)" autocomplete="off" />
+        <textarea id="bot-desc-input" rows="5" class="bot-Modal-role-input" placeholder="Role &amp; instructions (optional)"></textarea>
       </div>
       <div class="bot-picker-box">
         <div id="bot-shape-grid" class="bot-shape-grid" role="radiogroup" aria-label="Choose bot shape"></div>
@@ -3561,21 +3574,8 @@ dialog.modal-dialog::backdrop {
       <div class="form-field">
         <label for="model-select">Active Execution Engine / Model</label>
         <select id="model-select" class="header-select" style="width:100%;height:38px;" aria-label="Select AI model">
-          <option value="gpt-6-luna">⚡ GPT-6 Luna (Reasoning · Low effort)</option>
-          <option value="claude-cli">🟣 Claude CLI (local `claude` login · no API key)</option>
-          <option value="claude-cli:sonnet">🟣 Claude CLI · Sonnet</option>
-          <option value="claude-cli:opus">🟣 Claude CLI · Opus</option>
-          <option value="claude-cli:haiku">🟣 Claude CLI · Haiku</option>
-          <option value="claude-sonnet-4-5">🟠 Claude Sonnet 4.5 (Anthropic API key)</option>
-          <option value="claude-haiku-4-5">🟠 Claude Haiku 4.5 (Anthropic API key)</option>
-          <option value="claude-opus-4-5">🟠 Claude Opus 4.5 (Anthropic API key)</option>
-          <option value="gpt-4o-mini">GPT-4o Mini</option>
-          <option value="local-engine">🖥 Local Engine (Zero Cloud · Terminal + Browser + Codex)</option>
-          <option value="ollama:llama3.2">🦙 Ollama Llama 3.2 (Local 127.0.0.1:11434 · No Cloud)</option>
-          <option value="ollama:qwen2.5-coder">🦙 Ollama Qwen 2.5 Coder (Local · No Cloud)</option>
-          <option value="gpt-4o">GPT-4o (High Precision)</option>
-          <option value="grok-2-vision-1212">Grok 2 Vision (xAI)</option>
-        </select>
+<option value="local-engine">Local Engine</option>
+</select>
       </div>
       <p id="claude-cli-status" style="margin:0 0 10px;font-size:12px;color:var(--muted);"></p>
       <div class="form-field">
@@ -3640,11 +3640,18 @@ dialog.modal-dialog::backdrop {
 (function() {
   "use strict";
   var STORAGE_KEY = "agentFireworksAgentsV2";
+  var deletedBotIds = JSON.parse(localStorage.getItem("openBotsDeletedIds") || "[]");
   var agents = loadAgents();
+  var configuredDefaultModel = "local-engine";
   var googleIdentityUser = null;
   var googlePersistTimer = null;
   var googleSyncTimer = null;
+  var googleChangeEvents = null;
+  var googlePersistInFlight = false;
+  var googlePersistPending = false;
+  var googleEditRevision = 0;
   var googleSyncInFlight = false;
+  var googleSyncRequested = false;
   var googleLastSyncedBotsJson = null;
   var activeAgentId = null;
   var isRunning = false;
@@ -3656,6 +3663,7 @@ dialog.modal-dialog::backdrop {
   var runningAgentName = "";
   var setupSessionOpen = false;
   var runEvents = null;
+  var runStreamId = null;
   var browserFrames = null;
   var browserRetryTimer = null;
   var browserOpenPromise = null;
@@ -3764,28 +3772,71 @@ dialog.modal-dialog::backdrop {
   }
   function scheduleGooglePersist() {
     if (!googleIdentityUser) return;
+    googleEditRevision++;
+    googlePersistPending = true;
     if (googlePersistTimer) clearTimeout(googlePersistTimer);
-    googlePersistTimer = setTimeout(function() {
-      googlePersistTimer = null;
-      fetch("/api/user/data", {
-        method: "PUT",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bots: agents,
-          settings: {
-            interactionMode: currentInteractionMode,
-            sessionMode: currentSessionMode,
-            model: (document.getElementById("model-select") || {}).value || localStorage.getItem("agentFireworksModel") || "",
-            autoApprove: localStorage.getItem("agentFireworksAutoApprove") === "1"
-          }
-        })
-      }).catch(function() { /* persistence is best-effort while signed in */ });
-    }, 500);
+    googlePersistTimer = setTimeout(flushGooglePersistence, 500);
+  }
+  function flushGooglePersistence() {
+    googlePersistTimer = null;
+    if (!googleIdentityUser || googlePersistInFlight || !googlePersistPending) return;
+    var owner = googleIdentityUser;
+    var revision = googleEditRevision;
+    var bots = agents.concat(deletedBotIds.map(function(id) { return { id: id, deleted: true }; }));
+    googlePersistPending = false;
+    googlePersistInFlight = true;
+    fetch("/api/user/data", {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bots: bots,
+        settings: {
+          interactionMode: currentInteractionMode,
+          sessionMode: currentSessionMode,
+          model: (document.getElementById("model-select") || {}).value || localStorage.getItem("agentFireworksModel") || "",
+          autoApprove: localStorage.getItem("agentFireworksAutoApprove") === "1"
+        }
+      })
+    }).then(readResponse).then(function(data) {
+      if (googleIdentityUser !== owner) return;
+      if (data.mongodbConfigured && data.backend !== "mongodb") {
+        googlePersistPending = true;
+        setGoogleSignInStatus("MongoDB unavailable. Changes saved on this device; retrying cloud sync…", true);
+        return;
+      }
+      // Only acknowledge the snapshot actually sent. Edits made during the request
+      // remain queued and cannot be overwritten by its response or an echo event.
+      googleLastSyncedBotsJson = JSON.stringify(bots.filter(function(bot) { return !bot.deleted; }));
+      if (revision === googleEditRevision && !isRunning) applyGooglePersistence(data);
+      setGoogleSignInStatus(data.backend === "mongodb"
+        ? "Signed in — bots and chat history sync through MongoDB."
+        : data.mongodbConfigured
+          ? "MongoDB unavailable. Changes saved on this machine only."
+          : "Signed in — changes saved on this machine.", Boolean(data.mongodbConfigured && data.backend !== "mongodb"));
+    }).catch(function() {
+      if (googleIdentityUser !== owner) return;
+      googlePersistPending = true;
+      setGoogleSignInStatus("Sync failed. Changes are saved on this device; retrying…", true);
+    }).finally(function() {
+      googlePersistInFlight = false;
+      if (googlePersistPending && googleIdentityUser) {
+        if (googlePersistTimer) clearTimeout(googlePersistTimer);
+        googlePersistTimer = setTimeout(flushGooglePersistence, 1500);
+      } else {
+        refreshGooglePersistence();
+      }
+    });
   }
   function applyGooglePersistence(persistence) {
     if (!persistence) return;
     if (Array.isArray(persistence.bots)) {
+      persistence.bots.forEach(function(bot) {
+        if (bot.deleted && deletedBotIds.indexOf(bot.id) < 0) deletedBotIds.push(bot.id);
+      });
+      localStorage.setItem("openBotsDeletedIds", JSON.stringify(deletedBotIds));
+      persistence.bots = persistence.bots.filter(function(bot) { return deletedBotIds.indexOf(bot.id) < 0; });
+      agents = agents.filter(function(bot) { return deletedBotIds.indexOf(bot.id) < 0; });
       // Keep device-only bots and messages while incorporating updates from the
       // other app instance. Only write back when this device contributed data.
       var remoteBotsJson = JSON.stringify(persistence.bots);
@@ -3814,6 +3865,7 @@ dialog.modal-dialog::backdrop {
         localStorage.setItem(STORAGE_KEY, mergedJson);
         if (typeof renderSidebar === "function") renderSidebar();
         var nextActive = activeAgent();
+        if (previousActive && !nextActive && !isRunning) resetNewAgent(true);
         if (nextActive && JSON.stringify(nextActive.transcript || []) !== previousTranscript && !isRunning) {
           renderTranscript();
         }
@@ -3830,8 +3882,8 @@ dialog.modal-dialog::backdrop {
       localStorage.setItem("agentFireworksModel", settings.model);
       var modelSelect = document.getElementById("model-select");
       var composerModelSelect = document.getElementById("composer-model-select");
-      if (modelSelect) modelSelect.value = settings.model;
-      if (composerModelSelect) composerModelSelect.value = settings.model;
+      if (modelSelect) { ensureModelOption(modelSelect, settings.model); modelSelect.value = settings.model; }
+      if (composerModelSelect) { ensureModelOption(composerModelSelect, settings.model); composerModelSelect.value = settings.model; }
     }
     if (typeof settings.autoApprove === "boolean") {
       localStorage.setItem("agentFireworksAutoApprove", settings.autoApprove ? "1" : "0");
@@ -4143,6 +4195,16 @@ dialog.modal-dialog::backdrop {
         ],
         task: "Act as " + name + (roleText ? " (" + roleText + ")" : ", an intensive research-oriented SEO and AI-visibility strategist") + ". Stay lean. On SEO/analytics/visibility asks: (1) briefly reason about goal, site/brand, and constraints, (2) propose a compact labeled plan: Keywords/clusters | GA4 metrics | GTM events | Funnel stages | On-page/tech checks | Content calendar | AI visibility (GEO/AEO) | Measurement | Approvals needed, (3) research and open analytics.google.com / tagmanager.google.com / Search Console / the site via browser when signed in — never invent private GA/GTM data, (4) return findings + next actions and ask what to approve before any tag/config/content publishes. Be honest about AI-answer visibility limits; no fake 'rank #1 in ChatGPT' claims."
       };
+    if (/product marketing|marketing bot|promote magicsite|growth lead/.test(lower))
+      return {
+        kind: "product-marketing",
+        expertise: roleText || "cross-functional product marketing, funnel measurement, brand growth, and coordinated multi-bot planning",
+        url: "https://www.google.com/",
+        needsBrowserOnInit: false,
+        summary: roleText || "Coordinate the bots to grow MagicSite.ai and measure the full funnel.",
+        suggestions: ["Review our growth goals with the specialist bots", "Audit the visitor to lead funnel", "Check progress toward impressions and backlinks"],
+        task: "Act as the product marketing lead for MagicSite.ai. Work with all relevant bots as ongoing collaborators, not just one-way contractors. First review the workspace roster and each bot's stated goals, recent activity, and learnings. Identify overlap and dependencies, then initiate focused discussions with the relevant bots using delegate_to_bot. Ask what goals they are pursuing, what evidence they have, and where their work can support the shared growth plan. Bring their responses back into a single plan, resolve conflicts explicitly, assign clear next steps, and keep tracking outcomes across conversations. Measure the full funnel from conversations and campaigns through qualified impressions, site visits, leads, and conversions. Work toward 10,000 qualified impressions and 1,000 relevant backlinks without claiming targets as achieved. Verify analytics and funnel tracking, state when access or evidence is missing, and recommend specific improvements. Never invent metrics or engagement. Do not publish, contact people, or spend money without required approval. Write naturally without hyphens or dash punctuation."
+      };
     if (/instagram|follower|social|meia|media|audience|creator|engagement|marketing|brand|influencer/.test(lower))
       return {
         kind: "instagram-growth",
@@ -4214,7 +4276,7 @@ dialog.modal-dialog::backdrop {
       needsBrowserOnInit: false,
       summary: roleText || "Autonomous local terminal, Codex & browser bot.",
       suggestions: ["Summarize a YouTube video", "Search the web", "$ git status -s"],
-      task: "You are an agent named '" + name + "'" + (roleText ? " whose role and purpose is: " + roleText : "") + ". Use headless tools (run_terminal_command, understand_youtube_video, web_search, calculate, workspace_file, create_document, delegate_to_bot) whenever possible, and use the live browser only when interactive browsing is needed."
+      task: "You are an agent named '" + name + "'" + (roleText ? " whose role and purpose is: " + roleText : "") + ". For goals that involve promoting MagicSite.ai or coordinating workspace work, do not make this a one bot assignment. Review every peer bot in the supplied roster, identify which ones have relevant goals, and start a discussion with each relevant bot using delegate_to_bot. Ask about its goals, progress, evidence, and dependencies, then synthesize their responses into one coordinated plan with clear owners and measurable next steps. Delegate to more than one bot when the work spans specialties. Use headless tools (run_terminal_command, understand_youtube_video, web_search, calculate, workspace_file, create_document, delegate_to_bot) whenever possible, and use the live browser only when interactive browsing is needed."
     };
   }
 
@@ -4252,7 +4314,6 @@ dialog.modal-dialog::backdrop {
       btn.className = "quick-start";
       btn.textContent = label;
       btn.onclick = function() {
-        if (isRunning || startRunLock) return;
         prompt.value = label;
         submitPrompt();
       };
@@ -4326,6 +4387,8 @@ dialog.modal-dialog::backdrop {
   }
 
   function deleteAgent(id) {
+    if (deletedBotIds.indexOf(id) < 0) deletedBotIds.push(id);
+    localStorage.setItem("openBotsDeletedIds", JSON.stringify(deletedBotIds));
     agents = agents.filter(function(a) { return a.id !== id; });
     saveAgents();
     if (activeAgentId === id) {
@@ -4518,6 +4581,26 @@ dialog.modal-dialog::backdrop {
       var cleanCls = e.cls === "success" ? "" : (e.cls || "");
       var cleanedHtml = (e.html || "").replace(/^<strong>Done\.<\/strong>\s*/i, "");
       cleanedHtml = cleanedHtml.replace(/(<details\b[^>]*class="step-details"[^>]*?)\sopen(?=[\s>])/g, "$1");
+      if (e.role === "agent") {
+        var saved = document.createElement("div");
+        saved.innerHTML = cleanedHtml;
+        var walker = document.createTreeWalker(saved, NodeFilter.SHOW_TEXT);
+        var nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        nodes.forEach(function(node) {
+          if (node.parentElement.closest("a, code, pre")) return;
+          var pattern = /\[([^\]]+)\]\(\s*(?:sandbox:)?(\/api\/artifacts\/[^\s)]+|https?:\/\/[^\s)]+)\s*\)/g;
+          var value = node.textContent, match, last = 0, fragment = document.createDocumentFragment();
+          while ((match = pattern.exec(value))) {
+            fragment.appendChild(document.createTextNode(value.slice(last, match.index)));
+            var link = document.createElement("a");
+            link.textContent = match[1]; link.href = match[2]; link.target = "_blank"; link.rel = "noopener";
+            fragment.appendChild(link); last = pattern.lastIndex;
+          }
+          if (last) { fragment.appendChild(document.createTextNode(value.slice(last))); node.replaceWith(fragment); }
+        });
+        cleanedHtml = saved.innerHTML;
+      }
       appendMessage(e.role, cleanedHtml, cleanCls, false);
     });
   }
@@ -4542,6 +4625,9 @@ dialog.modal-dialog::backdrop {
     messages.hidden = false;
     var roleLabel = a.description || a.summary || (a.intent.expertise ? a.intent.expertise.split(",")[0] : "Autonomous Bot");
     setChip(a.name, roleLabel, a);
+    document.getElementById("saved-bot-instructions").hidden = !a.description;
+    document.getElementById("saved-bot-instructions-text").textContent = a.description || "";
+    document.querySelector("#saved-bot-instructions details").open = false;
     renderTranscript();
     // Selecting a bot always opens at the newest part of its conversation.
     requestAnimationFrame(function() { messages.scrollTop = messages.scrollHeight; });
@@ -4555,10 +4641,6 @@ dialog.modal-dialog::backdrop {
   }
 
   function resetNewAgent(force) {
-    if (!force && isRunning) {
-      status.textContent = "Stop or finish the current run before switching.";
-      return;
-    }
     setupSessionOpen = false;
     browserFooter.classList.remove("visible");
     activeAgentId = null;
@@ -4572,6 +4654,8 @@ dialog.modal-dialog::backdrop {
     messages.hidden = true;
     messages.innerHTML = "";
     setChip("New Bot", "Pick or create a bot", null);
+    document.getElementById("saved-bot-instructions").hidden = true;
+    document.getElementById("saved-bot-instructions-text").textContent = "";
     prompt.value = "";
     syncPromptPlaceholder();
     quickStarts.hidden = true;
@@ -4927,7 +5011,7 @@ dialog.modal-dialog::backdrop {
     var text = esc(raw);
     // Agent responses sometimes wrap app artifacts in a sandbox URL. These files
     // are served by this app, so normalize them to the same origin-relative route.
-    text = text.replace(/sandbox:(\/api\/artifacts\/[A-Za-z0-9._%/-]+)/g, "$1");
+    text = text.replace(/sandbox:\s*(\/api\/artifacts\/[A-Za-z0-9._%/-]+)/g, "$1");
     // Code blocks
     text = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, function(_, _lang, code) {
       return "<pre><code>" + code.trim() + "</code></pre>";
@@ -4942,7 +5026,7 @@ dialog.modal-dialog::backdrop {
       '<a href="$2" target="_blank" rel="noopener"><img src="$2" alt="$1"></a>'
     );
     // Links [label](url)
-    text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/api\/artifacts\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    text = text.replace(/\[([^\]]+)\]\(\s*(https?:\/\/[^\s)]+|\/api\/artifacts\/[^\s)]+)\s*\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
     // Bare image artifact URLs (e.g. tool output that wasn't wrapped in markdown)
     text = text.replace(
       /(^|[^"'>=])(\/api\/artifacts\/[A-Za-z0-9._%-]+\.(?:png|jpe?g|webp|gif))\b/gi,
@@ -5219,12 +5303,15 @@ dialog.modal-dialog::backdrop {
     } else {
       peerBots.forEach(function(b, idx) {
         var roleDesc = b.description || b.summary || (b.intent && b.intent.summary) || "Specialist Bot";
+        var userGoals = (b.transcript || []).filter(function(m) { return m.role === "user"; });
+        var goalContext = userGoals.length ? " | Original goal: " + extractPlainText(userGoals[0].html).slice(0, 700) +
+          " | Latest user instruction: " + extractPlainText(userGoals[userGoals.length - 1].html).slice(0, 700) : "";
         var recentMsgs = (b.transcript || []).slice(-3).map(function(m) {
           var txt = extractPlainText(m.html).slice(0, 220);
           return (m.role === "user" ? "User asked" : b.name + " replied") + ": \"" + txt + "\"";
         });
         lines.push(
-          "- [PEER BOT #" + (idx + 1) + "] Name: \"" + b.name + "\" | Role: " + roleDesc +
+          "- [PEER BOT #" + (idx + 1) + "] Name: \"" + b.name + "\" | Role: " + roleDesc + goalContext +
           (recentMsgs.length ? " | Recent activity: " + recentMsgs.join(" -> ") : " | Status: Ready (no messages yet)")
         );
       });
@@ -5270,14 +5357,21 @@ dialog.modal-dialog::backdrop {
       steer.type = "button";
       steer.textContent = "↳ Steer";
       steer.title = "Interrupt current work and continue with this instruction";
-      steer.disabled = steeringInFlight || Boolean(learnEvents) || Boolean(runConversationAgentId && item.conversationAgentId !== runConversationAgentId);
+      steer.disabled = item.submitting || steeringInFlight || Boolean(learnEvents) || Boolean(runConversationAgentId && item.conversationAgentId !== runConversationAgentId);
       steer.onclick = function() { steerQueuedCommand(item.id); };
       var remove = document.createElement("button");
       remove.type = "button";
       remove.textContent = "×";
       remove.setAttribute("aria-label", "Remove queued command");
-      remove.disabled = steeringInFlight;
+      remove.disabled = item.submitting || steeringInFlight;
       remove.onclick = function() {
+        if (item.serverJobId) {
+          fetch("/api/run/jobs/" + encodeURIComponent(item.serverJobId), { method: "DELETE" }).then(readResponse).then(function() {
+            queuedRunsAfterActive = queuedRunsAfterActive.filter(function(entry) { return entry.id !== item.id; });
+            renderCommandQueue(); focusComposer();
+          }).catch(function(err) { status.textContent = err.message; });
+          return;
+        }
         queuedRunsAfterActive = queuedRunsAfterActive.filter(function(entry) { return entry.id !== item.id; });
         renderCommandQueue();
       };
@@ -5294,14 +5388,19 @@ dialog.modal-dialog::backdrop {
     var stopVersion = queueStopVersion;
     renderCommandQueue();
     status.textContent = "Updating the agent’s direction…";
-    fetch("/api/stop", { method: "POST" }).then(readResponse).then(function() {
+    var cancel = item.serverJobId
+      ? fetch("/api/run/jobs/" + encodeURIComponent(item.serverJobId), { method: "DELETE" }).then(readResponse)
+      : Promise.resolve();
+    cancel.then(function() { return fetch("/api/stop?preserveQueued=1", { method: "POST" }); }).then(readResponse).then(function() {
       if (stopVersion !== queueStopVersion) return;
       // Keep the same conversation and live browser. Wait for cancellation to finish before
       // the continuation takes ownership of them; never run two agents on the page.
       queuedRunsAfterActive = queuedRunsAfterActive.filter(function(entry) { return entry.id !== id; });
       item.task = "Continue the interrupted task from the current state. Follow this updated user instruction, which takes priority over earlier instructions. Do not repeat completed actions. User request: " + item.task.replace(/^Continue the conversation\. User request: /, "");
       item.approvedCategories = [];
+      item.serverJobId = null;
       queuedRunsAfterActive.unshift(item);
+      submitQueuedRequest(item, true);
       status.textContent = "Direction updated — continuing when the current action stops.";
     }).catch(function(err) {
       status.textContent = "Could not steer: " + err.message + ". Your command is still queued.";
@@ -5313,7 +5412,7 @@ dialog.modal-dialog::backdrop {
   }
 
   function queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, softNotice, userMarkup, displayText) {
-    queuedRunsAfterActive.push({
+    var queuedItem = {
       id: crypto.randomUUID(),
       userMarkup: userMarkup || "",
       displayText: displayText || task.replace(/^Continue the conversation\. User request: /, ""),
@@ -5323,7 +5422,9 @@ dialog.modal-dialog::backdrop {
       approvalBubble: approvalBubble,
       runAgentOverride: runAgentOverride || activeAgent(),
       conversationAgentId: activeAgentId
-    });
+    };
+    queuedRunsAfterActive.push(queuedItem);
+    submitQueuedRequest(queuedItem, false);
     isRunning = true;
     sendButton.disabled = false;
     status.textContent = "Message queued — it will run after the current task.";
@@ -5336,6 +5437,43 @@ dialog.modal-dialog::backdrop {
     renderCommandQueue();
     if (!runEvents && !startRunLock && !learnEvents) connectRunEvents();
     scheduleQueuedRun();
+  }
+
+  function buildAgentRunPayload(task, approvedCategories, collaborationContext, agent) {
+    var memory = conversationMemoryPayload(agent);
+    return {
+      task: task, sessionMode: currentSessionMode, botName: agent && agent.name,
+      expertise: agent && agent.intent && agent.intent.expertise,
+      initialUrl: (agent && agent.intent && agent.intent.url) || browserAddress.value || "about:blank",
+      scheduleTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      collaborationContext: [buildWorkspaceBotsContext(agent), collaborationContext || ""].filter(Boolean).join("\n\n"),
+      conversationTurns: memory.conversationTurns, conversationArtifacts: memory.conversationArtifacts,
+      approvedCategories: approvedCategories || [], autoApprove: autoApproveEnabled || currentInteractionMode === "turbo",
+      model: document.getElementById("model-select").value || configuredDefaultModel,
+      interactionMode: currentInteractionMode || "act", agentEngine: currentAgentEngine || "openai-sdk",
+      observeMode: "text", headless: true
+    };
+  }
+  function submitQueuedRequest(item, first) {
+    // Learn sessions retain their separate rehearsal lifecycle.
+    if (/^\/learn\s+/i.test(item.task)) return;
+    item.submitting = true;
+    var version = queueStopVersion;
+    var owner = item.runAgentOverride || agents.find(function(agent) { return agent.id === item.conversationAgentId; }) || activeAgent();
+    fetch("/api/run/queue" + (first ? "?priority=next" : ""), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildAgentRunPayload(item.task, item.approvedCategories, item.collaborationContext, owner))
+    }).then(readResponse).then(function(job) {
+      if (version !== queueStopVersion || queuedRunsAfterActive.indexOf(item) < 0) {
+        fetch("/api/run/jobs/" + encodeURIComponent(job.id), { method: "DELETE" }).catch(function() {});
+        return;
+      }
+      item.serverJobId = job.id;
+    }).catch(function(err) {
+      // Never silently resubmit an uncertain request; that could repeat an effect.
+      item.submissionError = err.message;
+      status.textContent = "Could not confirm the queued request: " + err.message;
+    }).finally(function() { item.submitting = false; renderCommandQueue(); scheduleQueuedRun(); focusComposer(); });
   }
 
   function clearRunClientState() {
@@ -5352,12 +5490,23 @@ dialog.modal-dialog::backdrop {
   }
 
   function focusComposer() {
-    if (document.hidden || document.querySelector("dialog[open]")) return;
+    var active = document.activeElement;
+    if (!OpenBotsBrowserRuntime.shouldFocusComposer({
+      hidden: document.hidden, dialogOpen: Boolean(document.querySelector("dialog[open]")),
+      otherInput: active && active !== prompt && Boolean(active.matches("input,textarea,select,[contenteditable='true']")),
+      browserInteraction: active && browserViewport.contains(active),
+      textSelected: Boolean(window.getSelection && String(window.getSelection()))
+    })) return;
     prompt.focus({ preventScroll: true });
   }
+  prompt.addEventListener("blur", function() { setTimeout(focusComposer, 0); });
+  document.addEventListener("pointerdown", function(event) {
+    var control = event.target.closest && event.target.closest("#send-button, #composer-stop-button, .composer-action, .message-feedback-btn");
+    if (control && document.activeElement === prompt) event.preventDefault();
+  });
 
-  function startRun(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, conversationAgentId) {
-    if (startRunLock || isRunning) {
+  function startRun(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, conversationAgentId, acceptedJob) {
+    if (!acceptedJob && (startRunLock || isRunning)) {
       queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, false);
       return;
     }
@@ -5377,46 +5526,21 @@ dialog.modal-dialog::backdrop {
     liveStepFeedRecord = null;
     setRunPresence("Thinking");
 
-    var rosterContext = buildWorkspaceBotsContext(agent);
-    var combinedContext = [rosterContext, collaborationContext || ""].filter(Boolean).join("\n\n");
-    var initialUrl = (agent && agent.intent && agent.intent.url) || browserAddress.value || "https://www.google.com/";
-    var selectedModel = document.getElementById("model-select").value || "gpt-6-luna";
-    var memoryPayload = conversationMemoryPayload(agent);
-
-    fetch("/api/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        task: task,
-        sessionMode: currentSessionMode,
-        botName: agent && agent.name,
-        expertise: agent && agent.intent && agent.intent.expertise,
-        initialUrl: initialUrl,
-        scheduleTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-        collaborationContext: combinedContext,
-        conversationTurns: memoryPayload.conversationTurns,
-        conversationArtifacts: memoryPayload.conversationArtifacts,
-        approvedCategories: approvedCategories || [],
-        autoApprove: autoApproveEnabled || currentInteractionMode === "turbo",
-        model: selectedModel,
-        interactionMode: currentInteractionMode || "act",
-        agentEngine: currentAgentEngine || "openai-sdk",
-        observeMode: "text",
-        headless: true,
-        maxSteps: 120,
-        maxDurationSeconds: 14400
-      })
+    var startRequest = acceptedJob ? Promise.resolve(acceptedJob) : fetch("/api/run", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildAgentRunPayload(task, approvedCategories, collaborationContext, agent))
+    }).then(readResponse);
+    focusComposer();
+    startRequest.then(function(reply) {
+      startRunLock = false;
+      runStreamId = reply.runId || null;
+      localStorage.removeItem(runEventCursorKey);
+      if (approvalBubble) {
+        var approvedButton = approvalBubble.querySelector(".approve-task-btn");
+        if (approvedButton) approvedButton.textContent = "Approved";
+      }
+      connectRunEvents(); focusComposer();
     })
-      .then(readResponse)
-      .then(function() {
-        startRunLock = false;
-        localStorage.removeItem(runEventCursorKey);
-        if (approvalBubble) {
-          var approvedButton = approvalBubble.querySelector(".approve-task-btn");
-          if (approvedButton) approvedButton.textContent = "Approved";
-        }
-        connectRunEvents();
-      })
       .catch(function(err) {
         startRunLock = false;
         isRunning = false;
@@ -5696,7 +5820,7 @@ dialog.modal-dialog::backdrop {
         sessionMode: currentSessionMode,
         botName: agent && agent.name,
         expertise: agent && agent.intent && agent.intent.expertise,
-        model: document.getElementById("model-select").value || "gpt-6-luna"
+        model: document.getElementById("model-select").value || configuredDefaultModel
       })
     })
       .then(readResponse)
@@ -5775,7 +5899,7 @@ dialog.modal-dialog::backdrop {
   function connectRunEvents() {
     if (runEvents) runEvents.close();
     var cursor = localStorage.getItem(runEventCursorKey) || "0";
-    runEvents = new EventSource("/api/events?after=" + encodeURIComponent(cursor));
+    runEvents = new EventSource("/api/events?after=" + encodeURIComponent(cursor) + (runStreamId ? "&runId=" + encodeURIComponent(runStreamId) : ""));
     var source = runEvents;
     runEvents.onmessage = function(m) {
       if (runEvents !== source) return;
@@ -5803,14 +5927,24 @@ dialog.modal-dialog::backdrop {
   function scheduleQueuedRun() {
     if (queuedRunPoll !== null || !queuedRunsAfterActive.length) return;
     queuedRunPoll = setTimeout(function() {
-      fetch("/api/status")
+      var first = queuedRunsAfterActive[0];
+      if (!first || first.submitting || first.submissionError || steeringInFlight || startRunLock) {
+        queuedRunPoll = null; scheduleQueuedRun(); return;
+      }
+      fetch(first.serverJobId ? "/api/run/jobs/" + encodeURIComponent(first.serverJobId) : "/api/status")
       .then(readResponse)
       .then(function(serverState) {
         queuedRunPoll = null;
-        if (!queuedRunsAfterActive.length) return;
-        if (serverState.isRunning || serverState.learnSessionRunning || startRunLock || steeringInFlight) {
-          scheduleQueuedRun();
-          return;
+        if (!queuedRunsAfterActive.length || queuedRunsAfterActive[0] !== first) return;
+        if (first.serverJobId) {
+          if (serverState.status === "queued") { scheduleQueuedRun(); return; }
+          if (!serverState.runId) {
+            queuedRunsAfterActive.shift(); renderCommandQueue();
+            status.textContent = serverState.detail || "Queued request was cancelled.";
+            scheduleQueuedRun(); return;
+          }
+        } else if (serverState.isRunning || serverState.learnSessionRunning) {
+          scheduleQueuedRun(); return;
         }
         var queued = queuedRunsAfterActive.shift();
         renderCommandQueue();
@@ -5824,7 +5958,7 @@ dialog.modal-dialog::backdrop {
         status.textContent = "Starting your queued request…";
         var learnMatch = /^\/learn\s+([\s\S]+)$/i.exec(queued.task);
         if (learnMatch) startLearnSession(learnMatch[1]);
-        else startRun(queued.task, queued.approvedCategories, queued.collaborationContext, queued.approvalBubble, queued.runAgentOverride, queued.conversationAgentId);
+        else startRun(queued.task, queued.approvedCategories, queued.collaborationContext, queued.approvalBubble, queued.runAgentOverride, queued.conversationAgentId, queued.serverJobId ? serverState : null);
         scheduleQueuedRun();
       })
       .catch(function() {
@@ -6053,6 +6187,7 @@ dialog.modal-dialog::backdrop {
       return;
     }
     if (e.type === "terminal") {
+      runStreamId = null;
       messages.querySelectorAll("[data-run-verification] button, [data-approval-id] button").forEach(function(button) { button.disabled = true; });
       setBrowserVerificationFooter(false);
       var isDirectReply = e.reason === "direct_reply";
@@ -6079,6 +6214,10 @@ dialog.modal-dialog::backdrop {
       localStorage.removeItem(runEventCursorKey);
 
       scheduleQueuedRun();
+      if (e.continuationBotName && e.success) {
+        var coordinator = findPeerBotByQuery(e.continuationBotName);
+        if (coordinator) attachToServerRun(coordinator, "Continue coordinating specialist replies");
+      }
 
       // Keep the conversation in the requesting bot's chat while the specialist works.
       if (e.delegateTo && e.delegateTo.targetBotName) {
@@ -6618,9 +6757,34 @@ dialog.modal-dialog::backdrop {
   // Model & Settings
   var modelSelect = document.getElementById("model-select");
   var composerModelSelect = document.getElementById("composer-model-select");
+  function ensureModelOption(select, id) {
+    if (!id || Array.from(select.options).some(function(option) { return option.value === id; })) return;
+    var option = document.createElement("option");
+    option.value = id;
+    option.textContent = id;
+    select.appendChild(option);
+  }
+  function loadModelCatalog(state) {
+    configuredDefaultModel = state.defaultModel || "local-engine";
+    var selected = localStorage.getItem("agentFireworksModel") || configuredDefaultModel;
+    [modelSelect, composerModelSelect].forEach(function(select) {
+      select.textContent = "";
+      (state.models || []).forEach(function(model) {
+        var option = document.createElement("option");
+        option.value = model.id;
+        option.textContent = model.label || model.id;
+        select.appendChild(option);
+      });
+      ensureModelOption(select, selected);
+      select.value = selected;
+    });
+  }
   var savedModel = localStorage.getItem("agentFireworksModel");
-  if (savedModel) modelSelect.value = savedModel;
-  composerModelSelect.value = modelSelect.value;
+  if (savedModel) {
+    ensureModelOption(modelSelect, savedModel);
+    ensureModelOption(composerModelSelect, savedModel);
+    modelSelect.value = composerModelSelect.value = savedModel;
+  }
   modelSelect.addEventListener("change", function() {
     localStorage.setItem("agentFireworksModel", modelSelect.value);
     composerModelSelect.value = modelSelect.value;
@@ -6789,6 +6953,9 @@ dialog.modal-dialog::backdrop {
       .then(readResponse)
       .then(function() {
         document.getElementById("settings-status").textContent = "Settings saved for this server session.";
+        ["settings-openai-key", "settings-anthropic-key", "settings-xai-key"].forEach(function(id) {
+          document.getElementById(id).value = "";
+        });
         setTimeout(function() { document.getElementById("settings-modal").close(); }, 600);
       })
       .catch(function(err) {
@@ -6834,6 +7001,10 @@ dialog.modal-dialog::backdrop {
   };
   document.getElementById("welcome-avatar").onclick = function() {
     openCreateBotModal();
+  };
+  document.getElementById("edit-bot-instructions").onclick = function() {
+    var cur = activeAgent();
+    if (cur) openCreateBotModal({ editAgent: cur });
   };
   document.getElementById("agent-chip").onclick = function() {
     var cur = activeAgent();
@@ -7304,7 +7475,15 @@ dialog.modal-dialog::backdrop {
     var email = document.getElementById("google-signin-session-email");
     var guestBtn = document.getElementById("google-login-guest-btn");
     var desktopButton = document.getElementById("google-signin-desktop-button");
-    if (!user || !googleIdentityUser || googleIdentityUser.id !== user.id) googleLastSyncedBotsJson = null;
+    if (!user || !googleIdentityUser || googleIdentityUser.id !== user.id) {
+      googleLastSyncedBotsJson = null;
+      googleEditRevision++;
+      googlePersistPending = false;
+      if (googlePersistTimer) clearTimeout(googlePersistTimer);
+      googlePersistTimer = null;
+      if (googleChangeEvents) googleChangeEvents.close();
+      googleChangeEvents = null;
+    }
     googleIdentityUser = user || null;
     if (user) {
       if (button) button.hidden = true;
@@ -7320,6 +7499,11 @@ dialog.modal-dialog::backdrop {
         setGoogleSignInStatus("Signed in — data is saved on this machine. Configure MongoDB to sync across devices.");
       }
       applyGooglePersistence(persistence);
+      if (!googleChangeEvents && typeof EventSource !== "undefined") {
+        googleChangeEvents = new EventSource("/api/user/events");
+        googleChangeEvents.addEventListener("changed", refreshGooglePersistence);
+        googleChangeEvents.onopen = refreshGooglePersistence;
+      }
     } else {
       session.hidden = true;
       if (button) button.hidden = false;
@@ -7335,16 +7519,27 @@ dialog.modal-dialog::backdrop {
   function refreshGooglePersistence() {
     // A running turn owns its in-memory transcript references; let it finish before
     // swapping in a cloud snapshot. Other app instances still see each saved turn.
-    if (!googleIdentityUser || googleSyncInFlight || document.hidden || isRunning) return;
+    if (!googleIdentityUser || googlePersistInFlight || googlePersistPending || document.hidden || isRunning) return;
+    if (googleSyncInFlight) { googleSyncRequested = true; return; }
+    googleSyncRequested = false;
+    var owner = googleIdentityUser;
+    var revision = googleEditRevision;
     googleSyncInFlight = true;
     fetch("/api/user/data", { credentials: "same-origin", cache: "no-store" })
       .then(readResponse)
-      .then(function(data) { applyGooglePersistence(data); })
+      .then(function(data) {
+        if (googleIdentityUser === owner && revision === googleEditRevision && !isRunning && !googlePersistInFlight) {
+          applyGooglePersistence(data);
+        }
+      })
       .catch(function() { /* retry on the next poll; local data remains available */ })
-      .finally(function() { googleSyncInFlight = false; });
+      .finally(function() {
+        googleSyncInFlight = false;
+        if (googleSyncRequested) refreshGooglePersistence();
+      });
   }
 
-  googleSyncTimer = window.setInterval(refreshGooglePersistence, 3000);
+  googleSyncTimer = window.setInterval(refreshGooglePersistence, 15000);
   document.addEventListener("visibilitychange", function() {
     if (!document.hidden) refreshGooglePersistence();
   });
@@ -7894,6 +8089,7 @@ dialog.modal-dialog::backdrop {
   fetch("/api/status")
     .then(readResponse)
     .then(function(st) {
+      loadModelCatalog(st);
       embeddedAvailable = Boolean(st.embeddedAvailable);
       if (desktopApi && st.desktopBrowserEngine && localStorage.getItem("openBotsDesktopEngineVersion") !== st.desktopBrowserEngine) {
         currentSessionMode = st.defaultSessionMode || "cdp";
@@ -7949,7 +8145,7 @@ dialog.modal-dialog::backdrop {
   setChip("New Bot", "Pick or create a bot");
   var restoredBotId = sessionStorage.getItem("openBotsSelectedBot");
   if (restoredBotId) selectAgent(restoredBotId);
-  prompt.focus();
+  focusComposer();
 })();
 </script>
 <script>

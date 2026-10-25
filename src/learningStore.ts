@@ -149,7 +149,7 @@ export function validateLearningKb(value: unknown, expectedBotId?: string): Lear
   if (!BOT_ID_PATTERN.test(botId)) {
     throw new Error("LearningKb.botId must match [A-Za-z0-9_-].");
   }
-  if (expectedBotId !== undefined && botId !== expectedBotId) {
+  if (expectedBotId !== undefined && botId.toLowerCase() !== expectedBotId.trim().toLowerCase()) {
     throw new Error(`LearningKb.botId "${botId}" does not match requested botId "${expectedBotId}".`);
   }
   const niche = sanitizeLearningText(assertString(obj.niche ?? "", "LearningKb.niche"), 80);
@@ -605,8 +605,16 @@ export function applyLearningKbTool(
     }
     return {
       state: next,
-      message: `Saved ${kind}: "${text}" (local KB updated).`
+      message: `Saved ${kind}: "${text}" (reference note; not a reviewed operational instruction).`
     };
   }
   return { state, message: `Unsupported learning_kb action: ${action}` };
+}
+
+
+/** Model notes remain inspectable data, not automatically loaded instructions. */
+export function distillUserCorrections(state: LearningKbState): string {
+  const trusted = (entries: LearningEntry[]) => entries.filter(entry => entry.source === "user_correction");
+  return distillLearningKb({ ...state, niche: "", intents: trusted(state.intents), mistakes: trusted(state.mistakes),
+    learnings: trusted(state.learnings), hypotheses: [] });
 }

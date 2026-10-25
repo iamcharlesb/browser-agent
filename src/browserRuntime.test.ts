@@ -64,3 +64,11 @@ it("presents only the newest frame per paint and cancels pending work", () => {
   presenter.clear();
   assert.equal(cancelled, 1);
 });
+
+it("keeps the composer available during background runs without stealing deliberate input focus", () => {
+  const { shouldFocusComposer } = require("../static/browserRuntime.js");
+  assert.equal(shouldFocusComposer({}), true);
+  for (const key of ["hidden", "dialogOpen", "otherInput", "browserInteraction", "textSelected"]) {
+    assert.equal(shouldFocusComposer({ [key]: true }), false, key);
+  }
+});

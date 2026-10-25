@@ -1,3 +1,4 @@
+import { redactSecrets } from "./security";
 /**
  * Persistent identity + prefs for Google-signed-in users.
  *
@@ -10,7 +11,7 @@
 
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { MongoClient, type Db, type Collection } from "mongodb";
+import { MongoClient, type Db, type Collection, type ChangeStream } from "mongodb";
 
 export type AuthBackend = "mongodb" | "local" | "none";
 
@@ -30,6 +31,15 @@ export interface UserSettings {
 }
 
 /** Bot roster entries as stored by the UI (opaque JSON objects). */
+/** Deletion markers survive stale clients writing an older roster. */
+export function preserveBotDeletions(existing: BotRosterEntry[], incoming: BotRosterEntry[]): BotRosterEntry[] {
+  const deleted = new Map<string, BotRosterEntry>();
+  for (const bot of [...existing, ...incoming]) {
+    if (bot.deleted === true && typeof bot.id === "string") deleted.set(bot.id, { id: bot.id, deleted: true });
+  }
+  return [...incoming.filter(bot => !deleted.has(String(bot.id))), ...deleted.values()];
+}
+
 export type BotRosterEntry = Record<string, unknown>;
 
 export interface PersistedUserRecord {
@@ -51,6 +61,80 @@ let mongoClient: MongoClient | null = null;
 let mongoDb: Db | null = null;
 let mongoInitPromise: Promise<Db | null> | null = null;
 let indexesEnsured = false;
+
+// One database cursor per process; notifications contain no user content.
+const userChangeListeners = new Map<string, Set<() => void>>();
+let userChangeStream: ChangeStream<PersistedUserRecord> | null = null;
+let userChangeRetry: ReturnType<typeof setTimeout> | null = null;
+let userChangeStarting: Promise<void> | null = null;
+
+function notifyUserChanged(googleSub: string): void {
+  for (const listener of userChangeListeners.get(googleSub) ?? []) listener();
+}
+
+async function ensureUserChangeStream(): Promise<void> {
+  if (userChangeStream || userChangeStarting || !mongodbConfigured() || !userChangeListeners.size) return;
+  userChangeStarting = (async () => {
+    const db = await connectMongo();
+    if (!db || !userChangeListeners.size) return;
+    const stream = usersCollection(db).watch([], { fullDocument: "updateLookup", maxAwaitTimeMS: 1000 });
+    userChangeStream = stream;
+    stream.on("change", change => {
+      if ("fullDocument" in change && change.fullDocument) {
+        notifyUserChanged(change.fullDocument.googleSub);
+      } else {
+        // Deletes and collection invalidation do not include a user identity.
+        for (const googleSub of userChangeListeners.keys()) notifyUserChanged(googleSub);
+      }
+    });
+    stream.on("error", () => {
+      if (userChangeStream !== stream) return;
+      userChangeStream = null;
+      void stream.close().catch(() => undefined);
+      scheduleUserChangeRetry();
+    });
+    stream.on("close", () => {
+      if (userChangeStream === stream) {
+        userChangeStream = null;
+        scheduleUserChangeRetry();
+      }
+    });
+    // Reconcile changes missed before opening/reopening the cursor.
+    for (const googleSub of userChangeListeners.keys()) notifyUserChanged(googleSub);
+  })().catch(() => undefined).finally(() => {
+    userChangeStarting = null;
+    if (!userChangeStream) scheduleUserChangeRetry();
+  });
+  await userChangeStarting;
+}
+
+function scheduleUserChangeRetry(): void {
+  if (userChangeRetry || !userChangeListeners.size || !mongodbConfigured()) return;
+  userChangeRetry = setTimeout(() => {
+    userChangeRetry = null;
+    void ensureUserChangeStream();
+  }, 15_000);
+  userChangeRetry.unref();
+}
+
+/** Call before loading the initial snapshot so concurrent changes are observed. */
+export function subscribeUserChanges(googleSub: string, listener: () => void): () => void {
+  const listeners = userChangeListeners.get(googleSub) ?? new Set<() => void>();
+  listeners.add(listener);
+  userChangeListeners.set(googleSub, listeners);
+  void ensureUserChangeStream();
+  return () => {
+    listeners.delete(listener);
+    if (!listeners.size) userChangeListeners.delete(googleSub);
+    if (!userChangeListeners.size) {
+      if (userChangeRetry) clearTimeout(userChangeRetry);
+      userChangeRetry = null;
+      const stream = userChangeStream;
+      userChangeStream = null;
+      if (stream) void stream.close().catch(() => undefined);
+    }
+  };
+}
 
 function usersDir(repoRoot: string): string {
   return join(repoRoot, USERS_DIR_NAME);
@@ -139,7 +223,7 @@ async function connectMongo(): Promise<Db | null> {
     } catch (error) {
       console.warn(
         "[openbots] MongoDB unavailable; falling back to local user files.",
-        error instanceof Error ? error.message : error
+        redactSecrets(error instanceof Error ? error.message : String(error))
       );
       mongoClient = null;
       mongoDb = null;
@@ -221,6 +305,7 @@ export async function upsertGoogleUser(
       }
     : emptyRecord(profile);
   await writeLocalUser(repoRoot, next);
+  notifyUserChanged(next.googleSub);
   return { user: next, backend: "local" };
 }
 
@@ -264,7 +349,7 @@ export async function saveUserBotsAndSettings(
     const base = existing ? normalizeRecord(existing, hint) : emptyRecord(hint);
     const next: PersistedUserRecord = {
       ...base,
-      bots: data.bots !== undefined ? data.bots : base.bots,
+      bots: data.bots !== undefined ? preserveBotDeletions(base.bots, data.bots) : base.bots,
       settings: data.settings !== undefined ? { ...base.settings, ...data.settings } : base.settings,
       updatedAt: stamp
     };
@@ -276,16 +361,23 @@ export async function saveUserBotsAndSettings(
   const base = existing ?? emptyRecord(hint);
   const next: PersistedUserRecord = {
     ...base,
-    bots: data.bots !== undefined ? data.bots : base.bots,
+    bots: data.bots !== undefined ? preserveBotDeletions(base.bots, data.bots) : base.bots,
     settings: data.settings !== undefined ? { ...base.settings, ...data.settings } : base.settings,
     updatedAt: stamp
   };
   await writeLocalUser(repoRoot, next);
+  notifyUserChanged(next.googleSub);
   return { user: next, backend: "local" };
 }
 
 /** Test helper: drop in-memory Mongo handles so the next call re-reads env. */
 export async function resetUserStoreForTests(): Promise<void> {
+  userChangeListeners.clear();
+  if (userChangeRetry) clearTimeout(userChangeRetry);
+  userChangeRetry = null;
+  const stream = userChangeStream;
+  userChangeStream = null;
+  if (stream) await stream.close().catch(() => undefined);
   if (mongoClient) {
     await mongoClient.close().catch(() => undefined);
   }
@@ -297,3 +389,8 @@ export async function resetUserStoreForTests(): Promise<void> {
 
 export const USER_STORE_DEFAULT_DB = DEFAULT_DB_NAME;
 export const USER_STORE_DIR_NAME = USERS_DIR_NAME;
+
+/** Server-only shared connection; no URI or credentials are returned to clients. */
+export { connectMongo as sharedMongoDatabase };
+
+export { resetUserStoreForTests as closeUserStoreConnections };

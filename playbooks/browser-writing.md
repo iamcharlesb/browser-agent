@@ -1,0 +1,3 @@
+# Browser writing and uploads
+
+Continue the exact existing draft/workspace; never select a different row to save steps. Reuse generated artifacts and avoid repeating completed navigation. Use fresh marks after a page change. For a select dropdown use type_mark with its option label or value. Use upload_file to attach an artifact, then verify its preview and persistence after saving/reopening. Do not type a filesystem path into an upload button. Generate a requested hero image only through the paid tool's current authorization gate. If the editor fails, preserve the full requested deliverable locally and report what remains unsaved.

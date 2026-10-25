@@ -48,3 +48,13 @@ export function decideHandoff(request: AgentHandoffRequest, maxDepth = MAX_HANDO
 
   return { allowed: true, delegatedTask };
 }
+
+
+/** A coordinator consultation asks for a reply, never browser work on its behalf. */
+export function handoffExecutionContext(request: AgentHandoffRequest) {
+  return {
+    interactionMode: request.discussionId ? "chat" as const : request.interactionMode,
+    sessionMode: request.sessionMode,
+    agentEngine: request.agentEngine
+  };
+}

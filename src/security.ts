@@ -12,7 +12,7 @@ const SECRET_PATTERNS = [
 ];
 
 const MONEY_PATTERN =
-  /\b(?:buy|purchase|pay|checkout|subscribe|transfer|send money|wire|invest|trade|place an order|confirm payment|book and pay)\b/i;
+  /\b(?:buy|purchase|pay|checkout|subscribe|transfer|send money|wire|invest|trade\s+(?:stocks?|shares?|crypto(?:currency)?|bitcoin|securities|options?|futures|forex|assets?)|place an order|confirm payment|book and pay)\b/i;
 const EXTERNAL_SIDE_EFFECT_PATTERN =
   /\b(?:publish|unfollow|send (?:an? )?(?:email|message|dm)|create account|submit form|delete|cancel)\b|\bpost\s+(?:this|that|the|a|an|it|on|to)\b|\bfollow\s+@[\w.-]+\b|\bfollow\s+(?:(?:this|that|the|a|an|my|our)\s+)?(?:accounts?|people|users?|profiles?|creators?|friends?|brands?|pages?|channels?|influencers?)\b|\bcomment\s+(?:on|under|to)\b/i;
 // "like" is common in ordinary prose ("like Codex" / "I like this video"). Only flag
@@ -46,7 +46,17 @@ export function assessTaskRisk(task: string): RiskAssessment {
     };
   }
   const approvalsRequired: ApprovalCategory[] = [];
-  if (MONEY_PATTERN.test(task)) approvalsRequired.push("financial_transaction");
+  // Inspect financial verbs in their clause so discussion of an article title or
+  // a negated instruction does not turn the whole task into a purchase.
+  const financialClauses = task.replace(/[“"][^“”"]*[”"]/g, "").split(/[.!?;\n]/);
+  const financialAction = financialClauses.some(clause => {
+    if (!MONEY_PATTERN.test(clause)) return false;
+    if (/^\s*(?:please\s+)?plan\b/i.test(clause)) return false;
+    if (/\b(?:why|whether|explain|discuss|research|analy[sz]e|compare|draft|write)\b/i.test(clause) &&
+        !/\b(?:then|and)\s+(?:buy|purchase|pay|checkout|transfer|subscribe)\b/i.test(clause)) return false;
+    return !/\b(?:do not|don't|never|without|before)\s+(?:\w+\s+){0,3}(?:buy|purchase|pay|checkout|subscribe|transfer|invest|trade)\b/i.test(clause);
+  });
+  if (financialAction) approvalsRequired.push("financial_transaction");
   if (
     EXTERNAL_SIDE_EFFECT_PATTERN.test(task) ||
     SOCIAL_LIKE_PATTERN.test(task) ||
@@ -59,9 +69,38 @@ export function assessTaskRisk(task: string): RiskAssessment {
   return { blocked: false, approvalsRequired };
 }
 
+/** Best-effort output redaction, not an execution sandbox or a secret manager. */
+const secretName = /(?:api[_-]?key|secret|token|password|passwd|credential|private[_-]?key|access[_-]?key|authorization|cookie|mongodb_uri|database_url)/i;
+
 export function redactSecrets(value: string): string {
-  return value
-    .replace(/\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b/g, "[REDACTED_API_KEY]")
-    .replace(/\b(?:Bearer\s+)[A-Za-z0-9._~-]{16,}\b/gi, "Bearer [REDACTED_TOKEN]")
-    .replace(/((?:password|secret|token|api[ _-]?key)\s*[:=]\s*)[^\s,;]+/gi, "$1[REDACTED]");
+  let result = value;
+  // Exact configured credentials catch opaque keys and provider-specific formats.
+  const configured = Object.entries(process.env)
+    .filter(([name, text]) => secretName.test(name) && text && text.length >= 8)
+    .map(([, text]) => text!)
+    .sort((a, b) => b.length - a.length);
+  for (const secret of configured) {
+    result = result.split(secret).join("[REDACTED]");
+    const encoded = encodeURIComponent(secret);
+    if (encoded !== secret) result = result.split(encoded).join("[REDACTED]");
+  }
+  return result
+    .replace(/-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z]+ )?PRIVATE KEY-----/g, "[REDACTED_PRIVATE_KEY]")
+    .replace(/\b(?:sk-(?:proj-|ant-)?|xai-|gh[pousr]_)[A-Za-z0-9_-]{16,}\b/g, "[REDACTED_API_KEY]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]{8,}=*/gi, "Bearer [REDACTED_TOKEN]")
+    .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/gi, "$1[REDACTED]@")
+    .replace(/((?:["']?)(?:[\w-]*(?:password|passwd|secret|token|api[_-]?key|authorization|cookie))["']?\s*[:=]\s*)("[^"\r\n]*"|'[^'\r\n]*'|[^\s,;\r\n}]+)/gi,
+      (_match, prefix: string, raw: string) => prefix + (raw.startsWith('"') ? '"[REDACTED]"' : raw.startsWith("'") ? "'[REDACTED]'" : "[REDACTED]"));
+}
+
+/** Sanitize structured events without changing their shape or mutating live state. */
+export function redactSecretValues<T>(value: T): T {
+  if (typeof value === "string") return redactSecrets(value) as T;
+  if (Array.isArray(value)) return value.map(item => redactSecretValues(item)) as T;
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key,
+      secretName.test(key) && typeof item === "string" ? "[REDACTED]" : redactSecretValues(item)
+    ])) as T;
+  }
+  return value;
 }

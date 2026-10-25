@@ -1,3 +1,5 @@
+import { redactSecrets } from "./security";
+import { defaultModel, resolveModel } from "./runtimeConfig";
 /**
  * Turns learn mode's improvement notes into exact-text source patches.
  *
@@ -152,8 +154,9 @@ export function parsePatchResponse(raw: string, maxPatches: number): ProposedPat
 }
 
 function defaultComplete(options: PatchProposerOptions): ((input: { systemPrompt: string; userPrompt: string }) => Promise<string>) | null {
-  const model = (options.model ?? "").trim();
-  const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY ?? process.env.OPENAI_API_KEY;
+  const model = (options.model || process.env.BROWSER_AGENT_PATCH_MODEL || defaultModel()).trim();
+  const provider = resolveModel(model).provider;
+  const apiKey = options.apiKey ?? (provider === "anthropic" ? process.env.ANTHROPIC_API_KEY : provider === "xai" ? process.env.XAI_API_KEY : provider === "openai" ? process.env.OPENAI_API_KEY : undefined);
 
   if (isClaudeCliModel(model) && isClaudeCliAvailable()) {
     const alias = claudeCliModelAlias(model);
@@ -172,7 +175,7 @@ function defaultComplete(options: PatchProposerOptions): ((input: { systemPrompt
   // The local heuristic engine cannot write a patch, so there is nothing to fall back to.
   if (!apiKey || model === "local-engine") return null;
 
-  const isClaudeApi = model.toLowerCase().startsWith("claude");
+  const isClaudeApi = provider === "anthropic";
   const client = new OpenAI({
     apiKey,
     ...(isClaudeApi
@@ -180,16 +183,25 @@ function defaultComplete(options: PatchProposerOptions): ((input: { systemPrompt
           baseURL: process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com/v1/",
           defaultHeaders: { "anthropic-version": "2023-06-01" }
         }
-      : process.env.OPENAI_BASE_URL
+      : provider === "xai"
+        ? { baseURL: process.env.XAI_BASE_URL || "https://api.x.ai/v1" }
+        : process.env.OPENAI_BASE_URL
         ? { baseURL: process.env.OPENAI_BASE_URL }
         : {})
   });
 
   return async ({ systemPrompt, userPrompt }) => {
-    const resolvedModel = model || "gpt-4o-mini";
+    const resolvedModel = model;
+    if (resolveModel(model).api === "responses" && provider === "openai") {
+      const response = await client.responses.create({
+        model, instructions: redactSecrets(systemPrompt), input: redactSecrets(userPrompt),
+        max_output_tokens: 4000, store: false
+      });
+      return response.output_text ?? "";
+    }
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt }
+      { role: "system", content: redactSecrets(systemPrompt) },
+      { role: "user", content: redactSecrets(userPrompt) }
     ];
     try {
       const response = await client.chat.completions.create({

@@ -19,3 +19,10 @@ artifacts/
 
 .browser-agent-attachments/
 .browser-agent-knowledge/
+
+# Isolate regression builds from the running dev watcher.
+.test-dist/
+
+# Private reviewed playbooks, pending proposals and full task outcomes.
+.browser-agent-playbooks/
+.browser-agent-outcomes/

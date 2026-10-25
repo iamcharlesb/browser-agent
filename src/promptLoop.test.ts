@@ -151,12 +151,6 @@ test("GPT-6 Luna uses Responses API with reasoning enabled", { concurrency: fals
   assert.ok(requestBodies[0].max_output_tokens >= 4096, "Article tool arguments must fit without truncation");
   assert.match(requestBodies[0].instructions, /TOKEN DISCIPLINE/);
   assert.match(requestBodies[0].instructions, /PLAN FIRST ON COMPLEX ASKS/);
-  assert.match(requestBodies[0].instructions, /FOLLOWER GROWTH PLAYBOOK|proactive marketing specialist/i);
-  assert.match(requestBodies[0].instructions, /REDDIT \/ COMMUNITY GROWTH PLAYBOOK|never naive spam|karma-build/i);
-  assert.match(requestBodies[0].instructions, /SEO \/ AI VISIBILITY PLAYBOOK|GEO \/ AEO|never invent private/i);
-  assert.match(requestBodies[0].instructions, /UX \/ PRODUCT DESIGN PLAYBOOK|heuristic scan|never invent user/i);
-  assert.match(requestBodies[0].instructions, /LINKEDIN \/ B2B OUTREACH PLAYBOOK|weekly invite caps|never bulk-connect/i);
-  assert.match(requestBodies[0].instructions, /COLD EMAIL \/ SEQUENCE PLATFORM PLAYBOOK|SPF\/DKIM\/DMARC|mail cannot be unsent/i);
   assert.ok(Array.isArray(requestBodies[0].tools) && requestBodies[0].tools.length > 0);
   assert.equal(requestBodies[0].messages, undefined);
   assert.equal(requestBodies[1].previous_response_id, "resp_first");
@@ -417,7 +411,7 @@ test("standing approval changes the prompt from 'always ask' to 'go do it'", { c
   const approved = await capture(true);
   assert.match(approved, /STANDING APPROVAL/);
   assert.match(approved, /Do NOT re-ask for what is already approved/);
-  assert.match(approved, /EXECUTE the paced batch/);
+  assert.match(approved, /Engagement they've scoped.*APPROVED/);
   assert.doesNotMatch(approved, /Stop for approval before follows\/likes\/comments/);
   assert.doesNotMatch(approved, /Never follow\/like\/comment\/message until they approve/);
 
@@ -855,3 +849,44 @@ test("financial shell operations cannot use standing approval", async () => {
   assert.equal(prompts, 1);
   assert.ok(events.some(event => event.type === "privileged_approval_required" && event.approvalKind === "irreversible"));
 });
+
+test("invalid API requests fail immediately without SDK and loop retry multiplication", async () => {
+  let requests = 0;
+  const agent = new AgentOrchestrator({
+    task: "Explain the tradeoffs.", model: "gpt-6-luna", apiKey: "test-key",
+    browser: {} as BrowserController,
+    fetch: async () => {
+      requests++;
+      return new Response(JSON.stringify({ error: { message: "Invalid model configuration", type: "invalid_request_error" } }), {
+        status: 400, headers: { "content-type": "application/json" }
+      });
+    }
+  });
+  const result = await agent.run();
+  assert.equal(result.success, false);
+  assert.equal(requests, 1);
+  assert.match(result.summary, /Invalid model configuration/);
+});
+
+for (const agentEngine of ["cheap", "openai-sdk"] as const) {
+  test(`${agentEngine} chat consultations never attach or inspect a browser for referenced URLs`, async () => {
+    let browserCalls = 0;
+    const forbidden = async () => { browserCalls++; throw new Error("Browser unavailable"); };
+    const browser = {
+      isStarted: true, currentUrl: () => "https://example.test/admin",
+      sessionMode: "embedded", start: forbidden, captureState: forbidden, navigate: forbidden
+    } as unknown as BrowserController;
+    const agent = new AgentOrchestrator({
+      task: "Explain the proposed plan for https://example.test and its draft articles.",
+      interactionMode: "chat", agentEngine, model: "gpt-6-luna", apiKey: "test-key", browser,
+      fetch: async () => new Response(JSON.stringify(makeResponsesPayload([{
+        id: "msg_plan", type: "message", status: "completed", role: "assistant",
+        content: [{ type: "output_text", text: "Proposed plan: verify the audience, draft useful answers, and review them before publication." }]
+      }], "resp_plan")), { headers: { "content-type": "application/json" } })
+    });
+    const result = await agent.run();
+    assert.equal(result.success, true, result.summary);
+    assert.equal(browserCalls, 0);
+    assert.equal(requiresInitialBrowserState("Review https://example.test drafts", "https://example.test/admin", "chat"), false);
+  });
+}
