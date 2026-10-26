@@ -1,5 +1,5 @@
 {
-  "name": "buddy-bot",
+  "name": "browser-agent",
   "version": "0.1.0",
   "private": true,
   "description": "Buddy Bot — local, playbook-driven AI agent desktop runtime (Node.js + Electron).",
