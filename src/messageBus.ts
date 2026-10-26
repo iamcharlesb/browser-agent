@@ -176,7 +176,7 @@ export class MessageBus {
         unsubscribe();
         reject(new Error(`No reply on "${topic}" within ${timeoutMs}ms`));
       }, timeoutMs);
-      if (typeof timer.unref === "function") timer.unref();
+      // Requests awaiting a reply must keep their timeout live until settled.
       this.publish(topic, payload, { ...options, correlationId, replyTo: replyTopic });
     });
   }
