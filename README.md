@@ -1,4 +1,8 @@
-# Open Bots (Browser Agent)
+# Buddy Bot
+
+Buddy Bot is the desktop product built on the existing browser-agent runtime. It uses compact per-bot playbooks, a local pub/sub bus and optional MongoDB-backed event synchronization. Fireworks++ is not a dependency or prerequisite.
+
+See [production-readiness and operating boundaries](docs/buddy-bot-production.md) before deployment.
 
 ## Approvals and conversation flow
 
