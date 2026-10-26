@@ -361,6 +361,8 @@ The chat UI renders image `artifactUrl` values inline; non-image artifacts remai
 
 ## Interactive browser architecture
 
+Independent **Chat** agents can work in parallel while one **Browse**, **Act**, or **Turbo** task owns the shared browser. The default is four total execution slots and one task per bot; configure `BROWSER_AGENT_MAX_CONCURRENT_RUNS` and `BROWSER_AGENT_MAX_PENDING_RUNS` in the environment. Browser tasks queue with a visible reason. Switching chats preserves each run's event stream and sends its results to its original chat. Stop and Steer affect the selected bot's work. Use Chat for drafting or analysis that should continue alongside another bot's browser task.
+
 The browser and Electron share the same workspace and agent server. Run
 `npm run desktop` from either the repository root or this directory for the
 production desktop; use `npm run desktop:dev` for the watched desktop. For a
@@ -407,6 +409,14 @@ Per-reply Like feedback and explicit corrections are saved into that bot's local
 
 Knowledge is scoped by bot and stored in `.browser-agent-knowledge/`; attachment metadata is in `.browser-agent-attachments/`, and image files are local artifacts. These runtime directories are excluded from Git. Renaming a bot currently changes its name-based knowledge scope.
 
+### Select a project folder
+
+Use **+ → Select project folder** in the composer to attach a project for analysis. The folder picker works in Electron and Chromium browsers. Each folder counts as one attachment and retains relative paths; the chip shows how many source files were imported. Common dependencies, build output, binary files and credential files are excluded, and the import reports the excluded count.
+
+The imported folder is a **read-only snapshot**. Bots browse its file listing, search code and retrieve file pages through `knowledge_base` using its `project:ID`, keeping the full project out of the initial model prompt. The snapshot remains available to the bot after sending the message and across server restarts. Select the folder again to include later changes. Importing a folder does not move the terminal workspace or grant permission to edit its original files.
+
+Defaults are 2,000 source files, 256,000 bytes per source file, and 8,000,000 bytes per project. Configure `BROWSER_AGENT_PROJECT_MAX_FILES`, `BROWSER_AGENT_PROJECT_MAX_FILE_BYTES` and `BROWSER_AGENT_PROJECT_MAX_BYTES` in the environment. Oversized projects require a smaller subfolder; the importer does not silently truncate them. **+ → Attach files** remains available for individual files and images.
+
 ### Compact profiles and asynchronous requests
 
 Runtime behavior now loads `AGENTS.md`, `soul.md`, relevant role playbooks, and separately reviewed lessons. Queued bot requests are accepted by the backend and continue when the UI closes; the shared browser still has one execution owner. See [profile configuration, proposal review, Mongo synchronization, async queue and focus behavior](docs/agent-profiles.md).
@@ -414,3 +424,13 @@ Runtime behavior now loads `AGENTS.md`, `soul.md`, relevant role playbooks, and 
 ### Event-driven orchestration
 
 The app supports shared MongoDB event delivery, resumable workflows with dependencies, restart recovery, bounded event-selected playbooks, and a correction observer with human-reviewed voice/playbook drafts. See [event-driven orchestration](docs/event-driven-orchestration.md) for configuration, API usage, and delivery guarantees.
+
+### Reopening your session
+
+The same browser profile and app address restore your selected bot, saved conversation, and separate unfinished text drafts for each bot. Drafts save while typing and when leaving the page. Clearing a draft keeps it cleared. Existing mode/model preferences remain persistent. The native browser-pane visibility preference also survives reopening.
+
+This device-local state uses browser storage; a different browser profile or origin (including switching between a file preview and localhost) has separate storage. Reopening does not submit work again. The UI reconnects to active runs when the server is still running; closing the whole desktop app does not checkpoint and resume a stopped model or browser process. Unsent file attachments are not included in text draft restoration.
+
+### Reusable coding workspace
+
+Use **+ → Index local coding workspace** to build or refresh a private offline source index, then ask a bot to inspect, implement and test a change. Both agent engines can retrieve ranked code excerpts, inspect file/symbol maps and live source, and make stale-checked exact patches through the existing approval controls. Dependencies and generated/private files are excluded. Selected project-folder snapshots also retain an index for reuse across turns and restarts. See [coding capability](docs/coding-capability.md) for scope, configuration, and examples.

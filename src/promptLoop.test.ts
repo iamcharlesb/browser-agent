@@ -35,6 +35,27 @@ test("a blocked page ends the run without asking the user to solve a nonexistent
   assert.equal(verificationRequests, 0);
 });
 
+test("a direct-answer correction removes the delegation tool from the model request", async () => {
+  let requestBody: Record<string, any> | undefined;
+  const fetch: typeof globalThis.fetch = async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify(makeResponsesPayload([{
+      id: "msg_direct_answer",
+      type: "message",
+      status: "completed",
+      role: "assistant",
+      content: [{ type: "output_text", text: "Low ranking is the likely constraint; here is what to check next." }]
+    }])), { headers: { "content-type": "application/json" } });
+  };
+  const agent = new AgentOrchestrator({
+    task: "I know all those things, my question is why we are not getting clicks. Better you tell me.",
+    model: "gpt-6-luna", apiKey: "test-key", browser: {} as BrowserController, fetch
+  });
+  assert.equal((await agent.run()).success, true);
+  assert.ok(requestBody);
+  assert.equal(JSON.stringify(requestBody.tools).includes("delegate_to_bot"), false);
+});
+
 test("shell approval is reused only when explicitly granted for this task", async () => {
   const run = async (decision: boolean | { approved: boolean; scope: "task" }, standingApproval = false) => {
     let requests = 0;
@@ -869,6 +890,47 @@ test("invalid API requests fail immediately without SDK and loop retry multiplic
 });
 
 for (const agentEngine of ["cheap", "openai-sdk"] as const) {
+  test(`${agentEngine} final synthesis answers once without offering research or delegation tools`, async () => {
+    const requests: Array<Record<string, any>> = [];
+    const agent = new AgentOrchestrator({
+      task: "Conclude this discussion: the page ranks poorly; the specific cause remains unverified.",
+      finalAnswerOnly: true, interactionMode: "chat", allowBotDelegation: false,
+      agentEngine, model: "gpt-6-luna", apiKey: "test-key", browser: {} as BrowserController,
+      fetch: async (_url, init) => {
+        requests.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify(makeResponsesPayload([{
+          id: "msg_final", type: "message", status: "completed", role: "assistant",
+          content: [{ type: "output_text", text: "Low ranking limits clicks. The specific ranking cause is unverified; compare this page with the relevant search results next." }]
+        }], "resp_final")), { headers: { "content-type": "application/json" } });
+      }
+    });
+    const result = await agent.run();
+    assert.equal(result.success, true, result.summary);
+    assert.equal(result.delegateTo, undefined);
+    assert.equal(requests.length, 1);
+    for (const tool of requests[0].tools || []) assert.ok(["finish_task", "fail_task"].includes(tool.name || tool.function?.name));
+  });
+
+  test(`${agentEngine} cannot dispatch a handoff omitted from its tool permissions`, async () => {
+    let calls = 0;
+    const events: Array<Record<string, unknown>> = [];
+    const agent = new AgentOrchestrator({
+      task: "Answer the coordinator's question directly.", interactionMode: "chat", allowBotDelegation: false,
+      agentEngine, model: "gpt-6-luna", apiKey: "test-key", browser: {} as BrowserController,
+      onEvent: event => events.push(event),
+      fetch: async () => {
+        calls++;
+        const output = calls === 1 ? [{ id: "fc_forbidden", type: "function_call", status: "completed", call_id: "forbidden", name: "delegate_to_bot", arguments: JSON.stringify({ targetBotName: "SEO", task: "Repeat this question" }) }]
+          : [{ id: "msg_answer", type: "message", status: "completed", role: "assistant", content: [{ type: "output_text", text: "The evidence supports low visibility. The underlying cause is still unknown." }] }];
+        return new Response(JSON.stringify(makeResponsesPayload(output, `resp_${calls}`)), { headers: { "content-type": "application/json" } });
+      }
+    });
+    const result = await agent.run();
+    assert.equal(result.delegateTo, undefined);
+    assert.equal(events.some(event => event.toolName === "delegate_to_bot" && event.ok === true), false);
+    assert.ok(calls <= 2);
+  });
+
   test(`${agentEngine} chat consultations never attach or inspect a browser for referenced URLs`, async () => {
     let browserCalls = 0;
     const forbidden = async () => { browserCalls++; throw new Error("Browser unavailable"); };

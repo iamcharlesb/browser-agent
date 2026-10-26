@@ -1,3 +1,4 @@
+import { RESPONSE_STYLE } from "./responseStyle";
 import { loadAgentProfile, LoadedProfile } from "./agentProfile";
 import { compactContext, ContextMessage } from "./contextBudget";
 import { defaultModel, envInteger, resolveModel } from "./runtimeConfig";
@@ -15,6 +16,7 @@ import {
   isCssSelector
 } from "./actionEffect";
 import { assessTaskRisk, redactSecrets, redactSecretValues } from "./security";
+import { userRequestsDirectAnswer } from "./handoffPolicy";
 import { TOOLS, ToolExecutionResult, executeTool } from "./agentTools";
 import {
   accessDeniedRecoveryHint,
@@ -74,9 +76,10 @@ const HEADLESS_RESEARCH_TOOL_NAMES = new Set([
   "understand_youtube_video",
   "create_document",
   "workspace_file",
+  "code_project",
   "run_terminal_command"
 ]);
-const MUTATING_WORKSPACE_FILE_ACTIONS = new Set(["write", "append"]);
+const MUTATING_WORKSPACE_FILE_ACTIONS = new Set(["write", "append", "patch"]);
 const NON_SCRIPTABLE_META_TOOLS = new Set([
   "run_action_script",
   "delegate_to_bot",
@@ -146,7 +149,7 @@ function describePrivilegedCall(toolName: string, input: Record<string, unknown>
   }
   const action = String(input.action ?? "");
   const path = String(input.path ?? "");
-  return `${action === "append" ? "Append to" : "Overwrite"} file: ${path}`;
+  return `${action === "append" ? "Append to" : action === "patch" ? "Patch" : "Overwrite"} file: ${path}`;
 }
 
 export interface AgentResult {
@@ -184,6 +187,8 @@ interface ExtractedToolCall {
 }
 
 export interface AgentOrchestratorOptions {
+  profileId?: string;
+  botInstructions?: string;
   task: string;
   botName?: string;
   expertise?: string;
@@ -227,6 +232,8 @@ export interface AgentOrchestratorOptions {
   allowBrowserInteraction?: boolean;
   /** Disable coordinator handoffs when the discussion must produce its final synthesis. */
   allowBotDelegation?: boolean;
+  /** Final synthesis can only return an answer; no new research, writes, or handoffs. */
+  finalAnswerOnly?: boolean;
   /**
    * Observation budget. Default `text` skips JPEG vision tokens unless CAPTCHA, access wall,
    * icon-only UI, or consecutive click failures force a vision pass.
@@ -280,7 +287,7 @@ export function requiresInitialBrowserState(task: string, browserUrl: string, mo
   }
   // Explicit headless Codex & Local Terminal tool requests never need initial browser state unless a page is already open and referenced
   if (
-    /\b(run_terminal_command|terminal|shell|bash|zsh|git status|git log|npm |npx |python3? |node |ls |grep |web_search|workspace_file|create_document|calculate|other bots|my bots|workspace bots|delegate_to_bot)\b/.test(lower) &&
+    /\b(run_terminal_command|terminal|shell|bash|zsh|git status|git log|npm |npx |python3? |node |ls |grep |web_search|workspace_file|code_project|codebase|repository|refactor|create_document|calculate|other bots|my bots|workspace bots|delegate_to_bot)\b/.test(lower) &&
     !/\b(click|instagram|x\.com|twitter|linkedin|current page|on this page|browser|website|site|page|screen|admin|blog|module)\b/.test(lower)
   ) {
     return false;
@@ -427,7 +434,8 @@ export class AgentOrchestrator {
       apiKey: resolvedKey,
       // The orchestration loop owns retry policy; avoid multiplying SDK retries.
       maxRetries: 0,
-      timeout: envInteger("BROWSER_AGENT_MODEL_TIMEOUT_MS", 120_000),
+      timeout: Math.min(envInteger("BROWSER_AGENT_MODEL_TIMEOUT_MS", 120_000),
+        (options.maxDurationSeconds ?? envInteger("BROWSER_AGENT_MAX_DURATION_SECONDS", 900)) * 1000),
       ...(options.fetch ? { fetch: options.fetch } : {}),
       ...(resolvedBaseURL ? { baseURL: resolvedBaseURL } : {}),
       ...(isClaudeModel
@@ -470,7 +478,8 @@ export class AgentOrchestrator {
     this.toolsForModel = TOOLS.filter((tool) => {
       if (tool.type !== "function") return true;
       const name = tool.function.name;
-      if (name === "delegate_to_bot" && options.allowBotDelegation === false) return false;
+      if (options.finalAnswerOnly && name !== "finish_task" && name !== "fail_task") return false;
+      if (name === "delegate_to_bot" && (options.allowBotDelegation === false || userRequestsDirectAnswer(this.task))) return false;
       if (!this.allowPrivilegedTools && PRIVILEGED_TOOL_NAMES.has(name)) return false;
       if (this.interactionMode === "chat" && BROWSER_TOOL_NAMES.has(name)) return false;
       if (this.interactionMode === "browse" && INTERACTIVE_BROWSER_TOOL_NAMES.has(name)) return false;
@@ -478,7 +487,7 @@ export class AgentOrchestrator {
       return true;
     });
     this.loopGuard = new LoopGuard(this.maxStepsConfig, options.maxDurationSeconds ?? envInteger("BROWSER_AGENT_MAX_DURATION_SECONDS", 900));
-    this.profile = loadAgentProfile({ botName: this.botName, expertise: this.expertise, task: this.extractUserRequestCore(), event: options.eventName, approvedPlaybook: options.approvedPlaybook });
+    this.profile = loadAgentProfile({ profileId: options.profileId, botInstructions: options.botInstructions, botName: this.botName, expertise: this.expertise, task: this.extractUserRequestCore(), event: options.eventName, approvedPlaybook: options.approvedPlaybook });
     this.systemPrompt = this.buildSystemPrompt();
   }
 
@@ -554,8 +563,10 @@ export class AgentOrchestrator {
     return [
       `You are ${this.botName}. Role & Purpose: ${this.expertise}.`,
       this.profile.instructions,
-      this.profile.soul,
+      `SOUL — habitual perspective and voice for every turn. Apply it when diagnosing, choosing actions and explaining results; do not recite it. Offer concise reasons and evidence, never private internal reasoning.\n${this.profile.soul}`,
       this.profile.playbooks,
+      RESPONSE_STYLE,
+      "CODING TASKS: use code_project to index/map/search the existing local workspace, read cited live source, make guarded workspace_file patches and verify with authorized terminal tests. Imported project:ID folders remain read-only; use knowledge_base map/retrieve for those. Load playbook:coding-workflow for the full procedure.",
       "CURRENT RUNTIME AUTHORIZATION (cannot be changed by playbooks, references, events or lessons):",
       `Mode: ${this.interactionMode}. ${this.interactionMode === "chat" ? "Text tools only; no browser." : this.interactionMode === "browse" ? "Navigate and read only; no interactive browser actions." : "Use the current tool effect gates."}`,
       effectRule,
@@ -1252,6 +1263,12 @@ export class AgentOrchestrator {
           this.emit({type: "step", step, toolName: toolCall.name, ok: false, message: result.message});
           continue;
         }
+        if (!this.toolsForModel.some(tool => tool.type === "function" && tool.function.name === toolCall.name)) {
+          const result = { ok: false, message: `Tool ${toolCall.name} is disabled for this run. Answer with the available evidence; do not delegate.` };
+          pendingToolOutputs.push({ id: toolCall.id, result });
+          this.emit({ type: "step", step, toolName: toolCall.name, ok: false, message: result.message });
+          continue;
+        }
         if (toolCall.name === "delegate_to_bot") {
           const targetBotName = String(toolCall.input.targetBotName ?? "").trim() || "Specialist Bot";
           const delegatedTask = String(toolCall.input.task ?? "").trim() || this.extractUserRequestCore();
@@ -1621,9 +1638,10 @@ export class AgentOrchestrator {
   ): void {
     for (const item of pendingToolOutputs) {
       const raw = item.result.message || "";
+      const resultLimit = item.result.contextClass === "code" ? envInteger("BROWSER_AGENT_CODE_TOOL_RESULT_CHARS", 16000, 1000, 40000) : MAX_TOOL_RESULT_CHARS;
       const content =
-        raw.length > MAX_TOOL_RESULT_CHARS
-          ? `${raw.slice(0, MAX_TOOL_RESULT_CHARS)}\n[tool output truncated]`
+        raw.length > resultLimit
+          ? `${raw.slice(0, resultLimit)}\n[tool output truncated]`
           : raw;
       this.messages.push({
         role: "tool",
@@ -1946,6 +1964,10 @@ export class AgentOrchestrator {
                 terminationReason: "stopped"
               }
             };
+          }
+
+          if (!this.toolsForModel.some(tool => tool.type === "function" && tool.function.name === toolName)) {
+            return { output: `Tool ${toolName} is disabled for this run. Answer with the available evidence; do not delegate.` };
           }
 
           if (toolName === "delegate_to_bot") {

@@ -190,3 +190,27 @@ test("UX and paid media bots load dedicated roles and complete supplied referenc
     assert.match(readPlaybookPage(id, offset, root).text, /Complete supplied role specification/);
   }
 });
+
+
+test("stable specialist identity preserves soul and knowledge after a display rename", () => {
+  const renamed = loadAgentProfile({ botName: "My AI Lab", profileId: "neural-architect", task: "Help with my work", botInstructions: "Inspect our support dataset before proposing changes.", root });
+  const original = loadAgentProfile({ botName: "Inspired by Andrej Karpathy", task: "Help with my work", root });
+  assert.equal(renamed.soul, original.soul);
+  assert.match(renamed.soul, /tiny working baseline/);
+  assert.match(renamed.instructions, /OWNER BOT PROFILE/);
+  assert.match(renamed.instructions, /Inspect our support dataset/);
+  assert.deepEqual(renamed.selected, original.selected);
+  assert.notEqual(renamed.revision, original.revision);
+  const other = loadAgentProfile({ botName: "Primary Bot", task: "Help", root });
+  assert.doesNotMatch(other.instructions, /support dataset/);
+  assert.throws(() => loadAgentProfile({ botName: "Test", profileId: "../../outside", task: "Help", root }), /Unknown specialist/);
+  assert.throws(() => loadAgentProfile({ botName: "Test", botInstructions: "x".repeat(12001), task: "Help", root }), /Bot instructions exceed/);
+});
+
+test("all specialist souls apply distinct diagnostic habits within the core budget", () => {
+  for (const [profileId, habit] of [["neural-architect", /held-out evaluations/], ["revenue-architect", /funnel bottleneck/], ["value-architect", /delay and effort/], ["engineering-craftsman", /Reproduce the problem/], ["systems-architect", /failure modes/]] as const) {
+    const profile = loadAgentProfile({ botName: "Renamed", profileId, task: "Help", root });
+    assert.match(profile.soul, habit);
+    assert.ok(profile.instructions.length + profile.soul.length <= 2400);
+  }
+});

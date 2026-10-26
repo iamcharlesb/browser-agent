@@ -4,7 +4,53 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { AsyncAgentQueue } from "./asyncAgentQueue";
+import { RunSlots } from "./runSlots";
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+test("text agents overlap while browser and same-bot work stay serialized without blocking the queue", async () => {
+  const slots = new RunSlots(3);
+  const started: string[] = [];
+  const release = new Map<string, () => void>();
+  type Input = { botName: string; interactionMode: string; name: string };
+  const queue = new AsyncAgentQueue<Input>(() => false, async job => {
+    slots.acquire(job.id, job.input);
+    started.push(job.input.name);
+    await new Promise<void>(done => release.set(job.input.name, done));
+    slots.release(job.id);
+  }, 50, undefined, { maxConcurrent: 3, canStart: input => slots.canStart(input) });
+  const browser = queue.enqueue({ name: "browser one", botName: "Browser", interactionMode: "act" });
+  const nextBrowser = queue.enqueue({ name: "browser two", botName: "Other Browser", interactionMode: "turbo" });
+  const text = queue.enqueue({ name: "writer one", botName: "Writer", interactionMode: "chat" });
+  const nextText = queue.enqueue({ name: "writer two", botName: "Writer", interactionMode: "chat" });
+  const researcher = queue.enqueue({ name: "researcher", botName: "Researcher", interactionMode: "chat" });
+  for (let i = 0; i < 30 && started.length < 3; i++) await pause(10);
+  assert.deepEqual(started, ["browser one", "writer one", "researcher"]);
+  assert.equal(nextBrowser.status, "queued");
+  assert.equal(nextText.status, "queued");
+  release.get("writer one")!();
+  for (let i = 0; i < 30 && nextText.status === "queued"; i++) await pause(10);
+  assert.equal(nextText.status, "running");
+  assert.equal(nextBrowser.status, "queued");
+  release.get("browser one")!();
+  for (let i = 0; i < 30 && nextBrowser.status === "queued"; i++) await pause(10);
+  assert.equal(nextBrowser.status, "running");
+  release.get("browser two")!(); release.get("writer two")!(); release.get("researcher")!();
+  for (let i = 0; i < 30 && queue.list().some(job => job.status === "running"); i++) await pause(10);
+  assert.ok([browser, text, researcher, nextBrowser, nextText].every(job => job.status === "completed"));
+});
+
+test("run leases remain owned until explicit release, and capacity includes direct runs", () => {
+  const slots = new RunSlots(2);
+  slots.acquire("browser", { botName: "Browser", interactionMode: "turbo" });
+  slots.acquire("writer", { botName: "Writer", interactionMode: "chat" });
+  assert.equal(slots.canStart({ botName: "Third", interactionMode: "chat" }), false);
+  slots.release("writer");
+  assert.equal(slots.canStart({ botName: "Writer", interactionMode: "chat" }), true);
+  assert.equal(slots.canStart({ botName: "Browser", interactionMode: "chat" }), false);
+  assert.equal(slots.canStart({ botName: "Other", interactionMode: "browse" }), false);
+  slots.release("browser");
+  assert.equal(slots.canStart({ botName: "Other", interactionMode: "browse" }), true);
+});
 
 test("all bots enqueue asynchronously and keep one shared-browser owner", async () => {
   let blocked = true, running = 0, peak = 0;

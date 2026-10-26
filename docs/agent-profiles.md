@@ -43,9 +43,13 @@ Driver-managed resumption plus snapshot reconciliation recovers current approved
 
 Full agent outcomes are private records in `.browser-agent-outcomes/`. The completion event carries a task ID, status and reference instead of the entire result. Coordinator context uses short outcome previews and retrieves full details only when needed, with paginated `knowledge_base(read, id="outcome_UUID", offset=0)` calls. Consult another specialist only for a specific unresolved dependency; do not poll every bot just because it exists. Notifications and routing consume no LLM tokens. A requested synthesis or unresolved decision still invokes a model.
 
-Requests from all bots can enter the backend queue asynchronously through `/api/run/queue`. The browser UI submits them immediately and follows job IDs. Closing the tab does not discard accepted requests. The shared browser and approval state retain one execution owner; async acceptance does not mean multiple bots can click the same page concurrently. Recent run IDs allow SSE replay for an accepted job without attaching to a different bot's run. Stop clears pending requests; remove cancels a queued request; steer replaces its queued instruction and stops the current action before continuing.
+Requests from all bots can enter the backend queue asynchronously through `/api/run/queue`. The browser UI submits them immediately and follows job IDs. Independent Chat tasks execute concurrently, with `BROWSER_AGENT_MAX_CONCURRENT_RUNS=4` total execution slots by default. Each bot retains one slot at a time to protect its task memory. Browse, Act, and Turbo reserve the one shared browser; a waiting browser task does not block unrelated Chat tasks. `BROWSER_AGENT_MAX_PENDING_RUNS=50` bounds accepted waiting work.
 
-The queue is process-owned and bounded. Pending requests do not survive a server restart, and this change does not make agent execution distributed across machines. Do not replay uncertain outward actions automatically. Those require durable authorization, leases, execution receipts and reconciliation beyond the profile-notification service. Rehearsal `/learn` jobs retain their separate lifecycle.
+Each run has its own event stream and conversation owner. Switching bots keeps other streams alive; background results go to their original chats. Reconnection checks the specific run's state and recovers its terminal result instead of using a global busy flag. Approval IDs resolve the correct waiting run. Stop and Steer target the selected conversation/run; other bots continue. Browser queue rows explain when they are waiting for the shared browser. Final discussion runs continue to follow their discussion IDs.
+
+Coordinator handoffs use a bounded consultation controller: four total consultations and two per specialist by default, a shared time budget, duplicate request/reply detection, and one final synthesis with research and delegation disabled. Specialist failures and routing echoes also force a final answer with explicit uncertainty. The UI follows correlated discussion/run IDs. Clear direct-answer corrections such as “better you tell me” suppress the delegation tool for that run. See [bounded orchestration](bounded-orchestration.md) for the research, configuration, tests, and limitations. Discussion state remains process-owned; restart interrupts an in-flight discussion.
+
+Accepted queued requests are persisted locally and restored after restart. Interrupted running requests fail for operator review; uncertain outward effects are never automatically replayed. Discussion state remains process-owned, so queued continuations whose discussion was lost fail explicitly. This is local concurrency, not execution distributed across machines. Rehearsal `/learn` jobs retain their separate, exclusive lifecycle.
 
 The message input remains usable during background runs. Toolbar clicks and asynchronous completion return focus to it without interrupting an intentionally selected input, dialog, browser surface, or text selection. Switching to or creating another bot no longer requires stopping the active bot.
 
@@ -68,3 +72,18 @@ Model versions and runtime step/time budgets continue to come from environment c
 There is no novelty or patentability claim, and no paid production-model comparison was run. Regression coverage includes profile isolation and bounds, symlink rejection, reviewed revision conflicts, model-note exclusion, compact outcomes, mocked Mongo synchronization/workspace separation, async queue controls, focus behavior and existing browser/tool authorization tests. A live Mongo replica-set integration remains a deployment check.
 
 Final validation: 247 browser-agent tests and 41 framework tests passed. Both test commands ran their source-secret checks. Browser inline scripts parse and both repository diffs pass whitespace checks.
+
+
+### Persistent specialist identity and soul
+
+Interactive bot records carry a stable `profileId` separately from their display name. Existing named specialists are migrated on load; renaming them keeps their soul, operating instructions and matching playbooks. IDs map to a fixed allowlist, never arbitrary paths. Custom bot descriptions travel as `botInstructions` on each interactive request and enter a dedicated owner profile section of the system prompt, including customized specialist descriptions. They remain subject to runtime permissions. Oversized owner profiles fail explicitly at `BROWSER_AGENT_OWNER_PROFILE_CHARS` rather than silently losing instructions.
+
+The soul is always loaded and explicitly applied to diagnosis, decisions and voice. Detailed knowledge stays in relevant playbooks and paged references. This is a simulation informed by published work, not a claim to possess a person's private thoughts, memories or complete knowledge. Research and outcomes must still be verified. Current scheduling and name-only delegation retain their existing name-based profile lookup; the stable ID accompanies interactive requests.
+
+The specialist habits are editorial adaptations of primary public material:
+- Karpathy: data inspection, small verified baselines and controlled experiments: https://karpathy.github.io/2019/04/25/recipe/
+- Osmani: scoped changes, context, review and verification: https://addyosmani.com/blog/ai-coding-workflow/
+- Suby: customer research, direct response and funnel measurement: https://selllikecrazybook.com/
+- Hormozi: market choice, offer creation and the value equation: https://www.acquisition.com/training/offers
+
+Catalog presets stay visible after onboarding, with an Open action for existing bots. A relative runtime script and portrait URLs support rendering the catalog in a local file preview; running tasks still requires the local server.

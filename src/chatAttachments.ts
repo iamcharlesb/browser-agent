@@ -1,14 +1,21 @@
 /** Clipboard/file attachments are stored locally and referenced by opaque IDs, not put in history as base64. */
+import { buildCodeIndex, CodeIndex } from './codeIndex';
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { prepareProjectFiles, ProjectSourceFile } from "./projectAttachments";
 import { artifactUrlFor } from "./apiContract";
-export interface ChatAttachment { id: string; name: string; type: 'image'|'text'; filename?: string; mime?: string; text?: string; size: number; url?: string }
+export interface ChatAttachment { id: string; name: string; type: 'image'|'text'|'project'; projectFiles?: ProjectSourceFile[]; codeIndex?: CodeIndex; indexRevision?: string; fileCount?: number; skipped?: number; filename?: string; mime?: string; text?: string; size: number; url?: string }
 export async function storeChatAttachment(base: string, artifacts: string, raw: Record<string,unknown>): Promise<ChatAttachment> {
   const id=randomUUID(),name=String(raw.name||'Pasted image').slice(0,160);
   let attachment: ChatAttachment;
   await mkdir(base,{recursive:true});
-  if(typeof raw.dataUrl==='string') {
+  if (Array.isArray(raw.projectFiles)) {
+    const project = prepareProjectFiles(raw.projectFiles);
+    const clientSkipped = Number.isSafeInteger(raw.skipped) && Number(raw.skipped) > 0 ? Math.min(Number(raw.skipped), 1000000) : 0;
+    attachment = { id, name, type: 'project', ...project, codeIndex: buildCodeIndex(project.projectFiles), fileCount: project.projectFiles.length, skipped: project.skipped + clientSkipped };
+    attachment.indexRevision = attachment.codeIndex!.revision;
+  } else if(typeof raw.dataUrl==='string') {
     const match=/^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(raw.dataUrl);
     if(!match)throw new Error('Use PNG, JPEG, WebP or GIF images.');
     const bytes=Buffer.from(match[2],'base64');
@@ -27,7 +34,20 @@ export async function storeChatAttachment(base: string, artifacts: string, raw: 
 }
 export async function loadChatAttachments(base: string, task: string): Promise<ChatAttachment[]> {
   const ids=[...new Set([...task.matchAll(/\[attachment: ([0-9a-f-]{36})\]/g)].map(m=>m[1]))].slice(0,8);
-  return Promise.all(ids.map(async id=>{const item=JSON.parse(await readFile(join(base,`${id}.json`),'utf8'));if(item.id!==id)throw new Error('Invalid attachment');return item as ChatAttachment}));
+  return Promise.all(ids.map(async id => {
+    const filename = join(base, `${id}.json`);
+    const item = JSON.parse(await readFile(filename, 'utf8')) as ChatAttachment;
+    if (item.id !== id) throw new Error('Invalid attachment');
+    // Upgrade existing selected-folder snapshots once, without requiring another upload.
+    if (item.type === 'project' && item.projectFiles && !item.codeIndex) {
+      item.codeIndex = buildCodeIndex(item.projectFiles);
+      item.indexRevision = item.codeIndex.revision;
+      const temporary = filename + '.' + randomUUID() + '.tmp';
+      await writeFile(temporary, JSON.stringify(item), {mode: 0o600});
+      await rename(temporary, filename);
+    }
+    return item;
+  }));
 }
 export async function attachmentImages(artifacts: string, files: ChatAttachment[]): Promise<string[]> {
   return Promise.all(files.filter(f=>f.type==='image').slice(0,4).map(async f=>`data:${f.mime};base64,${(await readFile(join(artifacts,f.filename!))).toString('base64')}`));

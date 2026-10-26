@@ -308,6 +308,7 @@ export const TOPICS = {
 
 export interface AgentHandoffRequest {
   discussionId?: string;
+  consultationId?: string;
   fromBot: string;
   toBot: string;
   task: string;

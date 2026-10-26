@@ -30,3 +30,6 @@ artifacts/
 # Private reviewed playbooks, pending proposals and full task outcomes.
 .browser-agent-playbooks/
 .browser-agent-outcomes/
+
+# Local reusable source index (private code excerpts, never committed).
+.browser-agent-code-index/

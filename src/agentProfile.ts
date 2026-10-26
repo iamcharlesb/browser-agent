@@ -28,18 +28,29 @@ function wholeParagraphs(text: string, limit: number): string {
   return result;
 }
 
-export function loadAgentProfile(input: { botName: string; expertise?: string; task: string; event?: string; root?: string; approvedPlaybook?: string }): LoadedProfile {
+export const SPECIALIST_PROFILES: Record<string, string> = {
+  "revenue-architect": "The Revenue Architect", "value-architect": "The Value Architect",
+  "engineering-craftsman": "The Engineering Craftsman", "neural-architect": "The Neural Architect",
+  "systems-architect": "The Systems Architect"
+};
+
+export function loadAgentProfile(input: { profileId?: string; botInstructions?: string; botName: string; expertise?: string; task: string; event?: string; root?: string; approvedPlaybook?: string }): LoadedProfile {
   const root = input.root || process.env.BROWSER_AGENT_PROFILE_DIR || resolve(__dirname, "..");
-  const botDirectory = `agents/${botIdFromName(input.botName)}`;
+  if (input.profileId && !Object.hasOwn(SPECIALIST_PROFILES, input.profileId)) throw new Error("Unknown specialist profile.");
+  const profileName = input.profileId ? SPECIALIST_PROFILES[input.profileId] : input.botName;
+  const botDirectory = `agents/${botIdFromName(profileName)}`;
   const roleFile = `${botDirectory}/AGENTS.md`;
   const soulFile = `${botDirectory}/soul.md`;
-  const instructions = [readInside(root, "AGENTS.md"), existsSync(resolve(root, roleFile)) ? readInside(root, roleFile) : ""].filter(Boolean).join("\n\n");
+  let instructions = [readInside(root, "AGENTS.md"), existsSync(resolve(root, roleFile)) ? readInside(root, roleFile) : ""].filter(Boolean).join("\n\n");
   const soul = readInside(root, existsSync(resolve(root, soulFile)) ? soulFile : "soul.md");
   const coreBudget = envInteger("BROWSER_AGENT_CORE_PROFILE_CHARS", 2400);
   if (instructions.length + soul.length > coreBudget) throw new Error("AGENTS.md and soul.md exceed BROWSER_AGENT_CORE_PROFILE_CHARS; shorten them or adjust the budget.");
+  const owner = redactSecrets((input.botInstructions || "").trim());
+  if (owner.length > envInteger("BROWSER_AGENT_OWNER_PROFILE_CHARS", 12000)) throw new Error("Bot instructions exceed BROWSER_AGENT_OWNER_PROFILE_CHARS; shorten the profile or move references into a playbook.");
+  if (owner) instructions += `\n\nOWNER BOT PROFILE (persistent preferences; subject to runtime permissions):\nApply this knowledge, perspective, priorities and tone throughout the work. Do not merely repeat or summarize it.\n${owner}`;
   const manifest = JSON.parse(readInside(root, "playbooks/manifest.json"));
   if (manifest.version !== 1 || !Array.isArray(manifest.playbooks)) throw new Error("Unsupported playbook manifest.");
-  const text = `${input.botName} ${input.expertise || ""} ${input.task}`.toLowerCase();
+  const text = `${profileName} ${input.expertise || ""} ${input.task}`.toLowerCase();
   const ranked = manifest.playbooks.map((entry: PlaybookDescriptor) => {
     if (!entry || !/^[a-z0-9_-]+$/.test(entry.id) || typeof entry.file !== "string" || !Array.isArray(entry.terms) || !Array.isArray(entry.events) ||
         !entry.terms.every(term => typeof term === "string" && term.trim()) || !entry.events.every(event => typeof event === "string")) throw new Error("Invalid playbook descriptor.");

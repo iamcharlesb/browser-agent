@@ -53,7 +53,7 @@ const names = ['Inspired by Alex Hormozi', 'Inspired by Sabri Suby', 'Inspired b
       const image = card.locator('img');
       const source = provenance.find(item => item.botName === name);
       assert.ok(source, name + ' requires a named portrait source');
-      assert.equal(await image.getAttribute('src'), '/avatars/' + source.file + '?v=' + source.sha256.slice(0, 12));
+      assert.equal(await image.getAttribute('src'), './avatars/' + source.file + '?v=' + source.sha256.slice(0, 12));
       assert.ok((await card.getAttribute('data-desc')).includes(name.replace('Inspired by ', '')), 'Role must name the matching inspiration');
       await image.evaluate(img => img.decode());
       assert.equal(await image.evaluate(img => img.naturalWidth > 0), true);
@@ -81,15 +81,15 @@ const names = ['Inspired by Alex Hormozi', 'Inspired by Sabri Suby', 'Inspired b
     assert.equal(await page.locator('#agent-list .agent-row').count(), 1);
     assert.equal(await page.locator('#agent-list .agent-name').textContent(), names[0]);
     assert.equal(await page.locator('#agent-list .agent-avatar').evaluate(el => getComputedStyle(el).width), '29px');
-    await page.evaluate(() => sessionStorage.removeItem("openBotsSelectedBot"));
+    await page.evaluate(() => { sessionStorage.removeItem("openBotsSelectedBot"); localStorage.removeItem("openBotsSelectedBot"); });
     await page.reload();
     await page.waitForSelector('.template-card[data-name="Inspired by Alex Hormozi"]', { state: 'attached' });
     assert.equal(await page.locator('#agent-list .agent-row').count(), 1);
-    assert.equal(await page.locator('.template-card[data-name="Inspired by Alex Hormozi"]').isVisible(), false, 'Added bots must be hidden in the catalog');
-    assert.equal(await page.locator('#bot-preset-select option[value="Inspired by Alex Hormozi"]').count(), 0, 'Added bots must be absent from onboarding dropdown');
+    assert.equal(await page.locator('.template-card[data-name="Inspired by Alex Hormozi"]').isVisible(), true, 'Added bots remain discoverable in the catalog');
+    assert.equal(await page.locator('#bot-preset-select option[value="Inspired by Alex Hormozi"]').count(), 1, 'Added bots remain listed in onboarding dropdown');
     const visibleNames = await page.locator('.template-card[data-name]:visible').evaluateAll(cards => cards.map(card => card.dataset.name));
-    assert.equal(visibleNames.includes(names[0]), false);
-    await page.locator('#agent-list .agent-row').click();
+    assert.equal(visibleNames.includes(names[0]), true);
+    await page.locator('.template-card[data-name="Inspired by Alex Hormozi"]').click();
     assert.equal(await page.locator('#agent-list .agent-row').count(), 1, 'Open added bot must not duplicate it');
     await page.locator('.fb-dislike').first().click();
     await page.locator('.fb-reason-input').fill('Consider the full discussion before answering.');
@@ -102,7 +102,15 @@ const names = ['Inspired by Alex Hormozi', 'Inspired by Sabri Suby', 'Inspired b
     await page.locator('#agent-list .agent-delete').click();
     assert.equal(await page.locator('.template-card[data-name="Inspired by Alex Hormozi"]').isVisible(), true, 'Deleting a bot restores its onboarding card');
     assert.equal(await page.locator('#bot-preset-select option[value="Inspired by Alex Hormozi"]').count(), 1);
+    assert.equal(await page.locator('#composer textarea').evaluate(el => getComputedStyle(el).fontSize), '15px');
     await context.close();
+    const renamed = await open([{ id: 'agent_renamed', name: 'My AI Lab', profileId: 'neural-architect', description: 'Inspect our customer support dataset first.', transcript: [] }]);
+    const renamedBot = await renamed.page.evaluate(() => JSON.parse(localStorage.getItem('agentFireworksAgentsV2'))[0]);
+    assert.equal(renamedBot.profileId, 'neural-architect');
+    assert.equal(renamedBot.name, 'My AI Lab');
+    await renamed.page.locator('#agent-list .agent-row').click();
+    assert.match(await renamed.page.locator('#saved-bot-instructions-text').textContent(), /customer support dataset/);
+    await renamed.context.close();
     const legacy = await open([
       { id: 'agent_123', name: 'The Value Architect', description: 'Keep my custom target of independent SaaS founders.', transcript: [{ role: 'user', html: 'Review my offer' }] },
       { id: 'agent_the_systems_architect', name: 'The Systems Architect', transcript: [] }
@@ -126,6 +134,6 @@ const names = ['Inspired by Alex Hormozi', 'Inspired by Sabri Suby', 'Inspired b
     assert.equal(await many.page.locator('#agent-list').evaluate(el => el.scrollHeight > el.clientHeight), true);
     await many.context.close();
     assert.deepEqual(errors, [], 'UI should not throw JavaScript errors');
-    console.log(JSON.stringify({ success: true, checks: ['fresh roster empty', 'four exact inspired-by names', 'all portraits decode with headshot crops', 'three columns', 'matching preset role', 'matching portrait preview', 'explicit onboarding only', '29px sidebar icons', 'reload persistence', 'no duplicates', 'correction feedback', 'legacy rename preserves custom instructions and history', 'unused automatic seeds hidden', 'settings-only observer/workflow/cost controls', 'flat welcome and new-bot icons', 'added bots hidden from catalog and dropdown', 'deleted bots available again', 'long sidebar scrolls', 'estimated dollars visible in settings', 'provider credentials collapsed'], screenshot: out }, null, 2));
+    console.log(JSON.stringify({ success: true, checks: ['fresh roster empty', 'four exact inspired-by names', 'all portraits decode with headshot crops', 'three columns', 'matching preset role', 'matching portrait preview', 'explicit onboarding only', '29px sidebar icons', 'reload persistence', 'no duplicates', 'correction feedback', 'legacy rename preserves custom instructions and history', 'unused automatic seeds hidden', 'settings-only observer/workflow/cost controls', 'flat welcome and new-bot icons', 'added bots remain discoverable in catalog and dropdown', 'deleted bots available again', 'long sidebar scrolls', 'estimated dollars visible in settings', 'provider credentials collapsed'], screenshot: out }, null, 2));
   } finally { await browser.close(); }
 })().catch(err => { console.error(err); process.exitCode = 1; });

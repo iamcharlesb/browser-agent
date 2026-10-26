@@ -21,7 +21,7 @@ test("queued commands can be removed, steered and dispatched in order without st
     await page.goto("https://agent.test");
     await page.addStyleTag({ content: "body{font-family:system-ui;background:#f8f9fb;padding:24px}" + Array.from(html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)).map(match => match[1]).join("\n") });
     await page.addScriptTag({ content: `
-      var queuedRunsAfterActive=[], queuedRunPoll=null, steeringInFlight=false, queueStopVersion=0;
+      var queuedRunsAfterActive=[], queuedRunPoll=null, steeringInFlight=false, queueStopVersions=Object.create(null);
       var activeAgentId='bot', runConversationAgentId='bot', isRunning=true, startRunLock=false;
       var runEvents={close:function(){runEvents=null;}}, learnEvents=null, waitingForRunInput=true;
       var calls=[], starts=[], serverRunning=true, sendButton={}, status={};
@@ -31,16 +31,18 @@ test("queued commands can be removed, steered and dispatched in order without st
       var nextJob=0, serverJobs={};
       function fetch(url, options){
         calls.push(url);
-        if(url.indexOf('/api/run/queue')===0) {var id='job_'+(++nextJob);serverJobs[id]={id:id,status:'queued'};return Promise.resolve(serverJobs[id]);}
+        if(url.indexOf('/api/run/queue')===0) {var id='job_'+(++nextJob);serverJobs[id]={id:id,status:'queued',task:JSON.parse(options.body).task};return Promise.resolve(serverJobs[id]);}
         if(url.indexOf('/api/run/jobs/')===0) {
           var id=url.split('/').pop(),job=serverJobs[id];
           if(options&&options.method==='DELETE'){job.status='cancelled';return Promise.resolve(job);}
-          if(!serverRunning&&job.status==='queued'){job.status='running';job.runId='run_'+id;}
+          if(!serverRunning&&job.status==='queued'){job.status='running';job.runId='run_'+id;serverRunning=true;}
           return Promise.resolve(job);
         }
         return Promise.resolve({isRunning:serverRunning});
       }
       function focusComposer(){}
+      var runTracker={activeFor:function(){return serverRunning?{runId:'active_run'}:null;},list:function(){return [];},cancelFollowing:function(){},subscribe:function(run){starts.push(serverJobs[run.jobId].task);serverRunning=true;}};
+      function restoreSelectedRun(){}
       function connectRunEvents(){}
       function clearRunClientState(){isRunning=false;}
       function setStatusState(){}
