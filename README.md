@@ -1,6 +1,6 @@
-# Buddy Bot
+# OpenBuddy
 
-Buddy Bot is the desktop product built on the existing browser-agent runtime. It uses compact per-bot playbooks, a local pub/sub bus and optional MongoDB-backed event synchronization. Fireworks++ is not a dependency or prerequisite.
+OpenBuddy is the desktop product built on the existing browser-agent runtime. It uses compact per-bot playbooks, a local pub/sub bus and optional MongoDB-backed event synchronization. Fireworks++ is not a dependency or prerequisite.
 
 See [production-readiness and operating boundaries](docs/buddy-bot-production.md) before deployment.
 
@@ -84,7 +84,7 @@ Observations default to **text-first** (marks + page text). Vision screenshots a
 
 ## Auth modes (Google vs Guest)
 
-Open Bots supports two identity modes for open-source / local use:
+OpenBuddy supports two identity modes for open-source / local use:
 
 | Mode | How | Where bots & prefs live |
 | --- | --- | --- |
@@ -154,16 +154,16 @@ advanced option with app-owned cookies (`persist:open-bots`). Playwright attache
 debugging port (default `9333`, override with `OPEN_BOTS_ELECTRON_CDP_PORT`).
 
 This does **not** open or focus your personal Chrome. Sign in to sites inside the
-Live Browser panel. The Open Bots UI window itself is never the automation target.
+Live Browser panel. The OpenBuddy UI window itself is never the automation target.
 
 Plain `npm run built` / `yarn built` in a normal browser (no Electron) falls back
-to Buddy Bot Chrome / guest as before.
+to OpenBuddy Chrome / guest as before.
 
 **Honest limit:** Google OAuth and some bot walls still fail inside embedded
 Chromium. That is expected — use Connected Chrome below, or `reddit_search` /
 `google_property` for research without scraping.
 
-### External Buddy Bot Chrome (legacy / non-desktop)
+### External OpenBuddy Chrome (legacy / non-desktop)
 
 **Connect Apps → Open Chrome to sign in** launches a dedicated Chrome window with
 profile `~/.buddy-bot-chrome-profile` (not your personal Chrome). Useful when you
@@ -177,7 +177,7 @@ Optional external window when the in-app browser is blocked:
 1. Open **Connect Apps → Connect my Chrome**.
 2. Copy and run the launch command (starts Chrome with remote debugging on a
    dedicated profile `~/.buddy-bot-chrome-cdp`, not your daily Chrome profile).
-3. Click **Connect my Chrome** again so Open Bots attaches via CDP (port `9222`).
+3. Click **Connect my Chrome** again so OpenBuddy attaches via CDP (port `9222`).
 4. Sign in to Reddit/Google in that Chrome window, then run the task.
 
 Optional: set `BROWSER_AGENT_CDP_ENDPOINT` (default `http://127.0.0.1:9222`).

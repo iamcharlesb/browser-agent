@@ -1,4 +1,4 @@
-name: Buddy Bot CI
+name: OpenBuddy CI
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: buddy-bot-ci-${{ github.workflow }}-${{ github.ref }}
+  group: openbuddy-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -27,7 +27,7 @@ jobs:
           node-version: '22'
           cache: npm
       - name: Install locked dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --legacy-peer-deps
       - name: Typecheck, build, security scan, and regression tests
         run: npm test
       - name: Verify production TypeScript build

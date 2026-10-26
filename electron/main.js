@@ -1,5 +1,5 @@
 /**
- * Open Bots desktop shell — starts the local agent server and shows it in Electron.
+ * OpenBuddy desktop shell — starts the local agent server and shows it in Electron.
  * Default browsing surface: docked WebContentsView (in-app), driven via Electron CDP.
  * Optional escape hatch: external Connected Chrome on port 9222 (handled by the agent server).
  */
@@ -80,7 +80,7 @@ function waitForServer(port, timeoutMs = 30000) {
       });
       req.on("error", () => {
         if (Date.now() - started > timeoutMs) {
-          reject(new Error("Open Bots server did not become ready in time."));
+          reject(new Error("OpenBuddy server did not become ready in time."));
           return;
         }
         setTimeout(tryOnce, 250);
@@ -170,7 +170,7 @@ function createWindow(port) {
     height: 860,
     minWidth: 960,
     minHeight: 640,
-    title: "Open Bots",
+    title: "OpenBuddy",
     icon: path.join(PROJECT_ROOT, "static", "open-bots-icon.png"),
     show: false,
     ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 14, y: 16 } } : {}),
