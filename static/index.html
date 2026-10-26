@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Open Bots — Autonomous Bots &amp; Agents</title>
+<title>OpenBuddy — Autonomous Bots &amp; Agents</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -3136,11 +3136,11 @@ dialog.modal-dialog::backdrop {
 <div id="app" class="sidebar-collapsed">
   <aside id="sidebar">
     <div class="sidebar-header">
-      <div class="brand-lockup" title="Open Bots">
+      <div class="brand-lockup" title="OpenBuddy">
         <span class="brand-mark">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         </span>
-        <span class="brand-name">Open Bots</span>
+        <span class="brand-name">OpenBuddy</span>
       </div>
       <div class="sidebar-tools">
         <button class="icon-button" id="sidebar-search-toggle" aria-label="Search bots" title="Search bots">
@@ -3189,7 +3189,7 @@ dialog.modal-dialog::backdrop {
         <span id="chip-avatar" class="agent-avatar small"><span class="spark"></span></span>
         <div class="chip-text-group">
           <span id="chip-name">New Bot</span>
-          <span id="chip-meta">Open Bots · Codex &amp; Live Browser</span>
+          <span id="chip-meta">OpenBuddy · Codex &amp; Live Browser</span>
         </div>
       </div>
       <div class="topbar-right">
@@ -3415,7 +3415,7 @@ dialog.modal-dialog::backdrop {
           </div>
           <div id="terminal-output">
             <div class="term-entry ok">
-              <div class="term-cmd-line"><span>Open Bots Local Terminal</span><span class="term-meta">ready</span></div>
+              <div class="term-cmd-line"><span>OpenBuddy Local Terminal</span><span class="term-meta">ready</span></div>
               <pre class="term-stdout">Connected to local shell behind the browser (127.0.0.1). Run commands directly below or ask any bot to run terminal tasks.</pre>
             </div>
           </div>
@@ -3515,7 +3515,7 @@ dialog.modal-dialog::backdrop {
         <strong id="browser-section-title">Browser</strong>
         <span id="session-mode-badge" class="session-mode-badge">● In-app</span>
       </div>
-      <p id="browser-default-line" class="account-section-line">In-app browser is on — pages open inside Open Bots.</p>
+      <p id="browser-default-line" class="account-section-line">In-app browser is on — pages open inside OpenBuddy.</p>
 
       <div id="session-card-embedded" class="session-mode-card" hidden>
         <button type="button" id="use-embedded-btn" class="session-mode-btn primary">
@@ -3548,9 +3548,9 @@ dialog.modal-dialog::backdrop {
       <div id="browser-advanced-panel" class="account-panel" hidden>
         <div id="session-card-persistent" class="session-mode-card">
           <div class="session-mode-card-title">
-            <span id="session-card-persistent-title">External Buddy Bot Chrome</span>
+            <span id="session-card-persistent-title">External OpenBuddy Chrome</span>
           </div>
-          <p id="session-card-persistent-copy">Opens a separate Buddy Bot Chrome window (not your personal profile).</p>
+          <p id="session-card-persistent-copy">Opens a separate OpenBuddy Chrome window (not your personal profile).</p>
           <div class="gmail-input-row">
             <input id="gmail-email-input" type="email" placeholder="you@gmail.com (optional)" aria-label="Gmail address" />
           </div>
@@ -3754,6 +3754,7 @@ dialog.modal-dialog::backdrop {
 </dialog>
 
 <script src="./browserRuntime.js"></script>
+<script src="./uiState.js"></script>
 <script id="response-markdown-runtime">
 (function(root) {
   "use strict";
@@ -3933,6 +3934,7 @@ dialog.modal-dialog::backdrop {
   var STORAGE_KEY = "agentFireworksAgentsV2";
   var deletedBotIds = JSON.parse(localStorage.getItem("openBotsDeletedIds") || "[]");
   var agents = loadAgents();
+  var uiStore = window.OpenBuddyUI.createStore({ selectedBotId: null });
   var configuredDefaultModel = "local-engine";
   var googleIdentityUser = null;
   var googlePersistTimer = null;
@@ -5095,6 +5097,7 @@ dialog.modal-dialog::backdrop {
     if (!a.description) a.summary = a.intent.summary;
     saveComposerDraft();
     activeAgentId = id;
+    uiStore.setState({ selectedBotId: id });
     localStorage.setItem("openBotsSelectedBot", id);
     sessionStorage.removeItem("openBotsSelectedBot");
     restoreComposerDraft();
@@ -5307,7 +5310,7 @@ dialog.modal-dialog::backdrop {
         if (!out) return;
         out.innerHTML =
           '<div class="term-entry ok">' +
-            '<div class="term-cmd-line"><span>Open Bots Local Terminal</span><span class="term-meta">ready</span></div>' +
+            '<div class="term-cmd-line"><span>OpenBuddy Local Terminal</span><span class="term-meta">ready</span></div>' +
             '<pre class="term-stdout">Connected to local shell behind the browser (127.0.0.1). Run commands directly below or ask any bot to run terminal tasks.</pre>' +
           "</div>";
         (body.history || []).forEach(function(item) {
@@ -5786,7 +5789,7 @@ dialog.modal-dialog::backdrop {
         ? "Launching isolated Guest Chromium session…"
         : requestedMode === "cdp"
           ? "Attaching to Connected Chrome (CDP)…"
-          : "Opening your saved Buddy Bot Chrome session…";
+          : "Opening your saved OpenBuddy Chrome session…";
     }
     var a = activeAgent();
     browserOpenPromise = fetch("/api/login", {
@@ -6536,7 +6539,7 @@ dialog.modal-dialog::backdrop {
     learnProposalShown = false;
     isRunning = true;
     runningAgentId = agent && agent.id || null;
-    runningAgentName = agent && agent.name || "Buddy Bot";
+    runningAgentName = agent && agent.name || "OpenBuddy";
     sendButton.disabled = false;
     setStatusState("running", "Learning");
     status.textContent = "Standing in your shoes…";
@@ -8257,20 +8260,20 @@ dialog.modal-dialog::backdrop {
     }
     if (browserLine) {
       browserLine.textContent = isEmbedded
-        ? "In-app browser is on — pages open inside Open Bots."
+        ? "In-app browser is on — pages open inside OpenBuddy."
         : isCdp
           ? "Connected Chrome is active for sites that block the in-app browser."
           : isPersistent
-            ? "External Buddy Bot Chrome is active."
+            ? "External OpenBuddy Chrome is active."
             : "In-app browser is the default. Switch below only if needed.";
     }
     if (persistentTitle) {
-      persistentTitle.textContent = embeddedAvailable ? "External Buddy Bot Chrome" : "Chrome · Saved session";
+      persistentTitle.textContent = embeddedAvailable ? "External OpenBuddy Chrome" : "Chrome · Saved session";
     }
     if (persistentCopy) {
       persistentCopy.textContent = embeddedAvailable
-        ? "Opens a separate Buddy Bot Chrome window (not your personal profile)."
-        : "Sign in in a dedicated Buddy Bot Chrome window, then continue here.";
+        ? "Opens a separate OpenBuddy Chrome window (not your personal profile)."
+        : "Sign in in a dedicated OpenBuddy Chrome window, then continue here.";
     }
 
     if (avatarBtn) {
@@ -8284,7 +8287,7 @@ dialog.modal-dialog::backdrop {
           ? "Connected Chrome — click for Account"
           : isEmbedded
             ? "In-app browser — click for Account"
-            : "Buddy Bot Chrome — click for Account";
+            : "OpenBuddy Chrome — click for Account";
     }
 
     if (pillLabel) {
@@ -8359,7 +8362,7 @@ dialog.modal-dialog::backdrop {
         : isCdp
           ? "Chrome-backed browser · your dedicated saved session."
           : isEmbedded
-            ? "In-app browser: pages open inside Open Bots."
+            ? "In-app browser: pages open inside OpenBuddy."
             : "External Chrome: sign in in the Chrome window, then continue here.";
     }
 
@@ -8483,7 +8486,7 @@ dialog.modal-dialog::backdrop {
       script.async = true;
       script.defer = true;
       script.onload = resolve;
-      script.onerror = function() { reject(new Error("Google sign-in could not load. Check your connection — you can keep using Open Bots as a guest.")); };
+      script.onerror = function() { reject(new Error("Google sign-in could not load. Check your connection — you can keep using OpenBuddy as a guest.")); };
       document.head.appendChild(script);
     });
     return googleIdentityLoader;
@@ -8606,7 +8609,7 @@ dialog.modal-dialog::backdrop {
               if (googleSignInExternal) {
                 googleIdentityNonce = googleSignInExternalNonce;
                 if (!/^[a-f0-9]{48,128}$/i.test(googleIdentityNonce)) {
-                  throw new Error("The desktop sign-in link expired. Click Sign in with Google in Open Bots again.");
+                  throw new Error("The desktop sign-in link expired. Click Sign in with Google in OpenBuddy again.");
                 }
                 return Promise.resolve({ ready: true });
               }

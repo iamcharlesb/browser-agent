@@ -1048,6 +1048,22 @@ function startRun(body: RunRequestBody, options: { runId?: string; handoffDepth?
         knowledge = saveKnowledge(knowledge, { kind: "reference", title: "Project: " + file.name, text: reference, source: `User-selected project ${file.id}` });
         attachedSources.push(reference);
       }
+      // Reuse previously attached projects for this bot. The project bytes remain in
+      // private attachment storage; only compact references enter the model context.
+      // Never pull projects from another bot or infer authorization from an event.
+      for (const entry of knowledge.entries.filter(entry =>
+        /^User-selected project [0-9a-f-]{36}$/.test(entry.source || "")).slice(-4)) {
+        const id = entry.source.slice("User-selected project ".length);
+        if (attachedSources.some(source => source.includes("[project:" + id + "]"))) continue;
+        try {
+          const saved = (await loadChatAttachments(CHAT_ATTACHMENTS_DIR, "[attachment: " + id + "]"))[0];
+          if (saved?.type === "project" && saved.projectFiles?.length) {
+            attachedSources.push(projectReference(saved));
+          }
+        } catch {
+          // Missing local snapshots are stale references, not available project data.
+        }
+      }
       const learningKb = await loadLearningKb(LEARNINGS_DIR, learningBotId);
       for (const entry of [...learningKb.mistakes,...learningKb.learnings].filter(entry => entry.source === "user_correction")) {
         knowledge=saveKnowledge(knowledge,{kind:"correction",title:entry.text.slice(0,100),text:entry.text,source:"User correction"});
