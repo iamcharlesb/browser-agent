@@ -214,3 +214,12 @@ test("all specialist souls apply distinct diagnostic habits within the core budg
     assert.ok(profile.instructions.length + profile.soul.length <= 2400);
   }
 });
+
+
+test("Chief Marketing Officer loads a compact identity and the relevant playbook", () => {
+  const profile = loadAgentProfile({ botName: "Chief Marketing Officer", profileId: "chief-marketing-officer", task: "Prepare weekly content strategy", root });
+  assert.match(profile.instructions, /owner publishes|Never publish/i);
+  assert.ok(profile.selected.includes("cmo"));
+  assert.match(profile.playbooks, /historical median|period-matched median/i);
+  assert.ok(profile.instructions.length + profile.soul.length <= 2400);
+});

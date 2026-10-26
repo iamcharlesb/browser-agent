@@ -251,6 +251,25 @@
         "model.selection.requested",
         "training.experiment.completed"
       ]
+    },
+    {
+      "id": "cmo",
+      "file": "cmo.md",
+      "terms": [
+        "chief marketing officer",
+        "cmo",
+        "content strategy",
+        "editorial calendar",
+        "creator research",
+        "social growth"
+      ],
+      "events": [
+        "content.calendar.requested",
+        "content.draft.requested",
+        "content.performance.updated",
+        "marketing.report.requested",
+        "creator.analysis.requested"
+      ]
     }
   ]
 }

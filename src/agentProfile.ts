@@ -31,7 +31,7 @@ function wholeParagraphs(text: string, limit: number): string {
 export const SPECIALIST_PROFILES: Record<string, string> = {
   "revenue-architect": "The Revenue Architect", "value-architect": "The Value Architect",
   "engineering-craftsman": "The Engineering Craftsman", "neural-architect": "The Neural Architect",
-  "systems-architect": "The Systems Architect"
+  "systems-architect": "The Systems Architect", "chief-marketing-officer": "Chief Marketing Officer"
 };
 
 export function loadAgentProfile(input: { profileId?: string; botInstructions?: string; botName: string; expertise?: string; task: string; event?: string; root?: string; approvedPlaybook?: string }): LoadedProfile {
