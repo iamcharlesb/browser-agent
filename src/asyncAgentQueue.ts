@@ -4,12 +4,16 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { redactSecretValues } from "./security";
 export interface AsyncAgentJob<T> { id: string; input: T; status: "queued" | "running" | "completed" | "failed" | "cancelled"; runId?: string; error?: string; attempts?: number; updatedAt?: string }
+export interface AsyncQueueOptions<T> {
+  maxConcurrent?: number;
+  canStart?: (input: T, running: AsyncAgentJob<T>[]) => boolean;
+}
 export class AsyncAgentQueue<T> {
   private jobs = new Map<string, AsyncAgentJob<T>>();
   private pending: string[] = [];
-  private busy = false;
+  private running = new Set<string>();
   private timer: ReturnType<typeof setTimeout> | null = null;
-  constructor(private readonly blocked: () => boolean, private readonly execute: (job: AsyncAgentJob<T>) => Promise<void>, private readonly maxPending = 50, private readonly persistencePath?: string) {}
+  constructor(private readonly blocked: () => boolean, private readonly execute: (job: AsyncAgentJob<T>) => Promise<void>, private readonly maxPending = 50, private readonly persistencePath?: string, private readonly options: AsyncQueueOptions<T> = {}) {}
   /** Restore queued work and mark interrupted executions for operator review, never auto-retry them. */
   restore(armImmediately = true): void {
     if (!this.persistencePath) return;
@@ -57,20 +61,29 @@ export class AsyncAgentQueue<T> {
   }
   clear(): void { for (const id of [...this.pending]) this.cancel(id); }
   private arm(): void {
-    if (this.timer || this.busy || !this.pending.length) return;
+    if (this.timer || this.running.size >= (this.options.maxConcurrent ?? 1) || !this.pending.length) return;
     this.timer = setTimeout(() => { this.timer = null; void this.drain(); }, 100);
     this.timer.unref();
   }
-  private async drain(): Promise<void> {
-    if (this.busy || !this.pending.length) return;
-    if (this.blocked()) { this.arm(); return; }
-    const job = this.jobs.get(this.pending.shift()!)!;
-    this.busy = true; job.status = "running"; job.attempts = (job.attempts ?? 0) + 1; job.updatedAt = new Date().toISOString();
+  private drain(): void {
+    while (this.running.size < (this.options.maxConcurrent ?? 1) && this.pending.length && !this.blocked()) {
+      const running = [...this.running].map(id => this.jobs.get(id)!);
+      // Skip a blocked browser/bot job so unrelated text work can use a free slot.
+      const index = this.pending.findIndex(id => !this.options.canStart || this.options.canStart(this.jobs.get(id)!.input, running));
+      if (index < 0) break;
+      const job = this.jobs.get(this.pending.splice(index, 1)[0])!;
+      this.running.add(job.id);
+      job.status = "running"; job.attempts = (job.attempts ?? 0) + 1; job.updatedAt = new Date().toISOString();
+      void this.runJob(job);
+    }
+    this.arm();
+  }
+  private async runJob(job: AsyncAgentJob<T>): Promise<void> {
     try { this.persist(); await this.execute(job); if ((job.status as string) !== "cancelled") job.status = "completed"; }
-    catch (error) { job.status = "failed"; job.error = error instanceof Error ? error.message : "Agent request failed."; }
+    catch (error) { if ((job.status as string) !== "cancelled") { job.status = "failed"; job.error = error instanceof Error ? error.message : "Agent request failed."; } }
     finally {
       job.updatedAt = new Date().toISOString(); this.persist();
-      this.busy = false;
+      this.running.delete(job.id);
       // Bounded completed-job metadata; active/queued jobs are never discarded.
       for (const [id, entry] of this.jobs) if (this.jobs.size > 100 && !["queued", "running"].includes(entry.status)) this.jobs.delete(id);
       this.arm();
@@ -81,7 +94,10 @@ export class AsyncAgentQueue<T> {
     if (!this.persistencePath) return;
     try {
       mkdirSync(dirname(this.persistencePath), { recursive: true, mode: 0o700 });
-      const jobs = [...this.jobs.values()].slice(-100).map(job => redactSecretValues(job));
+      const all = [...this.jobs.values()];
+      const active = all.filter(job => ["queued", "running"].includes(job.status));
+      const terminal = all.filter(job => !["queued", "running"].includes(job.status));
+      const jobs = [...terminal.slice(Math.max(0, terminal.length - Math.max(0, 100 - active.length))), ...active].map(job => redactSecretValues(job));
       const temporary = `${this.persistencePath}.${process.pid}.tmp`;
       writeFileSync(temporary, `${JSON.stringify(jobs, null, 2)}\n`, { mode: 0o600 });
       renameSync(temporary, this.persistencePath);

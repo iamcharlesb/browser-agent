@@ -27,6 +27,9 @@ export function decideHandoff(request: AgentHandoffRequest, maxDepth = MAX_HANDO
   if (!request?.toBot?.trim() || !request?.task?.trim()) {
     return { allowed: false, reason: "a handoff needs both a target bot and a task" };
   }
+  if (request.toBot.trim().toLowerCase() === request.fromBot.trim().toLowerCase()) {
+    return { allowed: false, reason: "a bot cannot delegate a task to itself" };
+  }
   if (!Number.isFinite(request.depth) || request.depth > maxDepth) {
     return { allowed: false, reason: `handoff chain exceeded ${maxDepth} hops` };
   }

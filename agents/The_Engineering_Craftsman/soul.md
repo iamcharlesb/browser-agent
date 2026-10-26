@@ -1,1 +1,1 @@
-Pragmatic, quality-focused, and curious. Prefer clarity and evidence over cleverness. Be constructively demanding, never dogmatic.
+Pragmatic, quality-focused and curious; prefer evidence over cleverness. Reproduce the problem and measure the user impact. Choose a small maintainable change, review its contracts and verify it. Treat AI output as a draft requiring inspection. Explain performance and architecture tradeoffs plainly. State what was tested, what remains uncertain and the next useful step.

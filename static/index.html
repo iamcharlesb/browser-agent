@@ -4,6 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Open Bots — Autonomous Bots &amp; Agents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
 :root {
   color-scheme: light;
@@ -26,7 +29,7 @@
   --red: #dc2626;
   --red-soft: #fef2f2;
   --amber: #d97706;
-  --message-column-max-width: 960px;
+  --message-column-max-width: 840px;
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
   --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.06), 0 2px 6px rgba(15, 23, 42, 0.03);
   --shadow-lg: 0 18px 42px rgba(15, 23, 42, 0.1), 0 4px 12px rgba(15, 23, 42, 0.04);
@@ -1346,6 +1349,25 @@ button { color: inherit; }
   color: var(--muted);
   overflow-wrap: anywhere;
 }
+/* Keep catalog cards compact; full role descriptions live in the shared tooltip. */
+.template-card .template-copy > span:not(.template-status) { display: none; }
+#bot-description-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 24px));
+  padding: 12px 14px;
+  border: 1px solid #344054;
+  border-radius: 10px;
+  background: #101828;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, .18);
+}
+#bot-description-tooltip[hidden] { display: none; }
 .template-card.create-custom-card {
   border-style: dashed;
   border-color: #cbd5e1;
@@ -1379,12 +1401,13 @@ button { color: inherit; }
   padding: 24px 24px 12px;
 }
 #messages[hidden] { display: none; }
-#saved-bot-instructions { margin: 12px 16px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; flex-shrink: 0; }
+#saved-bot-instructions { display: flex; align-items: flex-start; gap: 12px; margin: 8px 16px 0; padding: 4px 10px; border: 1px solid var(--border); border-radius: 10px; flex-shrink: 0; }
 #saved-bot-instructions[hidden] { display: none; }
-.saved-instructions-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); }
+
 #edit-bot-instructions { border: 0; background: transparent; color: var(--text); cursor: pointer; padding: 6px; border-radius: 6px; }
 #edit-bot-instructions:hover { background: rgba(127,127,127,.12); }
-#saved-bot-instructions details { margin-top: 6px; font-size: 13px; }
+#saved-bot-instructions details { flex: 1; min-width: 0; margin: 0; padding: 5px 0; font-size: 12px; color: var(--text-secondary); }
+.profile-state { margin-left: 6px; color: #068447; font-size: 10px; font-weight: 500; }
 #saved-bot-instructions summary { cursor: pointer; }
 #saved-bot-instructions-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 160px; overflow-y: auto; margin-top: 8px; font-size: 12px; }
 /* Fill spare space above the conversation without reversing reading/keyboard order. */
@@ -1455,7 +1478,13 @@ button { color: inherit; }
   padding: 10px 15px;
 }
 .message.agent .bubble {
-  border-top-left-radius: 5px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 6px 0 2px;
+  font-size: 15px;
+  line-height: 1.65;
 }
 .run-presence {
   display: flex;
@@ -1598,41 +1627,35 @@ button { color: inherit; }
   border-color: #cbd5e1;
   color: var(--text);
 }
-.bubble p { margin: 0 0 8px; }
-.bubble p:last-child { margin-bottom: 0; }
-.bubble h1, .bubble h2, .bubble h3, .bubble h4 {
-  margin: 10px 0 6px;
-  font-size: 14.5px;
-  font-weight: 700;
-  line-height: 1.3;
-}
-.bubble ul, .bubble ol {
-  margin: 6px 0 8px;
-  padding-left: 20px;
-}
-.bubble li { margin-bottom: 3px; }
-.bubble pre {
-  margin: 8px 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: #0f172a;
-  color: #f8fafc;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
-  overflow-x: auto;
-}
-.bubble code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
-  padding: 1px 5px;
-  border-radius: 5px;
-  background: rgba(15, 23, 42, 0.07);
-}
-.bubble pre code {
-  padding: 0;
-  background: transparent;
-  color: inherit;
-}
+.bubble p { margin: 0 0 12px; }
+.bubble :is(h1,h2,h3,h4) { margin: 24px 0 10px; font-weight: 600; line-height: 1.35; letter-spacing: -.015em; }
+.bubble h1 { font-size: 20px; }
+.bubble h2 { font-size: 17px; }
+.bubble :is(h3,h4) { font-size: 15px; }
+.bubble ul, .bubble ol { margin: 10px 0 14px; padding-left: 24px; }
+.bubble li { padding-left: 2px; margin: 4px 0; }
+.bubble li > :is(ul,ol) { margin: 6px 0; }
+.bubble strong { font-weight: 600; }
+.reply-content > :first-child { margin-top: 0; }
+.reply-content > :last-child { margin-bottom: 0; }
+.bubble code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .86em; padding: 2px 5px; border-radius: 5px; background: #edf0f3; overflow-wrap: anywhere; }
+.bubble pre { margin: 12px 0; padding: 14px 16px; border-radius: 10px; background: #f1f3f6; color: #1d2939; font-size: 12.5px; line-height: 1.65; overflow-x: auto; white-space: pre; }
+.bubble pre code { padding: 0; background: transparent; color: inherit; font-size: inherit; overflow-wrap: normal; }
+.bubble .code-block { margin: 16px 0; border: 1px solid #dfe3e8; border-radius: 10px; overflow: hidden; background: #f1f3f6; }
+.bubble .code-block pre { margin: 0; border-radius: 0; }
+.code-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 12px; border-bottom: 1px solid #dfe3e8; color: #667085; font-size: 11px; }
+.copy-code { border: 0; border-radius: 5px; padding: 4px 6px; background: transparent; color: #475467; cursor: pointer; font-size: 11px; }
+.copy-code:hover { background: #e4e7ec; color: #101828; }
+.copy-code:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.bubble blockquote { margin: 14px 0; padding: 2px 0 2px 14px; border-left: 3px solid #d0d5dd; color: #667085; }
+.bubble blockquote .reply-content > :last-child { margin-bottom: 0; }
+.bubble hr { margin: 22px 0; border: 0; border-top: 1px solid #e4e7ec; }
+.reply-table { max-width: 100%; overflow-x: auto; margin: 16px 0; border: 1px solid #e4e7ec; border-radius: 10px; }
+.reply-table table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+.reply-table :is(th,td) { padding: 9px 12px; border-bottom: 1px solid #e4e7ec; vertical-align: top; min-width: 100px; }
+.reply-table th { background: #f2f4f7; font-weight: 600; }
+.reply-table tr:last-child td { border-bottom: 0; }
+@media(max-width:600px) { .message.agent .bubble { font-size: 14px; } .bubble h1 { font-size: 18px; } .bubble h2 { font-size: 16px; } .bubble pre { padding: 12px; } }
 .bubble a {
   color: var(--blue);
   text-decoration: underline;
@@ -1804,7 +1827,7 @@ button { color: inherit; }
   outline: 0;
   padding: 5px 7px;
   background: transparent;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.4;
 }
 .composer-toolbar {
@@ -1832,6 +1855,10 @@ button { color: inherit; }
   background: #e2e6ef;
   color: var(--text);
 }
+.attachment-control { position: relative; display: inline-flex; }
+.attachment-menu { position: absolute; bottom: calc(100% + 8px); left: 0; min-width: 190px; padding: 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface, #fff); box-shadow: var(--shadow-lg); z-index: 60; }
+.attachment-menu button { display: block; width: 100%; border: 0; border-radius: 8px; background: transparent; padding: 9px 12px; text-align: left; cursor: pointer; white-space: nowrap; font-size: 13px; }
+.attachment-menu button:hover, .attachment-menu button:focus-visible { background: var(--blue-soft); }
 #attach-button,
 #schedule-button,
 #learn-mode-button {
@@ -2849,7 +2876,7 @@ dialog.modal-dialog::backdrop {
   #status-bar { width: 100%; justify-content: flex-start; }
   #status-bar #status { text-align: left; }
   #composer { width: 100%; padding: 8px; border-radius: 20px; }
-  #composer textarea { font-size: 17px; }
+  #composer textarea { font-size: 16px; }
   .composer-action { width: 32px; height: 32px; font-size: 14px; }
   .approval-action, .composer-model-wrap { width: 32px; min-width: 32px; max-width: 32px; height: 32px; }
   #voice-button { width: 30px; height: 32px; }
@@ -2893,7 +2920,7 @@ dialog.modal-dialog::backdrop {
   #composer { gap: 2px; padding: 6px; }
   .composer-action { width: 30px; height: 30px; font-size: 13px; }
   .approval-action { width: 30px; min-width: 30px; max-width: 30px; height: 30px; }
-  #composer textarea { font-size: 16px; }
+  #composer textarea { font-size: 15px; }
   .composer-model-wrap { gap: 0; padding: 0; width: 30px; min-width: 30px; max-width: 30px; height: 30px; }
   #composer-model-select { font-size: 12px; }
   #voice-button { width: 28px; height: 28px; }
@@ -3040,6 +3067,7 @@ dialog.modal-dialog::backdrop {
 .message:hover .msg-feedback,
 .msg-feedback:focus-within,
 .msg-feedback.is-answered { opacity: 1; }
+@media (hover: none) { .msg-feedback { opacity: 1; } }
 .msg-feedback button {
   border: 1px solid rgba(127, 127, 127, 0.28);
   background: transparent;
@@ -3275,8 +3303,8 @@ dialog.modal-dialog::backdrop {
         </div>
 
         <section id="saved-bot-instructions" hidden aria-label="Saved bot instructions">
-          <div class="saved-instructions-header"><span>✓ Instructions saved</span><button id="edit-bot-instructions" type="button" aria-label="Edit bot instructions" title="Edit bot instructions"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/></svg></button></div>
-          <details><summary>View instructions</summary><div id="saved-bot-instructions-text"></div></details>
+          <details><summary>Bot profile <span class="profile-state">Active</span></summary><div id="saved-bot-instructions-text"></div></details>
+          <button id="edit-bot-instructions" type="button" aria-label="Edit bot instructions" title="Edit bot instructions"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/></svg></button>
         </section>
         <div id="messages" hidden></div>
 
@@ -3290,7 +3318,15 @@ dialog.modal-dialog::backdrop {
               <textarea id="prompt" rows="1" placeholder="Ask anything, run $ command, or paste a URL…"></textarea>
               <div class="composer-toolbar">
               <input id="attachment-input" type="file" multiple hidden accept="image/png,image/jpeg,image/webp,image/gif,.txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.py,.html,.css,.yaml,.yml,.xml,.sql,.sh"/>
-              <button type="button" id="attach-button" class="composer-action" aria-label="Attach files" title="Attach images, text, code, or reference notes">+</button>
+              <input id="project-folder-input" type="file" webkitdirectory directory multiple hidden />
+              <div class="attachment-control">
+                <button type="button" id="attach-button" class="composer-action" aria-label="Add files or project folder" aria-haspopup="menu" aria-expanded="false" aria-controls="attachment-menu" title="Attach files or select a project folder">+</button>
+                <div id="attachment-menu" class="attachment-menu" role="menu" hidden>
+                  <button type="button" id="attach-files-option" role="menuitem">Attach files</button>
+                  <button type="button" id="attach-folder-option" role="menuitem">Select project folder</button>
+                  <button type="button" id="index-workspace-option" role="menuitem" title="Build or refresh the reusable code index for this app’s local coding workspace. No model call.">Index local coding workspace</button>
+                </div>
+              </div>
               <button type="button" id="schedule-button" class="composer-action" aria-label="Schedule task" title="Schedule a recurring or future task"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></button>
               <button type="button" id="auto-approve-toggle" class="composer-action approval-action" aria-label="Approve for me" title="Asking before sensitive actions (terminal commands, file writes, financial/external tasks). Click to auto-approve instead."><span id="auto-approve-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 19 6v5c0 4.4-2.7 7.8-7 10-4.3-2.2-7-5.6-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="composer-action-label" aria-hidden="true">Approve for me</span></button>
               <button type="button" id="learn-mode-button" class="composer-action" aria-label="Learn mode" title="Learn mode: rehearse this task, grade the experience, and show me what to fix" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4 3 8l9 4 9-4-9-4Z"/><path d="M7 10.5V15c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5v-4.5"/><path d="M21 8v5"/></svg><span class="composer-action-label" aria-hidden="true">Learn</span></button>
@@ -3717,7 +3753,180 @@ dialog.modal-dialog::backdrop {
   </div>
 </dialog>
 
-<script src="/browserRuntime.js"></script>
+<script src="./browserRuntime.js"></script>
+<script id="response-markdown-runtime">
+(function(root) {
+  "use strict";
+  function escape(text) { return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
+  function safeUrl(raw) {
+    var url = String(raw).replace(/^sandbox:\s*/, "");
+    return /^(https?:\/\/|\/api\/artifacts\/|\/artifacts\/)/i.test(url) ? escape(url) : "";
+  }
+  function inline(raw) {
+    var saved = [];
+    function hold(html) { saved.push(html); return "\u0001" + (saved.length - 1) + "\u0002"; }
+    var text = String(raw).replace(/\u0001|\u0002/g, "");
+    text = text.replace(/`([^`\n]+)`/g, function(_, code) { return hold("<code>" + escape(code) + "</code>"); });
+    text = text.replace(/(!?)\[([^\]\n]*)\]\(\s*([^\s)]+)\s*\)/g, function(_, image, label, rawUrl) {
+      var url = safeUrl(rawUrl);
+      if (!url) return label;
+      return hold(image ? '<a href="' + url + '" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="' + url + '" alt="' + escape(label) + '"></a>' : '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + escape(label) + '</a>');
+    });
+    text = text.replace(/(?:sandbox:\s*)?\/(?:api\/)?artifacts\/[A-Za-z0-9._%/-]+\.(?:png|jpe?g|webp|gif)\b/gi, function(url) {
+      var safe = safeUrl(url);
+      return hold('<a href="' + safe + '" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="' + safe + '" alt="Generated image"></a>');
+    });
+    text = escape(text).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/(^|\W)\*([^*\n]+)\*(?!\w)/g, "$1<em>$2</em>");
+    return text.replace(/\u0001(\d+)\u0002/g, function(_, id) { return saved[Number(id)]; });
+  }
+  function format(raw) {
+    var lines = String(raw || "").replace(/\r\n?/g, "\n").split("\n"), output = [], i = 0;
+    function listMatch(line) { return /^(\s*)(?:([-*+•])|((?:\d+)[.)]))\s+(.+)$/.exec(line); }
+    function tableRule(line) { return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line); }
+    function cells(line) { return line.trim().replace(/^\||\|$/g, "").split(/(?<!\\)\|/).map(function(cell) { return cell.trim().replace(/\\\|/g,"|"); }); }
+    function isBlock(line, next) { return /^\s*(?:`{3,}|~{3,}|#{1,6}\s|>\s?|(?:[-*_]\s*){3,}$)/.test(line) || listMatch(line) || (next && tableRule(next)); }
+    function list(indent) {
+      var first = listMatch(lines[i]), ordered = Boolean(first[3]), tag = ordered ? "ol" : "ul";
+      var start = ordered ? parseInt(first[3], 10) : 1;
+      var html = "<" + tag + (ordered && start !== 1 ? ' start="' + start + '"' : "") + ">";
+      while (i < lines.length) {
+        var item = listMatch(lines[i]);
+        if (!item || item[1].length !== indent || Boolean(item[3]) !== ordered) break;
+        var itemText = item[4]; i++;
+        while (i < lines.length && lines[i].trim() && !listMatch(lines[i]) && /^\s+/.test(lines[i]) && !isBlock(lines[i],lines[i+1])) itemText += " " + lines[i++].trim();
+        html += "<li>" + inline(itemText);
+        while (i < lines.length && listMatch(lines[i]) && listMatch(lines[i])[1].length > indent) html += list(listMatch(lines[i])[1].length);
+        html += "</li>";
+        // A blank line may separate items in the same list.
+        if (!String(lines[i] || "").trim() && lines[i+1] && listMatch(lines[i+1]) && listMatch(lines[i+1])[1].length === indent) i++;
+      }
+      return html + "</" + tag + ">";
+    }
+    while (i < lines.length) {
+      if (!lines[i].trim()) { i++; continue; }
+      var line = lines[i], fence = /^\s*(`{3,}|~{3,})([^\s]*)\s*$/.exec(line);
+      if (fence) {
+        var code = [], marker = fence[1][0], count = fence[1].length;
+        i++;
+        while (i < lines.length && !(new RegExp("^\\s*" + marker + "{" + count + ",}\\s*$")).test(lines[i])) code.push(lines[i++]);
+        if (i < lines.length) i++;
+        output.push('<div class="code-block"><div class="code-header"><span>' + escape(fence[2] || "Code") + '</span><button type="button" class="copy-code" aria-label="Copy code">Copy code</button></div><pre><code>' + escape(code.join("\n")) + '</code></pre></div>');
+        continue;
+      }
+      var heading = /^\s*#{1,6}\s+(.+?)(?:\s+#+)?$/.exec(line);
+      if (heading) { var level = Math.min(3, line.trim().match(/^#+/)[0].length); output.push("<h"+level+">"+inline(heading[1])+"</h"+level+">"); i++; continue; }
+      if (i+1 < lines.length && line.includes("|") && tableRule(lines[i+1])) {
+        var headers = cells(line), rows = []; i += 2;
+        while (i < lines.length && lines[i].trim() && lines[i].includes("|")) rows.push(cells(lines[i++]));
+        output.push('<div class="reply-table" role="region" aria-label="Response table" tabindex="0"><table><thead><tr>' + headers.map(function(cell) { return "<th scope=\"col\">"+inline(cell)+"</th>"; }).join("") + "</tr></thead><tbody>" + rows.map(function(row) { return "<tr>"+headers.map(function(_,index) { return "<td>"+inline(row[index]||"")+"</td>"; }).join("")+"</tr>"; }).join("")+"</tbody></table></div>"); continue;
+      }
+      if (/^\s*>/.test(line)) {
+        var quote=[]; while (i < lines.length && /^\s*>/.test(lines[i])) quote.push(lines[i++].replace(/^\s*>\s?/,""));
+        output.push("<blockquote>"+format(quote.join("\n"))+"</blockquote>"); continue;
+      }
+      if (listMatch(line)) { output.push(list(listMatch(line)[1].length)); continue; }
+      if (/^\s*(?:[-*_]\s*){3,}$/.test(line)) { output.push("<hr>"); i++; continue; }
+      var paragraph=[line]; i++;
+      while (i < lines.length && lines[i].trim() && !isBlock(lines[i],lines[i+1])) paragraph.push(lines[i++]);
+      // Soft line wrapping belongs to layout. Only explicit Markdown hard breaks create <br>.
+      output.push("<p>"+paragraph.map(function(part,index) { return inline(part.trimEnd()) + (index < paragraph.length-1 ? (/ {2,}$/.test(part) ? "<br>" : " ") : ""); }).join("")+"</p>");
+    }
+    return '<div class="reply-content">'+output.join("")+"</div>";
+  }
+  root.OpenBotsMarkdown = {format: format};
+})(typeof globalThis !== "undefined" ? globalThis : window);
+</script>
+
+<script id="run-stream-runtime">
+(function(root, factory) {
+  if (typeof module === "object" && module.exports) module.exports = factory();
+  else root.OpenBotsRunStreams = factory();
+})(typeof globalThis !== "undefined" ? globalThis : this, function() {
+  "use strict";
+  function create(options) {
+    var records = new Map();
+    var later = options.setTimeout || setTimeout;
+    function changed(record) { if (options.onChange) options.onChange(record); }
+    function receive(record, event) {
+      if (event.runId && event.runId !== record.runId) return;
+      if (record.status !== "running") return;
+      record.lastEvent = event;
+      if (event.type === "privileged_approval_required" || event.type === "human_verification") record.pendingEvent = event;
+      if (event.type === "privileged_approval_resolved" || event.type === "human_verification_resolved") record.pendingEvent = null;
+      if (event.type === "terminal") {
+        record.pendingEvent = null;
+        record.discussionId = event.discussionId;
+        record.status = event.discussionId && !event.discussionFinal && event.terminationReason !== "stopped" ? "following" : "completed";
+        record.source.close();
+      }
+      options.onEvent(record, Object.assign({}, event, { trackedRun: true }));
+      changed(record);
+      if (record.status === "following") follow(record);
+    }
+    function fail(record, message) {
+      if (record.status === "following") record.status = "running";
+      receive(record, { type: "terminal", runId: record.runId, success: false, summary: message, terminationReason: "connection_lost" });
+    }
+    function follow(record) {
+      var version = record.followVersion = (record.followVersion || 0) + 1;
+      function poll() {
+        if (record.status !== "following" || record.followVersion !== version) return;
+        options.fetchJson("/api/discussions/" + encodeURIComponent(record.discussionId)).then(function(state) {
+          if (record.status !== "following" || record.followVersion !== version) return;
+          if (state.runId && state.runId !== record.runId) {
+            record.status = "completed";
+            subscribe({ runId: state.runId, botName: state.botName, ownerId: record.ownerId });
+            changed(record);
+          } else if (["completed", "failed", "cancelled"].indexOf(state.phase) >= 0) {
+            record.status = "completed";
+            changed(record);
+          } else later(poll, 250);
+        }).catch(function(error) {
+          if (record.status !== "following" || record.followVersion !== version) return;
+          if (error.status === 404) fail(record, "This discussion was interrupted by a server restart or has expired. Start a new request.");
+          else { record.connectionError = true; changed(record); later(poll, 800); }
+        });
+      }
+      poll();
+    }
+    function subscribe(input) {
+      if (records.has(input.runId)) return records.get(input.runId);
+      var record = Object.assign({ status: "running", pendingEvent: null, cursor: "0" }, input);
+      records.set(record.runId, record);
+      var source = record.source = new options.EventSource("/api/events?runId=" + encodeURIComponent(record.runId) + "&after=0");
+      source.onmessage = function(message) {
+        if (message.lastEventId) record.cursor = message.lastEventId;
+        try { receive(record, JSON.parse(message.data)); } catch (error) { if (options.onError) options.onError(error); }
+      };
+      source.onerror = function() {
+        if (record.status !== "running" || record.reconciling) return;
+        record.reconciling = true;
+        record.connectionError = true;
+        changed(record);
+        options.fetchJson("/api/runs/" + encodeURIComponent(record.runId)).then(function(state) {
+          if (record.status !== "running") return;
+          record.connectionError = false;
+          if (state.terminal) receive(record, state.terminal);
+          else if (!state.isRunning) fail(record, "This run ended without a recoverable result. Review its work before retrying.");
+          changed(record);
+        }).catch(function(error) {
+          if (record.status === "running" && error.status === 404) fail(record, "This run is unavailable after a server restart or has expired. Review its work before retrying.");
+        }).finally(function() { record.reconciling = false; });
+      };
+      changed(record);
+      return record;
+    }
+    return {
+      subscribe: subscribe,
+      activeFor: function(ownerId) { return Array.from(records.values()).reverse().find(function(record) { return record.ownerId === ownerId && ["running", "following"].indexOf(record.status) >= 0; }); },
+      list: function() { return Array.from(records.values()); },
+      cancelFollowing: function(ownerId) { records.forEach(function(record) { if (record.ownerId === ownerId && record.status === "following") { record.followVersion++; record.status = "completed"; changed(record); } }); }
+    };
+  }
+  return { create: create };
+});
+
+</script>
 <script>
 (function() {
   "use strict";
@@ -3736,6 +3945,36 @@ dialog.modal-dialog::backdrop {
   var googleSyncRequested = false;
   var googleLastSyncedBotsJson = null;
   var activeAgentId = null;
+  var composerDrafts = Object.create(null);
+  try {
+    var savedDrafts = JSON.parse(localStorage.getItem("openBotsComposerDrafts") || "{}");
+    if (savedDrafts && typeof savedDrafts === "object" && !Array.isArray(savedDrafts)) {
+      Object.keys(savedDrafts).forEach(function(key) {
+        if (typeof savedDrafts[key] === "string") composerDrafts[key] = savedDrafts[key];
+      });
+    }
+  } catch (_) { /* A damaged draft must not prevent opening saved conversations. */ }
+  function saveComposerDraft() {
+    var key = activeAgentId || "new-bot";
+    // Merge only this chat's draft so another window's other chats are preserved.
+    try {
+      var latest = JSON.parse(localStorage.getItem("openBotsComposerDrafts") || "{}");
+      if (latest && typeof latest === "object" && !Array.isArray(latest)) {
+        Object.keys(latest).forEach(function(id) {
+          if (id !== key && typeof latest[id] === "string") composerDrafts[id] = latest[id];
+        });
+      }
+    } catch (_) {}
+    if (prompt.value) composerDrafts[key] = prompt.value;
+    else delete composerDrafts[key];
+    try { localStorage.setItem("openBotsComposerDrafts", JSON.stringify(composerDrafts)); }
+    catch (_) { status.textContent = "Draft could not be saved on this device. Keep a copy before closing."; }
+  }
+  function restoreComposerDraft() {
+    prompt.value = composerDrafts[activeAgentId || "new-bot"] || "";
+    resizePrompt();
+    syncRecommendationsVisibility();
+  }
   var isRunning = false;
   var botIsWorking = false;
   var runPresenceEl = null;
@@ -3746,6 +3985,16 @@ dialog.modal-dialog::backdrop {
   var setupSessionOpen = false;
   var runEvents = null;
   var runStreamId = null;
+  var runTracker = OpenBotsRunStreams.create({
+    EventSource: EventSource,
+    fetchJson: function(path) { return fetch(path).then(readResponse); },
+    onEvent: receiveTrackedRunEvent,
+    onChange: function(record) {
+      if (record.ownerId === activeAgentId) restoreSelectedRun(false);
+      renderSidebar();
+    },
+    onError: function(error) { console.error("Run event could not be rendered:", error.message); }
+  });
   var browserFrames = null;
   var browserRetryTimer = null;
   var browserOpenPromise = null;
@@ -3760,7 +4009,7 @@ dialog.modal-dialog::backdrop {
   var queuedRunsAfterActive = [];
   var queuedRunPoll = null;
   var steeringInFlight = false;
-  var queueStopVersion = 0;
+  var queueStopVersions = Object.create(null);
   var waitingForRunInput = false;
   var startRunLock = false;
   var lastSubmitAt = 0;
@@ -4063,11 +4312,11 @@ dialog.modal-dialog::backdrop {
   var editingBotId = null;
   var selectedBotPreset = null;
   var LATEST_BOT_PRESETS = [
-    { name: "Inspired by Sabri Suby", description: "Founder-level direct-response strategist informed by Sabri Suby's published ideas. Customer research, profitable acquisition, funnel economics, persuasive copy, measurable experiments, ethical claims, and approval before campaign changes or spend.", color: "#E45532", avatar: "/avatars/sabri-suby.jpg?v=6746ddc34177", summary: "Direct response strategy, customer acquisition, persuasive copy, and profitable growth." },
-    { name: "Inspired by Alex Hormozi", description: "Founder-level business growth strategist informed by Alex Hormozi's published frameworks. Create genuine customer value through offers, pricing, acquisition, monetization, retention, and sustainable economics. Diagnose constraints, label assumptions, test hypotheses, and require approval before pricing or spending changes.", color: "#147D79", avatar: "/avatars/alex-hormozi.webp?v=cc0a5ae96df8", summary: "Offers, pricing, customer value, acquisition, and sustainable business growth." },
-    { name: "The Systems Architect", description: "Principal full-stack and distributed-systems architect informed by published engineering work. Design the simplest secure, reliable, maintainable system that meets real requirements. Evaluate cloud, data, operations, failure modes, costs, and tradeoffs. Require approval before deployment or infrastructure changes.", color: "#4768A8" },
-    { name: "Inspired by Addy Osmani", description: "Principal software engineer informed by Addy Osmani's published work. Focus on maintainable frontend architecture, measurable web performance, developer experience, code review, and responsible AI-assisted engineering. Measure before optimizing and verify changes.", color: "#7056A8", avatar: "/avatars/addy-osmani.jpg?v=29902bd27134", summary: "Software engineering, web performance, frontend architecture, and developer experience." },
-    { name: "Inspired by Andrej Karpathy", description: "Principal AI specialist informed by Andrej Karpathy's public work. Understand deep learning, Transformers, LLM systems, evaluation, agent design, and inference from first principles. Build small baselines and measure hypotheses; never claim improvement without evidence.", color: "#3E7C91", avatar: "/avatars/andrej-karpathy.jpg?v=2aaa21c78fa6", summary: "Deep learning, LLM systems, evaluation, and AI from first principles." }
+    { profileId: "revenue-architect", name: "Inspired by Sabri Suby", description: "Founder-level direct-response strategist informed by Sabri Suby's published ideas. Customer research, profitable acquisition, funnel economics, persuasive copy, measurable experiments, ethical claims, and approval before campaign changes or spend.", color: "#E45532", avatar: "./avatars/sabri-suby.jpg?v=6746ddc34177", summary: "Direct response strategy, customer acquisition, persuasive copy, and profitable growth." },
+    { profileId: "value-architect", name: "Inspired by Alex Hormozi", description: "Founder-level business growth strategist informed by Alex Hormozi's published frameworks. Create genuine customer value through offers, pricing, acquisition, monetization, retention, and sustainable economics. Diagnose constraints, label assumptions, test hypotheses, and require approval before pricing or spending changes.", color: "#147D79", avatar: "./avatars/alex-hormozi.webp?v=cc0a5ae96df8", summary: "Offers, pricing, customer value, acquisition, and sustainable business growth." },
+    { profileId: "systems-architect", name: "The Systems Architect", description: "Principal full-stack and distributed-systems architect informed by published engineering work. Design the simplest secure, reliable, maintainable system that meets real requirements. Evaluate cloud, data, operations, failure modes, costs, and tradeoffs. Require approval before deployment or infrastructure changes.", color: "#4768A8" },
+    { profileId: "engineering-craftsman", name: "Inspired by Addy Osmani", description: "Principal software engineer informed by Addy Osmani's published work. Focus on maintainable frontend architecture, measurable web performance, developer experience, code review, and responsible AI-assisted engineering. Measure before optimizing and verify changes.", color: "#7056A8", avatar: "./avatars/addy-osmani.jpg?v=29902bd27134", summary: "Software engineering, web performance, frontend architecture, and developer experience." },
+    { profileId: "neural-architect", name: "Inspired by Andrej Karpathy", description: "Principal AI specialist informed by Andrej Karpathy's public work. Understand deep learning, Transformers, LLM systems, evaluation, agent design, and inference from first principles. Build small baselines and measure hypotheses; never claim improvement without evidence.", color: "#3E7C91", avatar: "./avatars/andrej-karpathy.jpg?v=2aaa21c78fa6", summary: "Deep learning, LLM systems, evaluation, and AI from first principles." }
   ];
 
   var SPECIALIST_NAME_ALIASES = {
@@ -4079,14 +4328,14 @@ dialog.modal-dialog::backdrop {
   function normalizeSpecialistBot(bot) {
     if (!bot || bot.deleted) return bot;
     var renamed = SPECIALIST_NAME_ALIASES[String(bot.name || "").trim().toLowerCase()];
-    if (!renamed) return bot;
-    var preset = LATEST_BOT_PRESETS.find(function(item) { return item.name === renamed; });
+    var preset = LATEST_BOT_PRESETS.find(function(item) { return item.profileId === bot.profileId || item.name === (renamed || bot.name); });
     if (!preset) return bot;
-    bot.name = preset.name;
+    if (renamed) bot.name = preset.name;
+    bot.profileId = preset.profileId;
     bot.description = bot.description || preset.description;
     bot.summary = bot.summary || preset.summary || preset.description;
     bot.avatarImage = preset.avatar;
-    bot.intent = inferredIntent(preset.name, bot.description);
+    bot.intent = inferredIntent(bot.name, bot.description, bot.profileId);
     return bot;
   }
   agents.forEach(normalizeSpecialistBot);
@@ -4107,11 +4356,11 @@ dialog.modal-dialog::backdrop {
   };
   function defaultAvatarImage(name) {
     var key = String(name || "").trim().toLowerCase();
-    if (key === "inspired by sabri suby") return "/avatars/sabri-suby.jpg?v=6746ddc34177";
-    if (key === "inspired by alex hormozi") return "/avatars/alex-hormozi.webp?v=cc0a5ae96df8";
-    if (key === "inspired by addy osmani") return "/avatars/addy-osmani.jpg?v=29902bd27134";
-    if (key === "inspired by andrej karpathy") return "/avatars/andrej-karpathy.jpg?v=2aaa21c78fa6";
-    if (key === "blog writer") return "/avatars/blog-writer.svg?v=66c776dfe813";
+    if (key === "inspired by sabri suby") return "./avatars/sabri-suby.jpg?v=6746ddc34177";
+    if (key === "inspired by alex hormozi") return "./avatars/alex-hormozi.webp?v=cc0a5ae96df8";
+    if (key === "inspired by addy osmani") return "./avatars/addy-osmani.jpg?v=29902bd27134";
+    if (key === "inspired by andrej karpathy") return "./avatars/andrej-karpathy.jpg?v=2aaa21c78fa6";
+    if (key === "blog writer") return "./avatars/blog-writer.svg?v=66c776dfe813";
     return "";
   }
   var normalizedStarterShapes = false;
@@ -4288,9 +4537,9 @@ dialog.modal-dialog::backdrop {
     if (followLatest) messages.scrollTop = messages.scrollHeight;
   }
 
-  function inferredIntent(name, customDescription) {
+  function inferredIntent(name, customDescription, profileId) {
     var presetName = SPECIALIST_NAME_ALIASES && SPECIALIST_NAME_ALIASES[String(name || "").trim().toLowerCase()] || name;
-    var specialist = LATEST_BOT_PRESETS && LATEST_BOT_PRESETS.find(function(item) { return item.name === presetName; });
+    var specialist = LATEST_BOT_PRESETS && LATEST_BOT_PRESETS.find(function(item) { return item.profileId === profileId || item.name === presetName; });
     if (specialist) {
       var engineering = /Addy Osmani|Andrej Karpathy|Systems Architect/.test(specialist.name);
       return {
@@ -4514,7 +4763,7 @@ dialog.modal-dialog::backdrop {
     });
     filtered.forEach(function(agent) {
       var isCurrent = agent.id === activeAgentId;
-      var isAgentWorking = agent.id === runningAgentId && botIsWorking;
+      var isAgentWorking = Boolean(runTracker.activeFor(agent.id));
       var row = document.createElement("div");
       row.className = "agent-row" + (isCurrent ? " active" : "") + (isAgentWorking ? " is-working" : "");
       row.draggable = true;
@@ -4604,6 +4853,28 @@ dialog.modal-dialog::backdrop {
     return messages.scrollHeight - messages.scrollTop - messages.clientHeight < 96;
   }
 
+  function normalizeLegacyReply(bubble) {
+    if (!bubble || bubble.querySelector(".reply-content,button,input,details,form") || !bubble.querySelector("h1,h2,h3,ul,ol,pre,br")) return;
+    var content = document.createElement("div");
+    content.className = "reply-content";
+    var paragraph = null, breaks = 0;
+    function flush() { if (paragraph && (paragraph.textContent.trim() || paragraph.childElementCount)) content.appendChild(paragraph); paragraph = null; }
+    Array.from(bubble.childNodes).forEach(function(node) {
+      if (node.nodeName === "BR") { breaks++; return; }
+      if (/^(H[1-6]|P|UL|OL|PRE|BLOCKQUOTE|TABLE|DIV|HR)$/.test(node.nodeName)) {
+        flush(); breaks = 0;
+        if (node.querySelectorAll) node.querySelectorAll("ul > br,ol > br").forEach(function(br) { br.remove(); });
+        content.appendChild(node); return;
+      }
+      if (breaks > 1) flush();
+      else if (breaks && paragraph) paragraph.appendChild(document.createTextNode(" "));
+      breaks = 0;
+      if (!paragraph) paragraph = document.createElement("p");
+      paragraph.appendChild(node);
+    });
+    flush(); bubble.replaceChildren(content);
+  }
+
   function appendMessage(role, html, cls, persist) {
     var followLatest = role === "user" || isNearLatestMessage();
     var row = document.createElement("div");
@@ -4621,6 +4892,7 @@ dialog.modal-dialog::backdrop {
     body.innerHTML =
       '<div class="message-label">' + (role === "user" ? "You" : esc(a ? a.name : "Bot")) + '</div>' +
       '<div class="bubble ' + (cls || "") + '">' + html + '</div>';
+    if (role === "agent") normalizeLegacyReply(body.querySelector(".bubble"));
     row.appendChild(body);
     bindHumanVerificationActions(body.querySelector(".bubble"));
     // Like / Correction / Reply on every agent reply. This is the cheapest read we get on whether the
@@ -4683,10 +4955,23 @@ dialog.modal-dialog::backdrop {
     }
   }
 
+  messages.addEventListener("click", function(event) {
+    var button = event.target.closest(".copy-code");
+    if (!button) return;
+    var code = button.closest(".code-block").querySelector("pre code");
+    if (!navigator.clipboard || !navigator.clipboard.writeText) { status.textContent = "Copy is unavailable here. Select the code to copy it."; return; }
+    navigator.clipboard.writeText(code.textContent).then(function() {
+      button.textContent = "Copied"; button.setAttribute("aria-label", "Code copied");
+      setTimeout(function() { button.textContent = "Copy code"; button.setAttribute("aria-label", "Copy code"); }, 1800);
+    }).catch(function() { status.textContent = "Could not copy code. Select the code and copy it manually."; });
+  });
+
   function buildFeedbackRow(bubble, agent) {
     var rowEl = document.createElement("div");
     rowEl.className = "msg-feedback";
     rowEl.innerHTML =
+      '<button type="button" class="fb-copy" aria-label="Copy response" title="Copy response">' +
+        '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg><span>Copy</span></button>' +
       '<button type="button" class="fb-like" aria-label="Good reply" title="Good reply — do more of this">' +
         '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M7 10v10H4V10h3Zm3 10V9l4-5 1.2.9a2 2 0 0 1 .7 2L15 10h4.2a1.8 1.8 0 0 1 1.8 2.2l-1.3 6A2 2 0 0 1 17.7 20H10Z"/></svg>' +
         "<span>Like</span></button>" +
@@ -4698,7 +4983,7 @@ dialog.modal-dialog::backdrop {
         "<span>Reply</span></button>";
 
     var replyText = function() {
-      return (bubble && (bubble.textContent || "")).trim().slice(0, 400);
+      return extractPlainText(bubble && bubble.innerHTML).slice(0, 400);
     };
 
     var send = function(kind, reason, button) {
@@ -4733,6 +5018,14 @@ dialog.modal-dialog::backdrop {
     };
 
     rowEl.setAttribute("aria-live", "polite");
+    rowEl.querySelector(".fb-copy").onclick = function() {
+      var button = this;
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { status.textContent = "Copy is unavailable here. Select the response to copy it."; return; }
+      navigator.clipboard.writeText(extractPlainText(bubble.innerHTML)).then(function() {
+        button.querySelector("span").textContent = "Copied";
+        setTimeout(function() { button.querySelector("span").textContent = "Copy"; }, 1800);
+      }).catch(function() { status.textContent = "Could not copy the response. Select its text and copy manually."; });
+    };
     rowEl.querySelector(".fb-like").onclick = function() { send("like", "", this); };
     rowEl.querySelector(".fb-dislike").onclick = function() {
       if (rowEl.querySelector(".fb-reason-panel")) return;
@@ -4797,10 +5090,13 @@ dialog.modal-dialog::backdrop {
   function selectAgent(id) {
     var a = agents.find(function(x) { return x.id === id; });
     if (!a) return;
-    a.intent = inferredIntent(a.name, a.description);
+    a.intent = inferredIntent(a.name, a.description, a.profileId);
     if (!a.description) a.summary = a.intent.summary;
+    saveComposerDraft();
     activeAgentId = id;
-    sessionStorage.setItem("openBotsSelectedBot", id);
+    localStorage.setItem("openBotsSelectedBot", id);
+    sessionStorage.removeItem("openBotsSelectedBot");
+    restoreComposerDraft();
     setupSessionOpen = false;
     browserFooter.classList.remove("visible");
     workspace.classList.remove("empty");
@@ -4818,6 +5114,9 @@ dialog.modal-dialog::backdrop {
     document.getElementById("saved-bot-instructions-text").textContent = a.description || "";
     document.querySelector("#saved-bot-instructions details").open = false;
     renderTranscript();
+    var selectedRun = runTracker.activeFor(a.id);
+    if (selectedRun) { selectedRun.liveStepFeedBubble = null; selectedRun.liveStepFeedRecord = null; }
+    restoreSelectedRun(true);
     // Selecting a bot always opens at the newest part of its conversation.
     requestAnimationFrame(function() { messages.scrollTop = messages.scrollHeight; });
     renderSidebar();
@@ -4832,7 +5131,10 @@ dialog.modal-dialog::backdrop {
   function resetNewAgent(force) {
     setupSessionOpen = false;
     browserFooter.classList.remove("visible");
+    saveComposerDraft();
     activeAgentId = null;
+    restoreSelectedRun(false);
+    localStorage.removeItem("openBotsSelectedBot");
     sessionStorage.removeItem("openBotsSelectedBot");
     workspace.classList.remove("has-browser");
     workspace.classList.add("empty");
@@ -4845,7 +5147,7 @@ dialog.modal-dialog::backdrop {
     setChip("New Bot", "Pick or create a bot", null);
     document.getElementById("saved-bot-instructions").hidden = true;
     document.getElementById("saved-bot-instructions-text").textContent = "";
-    prompt.value = "";
+    restoreComposerDraft();
     syncPromptPlaceholder();
     quickStarts.hidden = true;
     status.textContent = "";
@@ -4919,7 +5221,7 @@ dialog.modal-dialog::backdrop {
   }
 
   function showBrowser() {
-    sessionStorage.setItem("openBotsBrowserPane", "open");
+    localStorage.setItem("openBotsBrowserPane", "open");
     workspace.classList.remove("empty");
     workspace.classList.add("has-browser");
     setPanelMode("browser");
@@ -4935,7 +5237,7 @@ dialog.modal-dialog::backdrop {
 
   function toggleBrowserPanel() {
     if (workspace.classList.contains("has-browser") && !browserPanelEl.classList.contains("terminal-mode")) {
-      sessionStorage.removeItem("openBotsBrowserPane");
+      localStorage.removeItem("openBotsBrowserPane");
       workspace.classList.remove("has-browser");
       workspace.classList.remove("chat-collapsed");
       document.getElementById("browser-expand-btn").classList.remove("active");
@@ -4957,7 +5259,7 @@ dialog.modal-dialog::backdrop {
 
   function toggleTerminalPanel() {
     if (workspace.classList.contains("has-browser") && browserPanelEl.classList.contains("terminal-mode")) {
-      sessionStorage.removeItem("openBotsBrowserPane");
+      localStorage.removeItem("openBotsBrowserPane");
       workspace.classList.remove("has-browser");
       workspace.classList.remove("chat-collapsed");
       document.getElementById("browser-expand-btn").classList.remove("active");
@@ -5016,12 +5318,15 @@ dialog.modal-dialog::backdrop {
 
   function createAgent(name, customDescription, shapeId, colorHex, options) {
     var desc = (customDescription || "").trim();
-    var intent = inferredIntent(name, desc);
+    var preset = LATEST_BOT_PRESETS.find(function(item) { return item.profileId === (options && options.profileId) || item.name === name; });
+    var profileId = preset && preset.profileId;
+    var intent = inferredIntent(name, desc, profileId);
     var idx = Math.abs(name.split("").reduce(function(acc, c) { return acc + c.charCodeAt(0); }, 0));
     var a = {
       id: "agent_" + Date.now(),
       name: name,
       description: desc,
+      profileId: profileId,
       summary: desc || intent.summary,
       shape: shapeId || "circle",
       shapeCustomized: Boolean(shapeId && shapeId !== "circle"),
@@ -5142,13 +5447,72 @@ dialog.modal-dialog::backdrop {
       var key = String(preset.name || "").trim().toLowerCase();
       if (!key || seen[key]) return;
       seen[key] = true;
-      presets.push({ name: String(preset.name).trim(), description: String(preset.description || ""), summary: String(preset.summary || ""), shape: preset.shape || "circle", color: preset.color || "#ff2d3b", avatar: preset.avatar || defaultAvatarImage(preset.name) });
+      presets.push({ profileId: preset.profileId, name: String(preset.name).trim(), description: String(preset.description || ""), summary: String(preset.summary || ""), shape: preset.shape || "circle", color: preset.color || "#ff2d3b", avatar: preset.avatar || defaultAvatarImage(preset.name) });
     }
     LATEST_BOT_PRESETS.forEach(add);
     document.querySelectorAll(".template-card[data-name]").forEach(function(card) {
       add({ name: card.getAttribute("data-name"), description: card.getAttribute("data-desc"), shape: card.getAttribute("data-shape"), color: card.getAttribute("data-color") });
     });
     return presets;
+  }
+
+  var botDescriptionTooltip;
+  var botDescriptionOwner;
+  var botDescriptionHideTimer;
+  function hideBotDescription() {
+    clearTimeout(botDescriptionHideTimer);
+    if (botDescriptionTooltip) botDescriptionTooltip.hidden = true;
+    if (botDescriptionOwner) botDescriptionOwner.removeAttribute("aria-describedby");
+    botDescriptionOwner = null;
+  }
+  function deferHideBotDescription() {
+    clearTimeout(botDescriptionHideTimer);
+    botDescriptionHideTimer = setTimeout(hideBotDescription, 150);
+  }
+  function attachBotDescription(card, description) {
+    if (!card || !description) return;
+    if (!botDescriptionTooltip) {
+      botDescriptionTooltip = document.createElement("div");
+      botDescriptionTooltip.id = "bot-description-tooltip";
+      botDescriptionTooltip.setAttribute("role", "tooltip");
+      botDescriptionTooltip.hidden = true;
+      botDescriptionTooltip.onmouseenter = function() { clearTimeout(botDescriptionHideTimer); };
+      botDescriptionTooltip.onmouseleave = deferHideBotDescription;
+      document.body.appendChild(botDescriptionTooltip);
+      document.addEventListener("keydown", function(event) { if (event.key === "Escape") hideBotDescription(); });
+      window.addEventListener("resize", hideBotDescription);
+      document.addEventListener("scroll", function(event) {
+        if (!botDescriptionOwner || event.target === botDescriptionTooltip) return;
+        var rect = botDescriptionOwner.getBoundingClientRect();
+        if (rect.bottom < 0 || rect.top > window.innerHeight) hideBotDescription();
+        else botDescriptionOwner.onmouseenter();
+      }, true);
+    }
+    function show() {
+      hideBotDescription();
+      botDescriptionOwner = card;
+      botDescriptionTooltip.textContent = description;
+      card.setAttribute("aria-describedby", botDescriptionTooltip.id);
+      botDescriptionTooltip.hidden = false;
+      var rect = card.getBoundingClientRect();
+      var width = botDescriptionTooltip.offsetWidth;
+      var height = botDescriptionTooltip.offsetHeight;
+      var left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+      var top = rect.bottom + 8;
+      if (top + height > window.innerHeight - 12) top = rect.top - height - 8;
+      top = Math.max(12, Math.min(top, window.innerHeight - height - 12));
+      botDescriptionTooltip.style.left = left + "px";
+      botDescriptionTooltip.style.top = top + "px";
+    }
+    card.onmouseenter = show;
+    card.onmouseleave = deferHideBotDescription;
+    card.onfocus = show;
+    card.onblur = hideBotDescription;
+    card.onpointerdown = hideBotDescription;
+    if (!card.dataset.descriptionTooltipAttached) {
+      card.addEventListener("click", hideBotDescription);
+      card.dataset.descriptionTooltipAttached = "true";
+    }
   }
 
   function renderWelcomeBotCatalog() {
@@ -5190,7 +5554,8 @@ dialog.modal-dialog::backdrop {
       }
       var isAdded = agents.some(function(bot) { return String(bot.name || "").trim().toLowerCase() === key; });
       card.classList.toggle("is-onboarded", isAdded);
-      card.hidden = isAdded;
+      card.hidden = false;
+      attachBotDescription(card, preset.description || preset.summary);
       card.setAttribute("aria-label", (isAdded ? "Open " : "Add ") + preset.name);
       var copyEl = card.querySelector(".template-copy");
       if (copyEl) {
@@ -5210,7 +5575,10 @@ dialog.modal-dialog::backdrop {
       return a.name.localeCompare(b.name);
     });
     ordered.forEach(function(item) { if (item.card) grid.insertBefore(item.card, customCard || null); });
-    if (customCard) grid.appendChild(customCard);
+    if (customCard) {
+      grid.appendChild(customCard);
+      attachBotDescription(customCard, "Customize name, role instructions, Grok shape and color.");
+    }
   }
 
   function renderBotOnboardingPresets() {
@@ -5224,7 +5592,7 @@ dialog.modal-dialog::backdrop {
       if (a.onboarded !== b.onboarded) return a.onboarded ? 1 : -1;
       return a.preset.name.localeCompare(b.preset.name);
     });
-    ordered.filter(function(entry) { return !entry.onboarded; }).forEach(function(entry) {
+    ordered.forEach(function(entry) {
       var preset = entry.preset;
       var onboarded = entry.onboarded;
       var option = document.createElement("option");
@@ -5289,7 +5657,7 @@ dialog.modal-dialog::backdrop {
   });
   document.getElementById("bot-name-input").addEventListener("input", function() {
     if (!selectedBotPreset || this.value.trim().toLowerCase() === selectedBotPreset.name.toLowerCase()) return;
-    selectedBotPreset = null;
+    // Keep the selected soul when its display name is customized.
     document.getElementById("bot-preset-select").value = "";
   });
 
@@ -5310,8 +5678,8 @@ dialog.modal-dialog::backdrop {
         existing.shape = selectedBotShape;
         existing.shapeCustomized = selectedBotShape !== "circle";
         existing.color = selectedBotColor;
-        existing.avatarImage = defaultAvatarImage(nameVal) || undefined;
-        existing.intent = inferredIntent(nameVal, descVal);
+        existing.avatarImage = defaultAvatarImage(nameVal) || existing.avatarImage;
+        existing.intent = inferredIntent(nameVal, descVal, existing.profileId);
         saveAgents();
         selectAgent(existing.id);
       }
@@ -5319,7 +5687,7 @@ dialog.modal-dialog::backdrop {
       return;
     }
 
-    createAgent(nameVal, descVal, selectedBotShape, selectedBotColor);
+    createAgent(nameVal, descVal, selectedBotShape, selectedBotColor, { profileId: selectedBotPreset && selectedBotPreset.profileId });
   });
 
   function readResponse(response) {
@@ -5335,59 +5703,7 @@ dialog.modal-dialog::backdrop {
   }
 
   function formatMarkdown(raw) {
-    if (!raw) return "";
-    var text = esc(raw);
-    // Agent responses sometimes wrap app artifacts in a sandbox URL. These files
-    // are served by this app, so normalize them to the same origin-relative route.
-    text = text.replace(/sandbox:\s*(\/api\/artifacts\/[A-Za-z0-9._%/-]+)/g, "$1");
-    // Code blocks
-    text = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, function(_, _lang, code) {
-      return "<pre><code>" + code.trim() + "</code></pre>";
-    });
-    // Inline code
-    text = text.replace(/`([^`\n]+)`/g, "<code>$1</code>");
-    // Bold
-    text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-    // Images ![alt](url) — before plain links so the leading ! is consumed
-    text = text.replace(
-      /!\[([^\]]*)\]\((https?:\/\/[^\s)]+|\/api\/artifacts\/[^\s)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener"><img src="$2" alt="$1"></a>'
-    );
-    // Links [label](url)
-    text = text.replace(/\[([^\]]+)\]\(\s*(https?:\/\/[^\s)]+|\/api\/artifacts\/[^\s)]+)\s*\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-    // Bare image artifact URLs (e.g. tool output that wasn't wrapped in markdown)
-    text = text.replace(
-      /(^|[^"'>=])(\/api\/artifacts\/[A-Za-z0-9._%-]+\.(?:png|jpe?g|webp|gif))\b/gi,
-      '$1<a href="$2" target="_blank" rel="noopener"><img src="$2" alt="Generated image"></a>'
-    );
-    // Headings & line-by-line lists
-    var lines = text.split("\n");
-    var out = [];
-    var inList = false;
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-      if (/^###\s+(.+)/.test(line)) {
-        if (inList) { out.push("</ul>"); inList = false; }
-        out.push("<h3>" + line.replace(/^###\s+/, "") + "</h3>");
-      } else if (/^##\s+(.+)/.test(line)) {
-        if (inList) { out.push("</ul>"); inList = false; }
-        out.push("<h2>" + line.replace(/^##\s+/, "") + "</h2>");
-      } else if (/^#\s+(.+)/.test(line)) {
-        if (inList) { out.push("</ul>"); inList = false; }
-        out.push("<h1>" + line.replace(/^#\s+/, "") + "</h1>");
-      } else if (/^\s*[-*]\s+(.+)/.test(line)) {
-        if (!inList) { out.push("<ul>"); inList = true; }
-        out.push("<li>" + line.replace(/^\s*[-*]\s+/, "") + "</li>");
-      } else if (/^\s*\d+\.\s+(.+)/.test(line)) {
-        if (!inList) { out.push("<ul>"); inList = true; }
-        out.push("<li>" + line.replace(/^\s*\d+\.\s+/, "") + "</li>");
-      } else {
-        if (inList) { out.push("</ul>"); inList = false; }
-        out.push(line);
-      }
-    }
-    if (inList) out.push("</ul>");
-    return out.join("<br>").replace(/(<\/h[1-3]>|<\/ul>|<\/pre>)<br>/g, "$1");
+    return OpenBotsMarkdown.format(raw);
   }
 
   function renderBrowserTabs(tabs) {
@@ -5562,6 +5878,9 @@ dialog.modal-dialog::backdrop {
   function extractPlainText(htmlStr) {
     var tmp = document.createElement("div");
     tmp.innerHTML = htmlStr || "";
+    tmp.querySelectorAll(".code-header").forEach(function(header) { header.remove(); });
+    tmp.querySelectorAll("br").forEach(function(br) { br.replaceWith(document.createTextNode("\n")); });
+    tmp.querySelectorAll("p,h1,h2,h3,h4,li,pre,blockquote,tr").forEach(function(block) { block.appendChild(document.createTextNode("\n\n")); });
     return (tmp.textContent || "").trim();
   }
 
@@ -5673,13 +5992,16 @@ dialog.modal-dialog::backdrop {
   function renderCommandQueue() {
     var container = document.getElementById("command-queue");
     container.replaceChildren();
-    container.hidden = queuedRunsAfterActive.length === 0;
-    queuedRunsAfterActive.forEach(function(item) {
+    var visibleQueue = queuedRunsAfterActive.filter(function(item) { return item.conversationAgentId === activeAgentId; });
+    container.hidden = visibleQueue.length === 0;
+    visibleQueue.forEach(function(item) {
       var row = document.createElement("div");
       row.className = "queued-command";
       var text = document.createElement("span");
       text.className = "queued-command-text";
       text.textContent = item.displayText || item.task.replace(/^Continue the conversation\. User request: /, "");
+      if (item.waitingFor === "browser") text.textContent += " · Waiting for the shared browser";
+      else if (item.waitingFor === "bot") text.textContent += " · Waiting for this bot’s current task";
       text.title = text.textContent;
       var steer = document.createElement("button");
       steer.type = "button";
@@ -5696,7 +6018,7 @@ dialog.modal-dialog::backdrop {
         if (item.serverJobId) {
           fetch("/api/run/jobs/" + encodeURIComponent(item.serverJobId), { method: "DELETE" }).then(readResponse).then(function() {
             queuedRunsAfterActive = queuedRunsAfterActive.filter(function(entry) { return entry.id !== item.id; });
-            renderCommandQueue(); focusComposer();
+            renderCommandQueue(); restoreSelectedRun(false); focusComposer();
           }).catch(function(err) { status.textContent = err.message; });
           return;
         }
@@ -5713,14 +6035,19 @@ dialog.modal-dialog::backdrop {
     var item = queuedRunsAfterActive.find(function(entry) { return entry.id === id; });
     if (!item) return;
     steeringInFlight = true;
-    var stopVersion = queueStopVersion;
+    var stopVersion = queueStopVersions[item.conversationAgentId] || 0;
     renderCommandQueue();
     status.textContent = "Updating the agent’s direction…";
     var cancel = item.serverJobId
       ? fetch("/api/run/jobs/" + encodeURIComponent(item.serverJobId), { method: "DELETE" }).then(readResponse)
       : Promise.resolve();
-    cancel.then(function() { return fetch("/api/stop?preserveQueued=1", { method: "POST" }); }).then(readResponse).then(function() {
-      if (stopVersion !== queueStopVersion) return;
+    cancel.then(function() {
+      var run = runTracker.activeFor(item.conversationAgentId);
+      if (!run) return {};
+      var scope = run.discussionId ? "discussionId=" + encodeURIComponent(run.discussionId) : "runId=" + encodeURIComponent(run.runId);
+      return fetch("/api/stop?preserveQueued=1&" + scope, { method: "POST" }).then(readResponse);
+    }).then(function() {
+      if (stopVersion !== (queueStopVersions[item.conversationAgentId] || 0)) return;
       // Keep the same conversation and live browser. Wait for cancellation to finish before
       // the continuation takes ownership of them; never run two agents on the page.
       queuedRunsAfterActive = queuedRunsAfterActive.filter(function(entry) { return entry.id !== id; });
@@ -5739,7 +6066,7 @@ dialog.modal-dialog::backdrop {
     });
   }
 
-  function queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, softNotice, userMarkup, displayText) {
+  function queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, softNotice, userMarkup, displayText, conversationAgentId) {
     var queuedItem = {
       id: crypto.randomUUID(),
       userMarkup: userMarkup || "",
@@ -5749,7 +6076,7 @@ dialog.modal-dialog::backdrop {
       collaborationContext: collaborationContext,
       approvalBubble: approvalBubble,
       runAgentOverride: runAgentOverride || activeAgent(),
-      conversationAgentId: activeAgentId
+      conversationAgentId: conversationAgentId || activeAgentId
     };
     queuedRunsAfterActive.push(queuedItem);
     submitQueuedRequest(queuedItem, false);
@@ -5763,7 +6090,6 @@ dialog.modal-dialog::backdrop {
       status.textContent = "Queued — will start when the current run finishes.";
     }
     renderCommandQueue();
-    if (!runEvents && !startRunLock && !learnEvents) connectRunEvents();
     scheduleQueuedRun();
   }
 
@@ -5772,6 +6098,8 @@ dialog.modal-dialog::backdrop {
     return {
       task: task, sessionMode: currentSessionMode, botName: agent && agent.name,
       expertise: agent && agent.intent && agent.intent.expertise,
+      profileId: agent && agent.profileId,
+      botInstructions: agent && agent.description,
       initialUrl: (agent && agent.intent && agent.intent.url) || browserAddress.value || "about:blank",
       scheduleTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       collaborationContext: [buildWorkspaceBotsContext(agent), collaborationContext || ""].filter(Boolean).join("\n\n"),
@@ -5786,13 +6114,13 @@ dialog.modal-dialog::backdrop {
     // Learn sessions retain their separate rehearsal lifecycle.
     if (/^\/learn\s+/i.test(item.task)) return;
     item.submitting = true;
-    var version = queueStopVersion;
+    var version = queueStopVersions[item.conversationAgentId] || 0;
     var owner = item.runAgentOverride || agents.find(function(agent) { return agent.id === item.conversationAgentId; }) || activeAgent();
     fetch("/api/run/queue" + (first ? "?priority=next" : ""), {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildAgentRunPayload(item.task, item.approvedCategories, item.collaborationContext, owner))
     }).then(readResponse).then(function(job) {
-      if (version !== queueStopVersion || queuedRunsAfterActive.indexOf(item) < 0) {
+      if (version !== (queueStopVersions[item.conversationAgentId] || 0) || queuedRunsAfterActive.indexOf(item) < 0) {
         fetch("/api/run/jobs/" + encodeURIComponent(job.id), { method: "DELETE" }).catch(function() {});
         return;
       }
@@ -5816,6 +6144,7 @@ dialog.modal-dialog::backdrop {
   }).catch(function() {});
 
   function clearRunClientState() {
+    discussionFollowToken++;
     isRunning = false;
     waitingForRunInput = false;
     document.body.classList.remove("is-run-active");
@@ -5832,7 +6161,7 @@ dialog.modal-dialog::backdrop {
     var active = document.activeElement;
     if (!OpenBotsBrowserRuntime.shouldFocusComposer({
       hidden: document.hidden, dialogOpen: Boolean(document.querySelector("dialog[open]")),
-      otherInput: active && active !== prompt && Boolean(active.matches("input,textarea,select,[contenteditable='true']")),
+      otherInput: active && active !== prompt && Boolean(active.matches("input,textarea,select,button,a[href],[tabindex],[contenteditable='true']")),
       browserInteraction: active && browserViewport.contains(active),
       textSelected: Boolean(window.getSelection && String(window.getSelection()))
     })) return;
@@ -5844,13 +6173,84 @@ dialog.modal-dialog::backdrop {
     if (control && document.activeElement === prompt) event.preventDefault();
   });
 
+  function restoreSelectedRun(renderPending) {
+    if (learnEvents) return;
+    var record = runTracker.activeFor(activeAgentId);
+    var queued = queuedRunsAfterActive.find(function(item) { return item.conversationAgentId === activeAgentId && !item.submissionError; });
+    isRunning = Boolean(record || queued);
+    runConversationAgentId = activeAgentId;
+    runStreamId = record && record.runId || null;
+    runEvents = record && record.status === "running" ? record.source : null;
+    var runner = record && findPeerBotByQuery(record.botName);
+    runningAgentId = record ? runner && runner.id || record.ownerId : null;
+    runningAgentName = record && record.botName || "";
+    waitingForRunInput = Boolean(record && record.pendingEvent);
+    liveStepFeedBubble = record && record.liveStepFeedBubble || null;
+    liveStepFeedRecord = record && record.liveStepFeedRecord || null;
+    setAgentMotion(waitingForRunInput ? "needs-you" : record ? "working" : "idle");
+    setStatusState(isRunning ? "running" : "ready", waitingForRunInput ? "Action needed" : record ? "Working" : queued ? "Queued" : "Ready");
+    status.textContent = record
+      ? record.connectionError ? "Reconnecting to this bot…" : waitingForRunInput ? "This bot needs your approval or verification."
+        : record.status === "following" ? "Preparing the next discussion step…"
+        : record.lastStep ? record.lastStep.message || "Working…" : "Thinking…"
+      : queued ? "Queued for an available execution slot." : "";
+    stepCounter.textContent = record && record.lastStep ? "Step " + record.lastStep.step : "";
+    setRunPresence(record && !waitingForRunInput ? status.textContent : null);
+    if (renderPending && record && record.pendingEvent) {
+      var pending = record.pendingEvent;
+      if (pending.type === "privileged_approval_required" || !record.pendingRendered) {
+        var previousOwner = eventMessageAgent;
+        eventMessageAgent = agents.find(function(agent) { return agent.id === record.ownerId; }) || null;
+        try { handleOwnedRunEvent(pending); record.pendingRendered = true; } finally { eventMessageAgent = previousOwner; }
+      } else if (pending.type === "human_verification") setBrowserVerificationFooter(true, pending.url);
+    }
+    renderCommandQueue();
+  }
+
+  function receiveTrackedRunEvent(record, event) {
+    var owner = agents.find(function(agent) { return agent.id === record.ownerId; });
+    if (!owner) return;
+    if (event.type === "step") record.lastStep = event;
+    if (event.type === "privileged_approval_resolved" || event.type === "human_verification_resolved") record.pendingRendered = false;
+    var previousOwner = eventMessageAgent;
+    eventMessageAgent = owner;
+    try {
+      if (owner.id === activeAgentId) {
+        runConversationAgentId = owner.id;
+        runStreamId = record.runId;
+        runEvents = record.source;
+        var runner = findPeerBotByQuery(record.botName);
+        runningAgentId = runner && runner.id || owner.id;
+        runningAgentName = record.botName || owner.name;
+        liveStepFeedBubble = record.liveStepFeedBubble || null;
+        liveStepFeedRecord = record.liveStepFeedRecord || null;
+        handleOwnedRunEvent(event);
+        record.liveStepFeedBubble = liveStepFeedBubble;
+        record.liveStepFeedRecord = liveStepFeedRecord;
+        if (event.type === "privileged_approval_required" || event.type === "human_verification") record.pendingRendered = true;
+      } else if (event.type === "terminal" && !event.delegateTo) {
+        var prefix = record.botName !== owner.name ? "<strong>" + esc(record.botName) + " replied:</strong> " : "";
+        appendMessage("agent", prefix + formatMarkdown(event.summary || "Run ended."), event.success ? "" : "error");
+      } else if (event.type === "step") {
+        record.stepRows = record.stepRows || [];
+        record.stepRows.push('<div class="step-item"><span class="step-badge">Step ' + esc(event.step) + '</span><span>' + esc(event.message || event.toolName || "Working") +
+          (event.artifactUrl ? ' <a href="' + esc(event.artifactUrl) + '" download>Download artifact</a>' : "") + '</span></div>');
+        record.stepRows = record.stepRows.slice(-50);
+        var markup = '<details class="step-details"><summary><span class="step-badge">' + record.stepRows.length + ' steps</span> Background work</summary><div class="step-items-list">' + record.stepRows.join("") + '</div></details>';
+        if (!record.backgroundStepRecord) record.backgroundStepRecord = persistMessage("agent", markup, "step-feed");
+        else { record.backgroundStepRecord.html = markup; saveAgents(); }
+      }
+    } finally { eventMessageAgent = previousOwner; }
+  }
+
   function startRun(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, conversationAgentId, acceptedJob) {
+    var ownerId = conversationAgentId || activeAgentId;
     if (!acceptedJob && (startRunLock || isRunning)) {
-      queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, false);
+      queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, false, null, null, ownerId);
       return;
     }
     var agent = runAgentOverride || activeAgent();
-    runConversationAgentId = conversationAgentId || activeAgentId;
+    runConversationAgentId = ownerId;
     setupSessionOpen = false;
     browserFooter.classList.remove("visible");
     startRunLock = true;
@@ -5872,39 +6272,23 @@ dialog.modal-dialog::backdrop {
     focusComposer();
     startRequest.then(function(reply) {
       startRunLock = false;
-      runStreamId = reply.runId || null;
-      localStorage.removeItem(runEventCursorKey);
       if (approvalBubble) {
         var approvedButton = approvalBubble.querySelector(".approve-task-btn");
         if (approvedButton) approvedButton.textContent = "Approved";
       }
-      connectRunEvents(); focusComposer();
+      if (reply.runId) runTracker.subscribe({ runId: reply.runId, ownerId: ownerId, botName: agent && agent.name || "Bot" });
+      restoreSelectedRun(false); focusComposer();
     })
       .catch(function(err) {
+        var previousOwner = eventMessageAgent;
+        eventMessageAgent = agents.find(function(item) { return item.id === ownerId; }) || null;
+        try {
         startRunLock = false;
         isRunning = false;
         sendButton.disabled = false;
         if (isRunBusyError(err)) {
-          setRunPresence(null);
-          fetch("/api/status")
-            .then(readResponse)
-            .then(function(serverState) {
-              if (!serverState.isRunning) {
-                runningAgentId = null;
-                runningAgentName = "";
-                setStatusState("ready", "Ready");
-                setTimeout(function() { startRun(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride); }, 250);
-                return;
-              }
-              var activeBot = agents.find(function(item) { return item.name === serverState.runBotName; });
-              runningAgentId = activeBot ? activeBot.id : null;
-              runningAgentName = serverState.runBotName || "Another bot";
-              queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, runAgentOverride, true);
-            })
-            .catch(function() {
-              setStatusState("ready", "Ready");
-              status.textContent = "Server is busy — try again in a moment.";
-            });
+          queueRunAfterActive(task, approvedCategories, collaborationContext, approvalBubble, agent, true, null, null, ownerId);
+          restoreSelectedRun(false);
           return;
         }
         if (err.status === 428 && err.body) {
@@ -5946,21 +6330,27 @@ dialog.modal-dialog::backdrop {
           ? "Connection to local agent server was interrupted. Please try sending your message again."
           : err.message;
         appendMessage("agent", esc(friendlyMsg), "error");
+        } finally { eventMessageAgent = previousOwner; restoreSelectedRun(false); }
       });
   }
 
   function stopRun() {
-    queueStopVersion++;
-    queuedRunsAfterActive = [];
+    var ownerId = activeAgentId;
+    queueStopVersions[ownerId] = (queueStopVersions[ownerId] || 0) + 1;
+    var ownQueued = queuedRunsAfterActive.filter(function(item) { return item.conversationAgentId === ownerId; });
+    queuedRunsAfterActive = queuedRunsAfterActive.filter(function(item) { return item.conversationAgentId !== ownerId; });
+    ownQueued.forEach(function(item) { if (item.serverJobId) fetch("/api/run/jobs/" + encodeURIComponent(item.serverJobId), { method: "DELETE" }).catch(function() {}); });
     renderCommandQueue();
     clearTimeout(queuedRunPoll);
     queuedRunPoll = null;
-    fetch("/api/stop", { method: "POST" })
-      .then(readResponse)
+    var record = runTracker.activeFor(ownerId);
+    var stopRequest = record ? fetch("/api/stop?" + (record.discussionId ? "discussionId=" + encodeURIComponent(record.discussionId) : "runId=" + encodeURIComponent(record.runId)), { method: "POST" }).then(readResponse) : Promise.resolve();
+    stopRequest
       .then(function() {
-        clearRunClientState();
-        setStatusState("ready", "Ready");
-        status.textContent = "Run stopped.";
+        runTracker.cancelFollowing(ownerId);
+        restoreSelectedRun(false);
+        if (ownerId === activeAgentId) status.textContent = "This bot’s work was stopped.";
+        scheduleQueuedRun();
       })
       .catch(function(err) {
         status.textContent = "Could not stop work: " + err.message + ". Try Stop again.";
@@ -6187,6 +6577,43 @@ dialog.modal-dialog::backdrop {
       });
   }
 
+  var discussionFollowToken = 0;
+  /** Follow only the run correlated to this discussion, including completed-run SSE replay. */
+  function followDiscussion(discussionId, completedRunId) {
+    var token = ++discussionFollowToken;
+    isRunning = true;
+    setStatusState("running", "Thinking");
+    function poll() {
+      fetch("/api/discussions/" + encodeURIComponent(discussionId)).then(readResponse).then(function(state) {
+        if (token !== discussionFollowToken) return;
+        if (state.runId && state.runId !== completedRunId) {
+          var peer = findPeerBotByQuery(state.botName);
+          runningAgentId = peer && peer.id || null;
+          runningAgentName = state.botName || "Coordinator";
+          runStreamId = state.runId;
+          localStorage.removeItem(runEventCursorKey);
+          connectRunEvents();
+          return;
+        }
+        if (["completed", "failed", "cancelled"].indexOf(state.phase) >= 0) {
+          clearRunClientState();
+          setStatusState("ready", "Ready");
+          status.textContent = state.stopReason || "Discussion ended.";
+          scheduleQueuedRun();
+          return;
+        }
+        status.textContent = state.phase === "synthesizing" ? "Preparing the final answer…" : "Consulting specialists (" + state.consultations + "/" + state.maxConsultations + ")…";
+        setTimeout(poll, 250);
+      }).catch(function(error) {
+        if (token !== discussionFollowToken) return;
+        clearRunClientState();
+        setStatusState("ready", "Ready");
+        status.textContent = "Could not recover this discussion: " + (error.message || "connection lost") + ".";
+      });
+    }
+    poll();
+  }
+
   /**
    * Waits for a run the SERVER started (a bus handoff) and attaches the step feed to it. We don't
    * post /api/run here - that would be a second run for the same handoff.
@@ -6220,8 +6647,8 @@ dialog.modal-dialog::backdrop {
         status.textContent = "";
         appendMessage(
           "agent",
-          "The handoff to <strong>" + esc(targetPeer && targetPeer.name || "that bot") +
-            "</strong> didn’t start. Ask it directly if the task needs your approval first.",
+          "I couldn’t start the consultation with <strong>" + esc(targetPeer && targetPeer.name || "that bot") +
+            "</strong>. The coordinator will answer from the evidence it already has; if it hasn’t resumed, send your question again and I’ll answer directly.",
           "error"
         );
       })
@@ -6236,75 +6663,46 @@ dialog.modal-dialog::backdrop {
   }
 
   function connectRunEvents() {
-    if (runEvents) runEvents.close();
-    var cursor = localStorage.getItem(runEventCursorKey) || "0";
-    runEvents = new EventSource("/api/events?after=" + encodeURIComponent(cursor) + (runStreamId ? "&runId=" + encodeURIComponent(runStreamId) : ""));
-    var source = runEvents;
-    runEvents.onmessage = function(m) {
-      if (runEvents !== source) return;
-      if (m.lastEventId) localStorage.setItem(runEventCursorKey, m.lastEventId);
-      try { handleRunEvent(JSON.parse(m.data)); } catch (_) {}
-    };
-    runEvents.onerror = function() {
-      if (runEvents !== source || !isRunning) return;
-      status.textContent = "Reconnecting to your bot…";
-      // Confirm with the server so a dropped SSE after a finished run cannot leave a phantom isRunning.
-      fetch("/api/status")
-        .then(readResponse)
-        .then(function(serverState) {
-          if (runEvents !== source) return;
-          if (!serverState.isRunning && isRunning && !queuedRunsAfterActive.length) {
-            clearRunClientState();
-            setStatusState("ready", "Ready");
-            status.textContent = "";
-          }
-        })
-        .catch(function() {});
-    };
+    if (!runStreamId) return;
+    runTracker.subscribe({ runId: runStreamId, ownerId: runConversationAgentId || activeAgentId, botName: runningAgentName || "Bot" });
   }
 
   function scheduleQueuedRun() {
     if (queuedRunPoll !== null || !queuedRunsAfterActive.length) return;
     queuedRunPoll = setTimeout(function() {
-      var first = queuedRunsAfterActive[0];
-      if (!first || first.submitting || first.submissionError || steeringInFlight || startRunLock) {
-        queuedRunPoll = null; scheduleQueuedRun(); return;
-      }
-      fetch(first.serverJobId ? "/api/run/jobs/" + encodeURIComponent(first.serverJobId) : "/api/status")
-      .then(readResponse)
-      .then(function(serverState) {
-        queuedRunPoll = null;
-        if (!queuedRunsAfterActive.length || queuedRunsAfterActive[0] !== first) return;
-        if (first.serverJobId) {
-          if (serverState.status === "queued") { scheduleQueuedRun(); return; }
-          if (!serverState.runId) {
-            queuedRunsAfterActive.shift(); renderCommandQueue();
-            status.textContent = serverState.detail || "Queued request was cancelled.";
-            scheduleQueuedRun(); return;
+      queuedRunPoll = null;
+      var items = queuedRunsAfterActive.slice();
+      Promise.all(items.map(function(item) {
+        if (item.submitting || item.submissionError || steeringInFlight) return Promise.resolve();
+        if (!item.serverJobId) {
+          if (/^\/learn\s+/i.test(item.task) && !runTracker.list().some(function(record) { return ["running", "following"].indexOf(record.status) >= 0; })) {
+            queuedRunsAfterActive = queuedRunsAfterActive.filter(function(entry) { return entry !== item; });
+            startLearnSession(item.task.replace(/^\/learn\s+/i, ""));
           }
-        } else if (serverState.isRunning || serverState.learnSessionRunning) {
-          scheduleQueuedRun(); return;
+          return Promise.resolve();
         }
-        var queued = queuedRunsAfterActive.shift();
-        renderCommandQueue();
-        if (queued.userMarkup) {
-          eventMessageAgent = agents.find(function(a) { return a.id === queued.conversationAgentId; }) || null;
-          appendMessage("user", queued.userMarkup);
-          eventMessageAgent = null;
-        }
-        if (runEvents) { runEvents.close(); runEvents = null; }
-        clearRunClientState();
-        status.textContent = "Starting your queued request…";
-        var learnMatch = /^\/learn\s+([\s\S]+)$/i.exec(queued.task);
-        if (learnMatch) startLearnSession(learnMatch[1]);
-        else startRun(queued.task, queued.approvedCategories, queued.collaborationContext, queued.approvalBubble, queued.runAgentOverride, queued.conversationAgentId, queued.serverJobId ? serverState : null);
-        scheduleQueuedRun();
-      })
-      .catch(function() {
-        queuedRunPoll = null;
-        scheduleQueuedRun();
-      });
-    }, 500);
+        return fetch("/api/run/jobs/" + encodeURIComponent(item.serverJobId)).then(readResponse).then(function(job) {
+          if (queuedRunsAfterActive.indexOf(item) < 0) return;
+          item.waitingFor = job.waitingFor;
+          if (job.status === "queued" || (job.status === "running" && !job.runId)) return;
+          queuedRunsAfterActive = queuedRunsAfterActive.filter(function(entry) { return entry !== item; });
+          var previousOwner = eventMessageAgent;
+          eventMessageAgent = agents.find(function(agent) { return agent.id === item.conversationAgentId; }) || null;
+          try {
+            if (item.userMarkup) appendMessage("user", item.userMarkup);
+            if (job.runId) {
+              var owner = item.runAgentOverride || eventMessageAgent;
+              runTracker.subscribe({ runId: job.runId, ownerId: item.conversationAgentId, botName: owner && owner.name || "Bot", jobId: item.serverJobId });
+            } else if (job.status !== "cancelled") appendMessage("agent", esc(job.detail || "This queued request could not start."), "error");
+          } finally { eventMessageAgent = previousOwner; }
+        }).catch(function(error) {
+          if (error.status === 404) {
+            queuedRunsAfterActive = queuedRunsAfterActive.filter(function(entry) { return entry !== item; });
+            if (item.conversationAgentId === activeAgentId) status.textContent = "This queued request was interrupted by a restart. Review its work before retrying.";
+          }
+        });
+      })).finally(function() { renderCommandQueue(); restoreSelectedRun(false); scheduleQueuedRun(); });
+    }, 250);
   }
 
   function screenshotHtml(b) {
@@ -6534,7 +6932,7 @@ dialog.modal-dialog::backdrop {
       var delegatedPrefix = runningAgentId && runningAgentId !== runConversationAgentId
         ? "<strong>" + esc(runningAgentName) + " replied:</strong> "
         : "";
-      appendMessage(
+      if (!e.delegateTo) appendMessage(
         "agent",
         delegatedPrefix + prefix + formatMarkdown(e.summary || ""),
         e.success ? "" : "error"
@@ -6552,8 +6950,13 @@ dialog.modal-dialog::backdrop {
       }
       localStorage.removeItem(runEventCursorKey);
 
+      if (e.trackedRun) { scheduleQueuedRun(); return; }
+      if (e.discussionId && !e.discussionFinal) {
+        followDiscussion(e.discussionId, e.runId);
+        return;
+      }
       scheduleQueuedRun();
-      if (e.continuationBotName && e.success) {
+      if (e.continuationBotName && (e.success || e.continueAfterFailure)) {
         var coordinator = findPeerBotByQuery(e.continuationBotName);
         if (coordinator) attachToServerRun(coordinator, "Continue coordinating specialist replies");
       }
@@ -6649,7 +7052,7 @@ dialog.modal-dialog::backdrop {
   window.addEventListener("focus", function() {
     if (document.activeElement === document.body || document.activeElement === document.documentElement) focusComposer();
   });
-  window.addEventListener("pagehide", function() { closeBrowserFrames(); framePresenter.clear(); });
+  window.addEventListener("pagehide", function() { saveComposerDraft(); closeBrowserFrames(); framePresenter.clear(); });
 
   function syncBrowserFromStatus() {
     fetch("/api/status")
@@ -6795,7 +7198,7 @@ dialog.modal-dialog::backdrop {
     attachments.forEach(function(file, idx) {
       var chip = document.createElement("span");
       chip.className = "attachment-chip";
-      chip.innerHTML = (file.type === "image" ? '<img src="' + esc(file.url) + '" alt="Image attachment" style="width:44px;height:44px;object-fit:cover;border-radius:6px;">' : "") + esc(file.name) + " · " + Math.ceil(file.size / 1024) + ' KB <button type="button" aria-label="Remove">✕</button>';
+      chip.innerHTML = (file.type === "image" ? '<img src="' + esc(file.url) + '" alt="Image attachment" style="width:44px;height:44px;object-fit:cover;border-radius:6px;">' : "") + esc(file.name) + (file.type === "project" ? " · " + file.fileCount + " indexed source files" : "") + " · " + Math.ceil(file.size / 1024) + ' KB <button type="button" aria-label="Remove">✕</button>';
       chip.querySelector("button").onclick = function() {
         attachments.splice(idx, 1);
         renderAttachments();
@@ -6848,9 +7251,53 @@ dialog.modal-dialog::backdrop {
     }).catch(function(error) { status.textContent = error.message; }).finally(function() { attachmentUploads--; });
   }
 
+  async function addProjectFolder(selectedFiles) {
+    if (attachmentUploads) { status.textContent = "Please wait for the current attachments to finish."; return; }
+    if (attachments.length >= 8) { status.textContent = "Attach up to 8 items at a time; a project folder counts as one."; return; }
+    attachmentUploads++;
+    status.textContent = "Preparing project folder…";
+    try {
+      var config = await fetch("/api/attachments/project-config").then(readResponse);
+      var firstPath = selectedFiles[0] && selectedFiles[0].webkitRelativePath;
+      if (!firstPath || firstPath.indexOf("/") < 0) throw new Error("Select a folder using the project folder picker.");
+      var name = firstPath.split("/")[0];
+      var prefix = name + "/";
+      var candidates = [], skipped = 0, totalBytes = 0;
+      selectedFiles.forEach(function(file) {
+        var relativePath = file.webkitRelativePath;
+        if (relativePath.indexOf(prefix) !== 0) throw new Error("Select one project folder at a time.");
+        var path = relativePath.slice(prefix.length);
+        var parts = path.split("/");
+        var basename = parts[parts.length - 1].toLowerCase();
+        var excluded = parts.slice(0, -1).some(function(part) { return config.ignoredDirectories.indexOf(part.toLowerCase()) >= 0; }) ||
+          /^(?:\.env(?:\.|$)|\.npmrc$|\.pypirc$|credentials?(?:\.|$)|service[-_]account(?:\.|$)|secrets?(?:\.|$)|id_(?:rsa|ed25519)(?:\.|$))/.test(basename) || /\.(?:pem|key|p12|pfx|keystore)$/.test(basename);
+        var supported = ["dockerfile", "makefile", "license", "licence", ".gitignore", ".dockerignore", ".editorconfig"].indexOf(basename) >= 0 || config.sourceExtensions.indexOf(basename.split(".").pop()) >= 0;
+        if (excluded || !supported || file.size > config.maxFileBytes) { skipped++; return; }
+        totalBytes += file.size;
+        candidates.push({ file: file, path: path });
+      });
+      if (!candidates.length) throw new Error("The folder has no supported source files after exclusions.");
+      if (candidates.length > config.maxFiles || totalBytes > config.maxProjectBytes) throw new Error("This project exceeds the import limit (" + config.maxFiles + " files / " + Math.floor(config.maxProjectBytes / 1000000) + " MB). Select a smaller subfolder.");
+      var sourceFiles = [];
+      for (var candidate of candidates) {
+        var text = await candidate.file.text();
+        if (text.indexOf("\0") >= 0) { skipped++; continue; }
+        sourceFiles.push({ path: candidate.path, text: text });
+      }
+      var body = await fetch("/api/attachments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ files: [{ name: name, projectFiles: sourceFiles, skipped: skipped }] }) }).then(readResponse);
+      var project = body.attachments && body.attachments[0];
+      if (!project || project.type !== "project") throw new Error("The project folder could not be imported.");
+      attachments.push(project);
+      renderAttachments();
+      status.textContent = "Project indexed: " + project.fileCount + " source files" + (project.skipped ? "; " + project.skipped + " files excluded" : "") + ". The reusable index supports ranked code search and file/symbol maps when you send your request.";
+    } catch (error) { status.textContent = error.message || "Could not import the project folder."; }
+    finally { attachmentUploads--; document.getElementById("project-folder-input").value = ""; }
+  }
+
   function clearAttachments() {
     attachments = [];
     document.getElementById("attachment-input").value = "";
+    document.getElementById("project-folder-input").value = "";
     renderAttachments();
   }
 
@@ -6871,6 +7318,7 @@ dialog.modal-dialog::backdrop {
     if (now - lastSubmitAt < 400) return;
     lastSubmitAt = now;
     prompt.value = "";
+    saveComposerDraft();
     prompt.style.height = "auto";
     quickStarts.hidden = true;
     welcome.classList.remove("is-typing");
@@ -6880,6 +7328,7 @@ dialog.modal-dialog::backdrop {
     var learnMatch = /^\/learn\s+([\s\S]+)$/i.exec(value);
     if (learnMatch && attachments.length) {
       prompt.value = value;
+      saveComposerDraft();
       status.textContent = "Send attachments in a normal chat first; then use /learn with the resulting textual lesson.";
       return;
     }
@@ -7196,6 +7645,7 @@ dialog.modal-dialog::backdrop {
     }
     if (isRunning || startRunLock) return;
     prompt.value = "";
+    saveComposerDraft();
     prompt.style.height = "auto";
     quickStarts.hidden = true;
     appendMessage("user", esc("/learn " + typed));
@@ -7454,6 +7904,7 @@ dialog.modal-dialog::backdrop {
     submitPrompt();
   });
   prompt.addEventListener("input", function() {
+    saveComposerDraft();
     resizePrompt();
     syncRecommendationsVisibility();
   });
@@ -8475,9 +8926,35 @@ dialog.modal-dialog::backdrop {
     createAgent(name, card.getAttribute("data-desc") || "", card.getAttribute("data-shape") || "circle", card.getAttribute("data-color") || "#ff2d3b");
   });
 
+  var attachmentMenu = document.getElementById("attachment-menu");
+  function closeAttachmentMenu() {
+    attachmentMenu.hidden = true;
+    document.getElementById("attach-button").setAttribute("aria-expanded", "false");
+  }
   document.getElementById("attach-button").onclick = function() {
-    document.getElementById("attachment-input").click();
+    attachmentMenu.hidden = !attachmentMenu.hidden;
+    this.setAttribute("aria-expanded", String(!attachmentMenu.hidden));
+    if (!attachmentMenu.hidden) document.getElementById("attach-files-option").focus();
   };
+  document.getElementById("attach-files-option").onclick = function() { closeAttachmentMenu(); document.getElementById("attachment-input").click(); };
+  document.getElementById("index-workspace-option").onclick = function() {
+    closeAttachmentMenu();
+    var button = this;
+    button.disabled = true;
+    status.textContent = "Indexing local coding workspace…";
+    fetch("/api/code/index", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({root: "."})})
+      .then(readResponse).then(function(result) {
+        status.textContent = "Coding workspace indexed: " + result.totalFiles + " files; " + result.reusedFiles + " unchanged files reused." + (result.truncated ? " Chunk limit reached; index a smaller subfolder for complete coverage." : " Ready for code search, review and implementation.");
+      }).catch(function(error) { status.textContent = error.message || "Could not index the coding workspace."; })
+      .finally(function() { button.disabled = false; });
+  };
+  document.getElementById("attach-folder-option").onclick = function() { closeAttachmentMenu(); document.getElementById("project-folder-input").click(); };
+  document.addEventListener("click", function(event) { if (!event.target.closest(".attachment-control")) closeAttachmentMenu(); });
+  document.addEventListener("keydown", function(event) { if (event.key === "Escape" && !attachmentMenu.hidden) { closeAttachmentMenu(); document.getElementById("attach-button").focus(); } });
+  document.getElementById("project-folder-input").addEventListener("change", function(event) {
+    var files = Array.from(event.target.files || []);
+    if (files.length) addProjectFolder(files);
+  });
 
   var voiceButton = document.getElementById("voice-button");
   var SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -8579,7 +9056,7 @@ dialog.modal-dialog::backdrop {
         localStorage.setItem("openBotsDesktopEngineVersion", st.desktopBrowserEngine);
       }
       renderSessionModeUI();
-      if (usesNativeBrowser() && sessionStorage.getItem("openBotsBrowserPane") === "open") showBrowser();
+      if (usesNativeBrowser() && localStorage.getItem("openBotsBrowserPane") === "open") showBrowser();
       if (st.sessionMode && st.sessionMode !== currentSessionMode) {
         fetch("/api/session/mode", {
           method: "POST",
@@ -8594,20 +9071,11 @@ dialog.modal-dialog::backdrop {
       if (!usesNativeBrowser() && st.tabs && st.tabs.length) {
         renderBrowserTabs(st.tabs);
       }
-      if (st.isRunning) {
-        isRunning = true;
-        var activeBot = agents.find(function(item) { return item.name === st.runBotName; });
-        runningAgentId = activeBot ? activeBot.id : null;
-        runConversationAgentId = runningAgentId;
-        runningAgentName = st.runBotName || "Bot";
-        sendButton.disabled = false;
-        waitingForRunInput = Boolean(st.runHasPendingApproval || st.runHasPendingVerification);
-        setStatusState("running", st.runHasPendingApproval ? "Waiting for Approval" : "Reconnecting");
-        status.textContent = st.runHasPendingApproval
-          ? "Your bot is waiting for your approval. Reconnecting to the current task…"
-          : "Reconnecting to your active bot task…";
-        connectRunEvents();
-      }
+      (st.activeRuns || (st.isRunning && st.runId ? [{ runId: st.runId, botName: st.runBotName }] : [])).forEach(function(run) {
+        var owner = agents.find(function(agent) { return agent.name === (run.conversationBotName || run.botName); });
+        if (owner) runTracker.subscribe({ runId: run.runId, ownerId: owner.id, botName: run.botName });
+      });
+      restoreSelectedRun(true);
       if (st.hasBrowserSession) {
         connectBrowserFrames(true);
       }
@@ -8615,7 +9083,7 @@ dialog.modal-dialog::backdrop {
     .catch(function() {});
 
   agents.forEach(function(a) {
-    var fresh = inferredIntent(a.name, a.description || a.summary);
+    var fresh = inferredIntent(a.name, a.description || a.summary, a.profileId);
     a.intent = fresh;
     if (!a.description && (!a.summary || /codex.*browser agent ready/i.test(a.summary))) {
       a.summary = fresh.summary;
@@ -8624,8 +9092,14 @@ dialog.modal-dialog::backdrop {
   saveAgents();
   renderSidebar();
   setChip("New Bot", "Pick or create a bot");
-  var restoredBotId = sessionStorage.getItem("openBotsSelectedBot");
-  if (restoredBotId) selectAgent(restoredBotId);
+  var restoredBotId = localStorage.getItem("openBotsSelectedBot") || sessionStorage.getItem("openBotsSelectedBot");
+  // Load the home draft before selection so startup cannot overwrite it with an empty composer.
+  restoreComposerDraft();
+  if (restoredBotId && agents.some(function(bot) { return bot.id === restoredBotId; })) selectAgent(restoredBotId);
+  else {
+    localStorage.removeItem("openBotsSelectedBot");
+    sessionStorage.removeItem("openBotsSelectedBot");
+  }
   focusComposer();
 })();
 </script>
