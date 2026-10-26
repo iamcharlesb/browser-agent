@@ -78,4 +78,5 @@ test("patch ids are filtered down to the ones in the pending proposal", () => {
   assert.deepEqual(gate.normalizePatchIds(undefined), undefined, "undefined means every patch");
   assert.deepEqual(gate.normalizePatchIds("fix-1"), undefined);
   assert.deepEqual(gate.normalizePatchIds([]), []);
+  gate.settle({ approved: false, reason: "test cleanup" });
 });
