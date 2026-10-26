@@ -44,7 +44,8 @@ export class FixApprovalGate {
       const timer = setTimeout(() => {
         this.settle({ approved: false, reason: `nobody answered within ${Math.round(this.timeoutMs / 60_000)} minutes` });
       }, this.timeoutMs);
-      if (typeof timer.unref === "function") timer.unref();
+      // Keep the timeout live while an approval promise is pending.
+      // Unref would allow Node to exit with the decision unresolved.
       this.pending = { proposal, resolve, timer };
     });
   };
