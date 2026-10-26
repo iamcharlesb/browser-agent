@@ -12,7 +12,9 @@ import { redactSecrets } from "./security";
 import { workspaceCode, guardedCodePatch } from "./workspaceCode";
 
 export const ARTIFACTS_DIR = join(__dirname, "..", "artifacts");
-export const WORKSPACE_ROOT = resolve(__dirname, "..", "..", "..");
+// Default to the application repository, not an ancestor that can contain unrelated projects.
+// A user-selected writable workspace can be configured explicitly for local coding tasks.
+export const WORKSPACE_ROOT = resolve(process.env.BROWSER_AGENT_WORKSPACE_ROOT || resolve(__dirname, ".."));
 
 function safeResolveWorkspacePath(filePath: string): string {
   const cleaned = filePath.trim();
