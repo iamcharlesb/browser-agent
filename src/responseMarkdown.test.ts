@@ -60,6 +60,7 @@ test('response layout keeps code and tables inside the reading column, supports 
       if(url.hostname!=='response.test')return route.abort();
       if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:html});
       if(url.pathname==='/browserRuntime.js')return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static','browserRuntime.js'))});
+      if(url.pathname==='/uiState.js')return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static','uiState.js'))});
       if(url.pathname.startsWith('/api/'))return route.fulfill({contentType:'application/json',body:JSON.stringify({isRunning:false,models:[],jobs:[],events:[],workflows:[],suggestions:[],schedules:[]})});
       return route.abort();
     });

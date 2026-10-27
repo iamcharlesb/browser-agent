@@ -249,6 +249,9 @@ export async function saveLearningKb(baseDir: string, state: LearningKbState): P
  * microseconds apart), so the pair has to be serialized, not just the write.
  */
 const learningWriteChains = new Map<string, Promise<unknown>>();
+export async function waitForLearningWrites(): Promise<void> {
+  await Promise.all([...learningWriteChains.values()]);
+}
 
 export async function updateLearningKb(
   baseDir: string,

@@ -7,6 +7,9 @@ import { WorkflowOrchestrator, type WorkflowTask, type WorkflowTaskDefinition } 
 import { PlaybookStore, formatApprovedPlaybook } from "./playbookStore";
 import { storeRunOutcome, readRunOutcome, outcomeEvent } from "./runOutcomes";
 import "./environment";
+import { DATA_ROOT } from "./runtimePaths";
+import { conversationEpoch, readConversationResets, resetConversationFiles, type ConversationResets } from "./conversationReset";
+import { renderDocumentation } from "./documentation";
 import { modelCatalog, modelPricing } from "./runtimeConfig";
 /** Local web UI for the browser agent: a chat-style task box with a live step feed. */
 
@@ -62,6 +65,7 @@ import {
   isUserCorrectionOrRule,
   loadLearningKb,
   updateLearningKb,
+  waitForLearningWrites,
   type LearningKind
 } from "./learningStore";
 import {
@@ -101,24 +105,24 @@ import {
 } from "./userStore";
 
 const STATIC_DIR = join(__dirname, "..", "static");
-const ENV_FILE = join(__dirname, "..", ".env");
-const SCHEDULE_FILE = join(__dirname, "..", ".browser-agent-schedules.json");
-const USAGE_FILE = join(__dirname, "..", ".browser-agent-usage.json");
+const ENV_FILE = process.env.BROWSER_AGENT_ENV_FILE || join(DATA_ROOT, ".env");
+const SCHEDULE_FILE = join(DATA_ROOT, ".browser-agent-schedules.json");
+const USAGE_FILE = join(DATA_ROOT, ".browser-agent-usage.json");
 /** Per-bot durable learning KB (intents / mistakes / learnings). Local JSON only. */
-const CHAT_ATTACHMENTS_DIR = join(__dirname, "..", ".browser-agent-attachments");
-const KNOWLEDGE_DIR = join(__dirname, "..", ".browser-agent-knowledge");
-const TASK_MEMORY_DIR = join(__dirname, "..", ".browser-agent-task-memory");
-const LEARNINGS_DIR = join(__dirname, "..", ".browser-agent-learnings");
+const CHAT_ATTACHMENTS_DIR = join(DATA_ROOT, ".browser-agent-attachments");
+const KNOWLEDGE_DIR = join(DATA_ROOT, ".browser-agent-knowledge");
+const TASK_MEMORY_DIR = join(DATA_ROOT, ".browser-agent-task-memory");
+const LEARNINGS_DIR = join(DATA_ROOT, ".browser-agent-learnings");
 /** Learn-mode self-play reports and pre-fix file snapshots. */
-const LEARN_REPORT_DIR = join(__dirname, "..", ".browser-agent-learn");
+const LEARN_REPORT_DIR = join(DATA_ROOT, ".browser-agent-learn");
 /** Repo root: `__dirname` is dist/ in dev and build/ in the production copy, both one level down. */
 const REPO_ROOT = join(__dirname, "..");
-const PLAYBOOK_DIR = join(REPO_ROOT, ".browser-agent-playbooks");
-const OUTCOME_DIR = join(REPO_ROOT, ".browser-agent-outcomes");
-const observer = new ConversationObserver(join(REPO_ROOT, ".browser-agent-observer"));
-const workflowOrchestrator = new WorkflowOrchestrator(join(REPO_ROOT, ".browser-agent-workflows"));
+const PLAYBOOK_DIR = join(DATA_ROOT, ".browser-agent-playbooks");
+const OUTCOME_DIR = join(DATA_ROOT, ".browser-agent-outcomes");
+const observer = new ConversationObserver(join(DATA_ROOT, ".browser-agent-observer"));
+const workflowOrchestrator = new WorkflowOrchestrator(join(DATA_ROOT, ".browser-agent-workflows"));
 const eventStream = new DurableEventStream({
-  stateDirectory: join(REPO_ROOT, ".browser-agent-event-offsets"),
+  stateDirectory: join(DATA_ROOT, ".browser-agent-event-offsets"),
   onError: error => console.warn("[openbots] shared event stream:", redactSecrets(error.message))
 });
 const playbookStore = new PlaybookStore(PLAYBOOK_DIR);
@@ -285,6 +289,7 @@ class AsyncQueue<T> {
 }
 
 interface RunState {
+  conversationResetAt: number;
   id: string;
   browser: boolean;
   discussionId?: string;
@@ -307,7 +312,7 @@ interface SequencedRunEvent {
 }
 
 function publishRunEvent(run: RunState, event: AgentEvent | null): void {
-  const sequencedEvent = event ? { sequence: run.nextSequence++, event: redactSecretValues({ ...event, runId: run.id, botName: run.botName }) } : null;
+  const sequencedEvent = event ? { sequence: run.nextSequence++, event: redactSecretValues({ ...event, runId: run.id, botName: run.botName, conversationResetAt: run.conversationResetAt }) } : null;
   if (sequencedEvent) {
     run.events.push(sequencedEvent);
     // Trim oldest first. Sequence numbers come from a counter, not the array length, so a
@@ -337,6 +342,7 @@ interface BrowserSession {
 }
 
 interface RunRequestBody {
+  conversationResetAt?: number;
   profileId?: string;
   botInstructions?: string;
   /** Internal continuation metadata; public request validation intentionally omits these fields. */
@@ -393,6 +399,9 @@ let currentRun: RunState | null = null;
 const activeRunPromises = new Map<string, Promise<AgentResult>>();
 const runSlots = new RunSlots(envInteger("BROWSER_AGENT_MAX_CONCURRENT_RUNS", 4, 1, 32));
 let completingRunTransitions = 0;
+let resettingConversations = false;
+let conversationResets: ConversationResets = { all: 0, bots: {} };
+const conversationResetsReady = readConversationResets(DATA_ROOT).then(state => { conversationResets = state; });
 let asyncQueueReady = false;
 const recentRuns = new Map<string, RunState>();
 function queuedWaitReason(body: RunRequestBody): string {
@@ -402,7 +411,7 @@ function queuedWaitReason(body: RunRequestBody): string {
   return runSlots.size >= runSlots.limit ? "capacity" : "starting";
 }
 const asyncAgentQueue = new AsyncAgentQueue<RunRequestBody>(
-  () => !asyncQueueReady || Boolean(activeLearnSession || completingRunTransitions),
+  () => !asyncQueueReady || resettingConversations || Boolean(activeLearnSession || completingRunTransitions),
   async job => {
     const reservationId = randomUUID();
     runSlots.acquire(reservationId, job.input);
@@ -438,7 +447,7 @@ const asyncAgentQueue = new AsyncAgentQueue<RunRequestBody>(
     } finally {
       runSlots.release(reservationId);
     }
-  }, envInteger("BROWSER_AGENT_MAX_PENDING_RUNS", 50, 1, 1000), join(REPO_ROOT, ".browser-agent-queue.json"),
+  }, envInteger("BROWSER_AGENT_MAX_PENDING_RUNS", 50, 1, 1000), join(DATA_ROOT, ".browser-agent-queue.json"),
   { maxConcurrent: runSlots.limit, canStart: input => runSlots.canStart(input) }
 );
 
@@ -589,6 +598,7 @@ function validateRunRequest(body: unknown): RunRequestBody {
     : [];
   return {
     task,
+    conversationResetAt: typeof record.conversationResetAt === "number" && Number.isSafeInteger(record.conversationResetAt) && record.conversationResetAt >= 0 ? record.conversationResetAt : undefined,
     sessionMode: parseSessionMode(record.sessionMode),
     interactionMode:
       record.interactionMode === "chat" ||
@@ -839,6 +849,9 @@ function continueCoordinatorDiscussion(discussionId: string, update: string, for
 
 type RunPromise = Promise<AgentResult> & { runId: string };
 function startRun(body: RunRequestBody, options: { runId?: string; handoffDepth?: number; discussionId?: string; consultationId?: string; specialist?: boolean; finalSynthesis?: boolean } = {}): RunPromise {
+  if (resettingConversations) throw new Error("Conversation reset is in progress. Try again when it finishes.");
+  const resetAt = conversationEpoch(conversationResets, body.botName || "default");
+  if ((body.conversationResetAt !== undefined || body.conversationTurns?.length || body.conversationArtifacts?.length) && (body.conversationResetAt || 0) < resetAt) throw new Error("This conversation was reset. Refresh this bot before retrying.");
   options = { discussionId: body.discussionId, consultationId: body.consultationId, specialist: body.specialist, finalSynthesis: body.finalSynthesis, ...options };
   const internalContinuation = Boolean(options.discussionId);
   if (options.discussionId) {
@@ -868,6 +881,7 @@ function startRun(body: RunRequestBody, options: { runId?: string; handoffDepth?
 
   const botKey = body.botName?.trim() || "default";
   const run: RunState = {
+    conversationResetAt: resetAt,
     id: runId,
     browser: !isTextOnly,
     discussionId: options.discussionId,
@@ -2012,6 +2026,57 @@ async function handleSharedEventsStream(req: IncomingMessage, res: ServerRespons
 
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+  if (req.method === "GET" && (url.pathname === "/docs" || url.pathname === "/docs/")) {
+    const page = await renderDocumentation(REPO_ROOT, url.searchParams.get("topic"));
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff" });
+    res.end(page); return;
+  }
+  if (resettingConversations && !["GET", "HEAD"].includes(req.method || "") && url.pathname !== "/api/stop") {
+    sendJson(res, 409, { detail: "Conversation reset is in progress. Try again when it finishes." }); return;
+  }
+  if (req.method === "GET" && url.pathname === "/api/conversations/state") {
+    await conversationResetsReady;
+    sendJson(res, 200, conversationResets); return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/conversations/reset") {
+    if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Conversation resets must come from this app." }); return; }
+    let ownsReset = false;
+    try {
+      const body = await readJsonBody(req) as Record<string, unknown>;
+      if (body.confirm !== true || (body.scope !== "bot" && body.scope !== "all") ||
+          (body.scope === "bot" && (typeof body.botName !== "string" || !body.botName.trim() || body.botName.length > 120))) {
+        sendJson(res, 400, { detail: "Confirm the reset and select one bot or all bots." }); return;
+      }
+      if (resettingConversations || activeLearnSession) { sendJson(res, 409, { detail: "Finish the current reset or learning session first." }); return; }
+      resettingConversations = true;
+      ownsReset = true;
+      await conversationResetsReady;
+      const matches = (name: string) => body.scope === "all" || botIdFromName(name) === botIdFromName(body.botName as string);
+      const discussions = new Set([...botDiscussions].filter(([, item]) => matches(item.coordinator.botName || "default")).map(([id]) => id));
+      for (const id of discussions) botDiscussions.get(id)!.controller.cancel();
+      for (const job of asyncAgentQueue.list()) {
+        if (matches(job.input.botName || "default") || discussions.has(job.input.discussionId || "")) {
+          if (job.status === "running") job.status = "cancelled";
+          else asyncAgentQueue.cancel(job.id);
+        }
+      }
+      const targets = [...recentRuns.values()].filter(run => matches(run.botName) || discussions.has(run.discussionId || ""));
+      const pending = targets.map(run => activeRunPromises.get(run.id)).filter((value): value is Promise<AgentResult> => Boolean(value));
+      for (const run of targets) stopCurrentRun(run.id);
+      let timer: NodeJS.Timeout | undefined;
+      try {
+        await Promise.race([Promise.allSettled(pending), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("A stopped run is still closing. Retry reset shortly; stored context has not been cleared.")), 5000); })]);
+      } finally { if (timer) clearTimeout(timer); }
+      await waitForLearningWrites();
+      conversationResets = await resetConversationFiles(DATA_ROOT, body.scope, body.botName as string | undefined);
+      for (const key of botSessionMemory.keys()) if (matches(key)) botSessionMemory.delete(key);
+      for (const run of targets) recentRuns.delete(run.id);
+      for (const id of discussions) botDiscussions.delete(id);
+      sendJson(res, 200, { ok: true, ...conversationResets });
+    } catch (error) { sendJson(res, 409, { detail: redactSecrets((error as Error).message) }); }
+    finally { if (ownsReset) { resettingConversations = false; asyncAgentQueue.resume(); } }
+    return;
+  }
 
   // Bot profile artwork is shipped with the local UI and served through this
   // narrow allowlist; never turn a URL path into an arbitrary filesystem read.
@@ -2044,8 +2109,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  if (req.method === "GET" && url.pathname === "/browserRuntime.js") {
-    const script = await readFile(join(STATIC_DIR, "browserRuntime.js"), "utf8");
+  if (req.method === "GET" && ["/browserRuntime.js", "/uiState.js"].includes(url.pathname)) {
+    const script = await readFile(join(STATIC_DIR, url.pathname.slice(1)), "utf8");
     res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
     res.end(script);
     return;
@@ -2137,7 +2202,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         email: payload.email,
         picture: typeof payload.picture === "string" ? payload.picture : null
       };
-      const { user: stored, backend } = await upsertGoogleUser(REPO_ROOT, {
+      const { user: stored, backend } = await upsertGoogleUser(DATA_ROOT, {
         googleSub: user.id,
         email: user.email,
         name: user.name,
@@ -2228,7 +2293,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         email: payload.email,
         picture: typeof payload.picture === "string" ? payload.picture : null
       };
-      const { user: stored, backend } = await upsertGoogleUser(REPO_ROOT, {
+      const { user: stored, backend } = await upsertGoogleUser(DATA_ROOT, {
         googleSub: user.id,
         email: user.email,
         name: user.name,
@@ -2255,7 +2320,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       sendJson(res, 200, { authenticated: false, ...persistenceMeta() });
       return;
     }
-    const { user: stored, backend } = await getUserByGoogleSub(REPO_ROOT, user.id, {
+    const { user: stored, backend } = await getUserByGoogleSub(DATA_ROOT, user.id, {
       email: user.email,
       name: user.name,
       picture: user.picture
@@ -2322,7 +2387,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       sendJson(res, 401, { detail: "Google sign-in required to load cloud/local persisted data." });
       return;
     }
-    const { user: stored, backend } = await getUserByGoogleSub(REPO_ROOT, user.id, {
+    const { user: stored, backend } = await getUserByGoogleSub(DATA_ROOT, user.id, {
       email: user.email,
       name: user.name,
       picture: user.picture
@@ -2365,7 +2430,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
       const { user: stored, backend } = await saveUserBotsAndSettings(
-        REPO_ROOT,
+        DATA_ROOT,
         user.id,
         { bots, settings },
         { email: user.email, name: user.name, picture: user.picture }
@@ -2558,7 +2623,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Project indexing must come from this app." }); return; }
     try {
       const body = await readJsonBody(req) as Record<string, unknown>;
-      const result = await workspaceCode({ action: "index", root: typeof body.root === "string" ? body.root : "." }, WORKSPACE_ROOT, process.env.BROWSER_AGENT_CODE_INDEX_DIR || join(__dirname, "..", ".browser-agent-code-index"));
+      const result = await workspaceCode({ action: "index", root: typeof body.root === "string" ? body.root : "." }, WORKSPACE_ROOT, process.env.BROWSER_AGENT_CODE_INDEX_DIR || join(DATA_ROOT, ".browser-agent-code-index"));
       sendJson(res, 200, result);
     } catch (error) { sendJson(res, 400, { detail: (error as Error).message }); }
     return;
@@ -2780,7 +2845,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
   if (req.method === "POST" && (url.pathname === "/api/run" || url.pathname === "/api/run/queue")) {
     try {
+      await conversationResetsReady;
       const body = validateRunRequest(await readJsonBody(req));
+      if (resettingConversations) throw new Error("Conversation reset is in progress. Try again when it finishes.");
+      const resetAt = conversationEpoch(conversationResets, body.botName || "default");
+      if ((body.conversationResetAt !== undefined || body.conversationTurns?.length || body.conversationArtifacts?.length) && (body.conversationResetAt || 0) < resetAt) {
+        sendJson(res, 409, { code: "conversation_reset_required", resetAt, detail: "This conversation was reset. Refresh this bot before sending another request." }); return;
+      }
       const risk = assessTaskRisk(body.task);
       if (risk.blocked) {
         sendJson(res, 403, { detail: risk.reason, code: "credential_exposure_blocked" });

@@ -3705,6 +3705,20 @@ dialog.modal-dialog::backdrop {
         <button type="submit" class="btn-primary">Save Settings</button>
       </div>
     </form>
+    <section class="form-field" aria-labelledby="conversation-reset-title" style="margin:14px 0;padding-top:14px;border-top:1px solid var(--border);">
+      <strong id="conversation-reset-title">Reset conversations</strong>
+      <p style="font-size:12px;color:var(--muted);">Start fresh with one bot or all bots. This clears messages, drafts and saved conversation context, and stops affected runs and queued requests. Bots, role instructions, approved playbooks, sign-ins, artifacts and schedules are kept.</p>
+      <label for="conversation-reset-target">Conversations to reset</label>
+      <select id="conversation-reset-target" style="width:100%;height:38px;margin:8px 0;"></select>
+      <button id="conversation-reset-button" type="button" class="btn-secondary">Reset conversations…</button>
+      <div id="conversation-reset-confirm" hidden style="margin-top:10px;">
+        <p id="conversation-reset-description"></p>
+        <button id="conversation-reset-commit" type="button" class="btn-primary">Confirm reset</button>
+        <button id="conversation-reset-cancel" type="button" class="btn-secondary">Cancel</button>
+      </div>
+      <p id="conversation-reset-status" role="status" aria-live="polite" style="font-size:12px;"></p>
+      <a href="/docs" target="_blank" rel="noopener">Documentation and troubleshooting</a>
+    </section>
     <section class="form-field" aria-labelledby="settings-tools-title" style="margin:4px 0 12px;border-top:1px solid var(--border);padding-top:14px;">
       <strong id="settings-tools-title">Agent tools</strong>
       <p style="margin:4px 0 10px;font-size:11px;color:var(--muted);">Review observer suggestions and manage multi-bot workflows.</p>
@@ -3921,6 +3935,7 @@ dialog.modal-dialog::backdrop {
       subscribe: subscribe,
       activeFor: function(ownerId) { return Array.from(records.values()).reverse().find(function(record) { return record.ownerId === ownerId && ["running", "following"].indexOf(record.status) >= 0; }); },
       list: function() { return Array.from(records.values()); },
+      forgetOwner: function(ownerId) { records.forEach(function(record, id) { if (record.ownerId === ownerId) { record.followVersion = (record.followVersion || 0) + 1; record.status = "completed"; if (record.source) record.source.close(); records.delete(id); } }); },
       cancelFollowing: function(ownerId) { records.forEach(function(record) { if (record.ownerId === ownerId && record.status === "following") { record.followVersion++; record.status = "completed"; changed(record); } }); }
     };
   }
@@ -3948,6 +3963,7 @@ dialog.modal-dialog::backdrop {
   var googleLastSyncedBotsJson = null;
   var activeAgentId = null;
   var composerDrafts = Object.create(null);
+  var knownConversationResets = { all: 0, bots: {} };
   try {
     var savedDrafts = JSON.parse(localStorage.getItem("openBotsComposerDrafts") || "{}");
     if (savedDrafts && typeof savedDrafts === "object" && !Array.isArray(savedDrafts)) {
@@ -4226,6 +4242,8 @@ dialog.modal-dialog::backdrop {
       googleLastSyncedBotsJson = remoteBotsJson;
       if (mergedJson !== JSON.stringify(agents)) {
         agents = merged;
+        applyConversationResets(knownConversationResets);
+        mergedJson = JSON.stringify(agents);
         localStorage.setItem(STORAGE_KEY, mergedJson);
         if (typeof renderSidebar === "function") renderSidebar();
         var nextActive = activeAgent();
@@ -4639,7 +4657,7 @@ dialog.modal-dialog::backdrop {
         needsBrowserOnInit: false,
         summary: roleText || "Coordinate the bots to grow MagicSite.ai and measure the full funnel.",
         suggestions: ["Review our growth goals with the specialist bots", "Audit the visitor to lead funnel", "Check progress toward impressions and backlinks"],
-        task: "Act as the product marketing lead for MagicSite.ai. Work with all relevant bots as ongoing collaborators, not just one-way contractors. First review the workspace roster and each bot's stated goals, recent activity, and learnings. Identify overlap and dependencies, then initiate focused discussions with the relevant bots using delegate_to_bot. Ask what goals they are pursuing, what evidence they have, and where their work can support the shared growth plan. Bring their responses back into a single plan, resolve conflicts explicitly, assign clear next steps, and keep tracking outcomes across conversations. Measure the full funnel from conversations and campaigns through qualified impressions, site visits, leads, and conversions. Work toward 10,000 qualified impressions and 1,000 relevant backlinks without claiming targets as achieved. Verify analytics and funnel tracking, state when access or evidence is missing, and recommend specific improvements. Never invent metrics or engagement. Do not publish, contact people, or spend money without required approval. Write naturally without hyphens or dash punctuation."
+        task: "Act as the product marketing lead for MagicSite.ai. Use the workspace roster and reported activity as context. Answer role clarifications, status questions and corrections directly. Consult relevant bots only for work the current user asks you to coordinate or check with a specialist. Consolidate evidence, dependencies, clear owners and concrete next steps. Distinguish proposed assignments from jobs actually queued or running. A weekly review plan is not a scheduled task: confirm the schedule and required recurring-model approval before claiming it will run. Measure qualified impressions, visits, leads and conversions toward the user's targets. Verify analytics and date ranges; state missing evidence. Never invent metrics, artifacts, contacted bots or completed work. Preserve the user's no-spend and organic-only constraints. Write naturally and concisely."
       };
     if (/instagram|follower|social|meia|media|audience|creator|engagement|marketing|brand|influencer/.test(lower))
       return {
@@ -5337,6 +5355,7 @@ dialog.modal-dialog::backdrop {
       color: colorHex || BOT_COLORS[idx % BOT_COLORS.length],
       avatarImage: defaultAvatarImage(name) || undefined,
       intent: intent,
+      conversationResetAt: Math.max(knownConversationResets.all || 0, Number(knownConversationResets.bots[conversationBotKey(name)]) || 0),
       transcript: []
     };
     agents.push(a);
@@ -6108,6 +6127,7 @@ dialog.modal-dialog::backdrop {
       scheduleTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       collaborationContext: [buildWorkspaceBotsContext(agent), collaborationContext || ""].filter(Boolean).join("\n\n"),
       conversationTurns: memory.conversationTurns, conversationArtifacts: memory.conversationArtifacts,
+      conversationResetAt: Number(agent && agent.conversationResetAt) || 0,
       approvedCategories: approvedCategories || [], autoApprove: autoApproveEnabled || currentInteractionMode === "turbo",
       model: document.getElementById("model-select").value || configuredDefaultModel,
       interactionMode: currentInteractionMode || "act", agentEngine: currentAgentEngine || "openai-sdk",
@@ -6214,6 +6234,7 @@ dialog.modal-dialog::backdrop {
   function receiveTrackedRunEvent(record, event) {
     var owner = agents.find(function(agent) { return agent.id === record.ownerId; });
     if (!owner) return;
+    if ((event.conversationResetAt || 0) < (owner.conversationResetAt || 0)) return;
     if (event.type === "step") record.lastStep = event;
     if (event.type === "privileged_approval_resolved" || event.type === "human_verification_resolved") record.pendingRendered = false;
     var previousOwner = eventMessageAgent;
@@ -7736,11 +7757,87 @@ dialog.modal-dialog::backdrop {
         summaryEl.textContent = "Couldn't load bot memory.";
       });
   }
+
+  function conversationBotKey(name) {
+    var aliases = { "inspired by sabri suby": "The_Revenue_Architect", "inspired by alex hormozi": "The_Value_Architect", "inspired by addy osmani": "The_Engineering_Craftsman", "inspired by andrej karpathy": "The_Neural_Architect" };
+    return aliases[String(name).toLowerCase()] || String(name).trim().replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 64) || "default";
+  }
+  function applyConversationResets(state) {
+    if (!state || typeof state.all !== "number" || !state.bots) return;
+    var combined = { all: Math.max(knownConversationResets.all || 0, state.all), bots: Object.assign({}, knownConversationResets.bots) };
+    Object.keys(state.bots).forEach(function(key) { combined.bots[key] = Math.max(Number(combined.bots[key]) || 0, Number(state.bots[key]) || 0); });
+    state = knownConversationResets = combined;
+    var changed = false, activeCleared = false;
+    agents.forEach(function(agent) {
+      var stamp = Math.max(state.all || 0, Number(state.bots[conversationBotKey(agent.name)]) || 0);
+      if (stamp <= (Number(agent.conversationResetAt) || 0)) return;
+      agent.transcript = []; agent.conversationResetAt = stamp;
+      delete composerDrafts[agent.id];
+      queueStopVersions[agent.id] = (queueStopVersions[agent.id] || 0) + 1;
+      queuedRunsAfterActive = queuedRunsAfterActive.filter(function(item) { return item.conversationAgentId !== agent.id; });
+      runTracker.forgetOwner(agent.id);
+      if (agent.id === activeAgentId) activeCleared = true;
+      changed = true;
+    });
+    if (!changed) return;
+    if (state.all) delete composerDrafts["new-bot"];
+    localStorage.setItem("openBotsComposerDrafts", JSON.stringify(composerDrafts));
+    localStorage.setItem("openBotsConversationResets", JSON.stringify(state));
+    saveAgents(); renderSidebar(); renderCommandQueue();
+    if (activeCleared) {
+      attachments = []; renderAttachments(); prompt.value = ""; resizePrompt();
+      clearRunClientState(); renderTranscript(); restoreSelectedRun(false);
+    }
+  }
+  function refreshConversationResets() {
+    return fetch("/api/conversations/state").then(readResponse).then(applyConversationResets).catch(function() {});
+  }
+  function populateConversationResetTargets() {
+    var select = document.getElementById("conversation-reset-target"); select.replaceChildren();
+    select.disabled = false;
+    agents.forEach(function(agent) { var option = document.createElement("option"); option.value = agent.id; option.textContent = agent.name; select.appendChild(option); });
+    var all = document.createElement("option"); all.value = "all"; all.textContent = "All bots"; select.appendChild(all);
+    select.value = activeAgentId || "all";
+    document.getElementById("conversation-reset-confirm").hidden = true;
+    document.getElementById("conversation-reset-status").textContent = "";
+  }
+  document.getElementById("conversation-reset-button").onclick = function() {
+    var selected = document.getElementById("conversation-reset-target").value;
+    var agent = agents.find(function(item) { return item.id === selected; });
+    document.getElementById("conversation-reset-description").textContent = "Permanently reset " + (selected === "all" ? "conversations for all bots" : "the conversation for “" + (agent && agent.name || "selected bot") + "”") + "? This cannot be undone.";
+    document.getElementById("conversation-reset-confirm").hidden = false;
+    document.getElementById("conversation-reset-target").disabled = true;
+  };
+  document.getElementById("conversation-reset-cancel").onclick = function() {
+    document.getElementById("conversation-reset-confirm").hidden = true;
+    document.getElementById("conversation-reset-target").disabled = false;
+  };
+  document.getElementById("conversation-reset-commit").onclick = function() {
+    var selected = document.getElementById("conversation-reset-target").value;
+    var agent = agents.find(function(item) { return item.id === selected; });
+    var button = this; button.disabled = true;
+    document.getElementById("conversation-reset-cancel").disabled = true;
+    document.getElementById("conversation-reset-status").textContent = "Stopping affected work and resetting…";
+    fetch("/api/conversations/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: selected === "all" ? "all" : "bot", botName: agent && agent.name, confirm: true }) }).then(readResponse).then(function(state) {
+      applyConversationResets(state);
+      document.getElementById("conversation-reset-confirm").hidden = true;
+      document.getElementById("conversation-reset-status").textContent = "Conversations reset. You can start a new conversation.";
+      loadBotMemory();
+    }).catch(function(error) { document.getElementById("conversation-reset-status").textContent = error.message || "Reset could not be completed. Please retry."; })
+      .finally(function() { button.disabled = false; document.getElementById("conversation-reset-cancel").disabled = false; document.getElementById("conversation-reset-target").disabled = false; });
+  };
+  window.addEventListener("storage", function(event) {
+    if (event.key === "openBotsConversationResets" && event.newValue) { try { applyConversationResets(JSON.parse(event.newValue)); } catch (_) {} }
+  });
+  window.addEventListener("focus", refreshConversationResets);
+  refreshConversationResets();
   document.getElementById("usage-refresh-btn").onclick = loadUsage;
   var memoryRefreshBtn = document.getElementById("memory-refresh-btn");
   if (memoryRefreshBtn) memoryRefreshBtn.onclick = loadBotMemory;
 
   document.getElementById("header-settings-btn").onclick = function() {
+    populateConversationResetTargets();
+    refreshConversationResets();
     document.getElementById("settings-status").textContent = "";
     document.getElementById("settings-modal").showModal();
     loadUsage();
@@ -8512,6 +8609,12 @@ dialog.modal-dialog::backdrop {
         return;
       }
       var accountAgent = merged[index];
+      var accountReset = Number(accountAgent.conversationResetAt) || 0, deviceReset = Number(deviceAgent.conversationResetAt) || 0;
+      if (accountReset !== deviceReset) {
+        var newest = accountReset > deviceReset ? accountAgent : deviceAgent;
+        merged[index] = Object.assign({}, accountAgent, deviceAgent, { transcript: newest.transcript || [], conversationResetAt: Math.max(accountReset, deviceReset) });
+        return;
+      }
       var accountTranscript = Array.isArray(accountAgent.transcript) ? accountAgent.transcript : [];
       var deviceTranscript = Array.isArray(deviceAgent.transcript) ? deviceAgent.transcript : [];
       var sharedPrefix = 0;

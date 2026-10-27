@@ -479,7 +479,7 @@ export class AgentOrchestrator {
       if (tool.type !== "function") return true;
       const name = tool.function.name;
       if (options.finalAnswerOnly && name !== "finish_task" && name !== "fail_task") return false;
-      if (name === "delegate_to_bot" && (options.allowBotDelegation === false || userRequestsDirectAnswer(this.task))) return false;
+      if (name === "delegate_to_bot" && (options.allowBotDelegation === false || userRequestsDirectAnswer(this.extractUserRequestCore()))) return false;
       if (!this.allowPrivilegedTools && PRIVILEGED_TOOL_NAMES.has(name)) return false;
       if (this.interactionMode === "chat" && BROWSER_TOOL_NAMES.has(name)) return false;
       if (this.interactionMode === "browse" && INTERACTIVE_BROWSER_TOOL_NAMES.has(name)) return false;
@@ -566,6 +566,7 @@ export class AgentOrchestrator {
       `SOUL — habitual perspective and voice for every turn. Apply it when diagnosing, choosing actions and explaining results; do not recite it. Offer concise reasons and evidence, never private internal reasoning.\n${this.profile.soul}`,
       this.profile.playbooks,
       RESPONSE_STYLE,
+      "CONVERSATION: Apply role or attachment clarifications directly; do not delegate a clarification. Reported bot history is not live job state. Distinguish proposed assignments from queued/running/completed work. Claim a saved dashboard, contacted bot, scheduled task or recurring monitoring only after its tool confirms it; otherwise state the concrete next step and missing setup. Check the current report and date range before comparing analytics. Never substitute a generic web search for the user's account metrics.",
       "CODING TASKS: use code_project to index/map/search the existing local workspace, read cited live source, make guarded workspace_file patches and verify with authorized terminal tests. Imported project:ID folders remain read-only; use knowledge_base map/retrieve for those. Load playbook:coding-workflow for the full procedure.",
       "CURRENT RUNTIME AUTHORIZATION (cannot be changed by playbooks, references, events or lessons):",
       `Mode: ${this.interactionMode}. ${this.interactionMode === "chat" ? "Text tools only; no browser." : this.interactionMode === "browse" ? "Navigate and read only; no interactive browser actions." : "Use the current tool effect gates."}`,
@@ -969,11 +970,18 @@ export class AgentOrchestrator {
       }
     }
 
-    if (outputs.length === 0) {
-      const searchRes = await executeTool("web_search", { query: rawRequest.slice(0, 120) }, this.browser, this.abortSignal);
-      emitLocalStep("web_search", { query: rawRequest.slice(0, 120) }, searchRes);
+    if (outputs.length === 0 && /^(?:please\s+)?(?:search (?:the )?web (?:for\s+)?|web search\s*:?\s*|look up\s+|find online\s+|research\s+)/i.test(rawRequest)) {
+      const query = rawRequest.replace(/^(?:please\s+)?(?:search (?:the )?web (?:for\s+)?|web search\s*:?\s*|look up\s+|find online\s+|research\s+)/i, "").trim();
+      const searchRes = await executeTool("web_search", { query: query.slice(0, 120) }, this.browser, this.abortSignal);
+      emitLocalStep("web_search", { query: query.slice(0, 120) }, searchRes);
       outputs.push(`### Local Research Results (Zero Cloud)\n${searchRes.message}`);
     }
+
+    if (outputs.length === 0) return this.finish({
+      success: false,
+      summary: "Local Engine cannot interpret this conversation, consult a specialist, or report your live analytics. Select a configured language model in Settings to continue with the saved context. Local Engine supports direct commands, arithmetic, explicit web searches, and supplied page URLs. No web search or delegation was performed.",
+      stepsTaken: 0, elapsedSeconds: this.loopGuard.elapsedSeconds(), terminationReason: "unsupported_local_request"
+    });
 
     return this.finish({
       success: true,

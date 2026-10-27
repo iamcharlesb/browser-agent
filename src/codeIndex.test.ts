@@ -151,8 +151,9 @@ for (const agentEngine of ['cheap','openai-sdk'] as const) {
       }});
     assert.equal((await agent.run()).success,true);
     assert.match(JSON.stringify(requests[0].tools),/code_project/);
-    assert.doesNotMatch(JSON.stringify(requests[0].input),/fireworks-plus-plus/);
-    assert.match(JSON.stringify(requests[1].input),/fireworks-plus-plus/);
+    assert.doesNotMatch(JSON.stringify(requests[0].input),/browser-agent|fireworks-plus-plus/);
+    assert.match(JSON.stringify(requests[1].input),/browser-agent/);
+    assert.doesNotMatch(JSON.stringify(requests[1].input),/fireworks-plus-plus/);
     assert.match(JSON.stringify(requests[1].input),/live/);
   });
 }

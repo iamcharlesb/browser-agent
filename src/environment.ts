@@ -2,7 +2,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const envFile = join(__dirname, "..", ".env");
+const envFile = process.env.BROWSER_AGENT_ENV_FILE || join(__dirname, "..", ".env");
 if (existsSync(envFile)) {
   for (const rawLine of readFileSync(envFile, "utf8").split(/\r?\n/)) {
     const line = rawLine.trim();
