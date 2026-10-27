@@ -11,7 +11,8 @@ import { googlePropertyGuide, redditSearch } from "./siteAdapters";
 import { redactSecrets } from "./security";
 import { workspaceCode, guardedCodePatch } from "./workspaceCode";
 
-export const ARTIFACTS_DIR = join(__dirname, "..", "artifacts");
+import { DATA_ROOT } from "./runtimePaths";
+export const ARTIFACTS_DIR = join(DATA_ROOT, "artifacts");
 // Default to the application repository, not an ancestor that can contain unrelated projects.
 // A user-selected writable workspace can be configured explicitly for local coding tasks.
 export const WORKSPACE_ROOT = resolve(process.env.BROWSER_AGENT_WORKSPACE_ROOT || resolve(__dirname, ".."));
@@ -1315,7 +1316,7 @@ export async function executeTool(
         };
       }
       case "code_project": {
-        return { ok: true, contextClass: "code", message: JSON.stringify(await workspaceCode(toolInput, WORKSPACE_ROOT, process.env.BROWSER_AGENT_CODE_INDEX_DIR || join(__dirname, "..", ".browser-agent-code-index"))) };
+        return { ok: true, contextClass: "code", message: JSON.stringify(await workspaceCode(toolInput, WORKSPACE_ROOT, process.env.BROWSER_AGENT_CODE_INDEX_DIR || join(DATA_ROOT, ".browser-agent-code-index"))) };
       }
       case "workspace_file": {
         const action = String(toolInput.action ?? "read");

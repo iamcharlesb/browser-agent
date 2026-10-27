@@ -12,3 +12,11 @@ test("ordinary specialist questions and explicit requests to consult remain dele
   assert.equal(userRequestsDirectAnswer("Check why this page is not getting clicks."), false);
   assert.equal(userRequestsDirectAnswer("Ask the SEO specialist to review this page."), false);
 });
+
+test("the marketing conversation's role and attachment clarifications do not delegate", () => {
+  for (const task of ["Just to ensure we are aligned, you have applied the roles and responsibilities as per the attachment right?",
+    "I meant this one:", "I didnt ask you to han off anything just wanted to apply the roles and responsibility buddy :)"]) {
+    assert.equal(userRequestsDirectAnswer(task), true, task);
+  }
+  assert.equal(userRequestsDirectAnswer("Check wth seo"), false);
+});

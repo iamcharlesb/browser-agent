@@ -11,6 +11,19 @@ import { classifyBrowserAction } from "./actionEffect";
 import { BrowserController, PageState } from "./browserController";
 import { WORKSPACE_ROOT } from "./agentTools";
 
+test("local engine does not turn account analytics or specialist follow-ups into generic web searches", async () => {
+  for (const task of ["how are we doing wiht the analytics?", "Check wth seo", "I meant this one: apply the roles and responsibilities"]) {
+    const events: Record<string, unknown>[] = [];
+    const agent = new AgentOrchestrator({ task, model: "local-engine", interactionMode: "chat", browser: {} as BrowserController,
+      onEvent: event => events.push(event), fetch: async () => { throw new Error("No network or model fallback is authorized"); } });
+    const result = await agent.run();
+    assert.equal(result.success, false);
+    assert.equal(result.terminationReason, "unsupported_local_request");
+    assert.match(result.summary, /configured language model/);
+    assert.equal(events.some(event => event.toolName === "web_search" || event.toolName === "delegate_to_bot"), false);
+  }
+});
+
 test("a blocked page ends the run without asking the user to solve a nonexistent CAPTCHA", async () => {
   const state: PageState = {
     url: "https://medium.com/", title: "Attention Required! | Cloudflare", screenshotB64: "",

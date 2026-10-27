@@ -4,6 +4,12 @@ OpenBuddy is the desktop product built on the existing browser-agent runtime. It
 
 See [production-readiness and operating boundaries](docs/buddy-bot-production.md) before deployment.
 
+For terminal chat and a standalone server without Electron, see the [OpenBuddy CLI preview](docs/cli.md).
+
+Open `/docs` on the running local server for setup, conversation reset, orchestration,
+coding, CLI installation, validation and known limitations. Settings includes a
+Reset conversations control for one bot or all bots.
+
 ## Approvals and conversation flow
 
 Common read-only shell checks (`pwd`, `ls`, `cat`, and supported Git inspection
