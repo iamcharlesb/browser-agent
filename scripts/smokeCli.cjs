@@ -34,7 +34,7 @@ async function main() {
     const cli = join(installed, "dist/openbuddyCli.js");
     assert.equal((await readdir(join(directory, "node_modules"))).includes("electron"), false);
     assert.equal((await run(process.execPath, [cli, "--version"])).trim(), "0.1.0-preview.1");
-    assert.match(await run(process.execPath, [cli, "--help"]), /openbuddy serve/);
+    assert.match(await run(process.execPath, [cli, "--help"]), /pilo serve/);
     await assert.rejects(readFile(join(installed, ".env")));
     provider = createServer(async (req, res) => {
       let raw = ""; for await (const chunk of req) raw += chunk;

@@ -1,6 +1,6 @@
 import { redactSecrets } from "./security";
 /**
- * OpenAI Agents SDK (@openai/agents) runner integration for Open Bots.
+ * OpenAI Agents SDK (@openai/agents) runner integration for Pilo.
  *
  * Used when `agentEngine === "openai-sdk"` (the default mode in the header).
  * Selecting "Cheap" in the header switches to the token-lean custom loop in `promptLoop.ts`.

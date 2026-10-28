@@ -54,6 +54,17 @@ export function resolveModel(id: string): ModelDefinition & { api: ModelApi } {
   return { id, label: registered?.label ?? id, provider, api: registered?.api ?? (provider === "openai" ? configuredApi as ModelApi || "responses" : "chat") };
 }
 
+/** A selected cloud model must never silently become the deterministic Local Engine. */
+export function modelConfigurationIssue(id: string, apiKey?: string): string | undefined {
+  const { provider } = resolveModel(id);
+  const variable = provider === "openai" ? "OPENAI_API_KEY" : provider === "anthropic" ? "ANTHROPIC_API_KEY" : provider === "xai" ? "XAI_API_KEY" : undefined;
+  if (variable && !(apiKey ?? process.env[variable])?.trim()) {
+    const label = provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : "xAI";
+    return `${label} is not connected. Open Settings → Provider keys and connection, enter your API key, and save. Then retry your request.`;
+  }
+  return undefined;
+}
+
 export function modelPricing(): Record<string, { input: number; output: number }> {
   const raw = process.env.MODEL_PRICING_JSON?.trim();
   if (!raw) return {};

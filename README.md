@@ -1,10 +1,10 @@
-# OpenBuddy
+# Pilo
 
-OpenBuddy is the desktop product built on the existing browser-agent runtime. It uses compact per-bot playbooks, a local pub/sub bus and optional MongoDB-backed event synchronization. Fireworks++ is not a dependency or prerequisite.
+Pilo is the desktop product built on the existing browser-agent runtime. It uses compact per-bot playbooks, a local pub/sub bus and optional MongoDB-backed event synchronization. Fireworks++ is not a dependency or prerequisite.
 
 See [production-readiness and operating boundaries](docs/buddy-bot-production.md) before deployment.
 
-For terminal chat and a standalone server without Electron, see the [OpenBuddy CLI preview](docs/cli.md).
+For terminal chat and a standalone server without Electron, see the [Pilo CLI preview](docs/cli.md).
 
 Open `/docs` on the running local server for setup, conversation reset, orchestration,
 coding, CLI installation, validation and known limitations. Settings includes a
@@ -90,7 +90,7 @@ Observations default to **text-first** (marks + page text). Vision screenshots a
 
 ## Auth modes (Google vs Guest)
 
-OpenBuddy supports two identity modes for open-source / local use:
+Pilo supports two identity modes for open-source / local use:
 
 | Mode | How | Where bots & prefs live |
 | --- | --- | --- |
@@ -123,13 +123,13 @@ Do not commit `.env` or real client secrets. `.env.example` documents the keys o
 
 ### Model and budget configuration
 
-The server and CLI load `.env` before deriving defaults; shell environment values take precedence. Set `BROWSER_AGENT_MODEL` for the selected default and provider versions through `OPENAI_MODEL`, `ANTHROPIC_MODEL`, `XAI_MODEL`, and `OLLAMA_MODEL`. `OPENAI_IMAGE_MODEL` enables image generation. With no configured model the default is the explicit Local Engine.
+The server and CLI load `.env` before deriving defaults. Precedence is inherited shell variables, then `node/browser_agent/.env`, then the parent repository `.env` when running this submodule checkout. Set `BROWSER_AGENT_ENV_FILE` to load only a specific file. Settings saves connection changes to the app file (or that explicit file), with private file permissions. Set `BROWSER_AGENT_MODEL` for the selected default and provider versions through `OPENAI_MODEL`, `ANTHROPIC_MODEL`, `XAI_MODEL`, and `OLLAMA_MODEL`. `OPENAI_IMAGE_MODEL` enables image generation. With no configured model the default is the explicit Local Engine.
 
 `BROWSER_AGENT_MODELS_JSON` adds models as `{ "id": "deployment-id", "label": "Optional name", "provider": "openai", "api": "responses" }`. Supported providers are `openai`, `anthropic`, `xai`, `ollama`, `claude-cli`, and `local`; API modes are `responses` or `chat`. Explicit registry metadata wins over legacy model-name inference. `OPENAI_API_MODE` controls unregistered OpenAI models. The settings/composer menus are populated from the server catalog, with saved custom selections preserved.
 
 `.env.example` also documents step/output/context limits and reasoning effort. The custom loop removes complete old rounds above the text budget, preserves the task and recent observations, and starts a new Responses chain after compaction. Images have a separate retention limit. Oversized pinned context produces an explicit error. The SDK checks the shared tool step/time budget, but its internal history is not compacted by the custom-loop policy.
 
-Optional `MODEL_PRICING_JSON` contains input/output prices per million tokens. Models without configured prices show no estimate. Provider keys stay server-side; Anthropic and xAI do not borrow the OpenAI key. Key inputs are cleared after saving session settings. Local `.env` remains ignored; never copy it into an artifact or commit.
+Optional `MODEL_PRICING_JSON` contains input/output prices per million tokens. Models without configured prices show no estimate. Provider keys stay server-side; Anthropic and xAI do not borrow the OpenAI key. Key inputs are cleared after saving persistent local settings. Local `.env` remains ignored; never copy it into an artifact or commit.
 
 ### MongoDB (optional cloud persistence)
 
@@ -160,16 +160,16 @@ advanced option with app-owned cookies (`persist:open-bots`). Playwright attache
 debugging port (default `9333`, override with `OPEN_BOTS_ELECTRON_CDP_PORT`).
 
 This does **not** open or focus your personal Chrome. Sign in to sites inside the
-Live Browser panel. The OpenBuddy UI window itself is never the automation target.
+Live Browser panel. The Pilo UI window itself is never the automation target.
 
 Plain `npm run built` / `yarn built` in a normal browser (no Electron) falls back
-to OpenBuddy Chrome / guest as before.
+to Pilo Chrome / guest as before.
 
 **Honest limit:** Google OAuth and some bot walls still fail inside embedded
 Chromium. That is expected — use Connected Chrome below, or `reddit_search` /
 `google_property` for research without scraping.
 
-### External OpenBuddy Chrome (legacy / non-desktop)
+### External Pilo Chrome (legacy / non-desktop)
 
 **Connect Apps → Open Chrome to sign in** launches a dedicated Chrome window with
 profile `~/.buddy-bot-chrome-profile` (not your personal Chrome). Useful when you
@@ -183,7 +183,7 @@ Optional external window when the in-app browser is blocked:
 1. Open **Connect Apps → Connect my Chrome**.
 2. Copy and run the launch command (starts Chrome with remote debugging on a
    dedicated profile `~/.buddy-bot-chrome-cdp`, not your daily Chrome profile).
-3. Click **Connect my Chrome** again so OpenBuddy attaches via CDP (port `9222`).
+3. Click **Connect my Chrome** again so Pilo attaches via CDP (port `9222`).
 4. Sign in to Reddit/Google in that Chrome window, then run the task.
 
 Optional: set `BROWSER_AGENT_CDP_ENDPOINT` (default `http://127.0.0.1:9222`).

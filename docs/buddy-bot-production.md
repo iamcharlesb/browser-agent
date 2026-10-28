@@ -1,6 +1,6 @@
-# OpenBuddy — production readiness and operating boundaries
+# Pilo — production readiness and operating boundaries
 
-OpenBuddy is the product. The existing `browser-agent` runtime is the implementation.
+Pilo is the product. The existing `browser-agent` runtime is the implementation.
 The separate Fireworks++ framework is frozen for this product; no dependency or
 migration to Fireworks++ is required.
 

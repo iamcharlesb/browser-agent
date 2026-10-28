@@ -376,7 +376,7 @@ export interface BrowserConfig {
   cdpEndpoint?: string;
   /** When true, CDP target is Electron's docked Live Browser — never focus-steal. */
   embeddedMode?: boolean;
-  /** Open Bots UI origin (e.g. http://127.0.0.1:8765) so embedded attach can skip the app chrome. */
+  /** Pilo UI origin (e.g. http://127.0.0.1:8765) so embedded attach can skip the app chrome. */
   uiOrigin?: string;
 }
 
@@ -559,7 +559,7 @@ export function accessDeniedRecoveryHint(sessionMode: SessionMode, url: string, 
   );
 }
 
-/** Pick Electron's Live Browser page — never the Open Bots UI webContents. */
+/** Pick Electron's Live Browser page — never the Pilo UI webContents. */
 async function pickEmbeddedLivePage(
   browser: Browser,
   uiOrigin?: string

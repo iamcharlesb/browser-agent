@@ -29,12 +29,14 @@ async function inside(root: string, path: string) {
 async function enumerate(root: string): Promise<{paths: string[]; gitAware: boolean}> {
   try {
     const config = limits();
-    const { stdout } = await exec('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', '.'], {
+    const exclusions = [...generated].map(name => `:(exclude,glob,icase)**/${name}/**`);
+    const { stdout } = await exec('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', '.', ...exclusions], {
       cwd: root, encoding: 'utf8', timeout: envInteger('BROWSER_AGENT_CODE_GIT_TIMEOUT_MS', 10000, 100, 60000), maxBuffer: config.maxProjectBytes
     });
     const paths = new Set<string>();
     for (const raw of stdout.split('\0').filter(Boolean)) {
       const path = normalizeProjectPath(raw);
+      if (path.split('/').some(part => generated.has(part.toLowerCase()) || part.startsWith('.browser-agent-'))) continue;
       const info = await lstat(join(root, path)).catch(() => null);
       if (!info || info.isSymbolicLink()) continue;
       if (info.isDirectory()) {

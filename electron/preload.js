@@ -1,5 +1,5 @@
 /**
- * Preload bridge for the Open Bots desktop shell.
+ * Preload bridge for the Pilo desktop shell.
  * Exposes a small IPC API so the renderer can dock the Live Browser WebContentsView.
  */
 const { contextBridge, ipcRenderer } = require("electron");

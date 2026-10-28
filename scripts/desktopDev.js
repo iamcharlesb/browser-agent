@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Opens Open Bots in Electron against the DEV output (dist/) with watch/reload.
+ * Opens Pilo in Electron against the DEV output (dist/) with watch/reload.
  *
  *   yarn desktop:dev
  *
@@ -46,6 +46,10 @@ function spawnChild(name, command, args, env) {
     stdio: "inherit",
     env
   });
+  child.on("error", (error) => {
+    console.error(`[desktop:dev] Could not start ${name}: ${error.message}`);
+    shutdown(1);
+  });
   child.on("exit", (code, signal) => {
     if (shuttingDown || signal) return;
     console.error(`[desktop:dev] ${name} exited unexpectedly (code ${code}).`);
@@ -72,7 +76,8 @@ console.log(
 spawnChild("tsc --watch", tscBin, ["-w", "-p", "tsconfig.json", "--preserveWatchOutput"], sharedEnv);
 const electronEnv = { ...sharedEnv, BROWSER_AGENT_SERVER_ENTRY: serverEntry };
 delete electronEnv.BROWSER_AGENT_ATTACH_EXISTING;
-spawnChild("electron", electronBin, ["."], electronEnv);
+// Avoid Electron's CLI treating an intentional Ctrl+C as an error.
+spawnChild("electron", require("electron"), ["."], electronEnv);
 
 function shutdown(code = 0) {
   if (shuttingDown) return;

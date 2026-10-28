@@ -431,13 +431,13 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "delegate_to_bot",
       description:
-        "Consult an existing specialist from OPEN BOTS WORKSPACE ROSTER for one bounded question whose answer changes the recommendation. State the expected result and pass the relevant evidence. Specialists are text-only: repeating a browser observation to another bot cannot acquire missing live data. Do not consult yourself, repeat a resolved check, seek agreement for its own sake, or delegate when the user asks you to answer directly. The coordinator owns the final answer; consultations have shared limits.",
+        "Consult an existing specialist from PILO WORKSPACE ROSTER for one bounded question whose answer changes the recommendation. State the expected result and pass the relevant evidence. Specialists are text-only: repeating a browser observation to another bot cannot acquire missing live data. Do not consult yourself, repeat a resolved check, seek agreement for its own sake, or delegate when the user asks you to answer directly. The coordinator owns the final answer; consultations have shared limits.",
       parameters: {
         type: "object",
         properties: {
           targetBotName: {
             type: "string",
-            description: "Exact name of an existing peer bot from OPEN BOTS WORKSPACE ROSTER."
+            description: "Exact name of an existing peer bot from PILO WORKSPACE ROSTER."
           },
           task: {
             type: "string",

@@ -1,6 +1,6 @@
 # Event-driven agent orchestration
 
-Open Bots uses application code for routing and task state. Models handle the requested work; incoming notifications do not wake a model or perform a browser action by themselves.
+Pilo uses application code for routing and task state. Models handle the requested work; incoming notifications do not wake a model or perform a browser action by themselves.
 
 ## Runtime layers
 

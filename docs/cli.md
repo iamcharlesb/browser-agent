@@ -1,4 +1,4 @@
-# OpenBuddy CLI preview
+# Pilo CLI preview
 
 The CLI runs the same local runtime as the desktop app, with terminal conversations,
 specialist profiles, scoped approval prompts, and per-bot context. Node.js 22 or newer
@@ -10,14 +10,18 @@ Download the release tarball and install it:
 
 ```sh
 npm install --global --legacy-peer-deps ./iamcharlesb-openbuddy-cli-0.1.0-preview.1.tgz
-openbuddy --version
-openbuddy serve --env-file /absolute/path/to/your/.env --workspace /path/to/project
+pilo --version
+pilo serve --env-file /absolute/path/to/your/.env --workspace /path/to/project
 ```
 
 `--legacy-peer-deps` is currently necessary because the existing runtime has an
 OpenAI SDK/Zod peer conflict. Runtime dependencies are pinned to the versions in
 the repository lockfile, including a shrinkwrap for transitive versions. This
 preview has not resolved that compatibility debt.
+
+The product and preferred command are now Pilo and `pilo`. The legacy package
+identifier, `openbuddy` command alias and `~/.openbuddy` data directory remain
+compatible so existing installations and saved conversations continue to work.
 
 The server binds to loopback, defaults to port 8765, and stays in the foreground.
 It does not open a browser window or enable self-fixing learn mode. Private state
@@ -35,10 +39,10 @@ a general language model.
 In another terminal:
 
 ```sh
-openbuddy models
-openbuddy chat --bot "Marketing" --profile chief-marketing-officer
-openbuddy ask --bot "Marketing" --task "Revise the previous draft for a smaller budget"
-openbuddy ask --task "Summarize the current plan" --json
+pilo models
+pilo chat --bot "Marketing" --profile chief-marketing-officer
+pilo ask --bot "Marketing" --task "Revise the previous draft for a smaller budget"
+pilo ask --task "Summarize the current plan" --json
 ```
 
 Use `--server http://127.0.0.1:8766` to connect to an already running production or

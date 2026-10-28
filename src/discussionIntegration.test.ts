@@ -8,6 +8,8 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { chromium } from "playwright";
 import { TerminalClient } from "./terminalClient";
+import { emptyTaskMemory, rememberTurn, saveTaskMemory } from "./taskMemory";
+import { botIdFromName } from "./learningStore";
 
 async function listen(server: Server): Promise<number> {
   server.listen(0, "127.0.0.1");
@@ -44,10 +46,12 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   await mkdir(join(directory, "static"));
   await cp(resolve(__dirname, "..", "docs"), join(directory, "docs"), { recursive: true });
   await copyFile(resolve(__dirname, "..", "README.md"), join(directory, "README.md"));
-  for (const file of ["index.html", "browserRuntime.js", "uiState.js"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
+  for (const file of ["index.html", "browserRuntime.js", "uiState.js", "openbuddy-logo.png", "open-bots-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
   let capturedPersonaPrompt = "";
   const cliPrompts: string[] = [];
   let cliToolCalls = 0;
+  const teamPrompts: Array<{ name: string; text: string; tools: string[] }> = [];
+  let teamFinalPrompt = "";
   let scenario = "repeat", modelCalls = 0, coordinatorCalls = 0, workerCalls = 0, finalCalls = 0;
   const asyncStarted: string[] = [];
   const releaseAsync = new Map<string, () => void>();
@@ -57,6 +61,28 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
     for await (const chunk of req) raw += chunk;
     const body = JSON.parse(raw);
     modelCalls++;
+    if (scenario === "unknown-roster") {
+      const names = (body.tools || []).map((tool: any) => tool.name || tool.function?.name);
+      res.setHeader("content-type", "application/json");
+      if (names.includes("delegate_to_bot")) res.end(JSON.stringify(response([{ id: "unknown_call", type: "function_call", call_id: "unknown_peer", name: "delegate_to_bot", arguments: JSON.stringify({ targetBotName: "Imaginary Worker", task: "Give a status report" }) }], modelCalls)));
+      else { teamFinalPrompt = JSON.stringify(body); res.end(JSON.stringify(response(message("That target is not a saved bot. No contact happened."), modelCalls))); }
+      return;
+    }
+    if (scenario === "team" || scenario === "team-failure") {
+      const instructions = String(body.instructions || "");
+      const name = /^You are ([^.]+)\./.exec(instructions)?.[1] || "unknown";
+      const names = (body.tools || []).map((tool: any) => tool.name || tool.function?.name);
+      res.setHeader("content-type", "application/json");
+      if (names.every((name: string) => ["finish_task", "fail_task"].includes(name))) {
+        teamFinalPrompt = JSON.stringify(body); finalCalls++;
+        res.end(JSON.stringify(response(message("The requested team reports have been collected. Here are the supported next steps; no recurring work was scheduled."), modelCalls)));
+      } else {
+        teamPrompts.push({ name, text: instructions, tools: names });
+        if (scenario === "team-failure" && name === "SEO Specialist") { res.statusCode = 400; res.end(JSON.stringify({ error: { message: "Synthetic SEO outage", type: "invalid_request_error" } })); }
+        else res.end(JSON.stringify(response(message(`${name}: a concrete role-specific next action, with historical work clearly labelled.`), modelCalls)));
+      }
+      return;
+    }
     if (scenario === "cli-memory") {
       cliPrompts.push(JSON.stringify(body));
       const replies = ["Cedar bakery campaign draft; $25 budget; awaiting review.",
@@ -131,6 +157,25 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   const base = `http://127.0.0.1:${uiPort}`;
   try {
     await waitFor(() => fetch(base + "/api/status").then(r => r.json()), value => Boolean(value));
+    await t.test("unavailable coordination models are rejected before starting or queuing specialists", async () => {
+      const before = modelCalls;
+      const jobsBefore = await fetch(base + "/api/run/jobs").then(r => r.json());
+      for (const model of ["local-engine", "grok-unconfigured-test"]) {
+        for (const endpoint of ["/api/run", "/api/run/queue"]) {
+          const res = await fetch(base + endpoint, { method: "POST", headers: { "content-type": "application/json", origin: base },
+            body: JSON.stringify({ task: "Coordinate with all bots", botName: "Coordinator", interactionMode: "chat", model,
+              workspaceBots: [{ id: "coordinator", name: "Coordinator" }, { id: "seo", name: "SEO Specialist" }] }) });
+          assert.equal(res.status, 400);
+          const error = await res.json();
+          assert.match(error.detail, model === "local-engine" ? /cannot run bot consultations/ : /xAI is not connected/);
+          if (model !== "local-engine") { assert.equal(error.code, "model_not_configured"); assert.equal(error.provider, "xai"); }
+        }
+      }
+      assert.equal(modelCalls, before);
+      assert.deepEqual(await fetch(base + "/api/run/jobs").then(r => r.json()), jobsBefore);
+      const state = await fetch(base + "/api/status").then(r => r.json());
+      assert.equal(state.isRunning, false);
+    });
     await t.test("documentation route works without a model call", async () => {
       const before = modelCalls;
       const res = await fetch(base + "/docs?topic=conversations");
@@ -260,6 +305,119 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       assert.equal(JSON.parse(result.stdout).summary, finalAnswer);
       assert.equal(JSON.parse(result.stdout).discussionFinal, true);
       assert.equal(finalCalls, 1);
+    });
+    for (const engine of ["cheap", "openai-sdk"] as const) for (const fail of [false, true]) await t.test(engine + " four-bot coordination uses saved identities, profiles and work context" + (fail ? " and continues past one failure" : ""), async () => {
+      scenario = fail ? "team-failure" : "team"; teamPrompts.length = 0; finalCalls = 0;
+      const peers = ["SEO Specialist", "Blog Writer", "Reddit Community Growth", "Instagram Follower Growth"].map((name, index) => ({ id: `team-${index}`, name,
+        botInstructions: `OWNER_ROLE_${index}: use your saved specialist responsibilities; do not publish anything.`, ...(index === 3 ? { profileId: "chief-marketing-officer" } : {}) }));
+      const before = new Map<string, string>();
+      for (const [index, peer] of peers.entries()) {
+        await saveTaskMemory(join(dataRoot, ".browser-agent-task-memory"), botIdFromName(peer.name), rememberTurn(emptyTaskMemory(), "agent", `OWN_WORK_${index}: a dated prior result, not current verification.`));
+        before.set(peer.name, await readFile(join(dataRoot, ".browser-agent-task-memory", botIdFromName(peer.name) + ".json"), "utf8"));
+      }
+      const client = new TerminalClient(base);
+      const result = await client.run({ task: "Coordinate with all the saved bots on our organic strategy. Collect each role's progress and next action; draft only.", botName: fail ? "Team Coordinator Failure" : "Team Coordinator", interactionMode: "chat", agentEngine: engine,
+        workspaceBots: peers } as any, { signal: AbortSignal.timeout(12_000) });
+      assert.equal(result.discussionFinal, true);
+      assert.equal(teamPrompts.length, 4, logs);
+      assert.equal(finalCalls, 1);
+      for (const [index, peer] of peers.entries()) {
+        const prompt = teamPrompts.find(item => item.name === peer.name)!;
+        assert.ok(prompt, peer.name + " was actually contacted");
+        assert.match(prompt.text.split("SOUL")[0], new RegExp(`OWNER_ROLE_${index}`));
+        assert.match(prompt.text, new RegExp(`OWN_WORK_${index}`));
+        assert.deepEqual(prompt.tools.slice().sort(), ["fail_task", "finish_task", "knowledge_base"]);
+        assert.equal(await readFile(join(dataRoot, ".browser-agent-task-memory", botIdFromName(peer.name) + ".json"), "utf8"), before.get(peer.name), "consultation did not replace the worker's user task");
+      }
+      assert.deepEqual(result.coordination.requested, peers.map(peer => peer.name));
+      assert.equal(result.coordination.completed.length, fail ? 3 : 4);
+      assert.equal(result.coordination.failed.length, fail ? 1 : 0);
+      assert.deepEqual(result.coordination.notContacted, []);
+      assert.match(teamFinalPrompt, /APPLICATION VERIFIED COVERAGE/);
+      assert.match(teamFinalPrompt, /No ongoing|no background|no recurring|not schedule|did not schedule/);
+    });
+    await t.test("coordination status answers the pasted SEO contact question from receipts without another model call", async () => {
+      const before = modelCalls;
+      const result = await cli(["ask", "--bot", "Team Coordinator", "--model", "local-engine", "--task", "did you talked with SEO bot?", "--json"]);
+      assert.equal(result.code, 0, result.stderr);
+      const summary = JSON.parse(result.stdout).summary;
+      assert.match(summary, /SEO Specialist: completed/);
+      assert.doesNotMatch(summary, /Wikipedia|Local Research Results/);
+      const status = await fetch(base + "/api/coordination?bot=Team%20Coordinator").then(r => r.json());
+      assert.equal(status.consultations.filter((item: any) => item.toBot === "SEO Specialist" && item.status === "completed").length, 2);
+      assert.equal(modelCalls, before);
+    });
+    await t.test("a five-bot request reports the fifth uncontacted bot at the configured four-consultation limit", async () => {
+      scenario = "team"; teamPrompts.length = 0; finalCalls = 0;
+      const peers = ["SEO Specialist", "Blog Writer", "Reddit Community Growth", "Instagram Follower Growth", "Funnel Specialist"].map((name, index) => ({ id: `cap-${index}`, name }));
+      const result = await new TerminalClient(base).run({ task: "Coordinate with all bots on the organic plan", botName: "Limited Coordinator", interactionMode: "chat", agentEngine: "cheap", workspaceBots: peers } as any, { signal: AbortSignal.timeout(12_000) });
+      assert.equal(teamPrompts.length, 4); assert.equal(finalCalls, 1);
+      assert.deepEqual(result.coordination.notContacted, ["Funnel Specialist"]);
+      assert.equal(result.coordination.completed.length, 4);
+    });
+    await t.test("a busy saved SEO bot queues its consultation and replies when its existing task finishes", async () => {
+      scenario = "async"; asyncStarted.length = 0; releaseAsync.clear(); teamPrompts.length = 0;
+      const busy = await fetch(base + "/api/run/queue", { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ task: "ASYNC_A", botName: "SEO Specialist", interactionMode: "chat", model: "integration-model", agentEngine: "cheap" }) }).then(r => r.json());
+      await waitFor(async () => asyncStarted, values => values.includes("ASYNC_A"));
+      const submission = await fetch(base + "/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ task: "Check wth seo", botName: "Busy Coordinator", interactionMode: "chat", agentEngine: "cheap", workspaceBots: [{ id: "saved-seo", name: "SEO Specialist", botInstructions: "Use the existing SEO role" }] }) }).then(r => r.json());
+      const original = terminalEvents(await fetch(base + "/api/events?runId=" + submission.runId).then(r => r.text())).at(-1)!;
+      await waitFor(() => fetch(base + "/api/run/jobs").then(r => r.json()), data => data.jobs.some((job: any) => job.input.consultationId && job.input.discussionId === original.discussionId && job.status === "queued"));
+      assert.equal((await fetch(base + "/api/run/jobs/" + busy.id).then(r => r.json())).status, "running");
+      scenario = "team"; releaseAsync.get("ASYNC_A")!();
+      const state = await waitFor(() => fetch(base + "/api/discussions/" + original.discussionId).then(r => r.json()), value => value.phase === "completed");
+      assert.deepEqual(state.coordination.completed, ["SEO Specialist"]);
+      assert.deepEqual(state.coordination.failed, []);
+      assert.equal(teamPrompts.length, 1);
+      assert.match(teamPrompts[0].text, /ASYNC_A/);
+    });
+    await t.test("a made-up specialist is rejected against the saved roster without spawning a generic bot", async () => {
+      scenario = "unknown-roster";
+      const before = modelCalls;
+      const result = await new TerminalClient(base).run({ task: "Review a useful marketing check", botName: "Roster Coordinator", interactionMode: "chat", agentEngine: "cheap", workspaceBots: [{ id: "real-seo", name: "SEO Specialist" }] } as any, { signal: AbortSignal.timeout(10_000) });
+      assert.equal(modelCalls - before, 2, "only the original coordinator and its final answer ran");
+      assert.match(teamFinalPrompt, /No saved workspace bot matches/);
+      assert.match(result.summary, /No contact happened/);
+      const status = await fetch(base + "/api/coordination?bot=Roster%20Coordinator").then(r => r.json());
+      assert.deepEqual(status.consultations, []);
+      const calls = modelCalls;
+      const reply = await cli(["ask", "--bot", "Roster Coordinator", "--model", "local-engine", "--task", "did you talked with SEO bot?", "--json"]);
+      assert.equal(reply.code, 0, reply.stderr);
+      assert.match(JSON.parse(reply.stdout).summary, /no recorded specialist contact/);
+      assert.equal(modelCalls, calls);
+    });
+    await t.test("the actual chat UI submits saved roster identities and displays four verified coordination replies", async () => {
+      scenario = "team"; teamPrompts.length = 0; finalCalls = 0;
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage();
+        const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+        await page.route("https://fonts.**/*", route => route.abort());
+        await page.addInitScript(() => {
+          localStorage.setItem("agentFireworksAgentsV2", JSON.stringify([
+            { id: "ui-coordinator", name: "Marketing Coordinator", description: "Coordinate an organic growth team", transcript: [] },
+            ...["SEO Specialist", "Blog Writer", "Reddit Community Growth", "Instagram Follower Growth"].map((name, index) => ({ id: "ui-specialist-" + index, name,
+              description: "UI_SAVED_ROLE_" + index, transcript: [{ role: "user", html: "Existing user goal " + index }] }))
+          ]));
+          localStorage.setItem("openBotsInteractionMode", "chat"); localStorage.setItem("openBotsAgentEngine", "cheap");
+        });
+        await page.goto(base, { waitUntil: "domcontentloaded" });
+        await page.locator('#agent-list .agent-row[data-agent-id="ui-coordinator"]').click();
+        await page.waitForFunction(() => Boolean(document.querySelector('#composer-model-select option[value="integration-model"]')));
+        await page.selectOption("#composer-model-select", "integration-model");
+        await page.locator("#prompt").fill("Coordinate with all the bots on our organic growth strategy; collect their status and next actions.");
+        await page.locator("#send-button").click();
+        await page.waitForFunction(() => document.querySelector("#messages")!.textContent!.includes("Actual coordination results"));
+        const text = await page.locator("#messages").innerText();
+        for (const name of ["SEO Specialist", "Blog Writer", "Reddit Community Growth", "Instagram Follower Growth"]) assert.ok(text.includes(name), name);
+        assert.equal(teamPrompts.length, 4); assert.equal(finalCalls, 1);
+        const bots = await page.evaluate(() => JSON.parse(localStorage.getItem("agentFireworksAgentsV2")!));
+        assert.ok(bots.filter((bot: any) => bot.id.startsWith("ui-specialist-")).every((bot: any) => bot.transcript.length === 1), "consultation replies stayed with their requesting coordinator");
+        await page.screenshot({ path: join(tmpdir(), "openbuddy-team-coordination.png"), fullPage: true });
+        await page.selectOption("#composer-model-select", "local-engine");
+        await page.waitForFunction(() => !document.getElementById("execution-model-notice")!.hidden);
+        assert.match(await page.locator("#execution-model-notice").innerText(), /tools only/);
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
     });
     await t.test("two agents execute concurrently; same-bot work waits and scoped Stop leaves the other agent running", async () => {
       scenario = "async";
@@ -423,6 +581,40 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       const state = await fetch(base + "/api/conversations/state").then(r => r.json());
       assert.ok(state.all > 0);
       assert.deepEqual(await readdir(join(dataRoot, ".browser-agent-task-memory")), []);
+      assert.deepEqual((await fetch(base + "/api/coordination?bot=Team%20Coordinator").then(r => r.json())).consultations, [], "a reset does not re-inject old consultation receipts");
+    });
+    await t.test("a missing provider opens the correct connection field and saves privately without starting a model", async () => {
+      const before = modelCalls;
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage();
+        const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+        await page.route("https://fonts.**/*", route => route.abort());
+        await page.addInitScript(() => {
+          localStorage.setItem("agentFireworksAgentsV2", JSON.stringify([{ id: "connect-ui", name: "Reconnect Bot", description: "Review SEO requests", transcript: [] }]));
+          localStorage.setItem("agentFireworksModel", "grok-unconfigured-test");
+          localStorage.setItem("openBotsInteractionMode", "chat");
+        });
+        await page.goto(base, { waitUntil: "domcontentloaded" });
+        await page.locator('#agent-list .agent-row[data-agent-id="connect-ui"]').click();
+        await page.waitForFunction(() => (document.querySelector("#model-select") as HTMLSelectElement).value === "grok-unconfigured-test");
+        await page.locator("#prompt").fill("Help with this SEO task");
+        await page.locator("#send-button").click();
+        await page.locator(".connect-provider").click();
+        assert.equal(await page.locator("#provider-credentials").getAttribute("open"), "");
+        assert.equal(await page.evaluate(() => document.activeElement?.id), "settings-xai-key");
+        await page.locator("#settings-xai-key").fill("test-key-xai-ui");
+        await page.locator('#settings-form button[type="submit"]').click();
+        await page.waitForFunction(() => document.querySelector("#settings-status")!.textContent!.includes("saved on this computer"));
+        assert.equal(await page.locator("#settings-xai-key").inputValue(), "");
+        assert.equal(await page.locator("#execution-model-notice").isHidden(), true);
+        assert.match(await readFile(join(directory, ".env"), "utf8"), /XAI_API_KEY=/);
+        const state = await fetch(base + "/api/status").then(r => r.json());
+        assert.equal(state.hasXaiKey, true);
+        assert.equal(JSON.stringify(state).includes("test-key-xai-ui"), false);
+        assert.equal(modelCalls, before, "saving a connection must never automatically retry a model request");
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
     });
   } finally {
     for (const release of releaseAsync.values()) release();

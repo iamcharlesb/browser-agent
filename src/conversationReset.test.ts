@@ -39,9 +39,9 @@ test("older signed-in roster writes cannot restore reset transcripts or discard 
 test("bundled documentation resolves only known topics and escapes raw source HTML", async () => {
   for (const topic of DOCUMENTATION_TOPICS) {
     const html = await renderDocumentation(join(__dirname, ".."), topic.id);
-    assert.match(html, /OpenBuddy Docs/); assert.match(html, /aria-current="page"/);
+    assert.match(html, /Pilo Docs/); assert.match(html, /aria-current="page"/);
   }
-  assert.match(await renderDocumentation(join(__dirname, ".."), "../../.env"), /OpenBuddy documentation/);
+  assert.match(await renderDocumentation(join(__dirname, ".."), "../../.env"), /Pilo documentation/);
   const html = documentationMarkdown('# Guide\n\n<script>alert("private")</script>\n\n[unsafe](javascript:alert)\n\n```sh\n<private>\n```');
   assert.doesNotMatch(html, /<script>|href="javascript:/);
   assert.match(html, /&lt;private&gt;/);

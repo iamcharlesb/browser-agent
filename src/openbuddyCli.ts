@@ -6,14 +6,14 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { TerminalClient } from "./terminalClient";
 
-const help = `OpenBuddy CLI — local agent conversations and browser tasks
+const help = `Pilo CLI — local agent conversations and browser tasks
 
 Usage:
-  openbuddy serve [--port 8765] [--data-dir PATH] [--env-file PATH] [--workspace PATH]
-  openbuddy chat [--bot NAME] [--profile ID] [--model ID]
-  openbuddy ask --task "Your request" [--json]
-  openbuddy status
-  openbuddy models
+  pilo serve [--port 8765] [--data-dir PATH] [--env-file PATH] [--workspace PATH]
+  pilo chat [--bot NAME] [--profile ID] [--model ID]
+  pilo ask --task "Your request" [--json]
+  pilo status
+  pilo models
 
 Client options:
   --server URL       Local server (BROWSER_AGENT_SERVER_URL or http://127.0.0.1:8765)
@@ -60,7 +60,7 @@ async function main(): Promise<number | void> {
     process.env.BROWSER_AGENT_UI_PORT = String(port);
     process.env.BROWSER_AGENT_LEARN_MODE = "0";
     process.env.BROWSER_AGENT_WORKSPACE_ROOT = resolve(values.workspace || process.env.BROWSER_AGENT_WORKSPACE_ROOT || process.cwd());
-    console.log(`OpenBuddy data: ${directory}`);
+    console.log(`Pilo data: ${directory}`);
     console.log(`Coding workspace: ${process.env.BROWSER_AGENT_WORKSPACE_ROOT}`);
     await import("./server");
     return;
@@ -101,7 +101,7 @@ async function main(): Promise<number | void> {
   process.on("SIGINT", interrupt);
   lines.on("SIGINT", interrupt);
   try {
-    if (command === "chat" && interactive) console.error(`OpenBuddy · ${botName}\n/bot NAME · /model ID · /quit`);
+    if (command === "chat" && interactive) console.error(`Pilo · ${botName}\n/bot NAME · /model ID · /quit`);
     while (!interrupted) {
       const task = command === "ask" ? values.task! : await ask(`${botName}> `);
       if (task === undefined || (command === "chat" && task.trim() === "/quit")) break;
@@ -136,7 +136,7 @@ async function main(): Promise<number | void> {
 if (require.main === module) {
   main().then(code => { if (code !== undefined) process.exitCode = code; }).catch(error => {
     // Transport errors never dump request bodies or server-side configuration.
-    console.error(`OpenBuddy: ${error instanceof Error ? error.message : "Request failed."}`);
+    console.error(`Pilo: ${error instanceof Error ? error.message : "Request failed."}`);
     process.exitCode = error instanceof Error && error.message === "Stopped by user." ? 130 : 2;
   });
 }

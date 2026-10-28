@@ -1,4 +1,4 @@
-/** Invoke the local Claude Code CLI as an Open Bots model backend. */
+/** Invoke the local Claude Code CLI as an Pilo model backend. */
 
 import { spawn } from "node:child_process";
 import { accessSync, constants } from "node:fs";
@@ -98,7 +98,7 @@ export function resolveClaudeCliBinary(explicitPath?: string): string {
   return explicitPath?.trim() || process.env.CLAUDE_CLI_PATH?.trim() || "claude";
 }
 
-/** Parse Open Bots model id into a Claude CLI --model alias. */
+/** Parse Pilo model id into a Claude CLI --model alias. */
 export function claudeCliModelAlias(rawModel: string): string | undefined {
   const trimmed = rawModel.trim();
   if (trimmed === "claude-cli") return undefined;
@@ -156,7 +156,7 @@ function normalizeStructured(value: unknown, fallbackText: string): ClaudeCliStr
 }
 
 /**
- * Run one non-interactive Claude Code turn with Open Bots-shaped structured tool_calls.
+ * Run one non-interactive Claude Code turn with Pilo-shaped structured tool_calls.
  * Uses the user's local Claude login (no ANTHROPIC_API_KEY required when CLI is logged in).
  */
 export async function invokeClaudeCli(options: ClaudeCliInvokeOptions): Promise<ClaudeCliResult> {
@@ -334,7 +334,7 @@ export function flattenMessagesForClaudeCli(
     }
   }
   lines.push(
-    "Respond ONLY via the JSON schema: set content for a short user-facing note (or null), and tool_calls for Open Bots tools (empty array if you are done talking with no tools)."
+    "Respond ONLY via the JSON schema: set content for a short user-facing note (or null), and tool_calls for Pilo tools (empty array if you are done talking with no tools)."
   );
   return lines.join("\n\n").slice(0, 48_000);
 }
@@ -342,7 +342,7 @@ export function flattenMessagesForClaudeCli(
 export function toolsCatalogForClaudeCli(
   tools: OpenAI.Chat.Completions.ChatCompletionTool[]
 ): string {
-  const lines = ["AVAILABLE OPEN BOTS TOOLS (call these via tool_calls; do not invent others):"];
+  const lines = ["AVAILABLE PILO TOOLS (call these via tool_calls; do not invent others):"];
   for (const tool of tools) {
     if (tool.type !== "function") continue;
     const params = tool.function.parameters

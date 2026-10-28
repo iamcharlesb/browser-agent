@@ -3,14 +3,16 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>OpenBuddy — Autonomous Bots &amp; Agents</title>
+<title>Pilo — Autonomous Bots &amp; Agents</title>
+<link rel="icon" type="image/png" sizes="1024x1024" href="./open-bots-icon.png" />
+<link rel="apple-touch-icon" href="./open-bots-icon.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
 :root {
   color-scheme: light;
-  --canvas: #f8f9fb;
+  --canvas: #fdfdfe;
   --sidebar: #f2f3f6;
   --surface: #ffffff;
   --border: #e5e7ec;
@@ -148,17 +150,15 @@ button { color: inherit; }
   text-overflow: ellipsis;
 }
 .brand-mark {
-  width: 30px;
+  width: 44px;
   height: 30px;
   flex: 0 0 auto;
-  border-radius: 9px;
-  background: var(--brand-gradient);
+  background: transparent;
   display: grid;
   place-items: center;
   color: #fff;
-  box-shadow: 0 2px 8px rgba(255, 92, 0, 0.28);
 }
-.brand-mark svg { width: 15px; height: 15px; }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .sidebar-tools {
   display: flex;
   align-items: center;
@@ -310,6 +310,18 @@ button { color: inherit; }
 .bot-portrait[src*="andrej-karpathy.jpg"] { transform: scale(1.35); }
 .bot-portrait-preview { display: block; width: 96px; height: 96px; overflow: hidden; border-radius: 24px; }
 .bot-portrait-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Supplied role artwork is a complete square asset, not a zoomed headshot. */
+.agent-avatar.role-avatar { border-radius: 0; overflow: visible; background: transparent !important; }
+.template-avatar:has(img[src*="/pilo-"]),
+.bot-portrait-preview:has(img[src*="/pilo-"]) { overflow: visible; border-radius: 0; }
+.agent-avatar.role-avatar img,
+.template-avatar img[src*="/pilo-"],
+.bot-portrait-preview img[src*="/pilo-"] {
+  object-fit: contain;
+  object-position: center;
+  transform: none;
+  border-radius: 0;
+}
 .agent-avatar.small {
   width: 29px;
   height: 29px;
@@ -646,6 +658,18 @@ button { color: inherit; }
   gap: 8px;
   margin-bottom: 16px;
 }
+.bot-preset-picker { position: relative; }
+.bot-preset-trigger, .bot-preset-option { width:100%; display:flex; align-items:center; gap:10px; padding:9px 12px; border:0; background:#fff; text-align:left; cursor:pointer; }
+.bot-preset-trigger { min-height:44px; border:1px solid var(--border); border-radius:10px; }
+.bot-preset-trigger .preset-label, .bot-preset-option .preset-label { flex:1; min-width:0; }
+.bot-preset-trigger:focus-visible, .bot-preset-option:focus-visible { outline:2px solid var(--brand); outline-offset:-2px; }
+.bot-preset-list { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:30; max-height:min(300px,42vh); overflow-y:auto; padding:5px; border:1px solid var(--border); border-radius:12px; background:#fff; box-shadow:var(--shadow-lg); }
+.bot-preset-option { border-radius:8px; font-size:13px; }
+.bot-preset-option:hover, .bot-preset-option[aria-selected="true"] { background:var(--blue-soft); }
+.bot-preset-option:disabled { opacity:.45; cursor:default; }
+.bot-preset-option small { display:block; font-size:11px; color:var(--muted); }
+.bot-preset-picker .agent-avatar { width:28px; height:28px; flex:0 0 28px; }
+.bot-preset-picker .bot { --size:26px; }
 .bot-modal-inputs input, .bot-modal-inputs textarea {
   width: 100%;
   height: 40px;
@@ -1081,6 +1105,7 @@ button { color: inherit; }
 #app.browser-focus #browser-expand-btn { background: #fff7ed; color: #f6430f; }
 .desktop-mac #main { padding-top: 48px; }
 .desktop-mac #sidebar { padding-top: 48px; }
+.desktop-mac #app.sidebar-collapsed #sidebar { padding-top: 48px; }
 .desktop-mac #topbar {
   position: fixed;
   inset: 0 0 auto;
@@ -1092,8 +1117,9 @@ button { color: inherit; }
 .desktop-mac #topbar input,
 .desktop-mac #topbar a,
 .desktop-mac #agent-chip { -webkit-app-region: no-drag; }
-.desktop-mac #topbar { background: #f8f9fb; }
+.desktop-mac #topbar { background: var(--canvas); }
 #conversation {
+  background: #ffffff;
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -1179,8 +1205,8 @@ button { color: inherit; }
   min-height: 0;
 }
 #welcome .welcome-mark {
-  width: 76px;
-  height: 76px;
+  width: 150px;
+  height: 84px;
   margin-bottom: 14px;
   background: transparent;
   box-shadow: none;
@@ -1190,10 +1216,10 @@ button { color: inherit; }
 #welcome .welcome-mark:hover {
   transform: scale(1.07) rotate(-3deg);
 }
-#welcome .welcome-mark svg.bot-char-svg {
-  width: 76px;
-  height: 76px;
-  filter: drop-shadow(0 10px 22px rgba(255, 45, 59, 0.22));
+#welcome .welcome-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   transition: width 0.18s ease, height 0.18s ease;
 }
 #welcome h1 {
@@ -1227,15 +1253,10 @@ button { color: inherit; }
   padding: 10px 16px 6px;
 }
 #workspace.has-browser #welcome .welcome-mark {
-  width: 40px;
-  height: 40px;
+  width: 80px;
+  height: 44px;
   margin-bottom: 6px;
   border-radius: 12px;
-}
-#workspace.has-browser #welcome .welcome-mark svg.bot-char-svg {
-  width: 40px;
-  height: 40px;
-  filter: drop-shadow(0 4px 10px rgba(255, 45, 59, 0.18));
 }
 #workspace.has-browser #welcome h1 {
   font-size: 17px;
@@ -3136,11 +3157,9 @@ dialog.modal-dialog::backdrop {
 <div id="app" class="sidebar-collapsed">
   <aside id="sidebar">
     <div class="sidebar-header">
-      <div class="brand-lockup" title="OpenBuddy">
-        <span class="brand-mark">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-        </span>
-        <span class="brand-name">OpenBuddy</span>
+      <div class="brand-lockup" title="Pilo">
+        <span class="brand-mark"><img src="./open-bots-icon.png" alt="Pilo mascot" /></span>
+        <span class="brand-name">Pilo</span>
       </div>
       <div class="sidebar-tools">
         <button class="icon-button" id="sidebar-search-toggle" aria-label="Search bots" title="Search bots">
@@ -3189,7 +3208,7 @@ dialog.modal-dialog::backdrop {
         <span id="chip-avatar" class="agent-avatar small"><span class="spark"></span></span>
         <div class="chip-text-group">
           <span id="chip-name">New Bot</span>
-          <span id="chip-meta">OpenBuddy · Codex &amp; Live Browser</span>
+          <span id="chip-meta">Pilo · Codex &amp; Live Browser</span>
         </div>
       </div>
       <div class="topbar-right">
@@ -3225,7 +3244,7 @@ dialog.modal-dialog::backdrop {
     <section id="workspace" class="empty">
       <section id="conversation">
         <div id="welcome">
-          <div id="welcome-avatar" class="agent-avatar welcome-mark" style="cursor:pointer;" title="Click to create a custom bot"></div>
+          <div id="welcome-avatar" class="agent-avatar welcome-mark" style="cursor:pointer;" title="Click to create a custom bot"><img src="./open-bots-icon.png" alt="Pilo mascot" /></div>
           <h1>What should your bot do?</h1>
           <p>Pick a specialized bot, create a custom bot, or type any task below.</p>
           <div class="template-grid">
@@ -3358,6 +3377,7 @@ dialog.modal-dialog::backdrop {
               <span id="step-counter"></span>
             </div>
           </div>
+          <p id="execution-model-notice" role="status" hidden style="margin:7px 4px 0;color:var(--muted);font-size:12px;"><span id="execution-model-notice-text"></span> <button id="execution-model-settings" type="button" class="btn-secondary" style="padding:2px 7px;font-size:11px;">Open Settings</button></p>
         </div>
         <div id="right-edge-resizer" class="panel-resizer" role="separator" aria-orientation="vertical" aria-label="Drag left to open and resize Browser / Terminal panel" title="Drag left to open Browser / Terminal panel"></div>
       </section>
@@ -3415,7 +3435,7 @@ dialog.modal-dialog::backdrop {
           </div>
           <div id="terminal-output">
             <div class="term-entry ok">
-              <div class="term-cmd-line"><span>OpenBuddy Local Terminal</span><span class="term-meta">ready</span></div>
+              <div class="term-cmd-line"><span>Pilo Local Terminal</span><span class="term-meta">ready</span></div>
               <pre class="term-stdout">Connected to local shell behind the browser (127.0.0.1). Run commands directly below or ask any bot to run terminal tasks.</pre>
             </div>
           </div>
@@ -3448,10 +3468,12 @@ dialog.modal-dialog::backdrop {
       </div>
       <div class="bot-modal-inputs">
         <div id="bot-preset-field" class="form-field" style="margin:0 0 10px;">
-          <label for="bot-preset-select">Start from a specialist <span style="font-weight:400;color:var(--muted);">(optional)</span></label>
-          <select id="bot-preset-select" class="header-select" style="width:100%;height:40px;">
-            <option value="">Blank bot</option>
-          </select>
+          <label id="bot-preset-label" for="bot-preset-trigger">Start from a specialist <span style="font-weight:400;color:var(--muted);">(optional)</span></label>
+          <div class="bot-preset-picker" id="bot-preset-picker">
+            <input type="hidden" id="bot-preset-select" value="" />
+            <button type="button" id="bot-preset-trigger" class="bot-preset-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="bot-preset-list" aria-labelledby="bot-preset-label bot-preset-value"><span class="agent-avatar" aria-hidden="true"></span><span class="preset-label" id="bot-preset-value">Blank bot</span><span aria-hidden="true">⌄</span></button>
+            <div id="bot-preset-list" class="bot-preset-list" role="listbox" aria-labelledby="bot-preset-label" hidden></div>
+          </div>
           <small style="color:var(--muted);">Choose a ready-made role, then customize its name, instructions, shape, or color.</small>
         </div>
         <label for="bot-name-input" class="sr-only">Name your Bot</label>
@@ -3515,7 +3537,7 @@ dialog.modal-dialog::backdrop {
         <strong id="browser-section-title">Browser</strong>
         <span id="session-mode-badge" class="session-mode-badge">● In-app</span>
       </div>
-      <p id="browser-default-line" class="account-section-line">In-app browser is on — pages open inside OpenBuddy.</p>
+      <p id="browser-default-line" class="account-section-line">In-app browser is on — pages open inside Pilo.</p>
 
       <div id="session-card-embedded" class="session-mode-card" hidden>
         <button type="button" id="use-embedded-btn" class="session-mode-btn primary">
@@ -3548,9 +3570,9 @@ dialog.modal-dialog::backdrop {
       <div id="browser-advanced-panel" class="account-panel" hidden>
         <div id="session-card-persistent" class="session-mode-card">
           <div class="session-mode-card-title">
-            <span id="session-card-persistent-title">External OpenBuddy Chrome</span>
+            <span id="session-card-persistent-title">External Pilo Chrome</span>
           </div>
-          <p id="session-card-persistent-copy">Opens a separate OpenBuddy Chrome window (not your personal profile).</p>
+          <p id="session-card-persistent-copy">Opens a separate Pilo Chrome window (not your personal profile).</p>
           <div class="gmail-input-row">
             <input id="gmail-email-input" type="email" placeholder="you@gmail.com (optional)" aria-label="Gmail address" />
           </div>
@@ -3681,7 +3703,8 @@ dialog.modal-dialog::backdrop {
       <p id="claude-cli-status" style="margin:0 0 10px;font-size:12px;color:var(--muted);"></p>
       <details id="provider-credentials" class="form-field">
         <summary style="cursor:pointer;font-weight:600;">Provider keys and connection</summary>
-        <p style="font-size:12px;color:var(--muted);">Configure a key for your API provider or a connection for your local model.</p>
+        <p style="font-size:12px;color:var(--muted);">Connections are saved privately on this computer and survive app restarts. Blank key fields keep your existing connection.</p>
+        <p id="provider-connection-status" role="status" style="font-size:12px;color:var(--muted);"></p>
       <div class="form-field">
         <label for="settings-openai-key">OpenAI API key</label>
         <input id="settings-openai-key" type="password" placeholder="sk-..." autocomplete="off" />
@@ -3769,6 +3792,7 @@ dialog.modal-dialog::backdrop {
 
 <script src="./browserRuntime.js"></script>
 <script src="./uiState.js"></script>
+<script src="./projectScanner.js"></script>
 <script id="response-markdown-runtime">
 (function(root) {
   "use strict";
@@ -4359,6 +4383,16 @@ dialog.modal-dialog::backdrop {
     bot.intent = inferredIntent(bot.name, bot.description, bot.profileId);
     return bot;
   }
+  var restoredRoleAvatars = false;
+  agents.forEach(function(agent) {
+    if (agent.avatarImage && agent.avatarImage.indexOf("/pilo-") >= 0 && String(agent.name || "").trim().toLowerCase() !== "primary bot") {
+      var original = defaultAvatarImage(agent.name);
+      if (original) agent.avatarImage = original;
+      else delete agent.avatarImage;
+      restoredRoleAvatars = true;
+    }
+  });
+  LATEST_BOT_PRESETS.forEach(function(preset) { preset.avatar = defaultAvatarImage(preset.name) || preset.avatar; });
   agents.forEach(normalizeSpecialistBot);
 
   // Normalize older, untouched starter avatars to the circular default. Shapes that users
@@ -4377,6 +4411,7 @@ dialog.modal-dialog::backdrop {
   };
   function defaultAvatarImage(name) {
     var key = String(name || "").trim().toLowerCase();
+    if (key === "primary bot") return "./open-bots-icon.png?v=plush-face-1";
     if (key === "inspired by sabri suby") return "./avatars/sabri-suby.jpg?v=6746ddc34177";
     if (key === "inspired by alex hormozi") return "./avatars/alex-hormozi.webp?v=cc0a5ae96df8";
     if (key === "inspired by addy osmani") return "./avatars/addy-osmani.jpg?v=29902bd27134";
@@ -4393,7 +4428,7 @@ dialog.modal-dialog::backdrop {
     }
   });
   if (normalizedStarterShapes) saveAgents();
-  var avatarAssetsUpdated = false;
+  var avatarAssetsUpdated = restoredRoleAvatars;
   agents.forEach(function(agent) {
     var avatarImage = defaultAvatarImage(agent.name);
     if (avatarImage && agent.avatarImage !== avatarImage) { agent.avatarImage = avatarImage; avatarAssetsUpdated = true; }
@@ -4445,6 +4480,7 @@ dialog.modal-dialog::backdrop {
     if (!el) return;
     var seedKey = (agent && (agent.id || agent.name)) || "new-bot";
     var avatarImage = defaultAvatarImage(agent && agent.name) || (agent && agent.avatarImage);
+    el.classList.toggle("role-avatar", Boolean(avatarImage && (avatarImage.indexOf("/pilo-") >= 0 || avatarImage.indexOf("open-bots-icon.png") >= 0)));
     if (avatarImage) {
       el.classList.add("custom-bot");
       el.classList.add("photo-avatar");
@@ -4730,7 +4766,7 @@ dialog.modal-dialog::backdrop {
       needsBrowserOnInit: false,
       summary: roleText || "Autonomous local terminal, Codex & browser bot.",
       suggestions: ["Summarize a YouTube video", "Search the web", "$ git status -s"],
-      task: "You are an agent named '" + name + "'" + (roleText ? " whose role and purpose is: " + roleText : "") + ". For goals that involve promoting MagicSite.ai or coordinating workspace work, do not make this a one bot assignment. Review every peer bot in the supplied roster, identify which ones have relevant goals, and start a discussion with each relevant bot using delegate_to_bot. Ask about its goals, progress, evidence, and dependencies, then synthesize their responses into one coordinated plan with clear owners and measurable next steps. Delegate to more than one bot when the work spans specialties. Use headless tools (run_terminal_command, understand_youtube_video, web_search, calculate, workspace_file, create_document, delegate_to_bot) whenever possible, and use the live browser only when interactive browsing is needed."
+      task: "You are an agent named '" + name + "'" + (roleText ? " whose role and purpose is: " + roleText : "") + ". Follow the current request. Answer status questions and role clarifications directly using actual runtime records; do not start new work to answer whether work happened. For requested coordination, use saved roster identities and report actual consultation coverage, evidence, dependencies and next actions. Never treat a proposed assignment as a running job or schedule. Use the available tools within the selected mode and approvals."
     };
   }
 
@@ -5328,7 +5364,7 @@ dialog.modal-dialog::backdrop {
         if (!out) return;
         out.innerHTML =
           '<div class="term-entry ok">' +
-            '<div class="term-cmd-line"><span>OpenBuddy Local Terminal</span><span class="term-meta">ready</span></div>' +
+            '<div class="term-cmd-line"><span>Pilo Local Terminal</span><span class="term-meta">ready</span></div>' +
             '<pre class="term-stdout">Connected to local shell behind the browser (127.0.0.1). Run commands directly below or ask any bot to run terminal tasks.</pre>' +
           "</div>";
         (body.history || []).forEach(function(item) {
@@ -5604,28 +5640,78 @@ dialog.modal-dialog::backdrop {
     }
   }
 
+  function closeBotPresetList(restoreFocus) {
+    document.getElementById("bot-preset-list").hidden = true;
+    document.getElementById("bot-preset-trigger").setAttribute("aria-expanded", "false");
+    if (restoreFocus) document.getElementById("bot-preset-trigger").focus();
+  }
+  function syncBotPresetTrigger() {
+    var value = document.getElementById("bot-preset-select").value;
+    var preset = getBotOnboardingPresets().find(function(item) { return item.name === value; });
+    document.getElementById("bot-preset-value").textContent = preset ? preset.name : "Blank bot";
+    applyAvatarElement(document.querySelector("#bot-preset-trigger .agent-avatar"), preset || {name:"New Bot",shape:"circle",color:"#ff2d3b"}, false);
+    document.querySelectorAll("#bot-preset-list [role=option]").forEach(function(option) { option.setAttribute("aria-selected", String(option.dataset.value === value)); });
+  }
   function renderBotOnboardingPresets() {
     var select = document.getElementById("bot-preset-select");
-    if (!select) return;
-    var previousValue = select.value;
-    select.innerHTML = '<option value="">Blank bot</option>';
+    var list = document.getElementById("bot-preset-list");
+    if (!select || !list) return;
+    list.replaceChildren();
     var ordered = getBotOnboardingPresets().map(function(preset) {
       return { preset: preset, onboarded: agents.some(function(bot) { return String(bot.name || "").trim().toLowerCase() === preset.name.toLowerCase(); }) };
     }).sort(function(a, b) {
       if (a.onboarded !== b.onboarded) return a.onboarded ? 1 : -1;
       return a.preset.name.localeCompare(b.preset.name);
     });
-    ordered.forEach(function(entry) {
-      var preset = entry.preset;
-      var onboarded = entry.onboarded;
-      var option = document.createElement("option");
-      option.value = preset.name;
-      option.textContent = preset.name + (onboarded ? " · Already added" : "");
-      option.disabled = onboarded;
-      select.appendChild(option);
+    [{preset:{name:"",shape:"circle",color:"#ff2d3b"},onboarded:false}].concat(ordered).forEach(function(entry) {
+      var option = document.createElement("button");
+      option.type = "button";
+      option.className = "bot-preset-option";
+      option.setAttribute("role", "option");
+      option.dataset.value = entry.preset.name;
+      option.disabled = entry.onboarded;
+      option.setAttribute("aria-selected", String(select.value === entry.preset.name));
+      var avatar = document.createElement("span");
+      avatar.className = "agent-avatar";
+      avatar.setAttribute("aria-hidden", "true");
+      applyAvatarElement(avatar, entry.preset.name ? entry.preset : {name:"New Bot",shape:"circle",color:"#ff2d3b"}, false);
+      var label = document.createElement("span");
+      label.className = "preset-label";
+      label.textContent = entry.preset.name || "Blank bot";
+      if (entry.onboarded) { var note = document.createElement("small"); note.textContent = "Already added"; label.appendChild(note); }
+      option.append(avatar, label);
+      option.onclick = function() {
+        select.value = option.dataset.value;
+        select.dispatchEvent(new Event("change"));
+        closeBotPresetList(true);
+      };
+      list.appendChild(option);
     });
-    if (Array.from(select.options).some(function(option) { return option.value === previousValue && !option.disabled; })) select.value = previousValue;
+    if (!Array.from(list.children).some(function(option) { return option.dataset.value === select.value && !option.disabled; })) select.value = "";
+    syncBotPresetTrigger();
+    closeBotPresetList(false);
   }
+  document.getElementById("bot-preset-trigger").addEventListener("click", function() {
+    var list = document.getElementById("bot-preset-list");
+    list.hidden = !list.hidden;
+    this.setAttribute("aria-expanded", String(!list.hidden));
+    if (!list.hidden) (list.querySelector('[aria-selected="true"]:not(:disabled)') || list.querySelector("button:not(:disabled)")).focus();
+  });
+  document.getElementById("bot-preset-picker").addEventListener("keydown", function(event) {
+    var list = document.getElementById("bot-preset-list");
+    if (event.key === "Escape" && !list.hidden) { event.preventDefault(); event.stopPropagation(); closeBotPresetList(true); return; }
+    if (event.key === "Tab") { closeBotPresetList(false); return; }
+    if (!["ArrowDown","ArrowUp","Home","End"].includes(event.key)) return;
+    event.preventDefault();
+    var options = Array.from(list.querySelectorAll("button:not(:disabled)"));
+    var index = options.indexOf(document.activeElement);
+    list.hidden = false;
+    document.getElementById("bot-preset-trigger").setAttribute("aria-expanded", "true");
+    var next = event.key === "Home" ? 0 : event.key === "End" ? options.length-1 : event.key === "ArrowDown" ? (index+1)%options.length : (index<=0 ? options.length-1 : index-1);
+    options[next].focus();
+    options[next].scrollIntoView({block:"nearest"});
+  });
+  document.addEventListener("pointerdown", function(event) { if (!event.target.closest("#bot-preset-picker")) closeBotPresetList(false); });
 
   function openCreateBotModal(prefill) {
     var modal = document.getElementById("create-bot-modal");
@@ -5662,6 +5748,8 @@ dialog.modal-dialog::backdrop {
       selectedBotColor = (prefill && prefill.color) || "#ff2d3b";
     }
 
+    syncBotPresetTrigger();
+    closeBotPresetList(false);
     renderBotPickerControls();
     modal.showModal();
     setTimeout(function() { nameInput.focus(); }, 40);
@@ -5671,7 +5759,15 @@ dialog.modal-dialog::backdrop {
     var presets = getBotOnboardingPresets();
     var preset = this.value === "" ? null : presets.find(function(item) { return item.name === this.value; }, this);
     selectedBotPreset = preset;
-    if (!preset) return;
+    syncBotPresetTrigger();
+    if (!preset) {
+      document.getElementById("bot-name-input").value = "";
+      document.getElementById("bot-desc-input").value = "";
+      selectedBotShape = "circle";
+      selectedBotColor = "#ff2d3b";
+      syncBotPickerSelection();
+      return;
+    }
     document.getElementById("bot-name-input").value = preset.name;
     document.getElementById("bot-desc-input").value = preset.description;
     selectedBotShape = preset.shape;
@@ -5682,6 +5778,7 @@ dialog.modal-dialog::backdrop {
     if (!selectedBotPreset || this.value.trim().toLowerCase() === selectedBotPreset.name.toLowerCase()) return;
     // Keep the selected soul when its display name is customized.
     document.getElementById("bot-preset-select").value = "";
+    syncBotPresetTrigger();
   });
 
   document.getElementById("create-bot-form").addEventListener("submit", function(e) {
@@ -5808,7 +5905,7 @@ dialog.modal-dialog::backdrop {
         ? "Launching isolated Guest Chromium session…"
         : requestedMode === "cdp"
           ? "Attaching to Connected Chrome (CDP)…"
-          : "Opening your saved OpenBuddy Chrome session…";
+          : "Opening your saved Pilo Chrome session…";
     }
     var a = activeAgent();
     browserOpenPromise = fetch("/api/login", {
@@ -5960,7 +6057,7 @@ dialog.modal-dialog::backdrop {
   }
 
   function buildWorkspaceBotsContext(currentAgent) {
-    var lines = ["OPEN BOTS WORKSPACE ROSTER (All bots created by the user in this workspace):"];
+    var lines = ["PILO WORKSPACE ROSTER (All bots created by the user in this workspace):"];
     if (currentAgent) {
       lines.push(
         "- [CURRENT ACTIVE BOT (YOU)] Name: \"" + currentAgent.name + "\" | Role: " +
@@ -5969,7 +6066,7 @@ dialog.modal-dialog::backdrop {
     }
     var peerBots = agents.filter(function(a) { return !currentAgent || a.id !== currentAgent.id; });
     if (peerBots.length === 0) {
-      lines.push("- (No other custom bots created in the sidebar yet. Built-in specialist bots available to spawn or delegate to via `delegate_to_bot`: \"YouTube Concept & Code Learner\", \"Local Terminal & DevOps Bot\", \"Instagram Follower Growth\", \"Reddit Community Growth\", \"SEO Specialist\", \"Paid Ads Specialist\", \"UX Specialist\", \"X / Grok Trend Researcher\", \"Competitor Intelligence\".)");
+      lines.push("- No saved peer bots are available in this workspace. Ask the user to add the intended bot; do not invent a target or create a generic replacement.");
     } else {
       peerBots.forEach(function(b, idx) {
         var roleDesc = b.description || b.summary || (b.intent && b.intent.summary) || "Specialist Bot";
@@ -5987,7 +6084,7 @@ dialog.modal-dialog::backdrop {
       });
     }
     lines.push(
-      "COLLABORATION INSTRUCTIONS: When the user asks about 'other bots', 'my bots', or refers to any peer bot above, answer using this exact roster and their recent activity. To hand off or run a task on another bot, call `delegate_to_bot({ targetBotName: \"<Bot Name>\", task: \"<Task>\", handoffNote: \"<Context>\" })`."
+      "COLLABORATION: These transcript snippets are historical reports, not live job state or proof of contact. Read knowledge_base(action=read,id=workspace:bots) for actual jobs, schedules and consultation receipts. A status question is not a request to start another bot. For a requested consultation, use delegate_to_bot with the exact saved peer id or name; the server loads its real profile and records the result. Do not invent, spawn or substitute a bot."
     );
     return lines.join("\n");
   }
@@ -6123,6 +6220,7 @@ dialog.modal-dialog::backdrop {
       expertise: agent && agent.intent && agent.intent.expertise,
       profileId: agent && agent.profileId,
       botInstructions: agent && agent.description,
+      workspaceBots: agents.map(function(bot) { return { id: bot.id, name: bot.name, profileId: bot.profileId, botInstructions: bot.description || "", expertise: bot.intent && bot.intent.expertise }; }),
       initialUrl: (agent && agent.intent && agent.intent.url) || browserAddress.value || "about:blank",
       scheduleTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       collaborationContext: [buildWorkspaceBotsContext(agent), collaborationContext || ""].filter(Boolean).join("\n\n"),
@@ -6354,7 +6452,13 @@ dialog.modal-dialog::backdrop {
         var friendlyMsg = err.message === "Failed to fetch"
           ? "Connection to local agent server was interrupted. Please try sending your message again."
           : err.message;
-        appendMessage("agent", esc(friendlyMsg), "error");
+        var connectionMissing = err.body && err.body.code === "model_not_configured";
+        var errorBubble = appendMessage("agent", esc(friendlyMsg) + (connectionMissing
+          ? '<div style="display:flex;gap:8px;margin-top:8px;"><button type="button" class="btn-secondary connect-provider">Connect provider</button><button type="button" class="btn-secondary retry-model-request">Retry request</button></div>' : ""), "error");
+        if (connectionMissing) {
+          errorBubble.querySelector(".connect-provider").onclick = function() { openModelConnectionSettings(err.body.provider); };
+          errorBubble.querySelector(".retry-model-request").onclick = function() { startRun(task, approvedCategories, collaborationContext, null, agent, ownerId); };
+        }
         } finally { eventMessageAgent = previousOwner; restoreSelectedRun(false); }
       });
   }
@@ -6560,7 +6664,7 @@ dialog.modal-dialog::backdrop {
     learnProposalShown = false;
     isRunning = true;
     runningAgentId = agent && agent.id || null;
-    runningAgentName = agent && agent.name || "OpenBuddy";
+    runningAgentName = agent && agent.name || "Pilo";
     sendButton.disabled = false;
     setStatusState("running", "Learning");
     status.textContent = "Standing in your shoes…";
@@ -6739,6 +6843,10 @@ dialog.modal-dialog::backdrop {
     try { handleOwnedRunEvent(e); } finally { eventMessageAgent = null; }
   }
   function handleOwnedRunEvent(e) {
+    if (e.type === "execution_configuration") {
+      status.textContent = "Running " + e.model + " · " + e.engine + " · " + e.mode + (e.consultation ? " · read-only consultation" : "");
+      return;
+    }
     if (e.type === "observe") {
       // Keep the browser panel collapsed unless the user explicitly opened it!
       if (!browserFrames) connectBrowserFrames(true);
@@ -6962,6 +7070,13 @@ dialog.modal-dialog::backdrop {
         delegatedPrefix + prefix + formatMarkdown(e.summary || ""),
         e.success ? "" : "error"
       );
+      if (e.coordination) {
+        var coverage = e.coordination;
+        appendMessage("agent", "<strong>Actual coordination results</strong><br>Replies received: " + esc((coverage.completed || []).join(", ") || "none") +
+          ((coverage.failed || []).length ? "<br>Failed: " + esc(coverage.failed.map(function(item) { return item.bot + ": " + (item.reason || "no usable reply"); }).join("; ")) : "") +
+          ((coverage.notContacted || []).length ? "<br>Not contacted within this discussion's limit: " + esc(coverage.notContacted.join(", ")) : "") +
+          "<br>These were read-only consultations. No ongoing work or recurring schedule was started.");
+      }
       setAgentMotion("done");
       clearRunClientState();
       setStatusState("ready", "Ready");
@@ -7276,16 +7391,41 @@ dialog.modal-dialog::backdrop {
     }).catch(function(error) { status.textContent = error.message; }).finally(function() { attachmentUploads--; });
   }
 
-  async function addProjectFolder(selectedFiles) {
+  async function selectProjectFolder() {
+    closeAttachmentMenu();
+    if (attachmentUploads) { status.textContent = "Please wait for the current attachments to finish."; return; }
+    if (attachments.length >= 8) { status.textContent = "Attach up to 8 items at a time."; return; }
+    if (typeof window.showDirectoryPicker !== "function") {
+      status.textContent = "Using legacy folder selection; dependency files will be filtered before their contents are read.";
+      document.getElementById("project-folder-input").click();
+      return;
+    }
+    var directory;
+    try { directory = await window.showDirectoryPicker({mode: "read"}); }
+    catch (error) { if (error.name !== "AbortError") status.textContent = error.message || "Could not select the folder."; return; }
+    attachmentUploads++;
+    status.textContent = "Scanning source folders; skipping dependencies and build caches…";
+    var config, scanned;
+    try {
+      config = await fetch("/api/attachments/project-config").then(readResponse);
+      scanned = await window.OpenBuddyProjectScanner.collect(directory, config);
+    } catch (error) { status.textContent = error.message || "Could not scan the project."; }
+    finally { attachmentUploads--; }
+    if (scanned && !scanned.files.length) status.textContent = "The folder has no supported source files after exclusions.";
+    else if (scanned) await addProjectFolder(scanned.files, config, scanned.skippedDirectories);
+  }
+
+  async function addProjectFolder(selectedFiles, selectedConfig, skippedDirectories) {
     if (attachmentUploads) { status.textContent = "Please wait for the current attachments to finish."; return; }
     if (attachments.length >= 8) { status.textContent = "Attach up to 8 items at a time; a project folder counts as one."; return; }
     attachmentUploads++;
     status.textContent = "Preparing project folder…";
     try {
-      var config = await fetch("/api/attachments/project-config").then(readResponse);
+      var config = selectedConfig || await fetch("/api/attachments/project-config").then(readResponse);
       var firstPath = selectedFiles[0] && selectedFiles[0].webkitRelativePath;
       if (!firstPath || firstPath.indexOf("/") < 0) throw new Error("Select a folder using the project folder picker.");
       var name = firstPath.split("/")[0];
+      if (config.ignoredDirectories.indexOf(name.toLowerCase()) >= 0 || name.indexOf(".browser-agent-") === 0) throw new Error("Choose a source project folder, not a dependency or cache directory.");
       var prefix = name + "/";
       var candidates = [], skipped = 0, totalBytes = 0;
       selectedFiles.forEach(function(file) {
@@ -7294,7 +7434,7 @@ dialog.modal-dialog::backdrop {
         var path = relativePath.slice(prefix.length);
         var parts = path.split("/");
         var basename = parts[parts.length - 1].toLowerCase();
-        var excluded = parts.slice(0, -1).some(function(part) { return config.ignoredDirectories.indexOf(part.toLowerCase()) >= 0; }) ||
+        var excluded = parts.slice(0, -1).some(function(part) { return config.ignoredDirectories.indexOf(part.toLowerCase()) >= 0 || part.indexOf(".browser-agent-") === 0; }) ||
           /^(?:\.env(?:\.|$)|\.npmrc$|\.pypirc$|credentials?(?:\.|$)|service[-_]account(?:\.|$)|secrets?(?:\.|$)|id_(?:rsa|ed25519)(?:\.|$))/.test(basename) || /\.(?:pem|key|p12|pfx|keystore)$/.test(basename);
         var supported = ["dockerfile", "makefile", "license", "licence", ".gitignore", ".dockerignore", ".editorconfig"].indexOf(basename) >= 0 || config.sourceExtensions.indexOf(basename.split(".").pop()) >= 0;
         if (excluded || !supported || file.size > config.maxFileBytes) { skipped++; return; }
@@ -7314,7 +7454,7 @@ dialog.modal-dialog::backdrop {
       if (!project || project.type !== "project") throw new Error("The project folder could not be imported.");
       attachments.push(project);
       renderAttachments();
-      status.textContent = "Project indexed: " + project.fileCount + " source files" + (project.skipped ? "; " + project.skipped + " files excluded" : "") + ". The reusable index supports ranked code search and file/symbol maps when you send your request.";
+      status.textContent = "Project indexed: " + project.fileCount + " source files" + (project.skipped ? "; " + project.skipped + " files excluded" : "") + (skippedDirectories ? "; " + skippedDirectories + " dependency/cache directories skipped" : "") + ". This bot can reuse the saved snapshot on follow-up messages.";
     } catch (error) { status.textContent = error.message || "Could not import the project folder."; }
     finally { attachmentUploads--; document.getElementById("project-folder-input").value = ""; }
   }
@@ -7594,6 +7734,19 @@ dialog.modal-dialog::backdrop {
   // Model & Settings
   var modelSelect = document.getElementById("model-select");
   var composerModelSelect = document.getElementById("composer-model-select");
+  var lastModelState = null;
+  function updateExecutionModelNotice() {
+    if (!lastModelState) return;
+    var id = modelSelect.value || configuredDefaultModel;
+    var entry = (lastModelState.models || []).find(function(model) { return model.id === id; });
+    var provider = entry && entry.provider || (/^claude-cli/.test(id) ? "claude-cli" : /^ollama:/.test(id) ? "ollama" : /^claude/i.test(id) ? "anthropic" : /^grok/i.test(id) ? "xai" : "openai");
+    var configured = { openai: lastModelState.hasOpenAiKey, anthropic: lastModelState.hasAnthropicKey, xai: lastModelState.hasXaiKey, "claude-cli": lastModelState.hasClaudeCli };
+    var message = id === "local-engine" ? "Local Engine runs tools only. Bot discussions and conversational analysis need a configured language model."
+      : configured[provider] === false ? "The selected model is not configured. Open Settings to connect its provider; it will not be replaced by Local Engine." : "";
+    var text = document.getElementById("execution-model-notice-text");
+    if (text.textContent !== message) text.textContent = message;
+    document.getElementById("execution-model-notice").hidden = !message;
+  }
   function ensureModelOption(select, id) {
     if (!id || Array.from(select.options).some(function(option) { return option.value === id; })) return;
     var option = document.createElement("option");
@@ -7602,6 +7755,7 @@ dialog.modal-dialog::backdrop {
     select.appendChild(option);
   }
   function loadModelCatalog(state) {
+    lastModelState = state;
     configuredDefaultModel = state.defaultModel || "local-engine";
     var selected = localStorage.getItem("agentFireworksModel") || configuredDefaultModel;
     [modelSelect, composerModelSelect].forEach(function(select) {
@@ -7615,7 +7769,21 @@ dialog.modal-dialog::backdrop {
       ensureModelOption(select, selected);
       select.value = selected;
     });
+    document.getElementById("provider-connection-status").textContent = "OpenAI: " + (state.hasOpenAiKey ? "key configured" : "needs a key") +
+      " · Anthropic: " + (state.hasAnthropicKey ? "key configured" : "needs a key") + " · xAI: " + (state.hasXaiKey ? "key configured" : "needs a key");
+    updateExecutionModelNotice();
   }
+  function openModelConnectionSettings(provider) {
+    if (!provider && lastModelState) {
+      var selected = (lastModelState.models || []).find(function(model) { return model.id === modelSelect.value; });
+      provider = selected && selected.provider || (/^claude/i.test(modelSelect.value) ? "anthropic" : /^grok/i.test(modelSelect.value) ? "xai" : "openai");
+    }
+    document.getElementById("header-settings-btn").click();
+    document.getElementById("provider-credentials").open = true;
+    var field = provider === "anthropic" ? "settings-anthropic-key" : provider === "xai" ? "settings-xai-key" : "settings-openai-key";
+    document.getElementById(field).focus();
+  }
+  document.getElementById("execution-model-settings").onclick = function() { openModelConnectionSettings(); };
   var savedModel = localStorage.getItem("agentFireworksModel");
   if (savedModel) {
     ensureModelOption(modelSelect, savedModel);
@@ -7625,10 +7793,12 @@ dialog.modal-dialog::backdrop {
   modelSelect.addEventListener("change", function() {
     localStorage.setItem("agentFireworksModel", modelSelect.value);
     composerModelSelect.value = modelSelect.value;
+    updateExecutionModelNotice();
     scheduleGooglePersist();
   });
   composerModelSelect.addEventListener("change", function() {
     modelSelect.value = composerModelSelect.value;
+    updateExecutionModelNotice();
     localStorage.setItem("agentFireworksModel", composerModelSelect.value);
     scheduleGooglePersist();
   });
@@ -7845,6 +8015,7 @@ dialog.modal-dialog::backdrop {
     fetch("/api/status")
       .then(readResponse)
       .then(function(s) {
+        loadModelCatalog(s);
         var el = document.getElementById("claude-cli-status");
         if (!el) return;
         el.textContent = s.hasClaudeCli
@@ -7980,11 +8151,15 @@ dialog.modal-dialog::backdrop {
     })
       .then(readResponse)
       .then(function() {
-        document.getElementById("settings-status").textContent = "Settings saved for this server session.";
         ["settings-openai-key", "settings-anthropic-key", "settings-xai-key"].forEach(function(id) {
           document.getElementById(id).value = "";
         });
-        setTimeout(function() { document.getElementById("settings-modal").close(); }, 600);
+        return fetch("/api/status").then(readResponse);
+      })
+      .then(function(state) {
+        loadModelCatalog(state);
+        document.getElementById("settings-status").textContent = "Settings saved on this computer. " +
+          (document.getElementById("execution-model-notice").hidden ? "You can retry your request now." : document.getElementById("execution-model-notice-text").textContent);
       })
       .catch(function(err) {
         document.getElementById("settings-status").textContent = err.message;
@@ -8357,20 +8532,20 @@ dialog.modal-dialog::backdrop {
     }
     if (browserLine) {
       browserLine.textContent = isEmbedded
-        ? "In-app browser is on — pages open inside OpenBuddy."
+        ? "In-app browser is on — pages open inside Pilo."
         : isCdp
           ? "Connected Chrome is active for sites that block the in-app browser."
           : isPersistent
-            ? "External OpenBuddy Chrome is active."
+            ? "External Pilo Chrome is active."
             : "In-app browser is the default. Switch below only if needed.";
     }
     if (persistentTitle) {
-      persistentTitle.textContent = embeddedAvailable ? "External OpenBuddy Chrome" : "Chrome · Saved session";
+      persistentTitle.textContent = embeddedAvailable ? "External Pilo Chrome" : "Chrome · Saved session";
     }
     if (persistentCopy) {
       persistentCopy.textContent = embeddedAvailable
-        ? "Opens a separate OpenBuddy Chrome window (not your personal profile)."
-        : "Sign in in a dedicated OpenBuddy Chrome window, then continue here.";
+        ? "Opens a separate Pilo Chrome window (not your personal profile)."
+        : "Sign in in a dedicated Pilo Chrome window, then continue here.";
     }
 
     if (avatarBtn) {
@@ -8384,7 +8559,7 @@ dialog.modal-dialog::backdrop {
           ? "Connected Chrome — click for Account"
           : isEmbedded
             ? "In-app browser — click for Account"
-            : "OpenBuddy Chrome — click for Account";
+            : "Pilo Chrome — click for Account";
     }
 
     if (pillLabel) {
@@ -8459,7 +8634,7 @@ dialog.modal-dialog::backdrop {
         : isCdp
           ? "Chrome-backed browser · your dedicated saved session."
           : isEmbedded
-            ? "In-app browser: pages open inside OpenBuddy."
+            ? "In-app browser: pages open inside Pilo."
             : "External Chrome: sign in in the Chrome window, then continue here.";
     }
 
@@ -8583,7 +8758,7 @@ dialog.modal-dialog::backdrop {
       script.async = true;
       script.defer = true;
       script.onload = resolve;
-      script.onerror = function() { reject(new Error("Google sign-in could not load. Check your connection — you can keep using OpenBuddy as a guest.")); };
+      script.onerror = function() { reject(new Error("Google sign-in could not load. Check your connection — you can keep using Pilo as a guest.")); };
       document.head.appendChild(script);
     });
     return googleIdentityLoader;
@@ -8712,7 +8887,7 @@ dialog.modal-dialog::backdrop {
               if (googleSignInExternal) {
                 googleIdentityNonce = googleSignInExternalNonce;
                 if (!/^[a-f0-9]{48,128}$/i.test(googleIdentityNonce)) {
-                  throw new Error("The desktop sign-in link expired. Click Sign in with Google in OpenBuddy again.");
+                  throw new Error("The desktop sign-in link expired. Click Sign in with Google in Pilo again.");
                 }
                 return Promise.resolve({ ready: true });
               }
@@ -9007,11 +9182,6 @@ dialog.modal-dialog::backdrop {
   });
 
   applyAvatarElement(newAgentButton.querySelector(".agent-avatar"), null, false);
-  var welcomeAvatarEl = document.getElementById("welcome-avatar");
-  if (welcomeAvatarEl) {
-    welcomeAvatarEl.innerHTML = renderBotIcon("circle", "#ff2d3b");
-    setBotExpression(welcomeAvatarEl, "excited");
-  }
 
   renderWelcomeBotCatalog();
   document.querySelectorAll(".template-card[data-name]").forEach(function(card, cardIndex) {
@@ -9055,7 +9225,7 @@ dialog.modal-dialog::backdrop {
       }).catch(function(error) { status.textContent = error.message || "Could not index the coding workspace."; })
       .finally(function() { button.disabled = false; });
   };
-  document.getElementById("attach-folder-option").onclick = function() { closeAttachmentMenu(); document.getElementById("project-folder-input").click(); };
+  document.getElementById("attach-folder-option").onclick = selectProjectFolder;
   document.addEventListener("click", function(event) { if (!event.target.closest(".attachment-control")) closeAttachmentMenu(); });
   document.addEventListener("keydown", function(event) { if (event.key === "Escape" && !attachmentMenu.hidden) { closeAttachmentMenu(); document.getElementById("attach-button").focus(); } });
   document.getElementById("project-folder-input").addEventListener("change", function(event) {

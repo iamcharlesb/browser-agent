@@ -1,6 +1,6 @@
-# OpenBuddy documentation
+# Pilo documentation
 
-OpenBuddy is a local assistant workspace with named specialist bots, browser tools,
+Pilo is a local assistant workspace with named specialist bots, browser tools,
 coding tools, saved conversation context, reviewed playbooks and a terminal CLI.
 The desktop app and CLI use the same Node.js server. This guide describes what
 actually runs, how to control it, and what has been validated.
@@ -8,13 +8,15 @@ actually runs, how to control it, and what has been validated.
 ## Start a session
 
 Start the desktop app using the repository's desktop commands, or install the
-[CLI preview](cli.md) and run `openbuddy serve`. Open the local address the server
+[CLI preview](cli.md) and run `pilo serve`. Open the local address the server
 prints. Choose or create a bot, configure a provider model in Settings, then send
 a concrete request. Give it the target, the evidence and the desired deliverable.
 
 Provider model versions, credentials, prices and operating limits are configured
 through the server environment. Settings can select configured models and set
-session credentials. Local Engine is a deterministic toolbox, not a conversational
+connections saved in the server's private local `.env` file, which survive restarts.
+Blank key fields preserve existing keys; inherited shell settings still take precedence
+when the server starts. Local Engine is a deterministic toolbox, not a conversational
 language model. Ollama requires a configured local language model. The server
 does not silently replace a failed API model with web search.
 

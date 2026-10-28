@@ -11,6 +11,32 @@ import { classifyBrowserAction } from "./actionEffect";
 import { BrowserController, PageState } from "./browserController";
 import { WORKSPACE_ROOT } from "./agentTools";
 
+test("an unconfigured cloud model stops before local tools or specialist consultation", async () => {
+  for (const model of ["openai-test-model", "claude-test-model", "grok-test-model"]) {
+    const events: Record<string, unknown>[] = [];
+    const agent = new AgentOrchestrator({ task: "calculate 2 + 2", model, apiKey: "", browser: {} as BrowserController,
+      onEvent: event => events.push(event),
+      fetch: async () => { throw new Error("An unconfigured model must not make network calls"); } });
+    const result = await agent.run();
+    assert.equal(result.success, false);
+    assert.equal(result.terminationReason, "model_not_configured");
+    assert.match(result.summary, /not connected.*Settings/s);
+    assert.equal(result.stepsTaken, 0);
+    assert.equal(events.some(event => event.type === "step"), false);
+  }
+});
+
+test("local engine answers simple greetings without reporting an unsupported request", async () => {
+  for (const task of ["Hi", "hello!", "Good morning"]) {
+    const agent = new AgentOrchestrator({ task, model: "local-engine", interactionMode: "chat", browser: {} as BrowserController,
+      fetch: async () => { throw new Error("A greeting must not call a model"); } });
+    const result = await agent.run();
+    assert.equal(result.success, true);
+    assert.equal(result.summary, "Hi! How can I help?");
+    assert.equal(result.terminationReason, "finish_task");
+  }
+});
+
 test("local engine does not turn account analytics or specialist follow-ups into generic web searches", async () => {
   for (const task of ["how are we doing wiht the analytics?", "Check wth seo", "I meant this one: apply the roles and responsibilities"]) {
     const events: Record<string, unknown>[] = [];

@@ -1,5 +1,5 @@
 /**
- * OpenBuddy desktop shell — starts the local agent server and shows it in Electron.
+ * Pilo desktop shell — starts the local agent server and shows it in Electron.
  * Default browsing surface: docked WebContentsView (in-app), driven via Electron CDP.
  * Optional escape hatch: external Connected Chrome on port 9222 (handled by the agent server).
  */
@@ -12,6 +12,10 @@ const { BrowserWorkspace, startBrowserBroker } = require("./browserWorkspace");
 const { getExternalGoogleSignInAppUrl, buildDesktopGoogleSignInUrl } = require("./googleSignIn");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
+// Product naming must not move the existing browser sessions or desktop state.
+const existingUserDataPath = app.getPath("userData");
+app.setName("Pilo");
+app.setPath("userData", existingUserDataPath);
 // Defaults to the dev output (dist/). `yarn desktop:built` points this at build/ so the desktop
 // shell can run the production copy instead.
 const SERVER_ENTRY = path.resolve(
@@ -80,7 +84,7 @@ function waitForServer(port, timeoutMs = 30000) {
       });
       req.on("error", () => {
         if (Date.now() - started > timeoutMs) {
-          reject(new Error("OpenBuddy server did not become ready in time."));
+          reject(new Error("Pilo server did not become ready in time."));
           return;
         }
         setTimeout(tryOnce, 250);
@@ -170,7 +174,7 @@ function createWindow(port) {
     height: 860,
     minWidth: 960,
     minHeight: 640,
-    title: "OpenBuddy",
+    title: "Pilo",
     icon: path.join(PROJECT_ROOT, "static", "open-bots-icon.png"),
     show: false,
     ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 14, y: 16 } } : {}),

@@ -62,6 +62,15 @@ export function artifactUrlFor(filename: string): string {
   return `/api/artifacts/${encodeURIComponent(filename)}`;
 }
 
+export function artifactPreviewKind(filename: string): "markdown" | "text" | "image" | "html" | "pdf" | "download" {
+  if (/\.(?:png|jpe?g|webp|gif|svg)$/i.test(filename)) return "image";
+  if (/\.md$/i.test(filename)) return "markdown";
+  if (/\.html?$/i.test(filename)) return "html";
+  if (/\.pdf$/i.test(filename)) return "pdf";
+  if (/\.(?:txt|csv|tsv|json|log|js|ts|css|py|yaml|yml|xml)$/i.test(filename)) return "text";
+  return "download";
+}
+
 /**
  * When the UI opens the live browser while a task may already own Chromium,
  * reuse the active session instead of rejecting with a scary conflict error.

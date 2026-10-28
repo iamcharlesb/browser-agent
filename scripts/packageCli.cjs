@@ -26,8 +26,8 @@ try {
   const dependencies = Object.fromEntries(Object.keys(source.dependencies).map(name => [name, lock.packages["node_modules/" + name].version]));
   const manifest = {
     name: "@iamcharlesb/openbuddy-cli", version, private: true,
-    description: "OpenBuddy local agent CLI preview", license: "UNLICENSED",
-    bin: { openbuddy: "dist/openbuddyCli.js" }, engines: { node: ">=22.0.0" },
+    description: "Pilo local agent CLI preview", license: "UNLICENSED",
+    bin: { pilo: "dist/openbuddyCli.js", openbuddy: "dist/openbuddyCli.js" }, engines: { node: ">=22.0.0" },
     repository: { type: "git", url: "https://github.com/iamcharlesb/browser-agent.git" },
     files: ["dist", "static", "agents", "playbooks", "docs", "AGENTS.md", "soul.md", "README.md", "npm-shrinkwrap.json"], dependencies
   };
