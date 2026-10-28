@@ -1,4 +1,4 @@
-# OpenBuddy CLI 0.1.0-preview.1 validation
+# Pilo CLI 0.1.0-preview.1 validation
 
 Validated locally on macOS on 2026-10-27 with isolated HTTP provider stubs, temporary
 operator storage, disposable workspaces and headless Chromium. No real account

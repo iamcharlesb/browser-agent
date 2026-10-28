@@ -1237,8 +1237,8 @@ function startRun(body: RunRequestBody, options: { runId?: string; handoffDepth?
             if (input.id === "runtime:app" && action === "read") return { ok: true, message: JSON.stringify({
               name: "Pilo", applicationRoot: APPLICATION_ROOT, codingWorkspace: WORKSPACE_ROOT,
               desktopEntry: join(APPLICATION_ROOT, "electron", "main.js"),
-              desktopIcon: join(APPLICATION_ROOT, "static", "open-bots-icon.png"),
-              iconFileExists: existsSync(join(APPLICATION_ROOT, "static", "open-bots-icon.png")),
+              desktopIcon: join(APPLICATION_ROOT, "static", "pilo-icon.png"),
+              iconFileExists: existsSync(join(APPLICATION_ROOT, "static", "pilo-icon.png")),
               iconLoading: "Electron loads this asset at desktop startup for the window and macOS Dock. No icon hot reload is configured. File existence does not prove which pixels the running Dock currently displays.",
               attachments: "Uploaded projects are saved read-only snapshots, distinct from the local coding workspace. Reuse matching saved project references rather than requesting another upload.",
               permissions: "Runtime paths identify the application; they do not extend file/tool permissions or authorize changes outside the configured coding workspace."
@@ -2248,9 +2248,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  if (req.method === "GET" && ["/openbuddy-logo.png", "/open-bots-icon.png", "/favicon.ico"].includes(url.pathname)) {
-    // Keep legacy logo URLs on the app icon so stale desktop renderers cannot show old branding.
-    const filename = "open-bots-icon.png";
+  if (req.method === "GET" && ["/pilo-logo.png", "/pilo-icon.png", "/favicon.ico"].includes(url.pathname)) {
+    // Serve every current logo URL from the canonical Pilo app icon.
+    const filename = "pilo-icon.png";
     const bytes = await readFile(join(STATIC_DIR, filename));
     res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff" });
     res.end(bytes); return;

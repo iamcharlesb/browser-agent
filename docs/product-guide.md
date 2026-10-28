@@ -68,7 +68,7 @@ and transcripts using MongoDB or local storage. Guest conversations are stored o
 the current device. MongoDB change streams do not supply tenant isolation or
 exactly-once execution of external actions.
 
-CLI operator data lives in a separate directory, defaulting to `~/.openbuddy`.
+CLI operator data lives in a separate directory, defaulting to `~/.pilo` for fresh installs (existing legacy data is reused).
 The release tarball excludes credentials, local state and browser profiles.
 Use [setup](../README.md) for browser sessions, provider configuration and storage,
 [coding tools](coding-capability.md) for project access, and

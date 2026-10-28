@@ -1,5 +1,11 @@
 # Pilo
 
+<img src="static/pilo-logo.png" alt="Pilo blue mascot" width="240" />
+
+**Your desktop. Your AI workspace.**
+
+[Project home](https://github.com/iamcharlesb/pilo) · [The story behind Pilo](https://medium.com/@charlesbharathi/meet-pilo-inspired-by-grok-bots-and-chatgpt-dots-13a17c6c5e41)
+
 Pilo is the desktop product built on the existing browser-agent runtime. It uses compact per-bot playbooks, a local pub/sub bus and optional MongoDB-backed event synchronization. Fireworks++ is not a dependency or prerequisite.
 
 See [production-readiness and operating boundaries](docs/buddy-bot-production.md) before deployment.

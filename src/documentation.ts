@@ -10,7 +10,7 @@ export const DOCUMENTATION_TOPICS = [
   { id: "orchestration", title: "Multi-bot orchestration", file: "docs/bounded-orchestration.md" },
   { id: "coding", title: "Coding tools", file: "docs/coding-capability.md" },
   { id: "profiles", title: "Bot profiles and playbooks", file: "docs/agent-profiles.md" },
-  { id: "architecture", title: "Architecture and release gates", file: "docs/openbuddy-architecture-audit.md" }
+  { id: "architecture", title: "Architecture and release gates", file: "docs/pilo-architecture-audit.md" }
 ];
 const escape = (value: string) => value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!));
 function inline(text: string): string {

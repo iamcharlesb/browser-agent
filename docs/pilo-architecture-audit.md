@@ -1,10 +1,10 @@
-# OpenBuddy — architecture audit and release gates
+# Pilo — architecture audit and release gates
 
 Reviewed 2026-10-26 against the current Browser Agent runtime. This is a code review plus GitHub Actions observations, not a live provider benchmark, penetration test, or production certification.
 
 ## Architecture decisions
 
-- **OpenBuddy** is the product name; technical package `browser-agent`, legacy local-storage keys, internal APIs and persisted IDs stay unchanged until a tested migration. Renaming persistent keys in place could hide existing bots and conversations.
+- **Pilo** is the product name; technical package `browser-agent`, legacy local-storage keys, internal APIs and persisted IDs stay unchanged until a tested migration. Renaming persistent keys in place could hide existing bots and conversations.
 - Keep the existing TypeScript/Electron/Playwright runtime, local pub/sub and MongoDB Change Streams; no new agent framework, Redux or message broker.
 - Use the lightweight observable view store for selected bot only. The server remains authoritative for execution, approvals, durable job state and learning.
 - Every agent loads compact core instructions and task-specific playbooks. No automatic model invocation on notifications; coordinate deterministically where possible.
@@ -16,7 +16,7 @@ Reviewed 2026-10-26 against the current Browser Agent runtime. This is a code re
 - `src/discussionController.ts` bounds consultations, but consultation state is process-owned and some routing is name-based.
 - `src/taskMemory.ts`, `src/learningStore.ts` and `src/playbookStore.ts` implement scoped memories and reviewed lessons. They do not guarantee every exchange becomes durable learning.
 - `src/chatAttachments.ts` persists explicitly attached project snapshots. `src/server.ts` now reintroduces up to four compact previously selected project references for the same bot in subsequent model calls. Project data is retrieved on demand. This is not a cross-device project source synchronization feature.
-- UI branding was changed to OpenBuddy in primary desktop and HTML files while preserving legacy compatibility keys.
+- UI branding was changed to Pilo in primary desktop and HTML files while preserving legacy compatibility keys.
 
 ## CI observations and fixes
 

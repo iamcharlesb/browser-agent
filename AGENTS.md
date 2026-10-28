@@ -1,4 +1,4 @@
-# Open Bots operating instructions
+# Pilo operating instructions
 
 TOKEN DISCIPLINE: Load only the relevant playbook and current task state. Retrieve playbook details with knowledge_base(read, id="playbook:ID", offset=0), following nextOffset; do not reconstruct the entire conversation. Keep ordinary replies under 150 words; honor requested deliverable length.
 

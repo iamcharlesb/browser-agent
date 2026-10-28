@@ -175,7 +175,7 @@ function createWindow(port) {
     minWidth: 960,
     minHeight: 640,
     title: "Pilo",
-    icon: path.join(PROJECT_ROOT, "static", "open-bots-icon.png"),
+    icon: path.join(PROJECT_ROOT, "static", "pilo-icon.png"),
     show: false,
     ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 14, y: 16 } } : {}),
     backgroundColor: "#f8f9fb",
@@ -304,7 +304,7 @@ ipcMain.handle("auth:google-sign-in", async (event, handoff) => {
 
 async function boot() {
   if (process.platform === "darwin" && app.dock) {
-    const icon = nativeImage.createFromPath(path.join(PROJECT_ROOT, "static", "open-bots-icon.png"));
+    const icon = nativeImage.createFromPath(path.join(PROJECT_ROOT, "static", "pilo-icon.png"));
     if (!icon.isEmpty()) app.dock.setIcon(icon);
   }
   buildMenu();

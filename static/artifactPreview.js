@@ -54,5 +54,5 @@
     }
     return { open: open, cancel: function() { sequence++; if (controller) controller.abort(); } };
   }
-  global.OpenBuddyArtifacts = { artifactUrl: artifactUrl, createViewer: createViewer };
+  global.PiloArtifacts = { artifactUrl: artifactUrl, createViewer: createViewer };
 })(typeof window === "undefined" ? globalThis : window);

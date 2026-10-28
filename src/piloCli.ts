@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline";
-import { mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { TerminalClient } from "./terminalClient";
+
+const defaultDataDirectory = () => existsSync(join(homedir(), ".pilo")) ? join(homedir(), ".pilo")
+  : existsSync(join(homedir(), ".openbuddy")) ? join(homedir(), ".openbuddy") : join(homedir(), ".pilo");
 
 const help = `Pilo CLI — local agent conversations and browser tasks
 
@@ -49,11 +52,11 @@ async function main(): Promise<number | void> {
   if (values["env-file"] && command !== "serve") throw new Error("--env-file configures serve; client credentials stay on the server.");
   if (command === "serve") {
     if (values["env-file"]) process.env.BROWSER_AGENT_ENV_FILE = resolve(values["env-file"]);
-    process.env.BROWSER_AGENT_ENV_FILE ||= join(resolve(values["data-dir"] || process.env.BROWSER_AGENT_DATA_DIR || join(homedir(), ".openbuddy")), ".env");
+    process.env.BROWSER_AGENT_ENV_FILE ||= join(resolve(values["data-dir"] || process.env.BROWSER_AGENT_DATA_DIR || defaultDataDirectory()), ".env");
     await import("./environment");
     const port = Number(values.port || process.env.BROWSER_AGENT_UI_PORT || 8765);
     if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error("--port must be an integer between 1 and 65535.");
-    const directory = resolve(values["data-dir"] || process.env.BROWSER_AGENT_DATA_DIR || join(homedir(), ".openbuddy"));
+    const directory = resolve(values["data-dir"] || process.env.BROWSER_AGENT_DATA_DIR || defaultDataDirectory());
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     process.env.BROWSER_AGENT_DATA_DIR = directory;
     process.env.BROWSER_AGENT_UI_HOST = "127.0.0.1";

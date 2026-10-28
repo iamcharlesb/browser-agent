@@ -46,7 +46,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   await mkdir(join(directory, "static"));
   await cp(resolve(__dirname, "..", "docs"), join(directory, "docs"), { recursive: true });
   await copyFile(resolve(__dirname, "..", "README.md"), join(directory, "README.md"));
-  for (const file of ["index.html", "browserRuntime.js", "uiState.js", "openbuddy-logo.png", "open-bots-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
+  for (const file of ["index.html", "browserRuntime.js", "uiState.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
   let capturedPersonaPrompt = "";
   const cliPrompts: string[] = [];
   let cliToolCalls = 0;
@@ -237,7 +237,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       assert.doesNotMatch(capturedPersonaPrompt, /customer-obsessed/);
     });
     const cli = async (args: string[], input = "") => {
-      const process = spawn(global.process.execPath, [join(compiled, "openbuddyCli.js"), ...args, "--server", base], {
+      const process = spawn(global.process.execPath, [join(compiled, "piloCli.js"), ...args, "--server", base], {
         cwd: directory, env: { PATH: global.process.env.PATH, BROWSER_AGENT_CLI_TIMEOUT_SECONDS: "10" }, stdio: ["pipe", "pipe", "pipe"]
       });
       let stdout = "", stderr = "";
@@ -412,7 +412,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.equal(teamPrompts.length, 4); assert.equal(finalCalls, 1);
         const bots = await page.evaluate(() => JSON.parse(localStorage.getItem("agentFireworksAgentsV2")!));
         assert.ok(bots.filter((bot: any) => bot.id.startsWith("ui-specialist-")).every((bot: any) => bot.transcript.length === 1), "consultation replies stayed with their requesting coordinator");
-        await page.screenshot({ path: join(tmpdir(), "openbuddy-team-coordination.png"), fullPage: true });
+        await page.screenshot({ path: join(tmpdir(), "pilo-team-coordination.png"), fullPage: true });
         await page.selectOption("#composer-model-select", "local-engine");
         await page.waitForFunction(() => !document.getElementById("execution-model-notice")!.hidden);
         assert.match(await page.locator("#execution-model-notice").innerText(), /tools only/);
@@ -483,7 +483,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       const uiStateResponse = await fetch(base + "/uiState.js");
       assert.equal(uiStateResponse.status, 200);
       assert.match(uiStateResponse.headers.get("content-type") || "", /javascript/);
-      assert.match(await uiStateResponse.text(), /OpenBuddyUI/);
+      assert.match(await uiStateResponse.text(), /PiloUI/);
       const browser = await chromium.launch({ headless: true });
       try {
         const page = await browser.newPage();

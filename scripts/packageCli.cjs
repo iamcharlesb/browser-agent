@@ -6,10 +6,10 @@ const { tmpdir } = require("node:os");
 const { execFileSync } = require("node:child_process");
 const { createHash } = require("node:crypto");
 const root = resolve(__dirname, "..");
-const version = process.env.OPENBUDDY_CLI_VERSION || "0.1.0-preview.1";
-if (!/^\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/.test(version)) throw new Error("Invalid OPENBUDDY_CLI_VERSION.");
-const output = resolve(process.env.OPENBUDDY_CLI_RELEASE_DIR || join(root, "release"));
-const temporary = mkdtempSync(join(tmpdir(), "openbuddy-cli-package-"));
+const version = process.env.PILO_CLI_VERSION || process.env.OPENBUDDY_CLI_VERSION || "0.1.0-preview.1";
+if (!/^\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/.test(version)) throw new Error("Invalid PILO_CLI_VERSION.");
+const output = resolve(process.env.PILO_CLI_RELEASE_DIR || process.env.OPENBUDDY_CLI_RELEASE_DIR || join(root, "release"));
+const temporary = mkdtempSync(join(tmpdir(), "pilo-cli-package-"));
 const stage = join(temporary, "package");
 mkdirSync(join(stage, "dist"), { recursive: true });
 mkdirSync(output, { recursive: true });
@@ -25,9 +25,9 @@ try {
   const lock = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8"));
   const dependencies = Object.fromEntries(Object.keys(source.dependencies).map(name => [name, lock.packages["node_modules/" + name].version]));
   const manifest = {
-    name: "@iamcharlesb/openbuddy-cli", version, private: true,
+    name: "@iamcharlesb/pilo-cli", version, private: true,
     description: "Pilo local agent CLI preview", license: "UNLICENSED",
-    bin: { pilo: "dist/openbuddyCli.js", openbuddy: "dist/openbuddyCli.js" }, engines: { node: ">=22.0.0" },
+    bin: { pilo: "dist/piloCli.js" }, engines: { node: ">=22.0.0" },
     repository: { type: "git", url: "https://github.com/iamcharlesb/browser-agent.git" },
     files: ["dist", "static", "agents", "playbooks", "docs", "AGENTS.md", "soul.md", "README.md", "npm-shrinkwrap.json"], dependencies
   };
@@ -36,7 +36,7 @@ try {
   lock.name = manifest.name; lock.version = version;
   lock.packages[""] = { name: manifest.name, version, dependencies, engines: manifest.engines, bin: manifest.bin };
   writeFileSync(join(stage, "npm-shrinkwrap.json"), JSON.stringify(lock, null, 2) + "\n");
-  chmodSync(join(stage, "dist/openbuddyCli.js"), 0o755);
+  chmodSync(join(stage, "dist/piloCli.js"), 0o755);
   const packed = JSON.parse(execFileSync("npm", ["pack", "--json", "--ignore-scripts", "--cache", join(temporary, "cache"), "--pack-destination", output], { cwd: stage, encoding: "utf8" }))[0];
   const digest = createHash("sha256").update(readFileSync(join(output, packed.filename))).digest("hex");
   writeFileSync(join(output, packed.filename + ".sha256"), `${digest}  ${packed.filename}\n`);

@@ -1,8 +1,8 @@
 {
-  "name": "browser-agent",
+  "name": "pilo",
   "version": "0.1.0",
   "private": true,
-  "description": "Pilo — local, playbook-driven AI agent desktop runtime (Node.js + Electron).",
+  "description": "Pilo \u2014 local, playbook-driven AI agent desktop runtime (Node.js + Electron).",
   "main": "electron/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -11,8 +11,7 @@
     "benchmark:navigation": "npm run build && node scripts/benchmarkNavigation.cjs",
     "test:desktop": "npm run build && node scripts/testDesktop.js",
     "cli": "node dist/cli.js",
-    "pilo": "node build/openbuddyCli.js",
-    "openbuddy": "node build/openbuddyCli.js",
+    "pilo": "node build/piloCli.js",
     "cli:package": "npm run check:secrets && node scripts/packageCli.cjs",
     "server": "node dist/server.js",
     "dev": "node scripts/dev.js",

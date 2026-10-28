@@ -4,8 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Pilo — Autonomous Bots &amp; Agents</title>
-<link rel="icon" type="image/png" sizes="1024x1024" href="./open-bots-icon.png" />
-<link rel="apple-touch-icon" href="./open-bots-icon.png" />
+<link rel="icon" type="image/png" href="./pilo-icon.png?v=full-mascot-2" />
+<link rel="apple-touch-icon" href="./pilo-icon.png?v=full-mascot-2" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -3158,7 +3158,7 @@ dialog.modal-dialog::backdrop {
   <aside id="sidebar">
     <div class="sidebar-header">
       <div class="brand-lockup" title="Pilo">
-        <span class="brand-mark"><img src="./open-bots-icon.png" alt="Pilo mascot" /></span>
+        <span class="brand-mark"><img src="./pilo-icon.png?v=full-mascot-2" alt="Pilo mascot" /></span>
         <span class="brand-name">Pilo</span>
       </div>
       <div class="sidebar-tools">
@@ -3244,7 +3244,7 @@ dialog.modal-dialog::backdrop {
     <section id="workspace" class="empty">
       <section id="conversation">
         <div id="welcome">
-          <div id="welcome-avatar" class="agent-avatar welcome-mark" style="cursor:pointer;" title="Click to create a custom bot"><img src="./open-bots-icon.png" alt="Pilo mascot" /></div>
+          <div id="welcome-avatar" class="agent-avatar welcome-mark" style="cursor:pointer;" title="Click to create a custom bot"><img src="./pilo-icon.png?v=full-mascot-2" alt="Pilo mascot" /></div>
           <h1>What should your bot do?</h1>
           <p>Pick a specialized bot, create a custom bot, or type any task below.</p>
           <div class="template-grid">
@@ -3973,7 +3973,7 @@ dialog.modal-dialog::backdrop {
   var STORAGE_KEY = "agentFireworksAgentsV2";
   var deletedBotIds = JSON.parse(localStorage.getItem("openBotsDeletedIds") || "[]");
   var agents = loadAgents();
-  var uiStore = window.OpenBuddyUI.createStore({ selectedBotId: null });
+  var uiStore = window.PiloUI.createStore({ selectedBotId: null });
   var configuredDefaultModel = "local-engine";
   var googleIdentityUser = null;
   var googlePersistTimer = null;
@@ -4411,7 +4411,7 @@ dialog.modal-dialog::backdrop {
   };
   function defaultAvatarImage(name) {
     var key = String(name || "").trim().toLowerCase();
-    if (key === "primary bot") return "./open-bots-icon.png?v=plush-face-1";
+    if (key === "primary bot") return "./pilo-icon.png?v=full-mascot-2";
     if (key === "inspired by sabri suby") return "./avatars/sabri-suby.jpg?v=6746ddc34177";
     if (key === "inspired by alex hormozi") return "./avatars/alex-hormozi.webp?v=cc0a5ae96df8";
     if (key === "inspired by addy osmani") return "./avatars/addy-osmani.jpg?v=29902bd27134";
@@ -4480,7 +4480,7 @@ dialog.modal-dialog::backdrop {
     if (!el) return;
     var seedKey = (agent && (agent.id || agent.name)) || "new-bot";
     var avatarImage = defaultAvatarImage(agent && agent.name) || (agent && agent.avatarImage);
-    el.classList.toggle("role-avatar", Boolean(avatarImage && (avatarImage.indexOf("/pilo-") >= 0 || avatarImage.indexOf("open-bots-icon.png") >= 0)));
+    el.classList.toggle("role-avatar", Boolean(avatarImage && (avatarImage.indexOf("/pilo-") >= 0 || avatarImage.indexOf("pilo-icon.png") >= 0)));
     if (avatarImage) {
       el.classList.add("custom-bot");
       el.classList.add("photo-avatar");
@@ -7408,7 +7408,7 @@ dialog.modal-dialog::backdrop {
     var config, scanned;
     try {
       config = await fetch("/api/attachments/project-config").then(readResponse);
-      scanned = await window.OpenBuddyProjectScanner.collect(directory, config);
+      scanned = await window.PiloProjectScanner.collect(directory, config);
     } catch (error) { status.textContent = error.message || "Could not scan the project."; }
     finally { attachmentUploads--; }
     if (scanned && !scanned.files.length) status.textContent = "The folder has no supported source files after exclusions.";

@@ -16,8 +16,8 @@ async function waitFor(read) {
   throw new Error("Packaged server startup timed out.");
 }
 async function main() {
-  const archive = resolve(process.argv[2] || "release/iamcharlesb-openbuddy-cli-0.1.0-preview.1.tgz");
-  const directory = await mkdtemp(join(tmpdir(), "openbuddy-cli-smoke-"));
+  const archive = resolve(process.argv[2] || "release/iamcharlesb-pilo-cli-0.1.0-preview.1.tgz");
+  const directory = await mkdtemp(join(tmpdir(), "pilo-cli-smoke-"));
   const environment = { PATH: process.env.PATH, BROWSER_AGENT_CLI_TIMEOUT_SECONDS: "10", ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}) };
   const run = async (file, args, options = {}) => {
     const child = spawn(file, args, { cwd: directory, env: environment, stdio: ["ignore", "pipe", "pipe"], ...options });
@@ -30,8 +30,8 @@ async function main() {
   const captured = [];
   try {
     await run("npm", ["install", "--prefix", directory, "--ignore-scripts", "--legacy-peer-deps", "--no-audit", "--no-fund", archive]);
-    const installed = join(directory, "node_modules/@iamcharlesb/openbuddy-cli");
-    const cli = join(installed, "dist/openbuddyCli.js");
+    const installed = join(directory, "node_modules/@iamcharlesb/pilo-cli");
+    const cli = join(installed, "dist/piloCli.js");
     assert.equal((await readdir(join(directory, "node_modules"))).includes("electron"), false);
     assert.equal((await run(process.execPath, [cli, "--version"])).trim(), "0.1.0-preview.1");
     assert.match(await run(process.execPath, [cli, "--help"]), /pilo serve/);

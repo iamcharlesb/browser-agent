@@ -8,7 +8,7 @@ function load() {
   const window = {};
   const sandbox = { window, Object, Set, TypeError };
   vm.runInNewContext(readFileSync(join(__dirname, "../static/uiState.js"), "utf8"), sandbox);
-  return window.OpenBuddyUI;
+  return window.PiloUI;
 }
 
 test("UI store supports immutable snapshots, subscriptions and unsubscribe", () => {

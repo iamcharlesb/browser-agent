@@ -9,7 +9,7 @@ is required for this preview. Electron is not installed.
 Download the release tarball and install it:
 
 ```sh
-npm install --global --legacy-peer-deps ./iamcharlesb-openbuddy-cli-0.1.0-preview.1.tgz
+npm install --global --legacy-peer-deps ./iamcharlesb-pilo-cli-0.1.0-preview.1.tgz
 pilo --version
 pilo serve --env-file /absolute/path/to/your/.env --workspace /path/to/project
 ```
@@ -19,13 +19,13 @@ OpenAI SDK/Zod peer conflict. Runtime dependencies are pinned to the versions in
 the repository lockfile, including a shrinkwrap for transitive versions. This
 preview has not resolved that compatibility debt.
 
-The product and preferred command are now Pilo and `pilo`. The legacy package
-identifier, `openbuddy` command alias and `~/.openbuddy` data directory remain
-compatible so existing installations and saved conversations continue to work.
+The package is `@iamcharlesb/pilo-cli` and the command is `pilo`. New installs use
+`~/.pilo`. An existing legacy data directory is reused when `~/.pilo` does not
+yet exist, preserving saved conversations. Set `--data-dir` to choose explicitly.
 
 The server binds to loopback, defaults to port 8765, and stays in the foreground.
 It does not open a browser window or enable self-fixing learn mode. Private state
-lives in `~/.openbuddy`, independently of the installed package. Override with
+lives in the selected data directory, independently of the installed package. Override with
 `--data-dir` or `BROWSER_AGENT_DATA_DIR`. Coding tools use the explicit workspace
 or the directory where `serve` was started.
 

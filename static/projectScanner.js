@@ -31,5 +31,5 @@
   }
   var api = {allowed: allowed, collect: collect};
   if (typeof module === "object" && module.exports) module.exports = api;
-  else root.OpenBuddyProjectScanner = api;
+  else root.PiloProjectScanner = api;
 })(typeof window === "object" ? window : globalThis);

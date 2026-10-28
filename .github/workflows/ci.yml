@@ -1,4 +1,4 @@
-name: OpenBuddy CI
+name: Pilo CI
 
 on:
   pull_request:
