@@ -4,7 +4,7 @@
 
 **Your Personal Bot inspired by Grok Bots — Source-Available**
 
-[Project home](https://github.com/iamcharlesb/pilo) · [The story behind Pilo](https://medium.com/@charlesbharathi/meet-pilo-inspired-by-grok-bots-and-chatgpt-dots-13a17c6c5e41)
+[Project home](https://github.com/iamcharlesb/pilo) · [The story behind Pilo](https://medium.com/@iamcharlesb/meet-pilo-inspired-by-grok-bots-and-chatgpt-dots-13a17c6c5e41)
 
 Pilo is an source-available personal bot inspired by Grok Bots, built on the browser-agent runtime. It uses compact per-bot playbooks, a local pub/sub bus and optional MongoDB-backed event synchronization. Fireworks++ is not a dependency or prerequisite.
 
