@@ -1,6 +1,6 @@
 # Pilo
 
-<img src="static/pilo-logo.png" alt="Pilo blue mascot" width="240" />
+<img src="static/branding/pilo-social.png" alt="Pilo and its specialist bots" width="480" />
 
 **Your desktop. Your AI workspace.**
 
