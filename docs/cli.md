@@ -93,3 +93,11 @@ as part of this command.
 
 This is a local single-operator preview. Deterministic provider-stub checks validate
 runtime behavior; they do not measure live model quality or certify hosted use.
+
+## License and attribution
+
+This preview is source-available for noncommercial use under the bundled
+PolyForm Noncommercial License 1.0.0. Preserve the Required Notice credits to
+Charles Barathidass in NOTICE when redistributing. Commercial use needs
+separate written permission. You are welcome to connect at
+https://www.linkedin.com/in/iamcharlesb/ (optional).

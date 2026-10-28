@@ -1,6 +1,6 @@
 # Pilo documentation
 
-Pilo is an open-source personal bot inspired by Grok Bots, with specialist bots, browser tools,
+Pilo is an source-available personal bot inspired by Grok Bots, with specialist bots, browser tools,
 coding tools, saved conversation context, reviewed playbooks and a terminal CLI.
 The desktop app and CLI use the same Node.js server. This guide describes what
 actually runs, how to control it, and what has been validated.
