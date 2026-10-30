@@ -13,6 +13,8 @@ test("explicit coordination selects saved peers while questions about prior cont
   const bots = parseWorkspaceBots(roster)!;
   assert.deepEqual(requestedCoordination("sounds good, coordinate with all, weekly have rerto meeting", bots, "Coordinator").map(bot => bot.id), ["seo", "blog", "reddit", "instagram"]);
   assert.deepEqual(requestedCoordination("Check wth seo", bots, "Coordinator").map(bot => bot.id), ["seo"]);
+  assert.deepEqual(requestedCoordination("Plan growth with @[SEO Specialist] and @[Reddit Community Growth]", bots, "Coordinator").map(bot => bot.id), ["seo", "reddit"]);
+  assert.deepEqual(requestedCoordination("Ask @SEO and @Reddit for a joint plan", bots, "Coordinator").map(bot => bot.id), ["seo", "reddit"]);
   assert.deepEqual(requestedCoordination("did you talked with SEO bot?", bots, "Coordinator"), []);
   assert.deepEqual(requestedCoordination("Have you spoken with all the bots?", bots, "Coordinator"), []);
   assert.equal(resolveWorkspaceBot(bots, "seo").botInstructions, "Verify search evidence.");

@@ -29,6 +29,10 @@ test("botIdFromName slugs display names and rejects path escapes", () => {
   assert.equal(botIdFromName("Instagram Growth Agent"), "Instagram_Growth_Agent");
   assert.equal(botIdFromName("../etc/passwd"), "etc_passwd");
   assert.equal(botIdFromName("!!!"), "default");
+  assert.equal(botIdFromName("Principal Fullstack Engineer, Cloud & DevOps"), "The_Systems_Architect");
+  assert.equal(botIdFromName("The Systems Architect"), "The_Systems_Architect");
+  assert.equal(botIdFromName("Ads Specialist (Google, Meta & more)"), "Paid_Media_Performance_Marketing_Specialist");
+  assert.equal(botIdFromName("Paid Media & Performance Marketing Specialist"), "Paid_Media_Performance_Marketing_Specialist");
   assert.throws(() => learningFilePath("/tmp/kb", "../x"), /path escape|must match/);
   assert.throws(() => learningFilePath("/tmp/kb", "a/b"), /must match/);
   const safe = learningFilePath("/tmp/kb", "My_Bot");

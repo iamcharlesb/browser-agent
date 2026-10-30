@@ -67,7 +67,15 @@ export function botIdFromName(name: string): string {
     "inspired by sabri suby": "The_Revenue_Architect",
     "inspired by alex hormozi": "The_Value_Architect",
     "inspired by addy osmani": "The_Engineering_Craftsman",
-    "inspired by andrej karpathy": "The_Neural_Architect"
+    "inspired by andrej karpathy": "The_Neural_Architect",
+    "the systems architect": "The_Systems_Architect",
+    "principal fullstack engineer, cloud & devops": "The_Systems_Architect",
+    "principal fullstack engineer, cloud and devops": "The_Systems_Architect",
+    "principal or expert fullstack engineer, cloud and devops": "The_Systems_Architect",
+    "expert fullstack engineer, cloud and devops": "The_Systems_Architect",
+    "ads specialist (google, meta & more)": "Paid_Media_Performance_Marketing_Specialist",
+    "ads specialist": "Paid_Media_Performance_Marketing_Specialist",
+    "paid media & performance marketing specialist": "Paid_Media_Performance_Marketing_Specialist"
   };
   if (specialistAliases[raw.toLowerCase()]) return specialistAliases[raw.toLowerCase()];
   const slug = raw

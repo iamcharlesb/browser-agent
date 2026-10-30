@@ -37,7 +37,25 @@ export function requestedCoordination(task: string, bots: WorkspaceBot[] | undef
   if (/^(?:did|have|has|were|was|are|is|what|who|when|how)\b/i.test(text) || /\b(?:don't|do not|never|stop)\s+(?:delegate|consult|ask|coordinate|talk|check)/i.test(text)) return [];
   const peers = bots.filter(bot => key(bot.name) !== key(owner));
   if (/\b(?:coordinate|consult|check|speak|talk|discuss|ask)\b[\s\S]{0,60}\b(?:all|every|each|the team)\b/i.test(text)) return peers;
-  const named = /\b(?:check\s+(?:with|wth)|ask|consult|talk\s+(?:to|with)|speak\s+(?:to|with)|coordinate\s+with)\s+(.+)/i.exec(text);
+  const tagged = new Map<string, WorkspaceBot>();
+  const mentionPattern = /@\[([^\]]+)\]|@([A-Za-z0-9][A-Za-z0-9&/'+.-]{0,80})/g;
+  let mention: RegExpExecArray | null;
+  while ((mention = mentionPattern.exec(text))) {
+    const raw = (mention[1] || mention[2] || "").trim().replace(/[.,;:!?]+$/, "");
+    if (!raw) continue;
+    try {
+      const bot = resolveWorkspaceBot(peers, raw);
+      tagged.set(bot.id, bot);
+    } catch {
+      const soft = alias(raw);
+      peers.forEach(bot => {
+        const name = alias(bot.name);
+        if (name && (soft === name || soft.startsWith(name) || name.startsWith(soft))) tagged.set(bot.id, bot);
+      });
+    }
+  }
+  if (tagged.size) return Array.from(tagged.values());
+  const named = /\b(?:check\s+(?:with|wth)|ask|consult|talk\s+(?:to|with)|speak\s+(?:to|with)|coordinate\s+with|discuss\s+with)\s+(.+)/i.exec(text);
   if (!named) return [];
   const target = alias(named[1]);
   return peers.filter(bot => {

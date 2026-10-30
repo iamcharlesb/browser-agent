@@ -11,7 +11,7 @@ The runtime separates stable operating instructions, voice, domain procedures, t
 5. Relevant domain playbooks selected deterministically from `playbooks/manifest.json`; no model call selects them. At most two are loaded by default, within the configured character budget. Whole paragraphs are retained, and full role guidance remains available through paginated `knowledge_base(read, id="playbook:seo", offset=0)` calls.
 6. Current runtime authorization, task continuity, relevant source retrieval, and user-authored corrections. Runtime tool checks remain authoritative.
 
-Core plus voice must fit `BROWSER_AGENT_CORE_PROFILE_CHARS`; oversized trusted core files fail explicitly rather than losing safety instructions through truncation. Model-proposed notes are excluded from automatic learning-context injection. The learning tool can still list them as reference data. The core instruction set is roughly 400–500 tokens as an engineering estimate; actual tokenizer usage depends on the model. Tool schemas, runtime authorization, task state, attachments, selected playbooks and responses add more tokens.
+Operating instructions (`AGENTS.md` plus optional role `AGENTS.md`) must fit `BROWSER_AGENT_CORE_PROFILE_CHARS`. Voice (`soul.md`) has a separate `BROWSER_AGENT_SOUL_CHARS` budget so personality is not squeezed out by safety rules. Oversized trusted files fail explicitly rather than losing instructions through truncation. Every soul must state an explicit speaking personality, not only methods. Model-proposed notes are excluded from automatic learning-context injection. The learning tool can still list them as reference data. The core instruction set is roughly 400–500 tokens as an engineering estimate; actual tokenizer usage depends on the model. Tool schemas, runtime authorization, task state, attachments, selected playbooks and responses add more tokens.
 
 The measured generic Primary Bot prompt changed from 18,210 to 3,795 characters. This compares system-prompt text only, not a production cost or quality benchmark. Profile load events report the selected files' revision, selected playbook IDs, profile characters and complete system-prompt characters. Existing usage events retain actual provider token accounting. `/api/status` exposes aggregate profile loads, prompt characters, usage-reported model calls and administrative notification counts.
 
@@ -56,7 +56,8 @@ The message input remains usable during background runs. Toolbar clicks and asyn
 ## Environment configuration
 
 - `BROWSER_AGENT_PROFILE_DIR`: optional trusted profile directory containing the same file layout.
-- `BROWSER_AGENT_CORE_PROFILE_CHARS=2400`
+- `BROWSER_AGENT_CORE_PROFILE_CHARS=2400` (shared + role operating instructions)
+- `BROWSER_AGENT_SOUL_CHARS=900` (bot voice / personality)
 - `BROWSER_AGENT_PLAYBOOK_CHARS=3200`
 - `BROWSER_AGENT_MAX_PLAYBOOKS=2`
 - `BROWSER_AGENT_REVIEWED_PLAYBOOK_CHARS=1200`

@@ -568,7 +568,7 @@ export class AgentOrchestrator {
     return [
       `You are ${this.botName}. Role & Purpose: ${this.expertise}.`,
       this.profile.instructions,
-      `SOUL — habitual perspective and voice for every turn. Apply it when diagnosing, choosing actions and explaining results; do not recite it. Offer concise reasons and evidence, never private internal reasoning.\n${this.profile.soul}`,
+      `SOUL — speaking personality for every turn. Sound like this bot, not a generic assistant. Apply tone, cadence and stance in greetings, status answers and deliverables; do not recite the soul. Keep reasons concise and evidence-based; never private internal reasoning.\n${this.profile.soul}`,
       this.profile.playbooks,
       RESPONSE_STYLE,
       "CONVERSATION: Apply role or attachment clarifications directly; do not delegate a clarification. Reported bot history is not live job state. Distinguish proposed assignments from queued/running/completed work. Claim a saved dashboard, contacted bot, scheduled task or recurring monitoring only after its tool confirms it; otherwise state the concrete next step and missing setup. Check the current report and date range before comparing analytics. Never substitute a generic web search for the user's account metrics.",

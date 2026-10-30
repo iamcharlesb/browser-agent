@@ -663,13 +663,26 @@ button { color: inherit; }
 .bot-preset-trigger { min-height:44px; border:1px solid var(--border); border-radius:10px; }
 .bot-preset-trigger .preset-label, .bot-preset-option .preset-label { flex:1; min-width:0; }
 .bot-preset-trigger:focus-visible, .bot-preset-option:focus-visible { outline:2px solid var(--brand); outline-offset:-2px; }
-.bot-preset-list { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:30; max-height:min(300px,42vh); overflow-y:auto; padding:5px; border:1px solid var(--border); border-radius:12px; background:#fff; box-shadow:var(--shadow-lg); }
+.bot-preset-list { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:30; max-height:min(340px,48vh); display:flex; flex-direction:column; padding:5px; border:1px solid var(--border); border-radius:12px; background:#fff; box-shadow:var(--shadow-lg); }
+.bot-preset-search { width:100%; flex:0 0 auto; margin:0 0 6px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font:inherit; font-size:13px; background:#f8fafc; }
+.bot-preset-search:focus { outline:2px solid var(--brand); outline-offset:-1px; background:#fff; }
+.bot-preset-options { flex:1; min-height:0; overflow-y:auto; }
 .bot-preset-option { border-radius:8px; font-size:13px; }
 .bot-preset-option:hover, .bot-preset-option[aria-selected="true"] { background:var(--blue-soft); }
 .bot-preset-option:disabled { opacity:.45; cursor:default; }
 .bot-preset-option small { display:block; font-size:11px; color:var(--muted); }
+.bot-preset-empty { padding:12px; color:var(--muted); font-size:12px; text-align:center; }
 .bot-preset-picker .agent-avatar { width:28px; height:28px; flex:0 0 28px; }
 .bot-preset-picker .bot { --size:26px; }
+#tagged-bots { display:flex; flex-wrap:wrap; gap:6px; padding:0 2px 6px; }
+#tagged-bots:empty { display:none; }
+.tagged-bot-chip { display:inline-flex; align-items:center; gap:6px; max-width:100%; padding:4px 8px; border-radius:999px; background:var(--blue-soft); color:var(--blue); font-size:12px; font-weight:600; }
+.tagged-bot-chip button { border:0; background:transparent; color:inherit; cursor:pointer; font-size:14px; line-height:1; padding:0; }
+#bot-mention-menu { position:absolute; left:12px; right:12px; bottom:calc(100% - 8px); z-index:40; max-height:220px; overflow:auto; padding:6px; border:1px solid var(--border); border-radius:12px; background:#fff; box-shadow:var(--shadow-lg); }
+#bot-mention-menu[hidden] { display:none !important; }
+.bot-mention-option { width:100%; display:flex; align-items:center; gap:8px; padding:8px 10px; border:0; border-radius:8px; background:#fff; text-align:left; cursor:pointer; font:inherit; font-size:13px; }
+.bot-mention-option:hover, .bot-mention-option[aria-selected="true"] { background:var(--blue-soft); }
+.bot-mention-option .agent-avatar { width:24px; height:24px; flex:0 0 24px; }
 .bot-modal-inputs input, .bot-modal-inputs textarea {
   width: 100%;
   height: 40px;
@@ -1388,8 +1401,8 @@ button { color: inherit; }
   z-index: 10000;
   pointer-events: none;
   width: max-content;
-  max-width: min(560px, calc(100vw - 24px));
-  padding: 12px 14px;
+  max-width: min(320px, calc(100vw - 24px));
+  padding: 8px 10px;
   border: 1px solid #344054;
   border-radius: 10px;
   background: #101828;
@@ -2337,12 +2350,99 @@ button { color: inherit; }
 }
 #browser-panel.terminal-mode #browser-viewport,
 #browser-panel.terminal-mode #browser-tabs,
-#browser-panel.terminal-mode #browser-footer {
+#browser-panel.terminal-mode #browser-footer,
+#browser-panel.artifact-mode #browser-viewport,
+#browser-panel.artifact-mode #browser-tabs,
+#browser-panel.artifact-mode #browser-footer,
+#browser-panel.artifact-mode #terminal-view {
   display: none !important;
 }
 #browser-panel.terminal-mode #terminal-view {
   display: flex;
 }
+#artifact-preview {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  background: #f8fafc;
+}
+#browser-panel.artifact-mode #artifact-preview {
+  display: flex;
+}
+.artifact-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+.artifact-preview-bar strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+#artifact-preview-download {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--blue);
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+#artifact-preview-download:hover { background: var(--blue-hover); }
+#artifact-preview-close {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+}
+#artifact-preview-close:hover { background: #f1f5f9; color: var(--text); }
+#artifact-preview-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  background: #fff;
+}
+#artifact-preview-body > img,
+#artifact-preview-body > iframe {
+  display: block;
+  width: 100%;
+  min-height: min(70vh, 720px);
+  border: 0;
+  background: #fff;
+}
+#artifact-preview-body > img {
+  width: auto;
+  max-width: 100%;
+  min-height: 0;
+  margin: 0 auto;
+}
+#artifact-preview-body > pre,
+#artifact-preview-body > .artifact-markdown {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+#artifact-preview-body > .artifact-markdown { white-space: normal; }
 .terminal-header-bar {
   display: flex;
   align-items: center;
@@ -3294,11 +3394,11 @@ dialog.modal-dialog::backdrop {
                 <span>Keywords → GA4/GTM → funnels → AI visibility — plan first.</span>
               </div>
             </button>
-            <button type="button" class="template-card" data-name="Paid Media &amp; Performance Marketing Specialist" data-desc="Principal paid media strategist, advertising psychologist, creative strategist, and profitable acquisition analyst. Plan Google, Meta, Microsoft, TikTok, and other suitable campaigns around qualified customer outcomes. Define objective, defensible audience, platform, search intent, offer, creative hypotheses, landing page, measurement, budget proposal, expected outcomes with assumptions, experiment, risks, approvals, and playbook learning. Audit account health, targeting, keywords, creative, offer, funnel, tracking, bidding, budget pacing, attribution, CAC, qualified leads, contribution margin, ROAS, and incrementality. Never invent results, testimonials, scarcity, performance, or attribution certainty. Never launch/publish ads, change live budgets, or spend funds without explicit approval. Respect privacy, consent, platform rules, and user autonomy. Keep /playbooks/paid-media-specialist.md compact, dated, and evidence-backed; unverified lessons remain proposed drafts." data-shape="circle" data-color="#8b5cf6">
+            <button type="button" class="template-card" data-name="Ads Specialist (Google, Meta &amp; more)" data-desc="Ads specialist for Google Ads, Meta Ads, Microsoft, TikTok and other paid channels. Plan campaigns around qualified outcomes: audience, offer, creative, landing page, tracking, budget and experiments. Audit account health, CAC, ROAS and incrementality. Never invent results or spend without approval." data-shape="circle" data-color="#8b5cf6">
               <div class="template-avatar" data-shape="circle" data-color="#8b5cf6"></div>
               <div class="template-copy">
-                <strong>Paid Media &amp; Performance Marketing Specialist</strong>
-                <span>Acquisition strategy, creative tests, measurement, and budget guardrails.</span>
+                <strong>Ads Specialist (Google, Meta &amp; more)</strong>
+                <span>Google, Meta and paid acquisition with measurement guardrails.</span>
               </div>
             </button>
             <button type="button" class="template-card" data-name="X / Grok Trend Researcher" data-desc="Monitor real-time conversations, analyze viral posts, and synthesize key takeaways with Grok speed." data-shape="circle" data-color="#000000">
@@ -3345,7 +3445,9 @@ dialog.modal-dialog::backdrop {
             <div id="composer">
               <label for="prompt" class="sr-only">Message or command</label>
               <div id="attachment-list"></div>
-              <textarea id="prompt" rows="1" placeholder="Ask anything, run $ command, or paste a URL…"></textarea>
+              <div id="tagged-bots" aria-label="Bots tagged for discussion"></div>
+              <div id="bot-mention-menu" hidden role="listbox" aria-label="Tag a bot for discussion"></div>
+              <textarea id="prompt" rows="1" placeholder="Ask anything, @tag bots to discuss, run $ command, or paste a URL…"></textarea>
               <div class="composer-toolbar">
               <input id="attachment-input" type="file" multiple hidden accept="image/png,image/jpeg,image/webp,image/gif,.txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.py,.html,.css,.yaml,.yml,.xml,.sql,.sh"/>
               <input id="project-folder-input" type="file" webkitdirectory directory multiple hidden />
@@ -3436,6 +3538,14 @@ dialog.modal-dialog::backdrop {
           </div>
           <img id="browser-screen" alt="Live agent browser" draggable="false"/>
         </div>
+        <div id="artifact-preview" aria-label="Artifact preview">
+          <div class="artifact-preview-bar">
+            <strong id="artifact-preview-title">Preview</strong>
+            <a id="artifact-preview-download" href="#" download>Download</a>
+            <button type="button" id="artifact-preview-close" title="Close preview" aria-label="Close preview">✕</button>
+          </div>
+          <div id="artifact-preview-body"></div>
+        </div>
         <div id="terminal-view">
           <div class="terminal-header-bar">
             <span id="terminal-cwd">Local Workspace Terminal</span>
@@ -3483,7 +3593,10 @@ dialog.modal-dialog::backdrop {
           <div class="bot-preset-picker" id="bot-preset-picker">
             <input type="hidden" id="bot-preset-select" value="" />
             <button type="button" id="bot-preset-trigger" class="bot-preset-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="bot-preset-list" aria-labelledby="bot-preset-label bot-preset-value"><span class="agent-avatar" aria-hidden="true"></span><span class="preset-label" id="bot-preset-value">Blank bot</span><span aria-hidden="true">⌄</span></button>
-            <div id="bot-preset-list" class="bot-preset-list" role="listbox" aria-labelledby="bot-preset-label" hidden></div>
+            <div id="bot-preset-list" class="bot-preset-list" role="listbox" aria-labelledby="bot-preset-label" hidden>
+              <input id="bot-preset-search" class="bot-preset-search" type="search" placeholder="Search specialists…" autocomplete="off" aria-label="Search specialists" />
+              <div id="bot-preset-options" class="bot-preset-options"></div>
+            </div>
           </div>
           <small style="color:var(--muted);">Choose a ready-made role, then customize its name, instructions, shape, or color.</small>
         </div>
@@ -3803,6 +3916,7 @@ dialog.modal-dialog::backdrop {
 
 <script src="./browserRuntime.js"></script>
 <script src="./uiState.js"></script>
+<script src="./artifactPreview.js"></script>
 <script src="./projectScanner.js"></script>
 <script id="response-markdown-runtime">
 (function(root) {
@@ -4370,7 +4484,7 @@ dialog.modal-dialog::backdrop {
     { profileId: "chief-marketing-officer", name: "Chief Marketing Officer", description: "Your content and growth strategist. Drafts in your voice, researches creators, maintains an editorial calendar, evaluates verified post metrics and prepares weekly reports. Publishing and paid actions always require your approval.", color: "#F59E0B", summary: "Content strategy, growth research, weekly reporting and approval-first publishing." },
     { profileId: "revenue-architect", name: "Inspired by Sabri Suby", description: "Founder-level direct-response strategist informed by Sabri Suby's published ideas. Customer research, profitable acquisition, funnel economics, persuasive copy, measurable experiments, ethical claims, and approval before campaign changes or spend.", color: "#E45532", avatar: "./avatars/sabri-suby.jpg?v=6746ddc34177", summary: "Direct response strategy, customer acquisition, persuasive copy, and profitable growth." },
     { profileId: "value-architect", name: "Inspired by Alex Hormozi", description: "Founder-level business growth strategist informed by Alex Hormozi's published frameworks. Create genuine customer value through offers, pricing, acquisition, monetization, retention, and sustainable economics. Diagnose constraints, label assumptions, test hypotheses, and require approval before pricing or spending changes.", color: "#147D79", avatar: "./avatars/alex-hormozi.webp?v=cc0a5ae96df8", summary: "Offers, pricing, customer value, acquisition, and sustainable business growth." },
-    { profileId: "systems-architect", name: "The Systems Architect", description: "Principal full-stack and distributed-systems architect informed by published engineering work. Design the simplest secure, reliable, maintainable system that meets real requirements. Evaluate cloud, data, operations, failure modes, costs, and tradeoffs. Require approval before deployment or infrastructure changes.", color: "#4768A8" },
+    { profileId: "systems-architect", name: "Principal Fullstack Engineer, Cloud & DevOps", description: "Principal / expert fullstack engineer for cloud, DevOps, and distributed systems. Design the simplest secure, reliable, maintainable system that meets real requirements. Cover frontend, backend, data, CI/CD, infrastructure, operations, failure modes, costs, and tradeoffs. Require approval before deployment or infrastructure changes.", color: "#4768A8", summary: "Fullstack engineering, cloud architecture, DevOps, and production systems." },
     { profileId: "engineering-craftsman", name: "Inspired by Addy Osmani", description: "Principal software engineer informed by Addy Osmani's published work. Focus on maintainable frontend architecture, measurable web performance, developer experience, code review, and responsible AI-assisted engineering. Measure before optimizing and verify changes.", color: "#7056A8", avatar: "./avatars/addy-osmani.jpg?v=29902bd27134", summary: "Software engineering, web performance, frontend architecture, and developer experience." },
     { profileId: "neural-architect", name: "Inspired by Andrej Karpathy", description: "Principal AI specialist informed by Andrej Karpathy's public work. Understand deep learning, Transformers, LLM systems, evaluation, agent design, and inference from first principles. Build small baselines and measure hypotheses; never claim improvement without evidence.", color: "#3E7C91", avatar: "./avatars/andrej-karpathy.jpg?v=2aaa21c78fa6", summary: "Deep learning, LLM systems, evaluation, and AI from first principles." }
   ];
@@ -4379,7 +4493,13 @@ dialog.modal-dialog::backdrop {
     "the revenue architect": "Inspired by Sabri Suby",
     "the value architect": "Inspired by Alex Hormozi",
     "the engineering craftsman": "Inspired by Addy Osmani",
-    "the neural architect": "Inspired by Andrej Karpathy"
+    "the neural architect": "Inspired by Andrej Karpathy",
+    "the systems architect": "Principal Fullstack Engineer, Cloud & DevOps",
+    "principal or expert fullstack engineer, cloud and devops": "Principal Fullstack Engineer, Cloud & DevOps",
+    "expert fullstack engineer, cloud and devops": "Principal Fullstack Engineer, Cloud & DevOps",
+    "principal fullstack engineer, cloud and devops": "Principal Fullstack Engineer, Cloud & DevOps",
+    "paid media & performance marketing specialist": "Ads Specialist (Google, Meta & more)",
+    "ads specialist": "Ads Specialist (Google, Meta & more)"
   };
   function normalizeSpecialistBot(bot) {
     if (!bot || bot.deleted) return bot;
@@ -4405,6 +4525,23 @@ dialog.modal-dialog::backdrop {
   });
   LATEST_BOT_PRESETS.forEach(function(preset) { preset.avatar = defaultAvatarImage(preset.name) || preset.avatar; });
   agents.forEach(normalizeSpecialistBot);
+  (function dedupeSpecialistRoster() {
+    var seen = Object.create(null);
+    var next = [];
+    var changed = false;
+    agents.forEach(function(bot) {
+      if (!bot || bot.deleted) { next.push(bot); return; }
+      var key = bot.profileId ? "profile:" + bot.profileId : "name:" + String(bot.name || "").trim().toLowerCase();
+      if (!String(bot.name || "").trim() || seen[key]) { changed = true; return; }
+      seen[key] = true;
+      next.push(bot);
+    });
+    if (changed) {
+      agents = next;
+      saveAgents();
+      if (activeAgentId && !agents.some(function(bot) { return bot && bot.id === activeAgentId; })) activeAgentId = null;
+    }
+  })();
 
   // Normalize older, untouched starter avatars to the circular default. Shapes that users
   // deliberately selected through the customizer are left alone.
@@ -4609,7 +4746,7 @@ dialog.modal-dialog::backdrop {
     var presetName = SPECIALIST_NAME_ALIASES && SPECIALIST_NAME_ALIASES[String(name || "").trim().toLowerCase()] || name;
     var specialist = LATEST_BOT_PRESETS && LATEST_BOT_PRESETS.find(function(item) { return item.profileId === profileId || item.name === presetName; });
     if (specialist) {
-      var engineering = /Addy Osmani|Andrej Karpathy|Systems Architect/.test(specialist.name);
+      var engineering = /Addy Osmani|Andrej Karpathy|Systems Architect|Fullstack Engineer|Cloud & DevOps/.test(specialist.name);
       return {
         kind: engineering ? "coding" : "sales",
         expertise: specialist.description,
@@ -5025,13 +5162,23 @@ dialog.modal-dialog::backdrop {
 
   messages.addEventListener("click", function(event) {
     var button = event.target.closest(".copy-code");
-    if (!button) return;
-    var code = button.closest(".code-block").querySelector("pre code");
-    if (!navigator.clipboard || !navigator.clipboard.writeText) { status.textContent = "Copy is unavailable here. Select the code to copy it."; return; }
-    navigator.clipboard.writeText(code.textContent).then(function() {
-      button.textContent = "Copied"; button.setAttribute("aria-label", "Code copied");
-      setTimeout(function() { button.textContent = "Copy code"; button.setAttribute("aria-label", "Copy code"); }, 1800);
-    }).catch(function() { status.textContent = "Could not copy code. Select the code and copy it manually."; });
+    if (button) {
+      var code = button.closest(".code-block").querySelector("pre code");
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { status.textContent = "Copy is unavailable here. Select the code to copy it."; return; }
+      navigator.clipboard.writeText(code.textContent).then(function() {
+        button.textContent = "Copied"; button.setAttribute("aria-label", "Code copied");
+        setTimeout(function() { button.textContent = "Copy code"; button.setAttribute("aria-label", "Copy code"); }, 1800);
+      }).catch(function() { status.textContent = "Could not copy code. Select the code and copy it manually."; });
+      return;
+    }
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    var link = event.target.closest("a[href]");
+    if (!link || !messages.contains(link) || link.closest("#artifact-preview")) return;
+    var href = link.getAttribute("href") || "";
+    if (typeof openPreviewLink === "function" && openPreviewLink(href)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
   });
 
   function buildFeedbackRow(bubble, agent) {
@@ -5226,9 +5373,71 @@ dialog.modal-dialog::backdrop {
 
   var toggleTerminalBtn = document.getElementById("toggle-terminal-btn");
   var browserPanelEl = document.getElementById("browser-panel");
+  var artifactPreviewTitle = document.getElementById("artifact-preview-title");
+  var artifactPreviewBody = document.getElementById("artifact-preview-body");
+  var artifactPreviewDownload = document.getElementById("artifact-preview-download");
+  var artifactPreviewClose = document.getElementById("artifact-preview-close");
+  var artifactViewer = window.PiloArtifacts && window.PiloArtifacts.createViewer({
+    title: artifactPreviewTitle,
+    body: artifactPreviewBody,
+    download: artifactPreviewDownload,
+    formatMarkdown: function(text) { return OpenBotsMarkdown.format(text); },
+    onOpen: function() {
+      browserPanelEl.classList.remove("terminal-mode");
+      browserPanelEl.classList.add("artifact-mode");
+      if (toggleTerminalBtn) toggleTerminalBtn.classList.remove("active");
+      toggleBrowserBtn.classList.add("active");
+    }
+  });
+
+  function closeArtifactPreview() {
+    if (!browserPanelEl.classList.contains("artifact-mode") && !(artifactViewer)) return;
+    browserPanelEl.classList.remove("artifact-mode");
+    if (artifactViewer) artifactViewer.cancel();
+    if (artifactPreviewBody) artifactPreviewBody.replaceChildren();
+    if (artifactPreviewTitle) artifactPreviewTitle.textContent = "Preview";
+    if (artifactPreviewDownload) artifactPreviewDownload.removeAttribute("href");
+  }
+
+  function openArtifactPreview(url) {
+    if (!artifactViewer) return false;
+    browserPanelEl.classList.add("artifact-opening");
+    try {
+      showBrowser();
+      browserAddress.value = String(url).replace(/^sandbox:\s*/, "");
+      artifactViewer.open(url);
+      syncLiveBrowserChrome();
+    } finally {
+      browserPanelEl.classList.remove("artifact-opening");
+    }
+    return true;
+  }
+  if (artifactPreviewClose) {
+    artifactPreviewClose.addEventListener("click", function() {
+      closeArtifactPreview();
+      syncLiveBrowserChrome();
+    });
+  }
+
+  function openPreviewLink(rawHref) {
+    var href = String(rawHref || "").trim();
+    if (!href || href.charAt(0) === "#") return false;
+    if (window.PiloArtifacts && window.PiloArtifacts.artifactUrl(href)) return openArtifactPreview(href);
+    if (/^https?:\/\//i.test(href)) {
+      closeArtifactPreview();
+      showBrowser();
+      openInteractiveBrowser(href, false);
+      return true;
+    }
+    return false;
+  }
 
   function setPanelMode(mode) {
     var isTerm = mode === "terminal";
+    if (isTerm || mode === "browser") {
+      // Keep artifact mode when showBrowser() is only preparing the right pane for a preview open.
+      if (isTerm || !browserPanelEl.classList.contains("artifact-opening")) closeArtifactPreview();
+    }
     browserPanelEl.classList.toggle("terminal-mode", isTerm);
     if (toggleTerminalBtn) toggleTerminalBtn.classList.toggle("active", isTerm && workspace.classList.contains("has-browser"));
     toggleBrowserBtn.classList.toggle("active", !isTerm && workspace.classList.contains("has-browser"));
@@ -5243,7 +5452,7 @@ dialog.modal-dialog::backdrop {
 
   function syncLiveBrowserChrome() {
     scheduleBrowserViewportResize();
-    var panelVisible = workspace.classList.contains("has-browser") && !browserPanelEl.classList.contains("terminal-mode") && !document.querySelector("dialog[open]");
+    var panelVisible = workspace.classList.contains("has-browser") && !browserPanelEl.classList.contains("terminal-mode") && !browserPanelEl.classList.contains("artifact-mode") && !document.querySelector("dialog[open]");
     var useEmbeddedView = Boolean(desktopApi) && embeddedAvailable && currentSessionMode === "embedded" && panelVisible;
     browserPanelEl.classList.toggle("embedded-live", useEmbeddedView);
     if (!workspace.classList.contains("has-browser") || !workspace.classList.contains("chat-collapsed")) appEl.classList.remove("browser-focus");
@@ -5307,6 +5516,7 @@ dialog.modal-dialog::backdrop {
   function toggleBrowserPanel() {
     if (workspace.classList.contains("has-browser") && !browserPanelEl.classList.contains("terminal-mode")) {
       localStorage.removeItem("openBotsBrowserPane");
+      closeArtifactPreview();
       workspace.classList.remove("has-browser");
       workspace.classList.remove("chat-collapsed");
       document.getElementById("browser-expand-btn").classList.remove("active");
@@ -5529,15 +5739,16 @@ dialog.modal-dialog::backdrop {
   var botDescriptionTooltip;
   var botDescriptionOwner;
   var botDescriptionHideTimer;
+  var botDescriptionShowTimer;
   function hideBotDescription() {
     clearTimeout(botDescriptionHideTimer);
+    clearTimeout(botDescriptionShowTimer);
     if (botDescriptionTooltip) botDescriptionTooltip.hidden = true;
     if (botDescriptionOwner) botDescriptionOwner.removeAttribute("aria-describedby");
     botDescriptionOwner = null;
   }
   function deferHideBotDescription() {
-    clearTimeout(botDescriptionHideTimer);
-    botDescriptionHideTimer = setTimeout(hideBotDescription, 150);
+    hideBotDescription();
   }
   function attachBotDescription(card, description) {
     if (!card || !description) return;
@@ -5551,12 +5762,7 @@ dialog.modal-dialog::backdrop {
       document.body.appendChild(botDescriptionTooltip);
       document.addEventListener("keydown", function(event) { if (event.key === "Escape") hideBotDescription(); });
       window.addEventListener("resize", hideBotDescription);
-      document.addEventListener("scroll", function(event) {
-        if (!botDescriptionOwner || event.target === botDescriptionTooltip) return;
-        var rect = botDescriptionOwner.getBoundingClientRect();
-        if (rect.bottom < 0 || rect.top > window.innerHeight) hideBotDescription();
-        else botDescriptionOwner.onmouseenter();
-      }, true);
+      document.addEventListener("scroll", hideBotDescription, true);
     }
     function show() {
       hideBotDescription();
@@ -5574,9 +5780,14 @@ dialog.modal-dialog::backdrop {
       botDescriptionTooltip.style.left = left + "px";
       botDescriptionTooltip.style.top = top + "px";
     }
-    card.onmouseenter = show;
+    card.onmouseenter = function() {
+      hideBotDescription();
+      botDescriptionShowTimer = setTimeout(show, 700);
+    };
     card.onmouseleave = deferHideBotDescription;
-    card.onfocus = show;
+    card.onfocus = function() {
+      if (card.matches(":focus-visible")) show();
+    };
     card.onblur = hideBotDescription;
     card.onpointerdown = hideBotDescription;
     if (!card.dataset.descriptionTooltipAttached) {
@@ -5654,6 +5865,8 @@ dialog.modal-dialog::backdrop {
   function closeBotPresetList(restoreFocus) {
     document.getElementById("bot-preset-list").hidden = true;
     document.getElementById("bot-preset-trigger").setAttribute("aria-expanded", "false");
+    var search = document.getElementById("bot-preset-search");
+    if (search) search.value = "";
     if (restoreFocus) document.getElementById("bot-preset-trigger").focus();
   }
   function syncBotPresetTrigger() {
@@ -5661,20 +5874,37 @@ dialog.modal-dialog::backdrop {
     var preset = getBotOnboardingPresets().find(function(item) { return item.name === value; });
     document.getElementById("bot-preset-value").textContent = preset ? preset.name : "Blank bot";
     applyAvatarElement(document.querySelector("#bot-preset-trigger .agent-avatar"), preset || {name:"New Bot",shape:"circle",color:"#ff2d3b"}, false);
-    document.querySelectorAll("#bot-preset-list [role=option]").forEach(function(option) { option.setAttribute("aria-selected", String(option.dataset.value === value)); });
+    document.querySelectorAll("#bot-preset-options [role=option]").forEach(function(option) { option.setAttribute("aria-selected", String(option.dataset.value === value)); });
   }
   function renderBotOnboardingPresets() {
     var select = document.getElementById("bot-preset-select");
     var list = document.getElementById("bot-preset-list");
-    if (!select || !list) return;
-    list.replaceChildren();
+    var optionsHost = document.getElementById("bot-preset-options");
+    var search = document.getElementById("bot-preset-search");
+    if (!select || !list || !optionsHost) return;
+    var query = String((search && search.value) || "").trim().toLowerCase();
+    optionsHost.replaceChildren();
     var ordered = getBotOnboardingPresets().map(function(preset) {
-      return { preset: preset, onboarded: agents.some(function(bot) { return String(bot.name || "").trim().toLowerCase() === preset.name.toLowerCase(); }) };
+      return { preset: preset, onboarded: agents.some(function(bot) {
+        return (preset.profileId && bot.profileId === preset.profileId) ||
+          String(bot.name || "").trim().toLowerCase() === preset.name.toLowerCase();
+      }) };
+    }).filter(function(entry) {
+      if (!query) return true;
+      var hay = (entry.preset.name + " " + (entry.preset.description || "") + " " + (entry.preset.summary || "")).toLowerCase();
+      return hay.indexOf(query) >= 0;
     }).sort(function(a, b) {
       if (a.onboarded !== b.onboarded) return a.onboarded ? 1 : -1;
       return a.preset.name.localeCompare(b.preset.name);
     });
-    [{preset:{name:"",shape:"circle",color:"#ff2d3b"},onboarded:false}].concat(ordered).forEach(function(entry) {
+    var rows = query ? ordered : [{preset:{name:"",shape:"circle",color:"#ff2d3b"},onboarded:false}].concat(ordered);
+    if (!rows.length) {
+      var empty = document.createElement("div");
+      empty.className = "bot-preset-empty";
+      empty.textContent = "No specialists match \"" + (search ? search.value : query) + "\".";
+      optionsHost.appendChild(empty);
+    }
+    rows.forEach(function(entry) {
       var option = document.createElement("button");
       option.type = "button";
       option.className = "bot-preset-option";
@@ -5696,25 +5926,35 @@ dialog.modal-dialog::backdrop {
         select.dispatchEvent(new Event("change"));
         closeBotPresetList(true);
       };
-      list.appendChild(option);
+      optionsHost.appendChild(option);
     });
-    if (!Array.from(list.children).some(function(option) { return option.dataset.value === select.value && !option.disabled; })) select.value = "";
+    if (!Array.from(optionsHost.querySelectorAll("[role=option]")).some(function(option) { return option.dataset.value === select.value && !option.disabled; })) select.value = "";
     syncBotPresetTrigger();
-    closeBotPresetList(false);
   }
   document.getElementById("bot-preset-trigger").addEventListener("click", function() {
     var list = document.getElementById("bot-preset-list");
+    var search = document.getElementById("bot-preset-search");
     list.hidden = !list.hidden;
     this.setAttribute("aria-expanded", String(!list.hidden));
-    if (!list.hidden) (list.querySelector('[aria-selected="true"]:not(:disabled)') || list.querySelector("button:not(:disabled)")).focus();
+    if (!list.hidden) {
+      renderBotOnboardingPresets();
+      if (search) { search.value = ""; search.focus(); search.select && search.select(); }
+      else {
+        var optionsHost = document.getElementById("bot-preset-options");
+        (optionsHost.querySelector('[aria-selected="true"]:not(:disabled)') || optionsHost.querySelector("button:not(:disabled)")).focus();
+      }
+    }
   });
+  document.getElementById("bot-preset-search").addEventListener("input", function() { renderBotOnboardingPresets(); });
   document.getElementById("bot-preset-picker").addEventListener("keydown", function(event) {
     var list = document.getElementById("bot-preset-list");
+    var optionsHost = document.getElementById("bot-preset-options");
     if (event.key === "Escape" && !list.hidden) { event.preventDefault(); event.stopPropagation(); closeBotPresetList(true); return; }
     if (event.key === "Tab") { closeBotPresetList(false); return; }
     if (!["ArrowDown","ArrowUp","Home","End"].includes(event.key)) return;
     event.preventDefault();
-    var options = Array.from(list.querySelectorAll("button:not(:disabled)"));
+    var options = Array.from(optionsHost.querySelectorAll("button:not(:disabled)"));
+    if (!options.length) return;
     var index = options.indexOf(document.activeElement);
     list.hidden = false;
     document.getElementById("bot-preset-trigger").setAttribute("aria-expanded", "true");
@@ -5880,6 +6120,7 @@ dialog.modal-dialog::backdrop {
   }
 
   function openInteractiveBrowser(url, showSetupBanner, modeOverride) {
+    closeArtifactPreview();
     if (desktopApi && desktopApi.browserCommand && (modeOverride || currentSessionMode) === "embedded") {
       currentSessionMode = "embedded";
       embeddedAvailable = true;
@@ -7485,15 +7726,110 @@ dialog.modal-dialog::backdrop {
     remoteInput({ type: "navigate", url: url });
   }
 
+  var taggedDiscussionBots = [];
+  var mentionMenuIndex = 0;
+  function renderTaggedBots() {
+    var host = document.getElementById("tagged-bots");
+    if (!host) return;
+    host.replaceChildren();
+    taggedDiscussionBots.forEach(function(bot) {
+      var chip = document.createElement("span");
+      chip.className = "tagged-bot-chip";
+      chip.innerHTML = "<span>@" + esc(bot.name) + '</span><button type="button" aria-label="Remove ' + esc(bot.name) + '">×</button>';
+      chip.querySelector("button").onclick = function() {
+        taggedDiscussionBots = taggedDiscussionBots.filter(function(item) { return item.id !== bot.id; });
+        renderTaggedBots();
+      };
+      host.appendChild(chip);
+    });
+  }
+  function hideBotMentionMenu() {
+    var menu = document.getElementById("bot-mention-menu");
+    if (menu) { menu.hidden = true; menu.replaceChildren(); }
+    mentionMenuIndex = 0;
+  }
+  function mentionCandidates(query) {
+    var current = activeAgent();
+    var needle = String(query || "").trim().toLowerCase();
+    return agents.filter(function(bot) {
+      if (!bot || bot.deleted || (current && bot.id === current.id)) return false;
+      if (taggedDiscussionBots.some(function(item) { return item.id === bot.id; })) return false;
+      if (!needle) return true;
+      return String(bot.name || "").toLowerCase().indexOf(needle) >= 0 ||
+        String(bot.description || bot.summary || "").toLowerCase().indexOf(needle) >= 0;
+    }).slice(0, 8);
+  }
+  function renderBotMentionMenu(query) {
+    var menu = document.getElementById("bot-mention-menu");
+    if (!menu) return;
+    var matches = mentionCandidates(query);
+    menu.replaceChildren();
+    if (!matches.length) { menu.hidden = true; return; }
+    mentionMenuIndex = Math.max(0, Math.min(mentionMenuIndex, matches.length - 1));
+    matches.forEach(function(bot, index) {
+      var option = document.createElement("button");
+      option.type = "button";
+      option.className = "bot-mention-option";
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", String(index === mentionMenuIndex));
+      var avatar = document.createElement("span");
+      avatar.className = "agent-avatar";
+      avatar.setAttribute("aria-hidden", "true");
+      applyAvatarElement(avatar, bot, false);
+      var label = document.createElement("span");
+      label.textContent = bot.name;
+      option.append(avatar, label);
+      option.onclick = function() { selectMentionBot(bot); };
+      menu.appendChild(option);
+    });
+    menu.hidden = false;
+  }
+  function selectMentionBot(bot) {
+    if (!bot || taggedDiscussionBots.some(function(item) { return item.id === bot.id; })) return;
+    taggedDiscussionBots.push({ id: bot.id, name: bot.name });
+    renderTaggedBots();
+    var value = prompt.value;
+    var cursor = prompt.selectionStart || value.length;
+    var before = value.slice(0, cursor);
+    var after = value.slice(cursor);
+    var replaced = before.replace(/@([^@\n]*)$/, "");
+    prompt.value = replaced + after;
+    prompt.setSelectionRange(replaced.length, replaced.length);
+    hideBotMentionMenu();
+    saveComposerDraft();
+    resizePrompt();
+    prompt.focus();
+  }
+  function syncBotMentionMenuFromPrompt() {
+    var value = prompt.value;
+    var cursor = prompt.selectionStart || value.length;
+    var before = value.slice(0, cursor);
+    var match = /@([^@\n]*)$/.exec(before);
+    if (!match || /\s{2,}/.test(match[1])) { hideBotMentionMenu(); return; }
+    renderBotMentionMenu(match[1]);
+  }
+  function discussionTagPrefix() {
+    if (!taggedDiscussionBots.length) return "";
+    return "coordinate with " + taggedDiscussionBots.map(function(bot) { return "@[" + bot.name + "]"; }).join(" and ") + ": ";
+  }
+
   function submitPrompt() {
     focusComposer();
     if (attachmentUploads) { status.textContent = "Attachments are still preparing. Please send once they appear."; return; }
     var value = prompt.value.trim() || (attachments.length ? "Use the attached evidence for the current task." : "");
-    if (!value) return;
+    if (!value && !taggedDiscussionBots.length) return;
+    if (!value) value = "Discuss this with the tagged bots and return a concise synthesis.";
+    var displayValue = value;
+    if (taggedDiscussionBots.length && !/@\[|@\w/.test(value) && !/\bcoordinate with\b/i.test(value)) {
+      value = discussionTagPrefix() + value;
+    }
     var now = Date.now();
     if (now - lastSubmitAt < 400) return;
     lastSubmitAt = now;
     prompt.value = "";
+    taggedDiscussionBots = [];
+    renderTaggedBots();
+    hideBotMentionMenu();
     saveComposerDraft();
     prompt.style.height = "auto";
     quickStarts.hidden = true;
@@ -7513,13 +7849,13 @@ dialog.modal-dialog::backdrop {
       var agent = activeAgent();
       queueRunAfterActive(
         learnMatch ? followup : "Continue the conversation. User request: " + followup,
-        [], "", null, agent, false, esc(value) + attachmentMessageMarkup(), value
+        [], "", null, agent, false, esc(displayValue) + attachmentMessageMarkup(), displayValue
       );
       clearAttachments();
       return;
     }
     if (learnMatch) {
-      appendMessage("user", esc(value) + attachmentMessageMarkup());
+      appendMessage("user", esc(displayValue) + attachmentMessageMarkup());
       startLearnSession(learnMatch[1].trim());
       clearAttachments();
       return;
@@ -7568,7 +7904,7 @@ dialog.modal-dialog::backdrop {
     if (match) {
       var target = findPeerBotByQuery(match[1].trim(), source && source.id);
       if (target) {
-        appendMessage("user", esc(value) + attachmentMessageMarkup());
+        appendMessage("user", esc(displayValue) + attachmentMessageMarkup());
         appendMessage("agent", "I’m asking <strong>" + esc(target.name) + "</strong> and will bring the response back to this chat.");
         var sourceName = source.name;
         var delegatedTask = match[2].trim() + attachmentContext();
@@ -7588,7 +7924,7 @@ dialog.modal-dialog::backdrop {
     var fullTask = value + attachmentContext();
     appendMessage(
       "user",
-      esc(value) +
+      esc(displayValue) +
       attachmentMessageMarkup()
     );
     clearAttachments();
@@ -8184,6 +8520,27 @@ dialog.modal-dialog::backdrop {
     syncRecommendationsVisibility();
   });
   prompt.addEventListener("keydown", function(e) {
+    var menu = document.getElementById("bot-mention-menu");
+    var mentionOpen = menu && !menu.hidden;
+    if (mentionOpen && ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].indexOf(e.key) >= 0) {
+      var options = Array.from(menu.querySelectorAll(".bot-mention-option"));
+      if (e.key === "Escape") { e.preventDefault(); hideBotMentionMenu(); return; }
+      if (!options.length) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        mentionMenuIndex = e.key === "ArrowDown"
+          ? (mentionMenuIndex + 1) % options.length
+          : (mentionMenuIndex <= 0 ? options.length - 1 : mentionMenuIndex - 1);
+        options.forEach(function(option, index) { option.setAttribute("aria-selected", String(index === mentionMenuIndex)); });
+        options[mentionMenuIndex].scrollIntoView({ block: "nearest" });
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        options[mentionMenuIndex].click();
+        return;
+      }
+    }
     if (e.key !== "Enter" || e.shiftKey) return;
     if (e.isComposing || e.keyCode === 229) return;
     if (e.timeStamp - lastCompositionEndAt < 50) return;
@@ -8194,6 +8551,10 @@ dialog.modal-dialog::backdrop {
     saveComposerDraft();
     resizePrompt();
     syncRecommendationsVisibility();
+    syncBotMentionMenuFromPrompt();
+  });
+  document.addEventListener("pointerdown", function(event) {
+    if (!event.target.closest("#bot-mention-menu") && !event.target.closest("#prompt")) hideBotMentionMenu();
   });
   var composerFormEl = document.getElementById("composer-form");
   if (composerFormEl) {
@@ -9209,9 +9570,13 @@ dialog.modal-dialog::backdrop {
     var card = event.target.closest(".template-card[data-name]");
     if (!card || !templateGrid.contains(card)) return;
     var name = card.getAttribute("data-name");
-    var existing = agents.find(function(bot) { return String(bot.name || "").trim().toLowerCase() === String(name || "").trim().toLowerCase(); });
+    var preset = LATEST_BOT_PRESETS.find(function(item) { return item.name === name; });
+    var existing = agents.find(function(bot) {
+      if (preset && bot.profileId && bot.profileId === preset.profileId) return true;
+      return String(bot.name || "").trim().toLowerCase() === String(name || "").trim().toLowerCase();
+    });
     if (existing) { selectAgent(existing.id); return; }
-    createAgent(name, card.getAttribute("data-desc") || "", card.getAttribute("data-shape") || "circle", card.getAttribute("data-color") || "#ff2d3b");
+    createAgent(name, card.getAttribute("data-desc") || "", card.getAttribute("data-shape") || "circle", card.getAttribute("data-color") || "#ff2d3b", preset ? { profileId: preset.profileId } : undefined);
   });
 
   var attachmentMenu = document.getElementById("attachment-menu");
