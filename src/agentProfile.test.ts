@@ -28,14 +28,14 @@ test("The Revenue Architect has a compact direct-response profile with ethical g
 });
 test("The Value Architect loads its compact role and on-demand offer/economics playbook", () => {
   const profile = loadAgentProfile({ botName: "The Value Architect", task: "Review offer pricing and unit economics", root });
-  assert.match(profile.instructions, /never impersonate him/);
-  assert.match(profile.soul, /commercially disciplined/);
-  assert.match(profile.soul, /lives in the numbers|binding growth constraint/);
+  assert.match(profile.instructions, /Alex Hormozi|landing\/funnel page|create_document/i);
+  assert.match(profile.soul, /commercially ruthless|Alex Hormozi|build the page/i);
+  assert.match(profile.soul, /binding growth constraint/);
   assert.ok(profile.selected.includes("value-architect"));
-  assert.match(profile.playbooks, /value equation/i);
+  assert.match(profile.playbooks, /Landing \/ funnel page doctrine|value equation/i);
   const { readPlaybookPage } = require("./agentProfile") as typeof import("./agentProfile");
   const page = readPlaybookPage("value-architect", 0, root);
-  assert.match(page.text, /North star and diagnosis/);
+  assert.match(page.text, /Landing \/ funnel page doctrine|North star and diagnosis/);
   assert.equal(page.text.length, 900);
 });
 test("The Systems Architect loads its compact role and on-demand engineering playbook", () => {
@@ -50,9 +50,9 @@ test("The Systems Architect loads its compact role and on-demand engineering pla
 });
 test("The Engineering Craftsman loads its compact role and on-demand quality/performance playbook", () => {
   const profile = loadAgentProfile({ botName: "The Engineering Craftsman", task: "Review web performance and AI-generated code", root });
-  assert.match(profile.instructions, /never impersonate him/i);
-  assert.match(profile.soul, /evidence over cleverness/);
-  assert.match(profile.soul, /senior engineer in review/);
+  assert.match(profile.instructions, /Addy Osmani|published engineering/i);
+  assert.match(profile.soul, /evidence over vibes|Addy Osmani/);
+  assert.match(profile.soul, /hard review|Reproduce the problem/);
   assert.ok(profile.selected.includes("engineering-craftsman"));
   assert.match(profile.playbooks, /Core Web Vitals/i);
   const { readPlaybookPage } = require("./agentProfile") as typeof import("./agentProfile");
@@ -60,9 +60,9 @@ test("The Engineering Craftsman loads its compact role and on-demand quality/per
 });
 test("The Neural Architect loads its compact identity and on-demand AI research playbook", () => {
   const profile = loadAgentProfile({ botName: "The Neural Architect", task: "Evaluate transformer inference and agent orchestration", root });
-  assert.match(profile.instructions, /never impersonate him/i);
+  assert.match(profile.instructions, /Andrej Karpathy|published teaching/i);
   assert.match(profile.soul, /experimentally humble/);
-  assert.match(profile.soul, /teacher-engineer/);
+  assert.match(profile.soul, /teacher-engineer|Andrej Karpathy/);
   assert.ok(profile.selected.includes("neural-architect"));
   assert.match(profile.playbooks, /First-principles approach/i);
   const { readPlaybookPage } = require("./agentProfile") as typeof import("./agentProfile");
@@ -199,9 +199,12 @@ test("soul personality has a separate budget from operating instructions", async
 test("inspired-by catalog names load the corresponding specialist instructions and playbooks", () => {
   for (const [name, legacyName, playbook] of [
     ["Inspired by Alex Hormozi", "The Value Architect", "value-architect"],
+    ["Alex Hormozi", "The Value Architect", "value-architect"],
     ["Inspired by Sabri Suby", "The Revenue Architect", ""],
     ["Inspired by Addy Osmani", "The Engineering Craftsman", "engineering-craftsman"],
-    ["Inspired by Andrej Karpathy", "The Neural Architect", "neural-architect"]
+    ["Addy Osmani", "The Engineering Craftsman", "engineering-craftsman"],
+    ["Inspired by Andrej Karpathy", "The Neural Architect", "neural-architect"],
+    ["Andrej Karpathy", "The Neural Architect", "neural-architect"]
   ]) {
     const profile = loadAgentProfile({ botName: name, task: "Help with my work", root });
     const legacy = loadAgentProfile({ botName: legacyName, task: "Help with my work", root });
@@ -260,11 +263,15 @@ test("catalog and template bots each load a personality-bearing soul", () => {
   for (const name of [
     "Primary Bot",
     "Inspired by Sabri Suby",
-    "Inspired by Alex Hormozi",
-    "Inspired by Addy Osmani",
-    "Inspired by Andrej Karpathy",
+    "Alex Hormozi",
+    "Addy Osmani",
+    "Andrej Karpathy",
     "Principal Fullstack Engineer, Cloud & DevOps",
     "Chief Marketing Officer",
+    "Founder Operator",
+    "Mark Zuckerberg",
+    "Alex Wang",
+    "Sundar Pichai",
     "UX Psychology & Conversion Expert",
     "Ads Specialist (Google, Meta & more)",
     "YouTube Concept & Code Learner",
@@ -273,10 +280,37 @@ test("catalog and template bots each load a personality-bearing soul", () => {
     "Reddit Community Growth",
     "SEO Specialist",
     "X / Grok Trend Researcher",
-    "Competitor Intelligence"
+    "Competitor Intelligence",
+    "GIF Animator",
+    "Funnel Specialist",
+    "LinkedIn Growth",
+    "Resume Bot",
+    "Influencer",
+    "Technical Program Manager",
+    "Product Manager",
+    "Supervisor Bot"
   ]) {
     const profile = loadAgentProfile({ botName: name, task: "Help with my work", root });
-    assert.match(profile.soul, /Voice|# Voice|voice|tone|Speak|speak|Blunt|Curious|Pragmatic|Candid|Hungry|Clear|Warm|Fast|Practical|Proactive|Street-smart|Research-first|Executive|teacher|ops engineer|growth|analyst/i);
+    assert.match(profile.soul, /Voice|# Voice|voice|tone|Speak|speak|Blunt|Curious|Pragmatic|Candid|Hungry|Clear|Warm|Fast|Practical|Proactive|Street-smart|Research-first|Executive|teacher|ops engineer|growth|analyst|Founder-CMO|chief of staff|motion designer|conversion operator|ban-aware|career editor|Hormozi|Osmani|Karpathy|Zuckerberg|Wang|Pichai|Influencer|program lead|product manager|UX psychologist/i);
+    assert.ok(profile.soul.length <= 900, name);
+    assert.ok(profile.instructions.length <= 2400, name);
+  }
+});
+
+test("new personality and role bots load dedicated playbooks", () => {
+  for (const [name, profileId, playbook, habit] of [
+    ["Mark Zuckerberg", "mark-zuckerberg", "mark-zuckerberg", /Zuckerberg|ship/i],
+    ["Alex Wang", "alex-wang", "alex-wang", /Wang|bottleneck/i],
+    ["Sundar Pichai", "sundar-pichai", "sundar-pichai", /Pichai|user-first/i],
+    ["Influencer", undefined, "influencer", /craft-obsessed|hooks/i],
+    ["Technical Program Manager", undefined, "tpm", /program lead|owners, dates/i],
+    ["Product Manager", undefined, "product-manager", /best product manager|feature factories/i],
+    ["UX Psychology & Conversion Expert", undefined, "ux", /UX psychologist|dark pattern/i],
+    ["Supervisor Bot", "supervisor", "supervisor", /night-shift supervisor|pending improvement/i]
+  ] as const) {
+    const profile = loadAgentProfile({ botName: name, profileId: profileId as any, task: "Help with my work", root });
+    assert.ok(profile.selected.includes(playbook), name);
+    assert.match(profile.soul, habit);
     assert.ok(profile.soul.length <= 900, name);
     assert.ok(profile.instructions.length <= 2400, name);
   }
@@ -287,8 +321,30 @@ test("Chief Marketing Officer loads a compact identity and the relevant playbook
   const profile = loadAgentProfile({ botName: "Chief Marketing Officer", profileId: "chief-marketing-officer", task: "Prepare weekly content strategy", root });
   assert.match(profile.instructions, /owner publishes|never post/i);
   assert.ok(profile.selected.includes("cmo"));
-  assert.match(profile.playbooks, /historical median|period-matched median/i);
-  assert.match(profile.soul, /Practical CMO|marketing lead/);
+  assert.match(profile.playbooks, /historical median|period-matched median|channel mix/i);
+  assert.match(profile.soul, /Founder-CMO|marketing lead/);
   assert.ok(profile.instructions.length <= 2400);
   assert.ok(profile.soul.length <= 900);
+});
+
+test("Founder Operator and new specialist bots load roles and playbooks", () => {
+  const operator = loadAgentProfile({ botName: "Founder Operator", profileId: "founder-operator", task: "Run weekly ops triage", root });
+  assert.match(operator.instructions, /chief-of-staff|Never spend|decision/i);
+  assert.ok(operator.selected.includes("founder-operator"));
+  assert.match(operator.soul, /chief of staff|owners, deadlines/i);
+  assert.ok(operator.instructions.length <= 2400);
+  assert.ok(operator.soul.length <= 900);
+
+  for (const [name, playbook, habit] of [
+    ["GIF Animator", "gif-animator", /motion designer|frames|loop/i],
+    ["Funnel Specialist", "funnel", /conversion operator|drop-off/i],
+    ["LinkedIn Growth", "linkedin", /personalization-obsessed|ban-aware/i],
+    ["Resume Bot", "resume", /career editor|quantified/i]
+  ] as const) {
+    const profile = loadAgentProfile({ botName: name, task: "Help with my work", root });
+    assert.ok(profile.selected.includes(playbook), name + " must select " + playbook);
+    assert.match(profile.soul, habit);
+    assert.ok(profile.soul.length <= 900, name);
+    assert.ok(profile.instructions.length <= 2400, name);
+  }
 });

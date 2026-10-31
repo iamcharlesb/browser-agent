@@ -23,7 +23,7 @@ test("closing and reopening restores the selected conversation and separate draf
     });
     const page = context.pages()[0] || await context.newPage();
     await page.goto("http://session.test/", { waitUntil: "domcontentloaded" });
-    await page.waitForSelector(".template-card[data-name='Inspired by Andrej Karpathy']", { state: "attached" });
+    await page.waitForSelector(".template-card[data-name='Andrej Karpathy']", { state: "attached" });
     return { context, page };
   }
   let current: Awaited<ReturnType<typeof open>> | undefined;

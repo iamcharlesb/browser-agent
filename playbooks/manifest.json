@@ -57,9 +57,12 @@
       "file": "linkedin.md",
       "terms": [
         "linkedin",
+        "linkedin growth",
         "prospects",
         "icp",
-        "b2b"
+        "b2b",
+        "connection note",
+        "inmail"
       ],
       "events": []
     },
@@ -153,7 +156,8 @@
         "acquisition cost",
         "lead generation",
         "offer design",
-        "business growth"
+        "business growth",
+        "inspired by alex hormozi"
       ],
       "events": [
         "marketing.strategy.updated",
@@ -214,7 +218,8 @@
         "code review",
         "developer experience",
         "ai-generated code",
-        "ai-assisted engineering"
+        "ai-assisted engineering",
+        "inspired by addy osmani"
       ],
       "events": [
         "architecture.design.proposed",
@@ -243,7 +248,8 @@
         "nanogpt",
         "llm evaluation",
         "agent orchestration",
-        "inference optimization"
+        "inference optimization",
+        "inspired by andrej karpathy"
       ],
       "events": [
         "ai.architecture.review.requested",
@@ -265,7 +271,9 @@
         "content strategy",
         "editorial calendar",
         "creator research",
-        "social growth"
+        "social growth",
+        "brand voice",
+        "channel mix"
       ],
       "events": [
         "content.calendar.requested",
@@ -273,6 +281,157 @@
         "content.performance.updated",
         "marketing.report.requested",
         "creator.analysis.requested"
+      ]
+    },
+    {
+      "id": "gif-animator",
+      "file": "gif-animator.md",
+      "terms": [
+        "gif",
+        "gif animator",
+        "animated gif",
+        "motion loop",
+        "storyboard",
+        "micro-animation",
+        "sticker"
+      ],
+      "events": []
+    },
+    {
+      "id": "funnel",
+      "file": "funnel.md",
+      "terms": [
+        "funnel",
+        "funnel specialist",
+        "conversion rate",
+        "drop-off",
+        "landing page",
+        "visitor to lead",
+        "lead to customer"
+      ],
+      "events": [
+        "funnel.design.proposed",
+        "funnel.conversion.updated",
+        "conversion.friction.detected"
+      ]
+    },
+    {
+      "id": "founder-operator",
+      "file": "founder-operator.md",
+      "terms": [
+        "founder operator",
+        "chief of staff",
+        "operating cadence",
+        "okr",
+        "decision memo",
+        "weekly ops"
+      ],
+      "events": []
+    },
+    {
+      "id": "resume",
+      "file": "resume.md",
+      "terms": [
+        "resume",
+        "cv",
+        "resume bot",
+        "ats",
+        "linkedin about",
+        "quantified bullets"
+      ],
+      "events": []
+    },
+    {
+      "id": "mark-zuckerberg",
+      "file": "mark-zuckerberg.md",
+      "terms": [
+        "mark zuckerberg",
+        "product velocity",
+        "ship to learn",
+        "platform bet",
+        "social product"
+      ],
+      "events": []
+    },
+    {
+      "id": "alex-wang",
+      "file": "alex-wang.md",
+      "terms": [
+        "alex wang",
+        "alexandr wang",
+        "scale ai",
+        "data quality",
+        "evaluation infrastructure",
+        "frontier ai"
+      ],
+      "events": []
+    },
+    {
+      "id": "sundar-pichai",
+      "file": "sundar-pichai.md",
+      "terms": [
+        "sundar pichai",
+        "user-first",
+        "platform leadership",
+        "helpful ai",
+        "product priority"
+      ],
+      "events": []
+    },
+    {
+      "id": "influencer",
+      "file": "influencer.md",
+      "terms": [
+        "influencer",
+        "personal brand",
+        "content pillars",
+        "creator strategy",
+        "collaboration brief"
+      ],
+      "events": []
+    },
+    {
+      "id": "tpm",
+      "file": "tpm.md",
+      "terms": [
+        "tpm",
+        "technical program manager",
+        "program management",
+        "milestone",
+        "dependency",
+        "raid",
+        "launch readiness"
+      ],
+      "events": []
+    },
+    {
+      "id": "product-manager",
+      "file": "product-manager.md",
+      "terms": [
+        "product manager",
+        "prd",
+        "roadmap",
+        "job to be done",
+        "north star metric",
+        "product discovery",
+        "prioritization"
+      ],
+      "events": []
+    },
+    {
+      "id": "supervisor",
+      "file": "supervisor.md",
+      "terms": [
+        "supervisor",
+        "supervisor bot",
+        "overnight review",
+        "bot improvement",
+        "observer suggestion",
+        "delivery miss"
+      ],
+      "events": [
+        "observer.suggestion.proposed",
+        "observer.suggestion.reviewed"
       ]
     }
   ]

@@ -66,8 +66,11 @@ export function botIdFromName(name: string): string {
   const specialistAliases: Record<string, string> = {
     "inspired by sabri suby": "The_Revenue_Architect",
     "inspired by alex hormozi": "The_Value_Architect",
+    "alex hormozi": "The_Value_Architect",
     "inspired by addy osmani": "The_Engineering_Craftsman",
+    "addy osmani": "The_Engineering_Craftsman",
     "inspired by andrej karpathy": "The_Neural_Architect",
+    "andrej karpathy": "The_Neural_Architect",
     "the systems architect": "The_Systems_Architect",
     "principal fullstack engineer, cloud & devops": "The_Systems_Architect",
     "principal fullstack engineer, cloud and devops": "The_Systems_Architect",
@@ -75,7 +78,28 @@ export function botIdFromName(name: string): string {
     "expert fullstack engineer, cloud and devops": "The_Systems_Architect",
     "ads specialist (google, meta & more)": "Paid_Media_Performance_Marketing_Specialist",
     "ads specialist": "Paid_Media_Performance_Marketing_Specialist",
-    "paid media & performance marketing specialist": "Paid_Media_Performance_Marketing_Specialist"
+    "paid media & performance marketing specialist": "Paid_Media_Performance_Marketing_Specialist",
+    "founder operator": "Founder_Operator",
+    "operator bot": "Founder_Operator",
+    "chief of staff": "Founder_Operator",
+    "gif animator": "GIF_Animator",
+    "funnel specialist": "Funnel_Specialist",
+    "linkedin growth": "LinkedIn_Growth",
+    "linkedin bot": "LinkedIn_Growth",
+    "resume bot": "Resume_Bot",
+    "resume / cv bot": "Resume_Bot",
+    "mark zuckerberg": "Mark_Zuckerberg",
+    "alex wang": "Alex_Wang",
+    "alexandr wang": "Alex_Wang",
+    "sundar pichai": "Sundar_Pichai",
+    "influencer": "Influencer",
+    "technical program manager": "Technical_Program_Manager",
+    "tpm": "Technical_Program_Manager",
+    "product manager": "Product_Manager",
+    "ux psychology & conversion expert": "UX_Psychology_Conversion_Expert",
+    "ux specialist": "UX_Psychology_Conversion_Expert",
+    "supervisor bot": "Supervisor_Bot",
+    "supervisor": "Supervisor_Bot"
   };
   if (specialistAliases[raw.toLowerCase()]) return specialistAliases[raw.toLowerCase()];
   const slug = raw
