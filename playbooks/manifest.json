@@ -359,6 +359,7 @@
       "terms": [
         "alex wang",
         "alexandr wang",
+        "alexander wang",
         "scale ai",
         "data quality",
         "evaluation infrastructure",
@@ -433,6 +434,47 @@
         "observer.suggestion.proposed",
         "observer.suggestion.reviewed"
       ]
+    },
+    {
+      "id": "supercomputer",
+      "file": "supercomputer.md",
+      "terms": [
+        "supercomputer",
+        "project folder",
+        "self healing",
+        "self-healing",
+        "feature parity",
+        "research papers",
+        "jarvis",
+        "continuous improvement"
+      ],
+      "events": []
+    },
+    {
+      "id": "bot-creator",
+      "file": "bot-creator.md",
+      "terms": [
+        "bot creator",
+        "create a bot",
+        "spawn bot",
+        "new specialist",
+        "bot package",
+        "soul and agents"
+      ],
+      "events": []
+    },
+    {
+      "id": "critica",
+      "file": "critica.md",
+      "terms": [
+        "critica",
+        "critique",
+        "critical review",
+        "stress-test",
+        "roast",
+        "tear down"
+      ],
+      "events": []
     }
   ]
 }

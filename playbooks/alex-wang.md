@@ -1,4 +1,4 @@
-# Alex Wang / frontier AI systems playbook
+# Alexandr Wang / frontier AI systems playbook
 
 ## Stance
 Data and evals beat vibes. Find whether the bottleneck is data quality, evaluation, model, tooling, or operations.

@@ -91,6 +91,7 @@ export function botIdFromName(name: string): string {
     "mark zuckerberg": "Mark_Zuckerberg",
     "alex wang": "Alex_Wang",
     "alexandr wang": "Alex_Wang",
+    "alexander wang": "Alex_Wang",
     "sundar pichai": "Sundar_Pichai",
     "influencer": "Influencer",
     "technical program manager": "Technical_Program_Manager",
@@ -99,7 +100,12 @@ export function botIdFromName(name: string): string {
     "ux psychology & conversion expert": "UX_Psychology_Conversion_Expert",
     "ux specialist": "UX_Psychology_Conversion_Expert",
     "supervisor bot": "Supervisor_Bot",
-    "supervisor": "Supervisor_Bot"
+    "supervisor": "Supervisor_Bot",
+    "supercomputer": "Supercomputer",
+    "super computer": "Supercomputer",
+    "bot creator": "Bot_Creator",
+    "bot-creator": "Bot_Creator",
+    "critica": "Critica"
   };
   if (specialistAliases[raw.toLowerCase()]) return specialistAliases[raw.toLowerCase()];
   const slug = raw

@@ -270,7 +270,7 @@ test("catalog and template bots each load a personality-bearing soul", () => {
     "Chief Marketing Officer",
     "Founder Operator",
     "Mark Zuckerberg",
-    "Alex Wang",
+    "Alexandr Wang",
     "Sundar Pichai",
     "UX Psychology & Conversion Expert",
     "Ads Specialist (Google, Meta & more)",
@@ -288,7 +288,10 @@ test("catalog and template bots each load a personality-bearing soul", () => {
     "Influencer",
     "Technical Program Manager",
     "Product Manager",
-    "Supervisor Bot"
+    "Supervisor Bot",
+    "Supercomputer",
+    "Bot Creator",
+    "Critica"
   ]) {
     const profile = loadAgentProfile({ botName: name, task: "Help with my work", root });
     assert.match(profile.soul, /Voice|# Voice|voice|tone|Speak|speak|Blunt|Curious|Pragmatic|Candid|Hungry|Clear|Warm|Fast|Practical|Proactive|Street-smart|Research-first|Executive|teacher|ops engineer|growth|analyst|Founder-CMO|chief of staff|motion designer|conversion operator|ban-aware|career editor|Hormozi|Osmani|Karpathy|Zuckerberg|Wang|Pichai|Influencer|program lead|product manager|UX psychologist/i);
@@ -300,13 +303,17 @@ test("catalog and template bots each load a personality-bearing soul", () => {
 test("new personality and role bots load dedicated playbooks", () => {
   for (const [name, profileId, playbook, habit] of [
     ["Mark Zuckerberg", "mark-zuckerberg", "mark-zuckerberg", /Zuckerberg|ship/i],
-    ["Alex Wang", "alex-wang", "alex-wang", /Wang|bottleneck/i],
+    ["Alexandr Wang", "alex-wang", "alex-wang", /Wang|bottleneck/i],
+    ["Alexander Wang", undefined, "alex-wang", /Wang|bottleneck/i],
     ["Sundar Pichai", "sundar-pichai", "sundar-pichai", /Pichai|user-first/i],
     ["Influencer", undefined, "influencer", /craft-obsessed|hooks/i],
     ["Technical Program Manager", undefined, "tpm", /program lead|owners, dates/i],
     ["Product Manager", undefined, "product-manager", /best product manager|feature factories/i],
     ["UX Psychology & Conversion Expert", undefined, "ux", /UX psychologist|dark pattern/i],
-    ["Supervisor Bot", "supervisor", "supervisor", /night-shift supervisor|pending improvement/i]
+    ["Supervisor Bot", "supervisor", "supervisor", /night-shift supervisor|pending improvement/i],
+    ["Supercomputer", "supercomputer", "supercomputer", /Zuckerberg|Alexandr Wang|Jarvis/i],
+    ["Bot Creator", "bot-creator", "bot-creator", /bot architect|Jarvis|purpose/i],
+    ["Critica", "critica", "critica", /Critica|devastating insight|rewrite/i]
   ] as const) {
     const profile = loadAgentProfile({ botName: name, profileId: profileId as any, task: "Help with my work", root });
     assert.ok(profile.selected.includes(playbook), name);
