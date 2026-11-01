@@ -94,6 +94,8 @@ export function botIdFromName(name: string): string {
     "alexander wang": "Alex_Wang",
     "sundar pichai": "Sundar_Pichai",
     "influencer": "Influencer",
+    "blog writer": "Blog_Writer",
+    "blogger": "Blog_Writer",
     "technical program manager": "Technical_Program_Manager",
     "tpm": "Technical_Program_Manager",
     "product manager": "Product_Manager",

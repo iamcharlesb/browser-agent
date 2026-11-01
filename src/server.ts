@@ -8,6 +8,7 @@ import { PlaybookStore, formatApprovedPlaybook } from "./playbookStore";
 import { storeRunOutcome, readRunOutcome, outcomeEvent } from "./runOutcomes";
 import "./environment";
 import { saveProviderSettings } from "./providerSettings";
+import { transcribeAudioChunk } from "./voiceTranscription";
 import { APPLICATION_ROOT, DATA_ROOT } from "./runtimePaths";
 import { conversationEpoch, readConversationResets, resetConversationFiles, type ConversationResets } from "./conversationReset";
 import { renderDocumentation } from "./documentation";
@@ -2607,6 +2608,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
       hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
       hasXaiKey: Boolean(process.env.XAI_API_KEY),
+      hasDeepgramKey: Boolean(process.env.DEEPGRAM_API_KEY),
+      hasElevenLabsKey: Boolean(process.env.ELEVENLABS_API_KEY),
       hasClaudeCli: Boolean(resolveClaudeCliBinary()),
       claudeCliPath: process.env.CLAUDE_CLI_PATH || resolveClaudeCliBinary(),
       defaultModel: DEFAULT_MODEL,
@@ -2750,8 +2753,34 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         status: "saved",
         hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
         hasXaiKey: Boolean(process.env.XAI_API_KEY),
-        hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY)
+        hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
+        hasDeepgramKey: Boolean(process.env.DEEPGRAM_API_KEY),
+        hasElevenLabsKey: Boolean(process.env.ELEVENLABS_API_KEY)
       });
+    } catch (err) {
+      sendJson(res, 400, { detail: (err as Error).message });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/voice/transcribe") {
+    if (!isSameOriginRequest(req)) {
+      sendJson(res, 403, { detail: "Voice transcription must come from this app." });
+      return;
+    }
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const audioBase64 = typeof body.audioBase64 === "string" ? body.audioBase64 : "";
+      const mimeType = typeof body.mimeType === "string" ? body.mimeType : "audio/webm";
+      const language = typeof body.language === "string" ? body.language : undefined;
+      const result = await transcribeAudioChunk({
+        audioBase64,
+        mimeType,
+        language,
+        deepgramApiKey: process.env.DEEPGRAM_API_KEY,
+        elevenLabsApiKey: process.env.ELEVENLABS_API_KEY
+      });
+      sendJson(res, 200, result);
     } catch (err) {
       sendJson(res, 400, { detail: (err as Error).message });
     }

@@ -36,3 +36,6 @@ artifacts/
 # Local reusable source index (private code excerpts, never committed).
 .browser-agent-code-index/
 .browser-agent-updates/
+
+# Native VoiceNote build artifacts
+voice-note-macos/.build/

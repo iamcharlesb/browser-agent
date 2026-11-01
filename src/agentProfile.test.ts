@@ -279,6 +279,7 @@ test("catalog and template bots each load a personality-bearing soul", () => {
     "Instagram Follower Growth",
     "Reddit Community Growth",
     "SEO Specialist",
+    "Blog Writer",
     "X / Grok Trend Researcher",
     "Competitor Intelligence",
     "GIF Animator",
@@ -294,7 +295,7 @@ test("catalog and template bots each load a personality-bearing soul", () => {
     "Critica"
   ]) {
     const profile = loadAgentProfile({ botName: name, task: "Help with my work", root });
-    assert.match(profile.soul, /Voice|# Voice|voice|tone|Speak|speak|Blunt|Curious|Pragmatic|Candid|Hungry|Clear|Warm|Fast|Practical|Proactive|Street-smart|Research-first|Executive|teacher|ops engineer|growth|analyst|Founder-CMO|chief of staff|motion designer|conversion operator|ban-aware|career editor|Hormozi|Osmani|Karpathy|Zuckerberg|Wang|Pichai|Influencer|program lead|product manager|UX psychologist/i);
+    assert.match(profile.soul, /Voice|# Voice|voice|tone|Speak|speak|Blunt|Curious|Pragmatic|Candid|Hungry|Clear|Warm|Fast|Practical|Proactive|Street-smart|Research-first|Executive|teacher|ops engineer|growth|analyst|Founder-CMO|chief of staff|motion designer|conversion operator|ban-aware|career editor|Hormozi|Osmani|Karpathy|Zuckerberg|Wang|Pichai|Influencer|program lead|product manager|UX psychologist|blogger/i);
     assert.ok(profile.soul.length <= 900, name);
     assert.ok(profile.instructions.length <= 2400, name);
   }
@@ -313,7 +314,8 @@ test("new personality and role bots load dedicated playbooks", () => {
     ["Supervisor Bot", "supervisor", "supervisor", /night-shift supervisor|pending improvement/i],
     ["Supercomputer", "supercomputer", "supercomputer", /Zuckerberg|Alexandr Wang|Jarvis/i],
     ["Bot Creator", "bot-creator", "bot-creator", /bot architect|Jarvis|purpose/i],
-    ["Critica", "critica", "critica", /Critica|devastating insight|rewrite/i]
+    ["Critica", "critica", "critica", /Critica|devastating insight|rewrite/i],
+    ["Blog Writer", "blog-writer", "blog-writer", /Amazon|human|Further reading|blogger/i]
   ] as const) {
     const profile = loadAgentProfile({ botName: name, profileId: profileId as any, task: "Help with my work", root });
     assert.ok(profile.selected.includes(playbook), name);

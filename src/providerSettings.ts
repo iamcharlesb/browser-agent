@@ -5,7 +5,8 @@ import { environmentFilePath } from "./environment";
 
 const fields: Record<string, string> = {
   openaiApiKey: "OPENAI_API_KEY", anthropicApiKey: "ANTHROPIC_API_KEY",
-  xaiApiKey: "XAI_API_KEY", baseURL: "OPENAI_BASE_URL"
+  xaiApiKey: "XAI_API_KEY", deepgramApiKey: "DEEPGRAM_API_KEY",
+  elevenLabsApiKey: "ELEVENLABS_API_KEY", baseURL: "OPENAI_BASE_URL"
 };
 let saves: Promise<unknown> = Promise.resolve();
 

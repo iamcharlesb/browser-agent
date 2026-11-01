@@ -35,7 +35,8 @@ export const SPECIALIST_PROFILES: Record<string, string> = {
   "founder-operator": "Founder Operator",
   "mark-zuckerberg": "Mark Zuckerberg", "alex-wang": "Alexandr Wang", "sundar-pichai": "Sundar Pichai",
   "supervisor": "Supervisor Bot", "supercomputer": "Supercomputer",
-  "bot-creator": "Bot Creator", "critica": "Critica"
+  "bot-creator": "Bot Creator", "critica": "Critica",
+  "blog-writer": "Blog Writer"
 };
 
 export function loadAgentProfile(input: { profileId?: string; botInstructions?: string; botName: string; expertise?: string; task: string; event?: string; root?: string; approvedPlaybook?: string }): LoadedProfile {

@@ -101,15 +101,37 @@
       ]
     },
     {
+      "id": "blog-writer",
+      "file": "blog-writer.md",
+      "terms": [
+        "blog writer",
+        "blog",
+        "article",
+        "essay",
+        "long-form",
+        "editorial",
+        "thought leadership",
+        "newsletter",
+        "amazon book",
+        "further reading",
+        "draft post"
+      ],
+      "events": [
+        "blog.draft.requested",
+        "blog.draft.completed",
+        "content.calendar.updated"
+      ]
+    },
+    {
       "id": "browser-writing",
       "file": "browser-writing.md",
       "terms": [
-        "blog",
-        "article",
-        "draft",
         "hero image",
         "upload",
-        "editor"
+        "editor",
+        "cms",
+        "magicsite editor",
+        "paste draft"
       ],
       "events": []
     },
