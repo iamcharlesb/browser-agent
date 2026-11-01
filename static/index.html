@@ -257,10 +257,11 @@ button { color: inherit; }
 }
 .agent-row {
   flex-shrink: 0;
-  min-height: 48px;
+  min-height: 52px;
   position: relative;
   cursor: grab;
   touch-action: pan-y;
+  overflow: visible;
 }
 .agent-row.is-dragging { opacity: .42; cursor: grabbing; }
 .agent-row.drop-before { box-shadow: inset 0 2px 0 var(--brand); }
@@ -281,8 +282,8 @@ button { color: inherit; }
 .agent-row .agent-delete:hover { background: rgba(220, 38, 38, 0.1); color: var(--red); }
 
 .agent-avatar {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   flex: 0 0 auto;
   border-radius: 50%;
   background: var(--brand-gradient);
@@ -301,8 +302,16 @@ button { color: inherit; }
   border-radius: 0;
   overflow: visible;
 }
-.agent-avatar.photo-avatar { border-radius: 50%; overflow: hidden; background: #f2f4f7; }
+.agent-avatar.photo-avatar {
+  border-radius: 50%;
+  overflow: hidden;
+  background: #f2f4f7;
+  box-shadow:
+    0 4px 10px rgba(15, 23, 42, 0.22),
+    0 1px 0 rgba(255, 255, 255, 0.45) inset !important;
+}
 .agent-avatar.photo-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bot-portrait[src*="mark-zuckerberg.webp"] { transform: scale(1.05); object-position: 50% 18%; }
 .bot-portrait { object-position: 50% 0%; transform-origin: 50% 0%; }
 .bot-portrait[src*="addy-osmani.jpg"] { transform: scale(2); }
 .bot-portrait[src*="alex-hormozi.webp"] { transform: scale(1.8); }
@@ -323,8 +332,8 @@ button { color: inherit; }
   border-radius: 0;
 }
 .agent-avatar.small {
-  width: 29px;
-  height: 29px;
+  width: 33px;
+  height: 33px;
   font-size: 10.5px;
 }
 .agent-row { gap: 11px; }
@@ -338,7 +347,16 @@ button { color: inherit; }
 /* ===== BLOB BOT ICON SYSTEM (pure CSS, animated — from blob-bot-icons.html) =====
    Usage: <div class="bot bot--circle bot--happy" style="--c:#3b82f6"><span class="face"><i class="eye"></i><i class="eye"></i><i class="mouth"></i></span></div>
    Vars: --size (default 96px), --c (body colour), --eye (feature colour, default white) */
-.bot{--spring:cubic-bezier(.34,1.8,.5,1);--size:32px;--stroke:max(1.8px,min(3px,calc(var(--size)*.038)));--c:#111;--eye:#fff;--mouth-w:28%;position:relative;width:var(--size);height:var(--size);background:var(--c);border-radius:50%;flex:0 0 auto;isolation:isolate;animation:bot-idle 1.8s ease-in-out infinite}
+.bot{--spring:cubic-bezier(.34,1.8,.5,1);--size:32px;--stroke:max(1.8px,min(3px,calc(var(--size)*.038)));--c:#111;--eye:#fff;--mouth-w:28%;--bot-delay:0ms;position:relative;width:var(--size);height:var(--size);border-radius:50%;flex:0 0 auto;isolation:isolate;transform-origin:50% 85%;animation:bot-idle 1.8s var(--spring) infinite;animation-delay:var(--bot-delay);background:
+    radial-gradient(118% 95% at 30% 18%, rgba(255,255,255,.62) 0%, rgba(255,255,255,0) 46%),
+    radial-gradient(90% 80% at 72% 82%, rgba(0,0,0,.28) 0%, transparent 52%),
+    var(--c);
+  box-shadow:
+    0 5px 12px rgba(15,23,42,.28),
+    0 1px 0 rgba(255,255,255,.55) inset,
+    0 -3px 7px rgba(0,0,0,.22) inset;
+  filter: drop-shadow(0 2px 2px rgba(15,23,42,.18));
+}
 .bot .face{position:absolute;inset:0;pointer-events:none}
 .bot .eye,.bot .mouth,.bot .face::before,.bot .face::after{position:absolute;box-sizing:border-box;font-style:normal}
 .bot,.bot .eye,.bot .mouth{transition:top .45s var(--spring),left .45s var(--spring),width .45s var(--spring),height .45s var(--spring),border-radius .45s var(--spring),scale .45s var(--spring),opacity .25s,background-color .3s,rotate .45s var(--spring)}
@@ -454,71 +472,71 @@ button { color: inherit; }
 .bot--sleepy .face::after{content:"z";font:700 calc(var(--size)*.22)/1 system-ui,sans-serif;color:var(--eye);left:70%;top:-6%;animation:bot-zzz 2.6s ease-out infinite}
 .bot--sleepy{animation:bot-breathe 3.6s ease-in-out infinite}
 
-/* ---- keyframes ---- */
+/* ---- keyframes (Grok-like squash / stretch / jump) ---- */
 @keyframes bot-blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
 @keyframes bot-blink-slow{0%,80%,100%{transform:scaleY(1)}86%{transform:scaleY(.1)}}
-@keyframes bot-idle{0%,100%{transform:translateY(0) scale(1,1)}45%{transform:translateY(-8%) scale(.97,1.05)}60%{transform:translateY(0) scale(1.04,.96)}}
+@keyframes bot-idle{0%,100%{transform:translateY(0) scale(1,1)}18%{transform:translateY(0) scale(1.14,.86)}36%{transform:translateY(-22%) scale(.88,1.16)}52%{transform:translateY(0) scale(1.12,.88)}68%{transform:translateY(-8%) scale(.96,1.06)}84%{transform:translateY(0) scale(1.04,.96)}}
 @keyframes bot-look{0%,30%,100%{translate:0 0}40%,60%{translate:22% 0}70%,90%{translate:-22% 0}}
-@keyframes bot-pop{0%,100%{transform:scale(1)}20%{transform:scale(1.18,.88)}45%{transform:scale(.92,1.14) translateY(-8%)}70%{transform:scale(1.04,.98)}}
-@keyframes bot-bounce{0%,100%{transform:translateY(0) scale(1.12,.86)}25%{transform:translateY(-34%) scale(.88,1.16)}50%{transform:translateY(0) scale(1.1,.88)}62%{transform:translateY(-10%) scale(.97,1.04)}78%{transform:translateY(0) scale(1.02,.98)}}
-@keyframes bot-bob{0%,100%{transform:translateY(0) rotate(-6deg) scale(1.05,.95)}50%{transform:translateY(-16%) rotate(6deg) scale(.95,1.06)}}
-@keyframes bot-laugh{0%,100%{transform:translateY(0) rotate(-8deg) scale(1.08,.92)}50%{transform:translateY(-14%) rotate(8deg) scale(.94,1.08)}}
+@keyframes bot-pop{0%,100%{transform:scale(1)}18%{transform:scale(1.28,.78)}42%{transform:scale(.86,1.22) translateY(-14%)}68%{transform:scale(1.08,.94)}}
+@keyframes bot-bounce{0%,100%{transform:translateY(0) scale(1.18,.78)}22%{transform:translateY(-42%) scale(.82,1.24)}48%{transform:translateY(0) scale(1.16,.82)}60%{transform:translateY(-14%) scale(.94,1.08)}78%{transform:translateY(0) scale(1.06,.94)}}
+@keyframes bot-bob{0%,100%{transform:translateY(0) rotate(-8deg) scale(1.12,.88)}50%{transform:translateY(-22%) rotate(8deg) scale(.88,1.14)}}
+@keyframes bot-laugh{0%,100%{transform:translateY(0) rotate(-10deg) scale(1.14,.86)}50%{transform:translateY(-18%) rotate(10deg) scale(.88,1.14)}}
 @keyframes bot-angry-l{0%,100%{transform:rotate(-24deg)}50%{transform:rotate(-30deg) translateY(4%)}}
 @keyframes bot-angry-r{0%,100%{transform:rotate(24deg)}50%{transform:rotate(30deg) translateY(4%)}}
-@keyframes bot-fume{0%,100%{transform:scale(1)}15%{transform:scale(1.14,.92) translateX(-4%)}30%{transform:scale(1.14,.92) translateX(4%)}45%{transform:scale(1.14,.92) translateX(-4%)}60%{transform:scale(.96,1.06)}}
-@keyframes bot-droop{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(10%) scale(1.1,.84)}}
+@keyframes bot-fume{0%,100%{transform:scale(1)}15%{transform:scale(1.18,.86) translateX(-5%)}30%{transform:scale(1.18,.86) translateX(5%)}45%{transform:scale(1.18,.86) translateX(-5%)}60%{transform:scale(.92,1.1)}}
+@keyframes bot-droop{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(12%) scale(1.16,.78)}}
 @keyframes bot-tear{0%,20%{opacity:0;translate:0 0}30%{opacity:1}100%{opacity:0;translate:0 40%}}
 @keyframes bot-tremble{0%{transform:translate(0,0)}25%{transform:translate(-5%,2%)}50%{transform:translate(5%,-2%)}75%{transform:translate(-3%,-4%)}100%{transform:translate(0,0)}}
 @keyframes bot-shift{0%,20%,100%{translate:0 0}30%,55%{translate:14% 0}65%,90%{translate:-14% 0}}
-@keyframes bot-tilt{0%,100%{transform:rotate(8deg) translateY(0)}50%{transform:rotate(-16deg) translateY(-8%)}}
-@keyframes bot-lean{0%,100%{transform:rotate(-4deg) translateX(-4%)}50%{transform:rotate(12deg) translateX(8%) translateY(-6%)}}
-@keyframes bot-puff{0%,100%{transform:scale(1,1)}40%{transform:scale(1.16,1.1) translateY(-10%)}60%{transform:scale(.96,1.02)}}
+@keyframes bot-tilt{0%,100%{transform:rotate(8deg) translateY(0) scale(1.06,.94)}50%{transform:rotate(-16deg) translateY(-12%) scale(.92,1.1)}}
+@keyframes bot-lean{0%,100%{transform:rotate(-4deg) translateX(-4%) scale(1.08,.92)}50%{transform:rotate(12deg) translateX(8%) translateY(-10%) scale(.9,1.12)}}
+@keyframes bot-puff{0%,100%{transform:scale(1,1)}40%{transform:scale(1.22,1.12) translateY(-14%)}60%{transform:scale(.92,1.04)}}
 @keyframes bot-glance{0%,40%,100%{translate:0 0}50%,90%{translate:-10% 6%}}
-@keyframes bot-sway{0%,100%{transform:rotate(-10deg) translateX(-4%)}50%{transform:rotate(10deg) translateX(4%) translateY(-4%)}}
+@keyframes bot-sway{0%,100%{transform:rotate(-12deg) translateX(-5%) scale(1.08,.92)}50%{transform:rotate(12deg) translateX(5%) translateY(-8%) scale(.92,1.1)}}
 @keyframes bot-zzz{0%{opacity:0;translate:0 0;scale:.6}20%{opacity:1}100%{opacity:0;translate:30% -70%;scale:1.2}}
-@keyframes bot-breathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.1,.9) translateY(3%)}}
+@keyframes bot-breathe{0%,100%{transform:scale(1.1,.9) translateY(2%)}50%{transform:scale(.92,1.1) translateY(-4%)}}
 
 /* ---- hop: wrap a .bot in .bot-hop and add .go to play a squash-and-stretch jump (used when switching expression) ---- */
-.bot-hop{display:inline-grid;place-items:center}
-.bot-hop.go{animation:bot-hop 1.1s cubic-bezier(.3,0,.3,1)}
-@keyframes bot-hop{0%{transform:skewX(0) scale(1,1)}14%{transform:skewX(-22deg) scale(.9,1.08)}28%{transform:skewX(18deg) scale(.86,1.12)}42%{transform:skewX(-10deg) scale(.95,1.04)}60%{transform:skewX(0) scale(1.55,1.55)}74%{transform:skewX(0) scale(1.4,1.4)}86%{transform:skewX(0) scale(.92,.92)}100%{transform:skewX(0) scale(1,1)}}
+.bot-hop{display:inline-grid;place-items:center;transform-origin:50% 100%}
+.bot-hop.go{animation:bot-hop .85s cubic-bezier(.2,.9,.3,1.15)}
+@keyframes bot-hop{0%{transform:skewX(0) scale(1.16,.84)}12%{transform:skewX(-26deg) scale(.86,1.16)}26%{transform:skewX(20deg) scale(.82,1.2) translateY(-8%)}40%{transform:skewX(-8deg) scale(.94,1.06) translateY(-28%)}58%{transform:skewX(0) scale(1.08,.94) translateY(-48%)}72%{transform:skewX(0) scale(1.02,.98) translateY(-18%)}86%{transform:skewX(0) scale(1.2,.8)}100%{transform:skewX(0) scale(1,1)}}
 
-/* Avatar container sizing for .bot */
-.agent-avatar .bot { --size: 36px; }
+/* Avatar container sizing for .bot (+4px vs prior) */
+.agent-avatar .bot { --size: 40px; }
 .agent-avatar .bot--capsule,
-.agent-avatar .bot--cloud { --size: 28px; }
-.agent-avatar.small .bot { --size: 30px; }
+.agent-avatar .bot--cloud { --size: 32px; }
+.agent-avatar.small .bot { --size: 34px; }
 .agent-avatar.small .bot--capsule,
-.agent-avatar.small .bot--cloud { --size: 25px; }
-#agent-chip .agent-avatar.small .bot { --size: 21px; }
+.agent-avatar.small .bot--cloud { --size: 29px; }
+#agent-chip .agent-avatar.small .bot { --size: 25px; }
 #agent-chip .agent-avatar.small .bot--capsule,
-#agent-chip .agent-avatar.small .bot--cloud { --size: 17px; }
+#agent-chip .agent-avatar.small .bot--cloud { --size: 21px; }
 .msg-bot-avatar .bot,
-.run-presence .agent-avatar .bot { --size: 26px; }
+.run-presence .agent-avatar .bot { --size: 30px; }
 .msg-bot-avatar .bot--capsule,
 .msg-bot-avatar .bot--cloud,
 .run-presence .agent-avatar .bot--capsule,
-.run-presence .agent-avatar .bot--cloud { --size: 21px; }
-.template-card .template-avatar .bot { --size: 28px; }
+.run-presence .agent-avatar .bot--cloud { --size: 25px; }
+.template-card .template-avatar .bot { --size: 32px; }
 .template-card .template-avatar .bot--capsule,
-.template-card .template-avatar .bot--cloud { --size: 22px; }
-#welcome .welcome-mark .bot { --size: 74px; }
+.template-card .template-avatar .bot--cloud { --size: 26px; }
+#welcome .welcome-mark .bot { --size: 78px; }
 #welcome .welcome-mark .bot--capsule,
-#welcome .welcome-mark .bot--cloud { --size: 58px; }
-#workspace.has-browser #welcome .welcome-mark .bot { --size: 38px; }
+#welcome .welcome-mark .bot--cloud { --size: 62px; }
+#workspace.has-browser #welcome .welcome-mark .bot { --size: 42px; }
 #workspace.has-browser #welcome .welcome-mark .bot--capsule,
-#workspace.has-browser #welcome .welcome-mark .bot--cloud { --size: 30px; }
-#bot-modal-preview .bot { --size: 96px; }
+#workspace.has-browser #welcome .welcome-mark .bot--cloud { --size: 34px; }
+#bot-modal-preview .bot { --size: 100px; }
 #bot-modal-preview .bot--capsule,
-#bot-modal-preview .bot--cloud { --size: 74px; }
-.bot-shape-btn .bot { --size: 30px; animation: none; }
+#bot-modal-preview .bot--cloud { --size: 78px; }
+.bot-shape-btn .bot { --size: 34px; animation: none !important; }
 .bot-shape-btn .bot--capsule,
-.bot-shape-btn .bot--cloud { --size: 23px; }
-.bot-shape-btn .bot .eye { animation: none; }
+.bot-shape-btn .bot--cloud { --size: 27px; }
+.bot-shape-btn .bot .eye { animation: none !important; }
 
 /* Saved SVG silhouettes share the CSS face and squash-and-stretch motion. */
-.bot--legacy { background: transparent; }
-.bot .bot-silhouette { position: absolute; inset: 0; width: 100%; height: 100%; filter: none; }
+.bot--legacy { background: transparent; box-shadow: none; filter: none; }
+.bot .bot-silhouette { position: absolute; inset: 0; width: 100%; height: 100%; filter: drop-shadow(0 3px 4px rgba(15,23,42,.25)); }
 .agent-avatar.custom-bot { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .bot-hop, .bot, .bot *, .bot .face::before, .bot .face::after {
@@ -527,19 +545,38 @@ button { color: inherit; }
   }
 }
 
-/* Motion belongs to executing agents. Idle cards, previews and past replies stay still. */
-.bot, .bot .eye, .bot .face::before, .bot .face::after, .bot-hop {
-  animation: none !important;
-}
+/* Grok-like presence: idle bots keep expression motion; working bots jump harder. */
 @media (prefers-reduced-motion: no-preference) {
-  .agent-avatar.is-working:not(.needs-you) .bot {
-    animation: bot-bounce .9s cubic-bezier(.3,0,.3,1) infinite !important;
+  .agent-avatar:not(.photo-avatar) .bot .eye {
+    animation: bot-blink 4.2s ease-in-out infinite !important;
+    animation-delay: var(--bot-delay) !important;
   }
-  .agent-avatar.is-working:not(.needs-you) .bot .eye {
-    animation: bot-blink 2.8s ease-in-out infinite, bot-look 1.8s ease-in-out infinite !important;
+  .agent-avatar:not(.photo-avatar) .bot.bot--neutral { animation: bot-idle 1.65s var(--spring) infinite !important; animation-delay: var(--bot-delay) !important; }
+  .agent-avatar:not(.photo-avatar) .bot.bot--happy { animation: bot-bob 1.15s ease-in-out infinite !important; animation-delay: var(--bot-delay) !important; }
+  .agent-avatar:not(.photo-avatar) .bot.bot--curious { animation: bot-lean 2.4s ease-in-out infinite !important; animation-delay: var(--bot-delay) !important; }
+  .agent-avatar:not(.photo-avatar) .bot.bot--attentive { animation: bot-idle 1.9s var(--spring) infinite !important; animation-delay: var(--bot-delay) !important; }
+  .agent-avatar:not(.photo-avatar) .bot.bot--proud { animation: bot-puff 2.2s ease-in-out infinite !important; animation-delay: var(--bot-delay) !important; }
+  .agent-avatar:not(.photo-avatar) .bot.bot--shy { animation: bot-sway 2.8s ease-in-out infinite !important; animation-delay: var(--bot-delay) !important; }
+  .agent-avatar:not(.photo-avatar) .bot.bot--unimpressed { animation: bot-idle 3.4s ease-in-out infinite !important; animation-delay: var(--bot-delay) !important; }
+  .agent-avatar:not(.photo-avatar) .bot.bot--sleepy { animation: bot-breathe 2.8s ease-in-out infinite !important; animation-delay: var(--bot-delay) !important; }
+  .agent-avatar:not(.photo-avatar) .bot.bot--excited,
+  .agent-avatar:not(.photo-avatar) .bot.bot--surprised,
+  .agent-avatar:not(.photo-avatar) .bot.bot--laughing { animation: bot-bounce .85s cubic-bezier(.25,0,.2,1) infinite !important; animation-delay: var(--bot-delay) !important; }
+  .agent-row:hover .agent-avatar:not(.photo-avatar) .bot-hop,
+  .message.agent:hover .msg-bot-avatar:not(.photo-avatar) .bot-hop {
+    animation: bot-hop .7s cubic-bezier(.2,.9,.3,1.15) !important;
+  }
+  .agent-avatar.is-working:not(.needs-you):not(.photo-avatar) .bot {
+    animation: bot-bounce .72s cubic-bezier(.25,0,.2,1) infinite !important;
+  }
+  .agent-avatar.is-working:not(.needs-you):not(.photo-avatar) .bot .eye {
+    animation: bot-blink 2.2s ease-in-out infinite, bot-look 1.5s ease-in-out infinite !important;
   }
   .agent-avatar.is-working:not(.needs-you) .bot-hop.go {
-    animation: bot-hop .55s cubic-bezier(.3,0,.3,1) !important;
+    animation: bot-hop .55s cubic-bezier(.2,.9,.3,1.15) !important;
+  }
+  .agent-avatar.photo-avatar.is-working:not(.needs-you) {
+    animation: bot-bounce .9s cubic-bezier(.25,0,.2,1) infinite !important;
   }
 }
 
@@ -938,9 +975,10 @@ button { color: inherit; }
   background: rgba(15, 23, 42, 0.05);
 }
 #agent-chip .agent-avatar.small {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   font-size: 10px;
+  overflow: visible;
 }
 .chip-text-group {
   display: flex;
@@ -1472,26 +1510,27 @@ button { color: inherit; }
 .message.user { justify-content: flex-end; }
 .message.user .message-body { max-width: 100%; }
 .msg-bot-avatar {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   margin-top: 2px;
   background: transparent !important;
   box-shadow: none !important;
+  overflow: visible;
 }
 .msg-bot-avatar svg.bot-char-svg {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
 }
 @media (min-width: 768px) {
-  .msg-bot-avatar { width: 30px; flex-basis: 30px; }
-  .msg-bot-avatar svg.bot-char-svg { width: 30px; height: 30px; }
-  .message.agent .message-body { max-width: calc(100% - 42px); }
-  .run-presence .agent-avatar { width: 28px; height: 28px; flex-basis: 28px; }
-  .run-presence .agent-avatar svg.bot-char-svg { width: 28px; height: 28px; }
+  .msg-bot-avatar { width: 34px; flex-basis: 34px; }
+  .msg-bot-avatar svg.bot-char-svg { width: 34px; height: 34px; }
+  .message.agent .message-body { max-width: calc(100% - 46px); }
+  .run-presence .agent-avatar { width: 32px; height: 32px; flex-basis: 32px; }
+  .run-presence .agent-avatar svg.bot-char-svg { width: 32px; height: 32px; }
 }
 .message-body { max-width: 86%; min-width: 0; }
-.message.agent .message-body { flex: 1; max-width: calc(100% - 40px); }
+.message.agent .message-body { flex: 1; max-width: calc(100% - 44px); }
 .message-label {
   font-size: 12px;
   font-weight: 600;
@@ -1550,13 +1589,14 @@ button { color: inherit; }
 @keyframes thinkingSweep { from { background-position: 100% 0; } to { background-position: -140% 0; } }
 @media (prefers-reduced-motion: reduce) { .run-presence-label { animation: none; color: var(--text-secondary); background: none; } }
 .run-presence .agent-avatar {
-  width: 26px;
-  height: 26px;
-  flex-basis: 26px;
+  width: 30px;
+  height: 30px;
+  flex-basis: 30px;
   background: transparent !important;
   box-shadow: none !important;
+  overflow: visible;
 }
-.run-presence .agent-avatar svg.bot-char-svg { width: 26px; height: 26px; }
+.run-presence .agent-avatar svg.bot-char-svg { width: 30px; height: 30px; }
 @keyframes presenceAppear {
   from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1643,6 +1683,88 @@ button { color: inherit; }
   border-radius: 6px;
   flex: 0 0 auto;
 }
+.code-ref-card {
+  margin: 2px 0 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 90% at 12% 0%, rgba(255,255,255,.9) 0%, rgba(255,255,255,0) 48%),
+    linear-gradient(180deg, #fbfcfe 0%, #f3f5f8 100%);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06), 0 1px 0 rgba(255,255,255,.8) inset;
+  overflow: hidden;
+  max-width: min(100%, 560px);
+}
+.code-ref-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  min-width: 0;
+}
+.code-ref-glyph {
+  width: 22px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 5px;
+  background: linear-gradient(160deg, #fff 0%, #e8eef7 100%);
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 4px rgba(15,23,42,.08);
+  position: relative;
+}
+.code-ref-glyph::before {
+  content: "";
+  position: absolute;
+  top: 0; right: 0;
+  border-width: 0 8px 8px 0;
+  border-style: solid;
+  border-color: #94a3b8 #f8fafc;
+}
+.code-ref-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.code-ref-path {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.code-ref-meta {
+  font-size: 11px;
+  color: #64748b;
+}
+.code-ref-pill {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  padding: 2px 7px;
+  flex: 0 0 auto;
+}
+.code-ref-body {
+  margin: 0;
+  padding: 10px 12px 12px;
+  max-height: 220px;
+  overflow: auto;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #1e293b;
+  background: rgba(255,255,255,.55);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.step-item .code-ref-card { margin: 2px 0; }
+.step-item .code-ref-body { display: none; }
 .bubble img {
   display: block;
   width: min(100%, 420px);
@@ -3089,17 +3211,22 @@ dialog.modal-dialog::backdrop {
      done      - one settle, then stop.
    --------------------------------------------------------------------------- */
 
-/* +2px and a lit, raised surface rather than a flat glyph. */
+/* +4px and a lit, raised surface rather than a flat glyph. */
 .agent-avatar {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
+  overflow: visible;
   background-image:
-    radial-gradient(120% 120% at 30% 18%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 55%),
+    radial-gradient(120% 120% at 30% 18%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 55%),
     linear-gradient(134deg, #f6430f 0%, #dc3329 100%);
   box-shadow:
-    0 3px 8px rgba(246, 67, 15, 0.28),
-    0 1px 0 rgba(255, 255, 255, 0.5) inset,
-    0 -2px 4px rgba(0, 0, 0, 0.16) inset;
+    0 5px 14px rgba(246, 67, 15, 0.32),
+    0 1px 0 rgba(255, 255, 255, 0.55) inset,
+    0 -3px 6px rgba(0, 0, 0, 0.2) inset;
+}
+.agent-avatar.custom-bot {
+  background-image: none;
+  box-shadow: none;
 }
 .composer-action svg,
 .agent-avatar svg {
@@ -3115,22 +3242,23 @@ dialog.modal-dialog::backdrop {
 .composer-action:hover { transform: translateY(-1px) scale(1.04); }
 .composer-action:active { transform: translateY(1px) scale(0.97); }
 
-/* Thinking: ~4% over 2.4s. Deliberately almost subliminal. */
+/* Working presence: squashy bounce on the avatar shell (CSS bots also bounce themselves). */
 @keyframes agentBreathe {
-  0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.04); }
+  0%, 100% { transform: translateY(0) scale(1.1, .9); }
+  40%      { transform: translateY(-18%) scale(.88, 1.14); }
+  70%      { transform: translateY(0) scale(1.08, .92); }
 }
-.agent-avatar.is-working,
-.agent-row.is-working .agent-avatar,
-.run-presence .agent-avatar {
-  animation: agentBreathe 2.4s ease-in-out infinite;
+.agent-avatar.is-working:not(.custom-bot),
+.agent-row.is-working .agent-avatar:not(.custom-bot),
+.run-presence .agent-avatar:not(.custom-bot) {
+  animation: agentBreathe 1.1s cubic-bezier(.25,0,.2,1) infinite;
 }
 
 /* One tick per step event. Short, springy, self-cancelling. */
 @keyframes agentStep {
-  0%   { transform: scale(1); }
-  35%  { transform: scale(1.16); }
-  70%  { transform: scale(0.97); }
+  0%   { transform: scale(1.12, .88); }
+  35%  { transform: translateY(-22%) scale(.86, 1.18); }
+  70%  { transform: scale(1.08, .92); }
   100% { transform: scale(1); }
 }
 @keyframes agentStepRipple {
@@ -4570,7 +4698,7 @@ dialog.modal-dialog::backdrop {
     { profileId: "systems-architect", name: "Principal Fullstack Engineer, Cloud & DevOps", description: "Principal / expert fullstack engineer for cloud, DevOps, and distributed systems. Design the simplest secure, reliable, maintainable system that meets real requirements. Cover frontend, backend, data, CI/CD, infrastructure, operations, failure modes, costs, and tradeoffs. Require approval before deployment or infrastructure changes.", color: "#4768A8", summary: "Fullstack engineering, cloud architecture, DevOps, and production systems." },
     { profileId: "engineering-craftsman", name: "Addy Osmani", description: "You are Addy Osmani's published engineering operating style: maintainable frontend architecture, Core Web Vitals, developer experience, code review, and skeptical AI-assisted engineering. Measure before optimizing and verify changes. Never invent metrics or claim to speak for Google/Chrome.", color: "#7056A8", avatar: "./avatars/addy-osmani.jpg?v=29902bd27134", summary: "Software engineering, web performance, frontend architecture, and developer experience." },
     { profileId: "neural-architect", name: "Andrej Karpathy", description: "You are Andrej Karpathy's published teaching and engineering style: deep learning, Transformers, LLM systems, evaluation, and agent design from first principles. Build tiny baselines and measure hypotheses; never invent gains or claim private research.", color: "#3E7C91", avatar: "./avatars/andrej-karpathy.jpg?v=2aaa21c78fa6", summary: "Deep learning, LLM systems, evaluation, and AI from first principles." },
-    { profileId: "mark-zuckerberg", name: "Mark Zuckerberg", description: "You are Mark Zuckerberg's published builder operating style: product velocity, ship-to-learn loops, long-term platforms, and social product intuition. Never invent Meta internals or claim to speak for Meta. Approval before publish, spend, hire, or infra.", color: "#1877F2", summary: "Product velocity, platform bets, and shipping to learn." },
+    { profileId: "mark-zuckerberg", name: "Mark Zuckerberg", description: "You are Mark Zuckerberg's published builder operating style: product velocity, ship-to-learn loops, long-term platforms, and social product intuition. Never invent Meta internals or claim to speak for Meta. Approval before publish, spend, hire, or infra.", color: "#1877F2", avatar: "./avatars/mark-zuckerberg.webp?v=b92c127ccf74", summary: "Product velocity, platform bets, and shipping to learn." },
     { profileId: "alex-wang", name: "Alexandr Wang", description: "You are Alexandr Wang's published Scale AI / frontier-systems style: data quality, evaluation infrastructure, high-agency AI systems, and ruthless clarity on model-vs-data bottlenecks. Never invent Scale benchmarks or claim to speak for Scale AI.", color: "#111827", summary: "Frontier data, evals, and high-agency AI systems." },
     { profileId: "sundar-pichai", name: "Sundar Pichai", description: "You are Sundar Pichai's published product and platform leadership style: calm prioritization, user-first product sense, and AI as helpful infrastructure. Never invent Google internals or claim to speak for Google/Alphabet.", color: "#4285F4", summary: "User-first platform leadership and measured product priorities." }
   ];
@@ -4660,6 +4788,7 @@ dialog.modal-dialog::backdrop {
     if (key === "inspired by alex hormozi" || key === "alex hormozi") return "./avatars/alex-hormozi.webp?v=cc0a5ae96df8";
     if (key === "inspired by addy osmani" || key === "addy osmani") return "./avatars/addy-osmani.jpg?v=29902bd27134";
     if (key === "inspired by andrej karpathy" || key === "andrej karpathy") return "./avatars/andrej-karpathy.jpg?v=2aaa21c78fa6";
+    if (key === "mark zuckerberg") return "./avatars/mark-zuckerberg.webp?v=b92c127ccf74";
     if (key === "blog writer") return "./avatars/blog-writer.svg?v=66c776dfe813";
     return "";
   }
@@ -4717,7 +4846,8 @@ dialog.modal-dialog::backdrop {
     var expressions = ["neutral", "happy", "curious", "attentive", "proud", "shy", "unimpressed", "sleepy"];
     el.dataset.botExpression = expressions[seed % expressions.length];
     setBotExpression(el, el.dataset.botExpression);
-
+    var bot = el.querySelector(".bot");
+    if (bot) bot.style.setProperty("--bot-delay", (seed % 1100) + "ms");
   }
 
   function applyAvatarElement(el, agent, working) {
@@ -5059,8 +5189,8 @@ dialog.modal-dialog::backdrop {
         url: "https://www.google.com/",
         needsBrowserOnInit: false,
         summary: roleText || "Coordinate the bots to grow MagicSite.ai and measure the full funnel.",
-        suggestions: ["Review our growth goals with the specialist bots", "Audit the visitor to lead funnel", "Check progress toward impressions and backlinks"],
-        task: "Act as the product marketing lead for MagicSite.ai. Use the workspace roster and reported activity as context. Answer role clarifications, status questions and corrections directly. Consult relevant bots only for work the current user asks you to coordinate or check with a specialist. Consolidate evidence, dependencies, clear owners and concrete next steps. Distinguish proposed assignments from jobs actually queued or running. A weekly review plan is not a scheduled task: confirm the schedule and required recurring-model approval before claiming it will run. Measure qualified impressions, visits, leads and conversions toward the user's targets. Verify analytics and date ranges; state missing evidence. Never invent metrics, artifacts, contacted bots or completed work. Preserve the user's no-spend and organic-only constraints. Write naturally and concisely."
+        suggestions: ["Complete bot + funnel operating plan", "Audit the visitor to lead funnel", "Check progress toward impressions and backlinks"],
+        task: "Act as the product marketing lead for MagicSite.ai. Always ground answers in WORKSPACE PRODUCT and TEAM expertise from CONTEXT—every peer’s skills, not generic marketing advice. When the user asks which bots work, what they do, roles/responsibilities, or how funnels work: answer directly with a complete operating plan (do not delegate unless they explicitly ask you to contact a bot). Structure: (1) product outcome and constraints, (2) funnel stages Discover→Convert→Activate→Retain with named roster owners and one deliverable each, (3) handoffs between skills, (4) measurement (impressions/visits/leads/conversions) and what evidence is still missing, (5) next 7-day actions that need approval. Distinguish proposed assignments from jobs actually queued or running. A plan is not a schedule—confirm schedule + recurring-model approval before claiming it will run. Never invent metrics, artifacts, contacted bots or completed work. Preserve no-spend/organic-only constraints unless spend is approved. Write naturally and concisely."
       };
     if (/instagram|follower|social|meia|media|audience|creator|engagement|marketing|brand|influencer/.test(lower))
       return {
@@ -5490,6 +5620,30 @@ dialog.modal-dialog::backdrop {
     return rowEl;
   }
 
+  function beautifyTechnicalTranscriptHtml(html) {
+    var root = document.createElement("div");
+    root.innerHTML = html || "";
+    root.querySelectorAll(".step-summary-latest, .step-item > span:last-child, .bubble").forEach(function(el) {
+      if (el.querySelector(".code-ref-card, details, button, input, form")) return;
+      var text = (el.textContent || "").trim();
+      if (!text || (text.charAt(0) !== "{" && text.indexOf('"hash"') < 0)) return;
+      if (el.classList.contains("bubble") && el.children.length > 1) return;
+      var card = humanizeTechnicalPayload(text);
+      if (!card) return;
+      if (el.classList.contains("step-summary-latest")) {
+        var pathMatch = /"path"\s*:\s*"((?:\\.|[^"\\])*)"/.exec(text);
+        var start = /"startLine"\s*:\s*(\d+)/.exec(text);
+        var end = /"endLine"\s*:\s*(\d+)/.exec(text);
+        el.textContent = pathMatch
+          ? ("Read " + pathMatch[1].replace(/\\"/g, '"') + (start && end ? (" · lines " + start[1] + "–" + end[1]) : ""))
+          : "Inspected project source";
+        return;
+      }
+      el.innerHTML = card;
+    });
+    return root.innerHTML;
+  }
+
   function renderTranscript() {
     messages.innerHTML = "";
     var a = activeAgent();
@@ -5515,7 +5669,7 @@ dialog.modal-dialog::backdrop {
           }
           if (last) { fragment.appendChild(document.createTextNode(value.slice(last))); node.replaceWith(fragment); }
         });
-        cleanedHtml = saved.innerHTML;
+        cleanedHtml = beautifyTechnicalTranscriptHtml(saved.innerHTML);
       }
       appendMessage(e.role, cleanedHtml, cleanCls, false);
     });
@@ -6290,7 +6444,79 @@ dialog.modal-dialog::backdrop {
   }
 
   function formatMarkdown(raw) {
+    return formatIntelligentContent(raw);
+  }
+
+  function humanizeTechnicalPayload(text) {
+    var raw = String(text || "").trim();
+    if (!raw) return "";
+    var parsed = null;
+    try {
+      if (raw.charAt(0) === "{" || raw.charAt(0) === "[") parsed = JSON.parse(raw);
+    } catch (_) {
+      // Truncated tool dumps still carry a readable path.
+    }
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && typeof parsed.path === "string") {
+      var file = String(parsed.path).split("/").pop() || parsed.path;
+      var lines = (typeof parsed.startLine === "number" && typeof parsed.endLine === "number")
+        ? ("Lines " + parsed.startLine + "–" + parsed.endLine + (parsed.totalLines ? " of " + parsed.totalLines : ""))
+        : (parsed.changed ? "Patch applied" : "Source inspection");
+      var live = parsed.live ? '<span class="code-ref-pill">Live</span>' : "";
+      var body = typeof parsed.text === "string" && parsed.text
+        ? '<pre class="code-ref-body">' + esc(parsed.text.slice(0, 4000)) + (parsed.text.length > 4000 ? "\n…" : "") + "</pre>"
+        : "";
+      return '<div class="code-ref-card" title="' + esc(parsed.path) + '">' +
+        '<div class="code-ref-header"><span class="code-ref-glyph" aria-hidden="true"></span>' +
+        '<span class="code-ref-copy"><span class="code-ref-path">' + esc(file) + "</span>" +
+        '<span class="code-ref-meta">' + esc(lines) + " · " + esc(parsed.path) + "</span></span>" + live + "</div>" + body + "</div>";
+    }
+    var pathMatch = /"path"\s*:\s*"((?:\\.|[^"\\])*)"/.exec(raw);
+    if ((/^\{"path":/.test(raw) || raw.indexOf('"hash"') >= 0) && pathMatch) {
+      var path = pathMatch[1].replace(/\\"/g, '"');
+      var start = /"startLine"\s*:\s*(\d+)/.exec(raw);
+      var end = /"endLine"\s*:\s*(\d+)/.exec(raw);
+      var fileName = path.split("/").pop() || path;
+      var meta = start && end ? ("Lines " + start[1] + "–" + end[1]) : "Source inspection";
+      return '<div class="code-ref-card" title="' + esc(path) + '">' +
+        '<div class="code-ref-header"><span class="code-ref-glyph" aria-hidden="true"></span>' +
+        '<span class="code-ref-copy"><span class="code-ref-path">' + esc(fileName) + "</span>" +
+        '<span class="code-ref-meta">' + esc(meta) + " · " + esc(path) + "</span></span>" +
+        (/"live"\s*:\s*true/.test(raw) ? '<span class="code-ref-pill">Live</span>' : "") +
+        "</div></div>";
+    }
+    return "";
+  }
+
+  function formatIntelligentContent(raw) {
+    var text = String(raw == null ? "" : raw).trim();
+    if (!text) return "";
+    var card = humanizeTechnicalPayload(text);
+    if (card) return card;
+    // If the model echoed a JSON tool dump mid-reply, replace the leading object.
+    if (text.charAt(0) === "{" && text.indexOf('"path"') >= 0 && text.indexOf('"hash"') >= 0) {
+      var end = text.indexOf("\n\n");
+      var head = end >= 0 ? text.slice(0, end) : text;
+      var tail = end >= 0 ? text.slice(end + 2) : "";
+      var headCard = humanizeTechnicalPayload(head);
+      if (headCard) return headCard + (tail ? OpenBotsMarkdown.format(tail) : "");
+    }
     return OpenBotsMarkdown.format(raw);
+  }
+
+  function formatStepDisplay(toolName, message) {
+    var text = String(message || "").trim();
+    var card = humanizeTechnicalPayload(text);
+    if (card) return card;
+    if (/^\{"path":/.test(text) || (text.charAt(0) === "{" && text.indexOf('"hash"') >= 0)) {
+      return humanizeTechnicalPayload(text) || esc("Inspected project source");
+    }
+    var activity = toolName === "code_project" ? "Inspecting the codebase"
+      : toolName === "workspace_file" ? "Working with project files"
+      : toolName === "knowledge_base" ? "Reading workspace knowledge"
+      : toolName === "learning_kb" ? "Updating learning notes"
+      : "";
+    if (activity && (!text || text.charAt(0) === "{")) return esc(activity);
+    return esc(text || toolName || "working");
   }
 
   function renderBrowserTabs(tabs) {
@@ -6524,35 +6750,79 @@ dialog.modal-dialog::backdrop {
     return match;
   }
 
+  function botExpertiseLine(bot) {
+    var intent = bot && bot.intent;
+    var expertise = (intent && (intent.summary || intent.expertise)) || bot.summary || bot.description || "Specialist Bot";
+    return String(expertise).replace(/\s+/g, " ").trim().slice(0, 220);
+  }
+
+  function workspaceProductBrief() {
+    try {
+      var saved = (localStorage.getItem("openBotsProductBrief") || "").trim();
+      if (saved) return saved.slice(0, 900);
+    } catch (_) {}
+    var mentionsMagicsite = agents.some(function(bot) {
+      return /magicsite/i.test(String(bot.name || "") + " " + String(bot.description || "") + " " + String((bot.intent && bot.intent.summary) || ""));
+    });
+    if (!mentionsMagicsite) return "";
+    return [
+      "MagicSite.ai — AI website builder for local/home-service businesses (landscaping, electrical, cleaning, plumbing, etc.).",
+      "Promise: professional site that turns local search/interest into enquiries; organic-first unless spend is approved.",
+      "Stated growth target: ~10K impressions and ~1K link/click outcomes in 6–12 months (verify live GA/Search Console; do not invent numbers).",
+      "Channels in this workspace: SEO/content, Reddit, Instagram, funnels/landing pages, offer strategy, engineering when product changes are needed."
+    ].join(" ");
+  }
+
+  function funnelCollaborationMap(peerBots) {
+    function findBy(re) {
+      return peerBots.filter(function(bot) { return re.test(String(bot.name || "") + " " + botExpertiseLine(bot)); }).map(function(bot) { return bot.name; });
+    }
+    var discover = findBy(/seo|blog|content|reddit|instagram|linkedin|cmo|competitor|x \/|grok trend/i);
+    var convert = findBy(/funnel|hormozi|sabri|ux|ads specialist|paid media|revenue|value architect/i);
+    var offer = findBy(/product marketing|hormozi|sabri|critica|cmo|product manager/i);
+    var build = findBy(/fullstack|osmani|engineering|supercomputer|systems architect/i);
+    var measure = findBy(/seo|product marketing|founder operator|ga4|analytics|tpm/i);
+    var quality = findBy(/critica|supervisor/i);
+    function fmt(label, names) { return names.length ? label + ": " + names.slice(0, 6).join(", ") : ""; }
+    return [
+      "FUNNEL COLLABORATION MAP (adapt to saved roster; do not invent bots):",
+      [fmt("Discover", discover), fmt("Convert", convert), fmt("Offer/Position", offer), fmt("Build/Ship", build), fmt("Measure", measure), fmt("Quality", quality)].filter(Boolean).join(" | ") ||
+        "Map stages to the TEAM skills below when planning multi-bot work."
+    ].join("\n");
+  }
+
   function buildWorkspaceBotsContext(currentAgent) {
-    var lines = ["PILO WORKSPACE ROSTER (All bots created by the user in this workspace):"];
+    var lines = [];
+    var product = workspaceProductBrief();
+    if (product) {
+      lines.push("WORKSPACE PRODUCT (shared by every bot):");
+      lines.push(product);
+      lines.push("");
+    }
+    lines.push("PILO WORKSPACE ROSTER — TEAM EXPERTISE (use these skills together; do not invent bots):");
     if (currentAgent) {
       lines.push(
-        "- [CURRENT ACTIVE BOT (YOU)] Name: \"" + currentAgent.name + "\" | Role: " +
-        (currentAgent.description || currentAgent.summary || (currentAgent.intent && currentAgent.intent.summary) || "Autonomous Bot")
+        "- [YOU] \"" + currentAgent.name + "\" — " + botExpertiseLine(currentAgent)
       );
     }
-    var peerBots = agents.filter(function(a) { return !currentAgent || a.id !== currentAgent.id; });
+    var peerBots = agents.filter(function(a) { return !a.deleted && (!currentAgent || a.id !== currentAgent.id); });
     if (peerBots.length === 0) {
       lines.push("- No saved peer bots are available in this workspace. Ask the user to add the intended bot; do not invent a target or create a generic replacement.");
     } else {
       peerBots.forEach(function(b, idx) {
-        var roleDesc = b.description || b.summary || (b.intent && b.intent.summary) || "Specialist Bot";
+        var goalHint = "";
         var userGoals = (b.transcript || []).filter(function(m) { return m.role === "user"; });
-        var goalContext = userGoals.length ? " | Original goal: " + extractPlainText(userGoals[0].html).slice(0, 700) +
-          " | Latest user instruction: " + extractPlainText(userGoals[userGoals.length - 1].html).slice(0, 700) : "";
-        var recentMsgs = (b.transcript || []).slice(-3).map(function(m) {
-          var txt = extractPlainText(m.html).slice(0, 220);
-          return (m.role === "user" ? "User asked" : b.name + " replied") + ": \"" + txt + "\"";
-        });
-        lines.push(
-          "- [PEER BOT #" + (idx + 1) + "] Name: \"" + b.name + "\" | Role: " + roleDesc + goalContext +
-          (recentMsgs.length ? " | Recent activity: " + recentMsgs.join(" -> ") : " | Status: Ready (no messages yet)")
-        );
+        if (userGoals.length) {
+          goalHint = " | Goal: " + extractPlainText(userGoals[0].html).replace(/\s+/g, " ").trim().slice(0, 120);
+        }
+        lines.push("- [PEER #" + (idx + 1) + "] \"" + b.name + "\" — " + botExpertiseLine(b) + goalHint);
       });
     }
+    lines.push("");
+    lines.push(funnelCollaborationMap(peerBots.concat(currentAgent ? [currentAgent] : [])));
+    lines.push("");
     lines.push(
-      "COLLABORATION: These transcript snippets are historical reports, not live job state or proof of contact. Read knowledge_base(action=read,id=workspace:bots) for actual jobs, schedules and consultation receipts. A status question is not a request to start another bot. For a requested consultation, use delegate_to_bot with the exact saved peer id or name; the server loads its real profile and records the result. Do not invent, spawn or substitute a bot. For landing/funnel page builds, prefer create_document yourself or brief Funnel Specialist / UX Psychology / Product Manager—never ask Product Marketing for a status board when the user wants a page."
+      "COLLABORATION DOCTRINE: Know the product, know peer skills, and combine them. Plans name stage → owner → deliverable → handoff. Assigning owners in text does not start those bots. Read knowledge_base(action=read,id=workspace:bots) for live jobs/schedules/receipts—not chat history. A status question is not a request to start another bot. For consultations, delegate_to_bot with the exact saved peer id or name. Do not invent, spawn or substitute a bot. Landing/funnel page builds: create_document yourself or brief Funnel / UX / Product Manager—never ask Product Marketing for a status board when the user wants a page."
     );
     return lines.join("\n");
   }
@@ -6688,7 +6958,7 @@ dialog.modal-dialog::backdrop {
       expertise: agent && agent.intent && agent.intent.expertise,
       profileId: agent && agent.profileId,
       botInstructions: agent && agent.description,
-      workspaceBots: agents.map(function(bot) { return { id: bot.id, name: bot.name, profileId: bot.profileId, botInstructions: bot.description || "", expertise: bot.intent && bot.intent.expertise }; }),
+      workspaceBots: agents.map(function(bot) { return { id: bot.id, name: bot.name, profileId: bot.profileId, botInstructions: bot.description || "", expertise: botExpertiseLine(bot) }; }),
       initialUrl: (agent && agent.intent && agent.intent.url) || browserAddress.value || "about:blank",
       scheduleTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       collaborationContext: [buildWorkspaceBotsContext(agent), collaborationContext || ""].filter(Boolean).join("\n\n"),
@@ -7349,7 +7619,10 @@ dialog.modal-dialog::backdrop {
         : tool === "calculate" ? "Working through the numbers"
         : tool === "create_document" ? "Preparing your document"
         : tool === "generate_image" ? "Creating an image"
-        : (stepText && !/^(clicked|typed|waited|scrolled|navigated)\b/i.test(stepText) ? stepText : "Thinking");
+        : tool === "code_project" ? (/^Read /.test(stepText) ? stepText : "Inspecting the codebase")
+        : tool === "workspace_file" ? (/^(Read|Patched|Wrote|Updated|Appended) /.test(stepText) ? stepText : "Working with project files")
+        : tool === "knowledge_base" ? "Reading workspace knowledge"
+        : (stepText && !/^(clicked|typed|waited|scrolled|navigated)\b/i.test(stepText) && stepText.charAt(0) !== "{" ? stepText : "Thinking");
       status.textContent = "Step " + e.step + ": " + activity;
       setRunPresence(activity);
       stepCounter.textContent = "Step " + e.step;
@@ -7360,8 +7633,9 @@ dialog.modal-dialog::backdrop {
               '<img src="' + esc(e.artifactUrl) + '" alt="Generated chart or image preview" style="max-width:420px;max-height:320px;border-radius:8px;border:1px solid var(--border);display:block;background:#fff;"></a><a href="' + esc(e.artifactUrl) + '" download style="color:var(--blue);font-weight:600;display:inline-block;margin-top:6px;">Download artifact</a></div>'
             : ' <a href="' + esc(e.artifactUrl) + '" download style="color:var(--blue);font-weight:600;margin-left:6px;">Download file</a>')
         : "";
+      var stepBody = formatStepDisplay(tool, stepText) + artifactLink;
       var stepRowHtml =
-        '<div class="step-item"><span class="step-badge">Step ' + esc(e.step) + "</span><span>" + esc(stepText) + artifactLink + "</span></div>";
+        '<div class="step-item"><span class="step-badge">Step ' + esc(e.step) + "</span><span>" + stepBody + "</span></div>";
       if (!liveStepFeedBubble) {
         liveStepFeedBubble = appendMessage(
           "agent",
@@ -7384,7 +7658,7 @@ dialog.modal-dialog::backdrop {
         if (listEl) {
           var item = document.createElement("div");
           item.className = "step-item";
-          item.innerHTML = '<span class="step-badge">Step ' + esc(e.step) + "</span><span>" + esc(stepText) + artifactLink + "</span>";
+          item.innerHTML = '<span class="step-badge">Step ' + esc(e.step) + "</span><span>" + stepBody + "</span>";
           listEl.appendChild(item);
           var count = listEl.querySelectorAll(".step-item").length;
           var countBadge = liveStepFeedBubble.querySelector(".step-count-badge");

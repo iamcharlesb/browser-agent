@@ -537,7 +537,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "finish_task",
       description:
-        "Complete the task and text the user back like a close, sharp friend — casual, warm, direct, and human (1–3 short conversational paragraphs separated by blank lines; avoid robotic preambles or textbook bullet-point essays).",
+        "Complete the task only after the multi-step work is done or a concrete blocker is verified. Do not finish after a single inspection or raw tool dump. Text the user like a close, sharp friend — casual, warm, direct (1–3 short paragraphs; no robotic preambles or textbook essays).",
       parameters: {
         type: "object",
         properties: {

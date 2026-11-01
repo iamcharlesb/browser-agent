@@ -334,6 +334,16 @@ test("Chief Marketing Officer loads a compact identity and the relevant playbook
   assert.ok(profile.soul.length <= 900);
 });
 
+test("team collaboration playbook loads for multi-bot funnel planning asks", () => {
+  const profile = loadAgentProfile({
+    botName: "Magicsite.AI - Product Marketing Bot",
+    task: "now give me a complete plan of which bots going to work and how the funnels are going to work",
+    root
+  });
+  assert.ok(profile.selected.includes("team-collaboration"));
+  assert.match(profile.playbooks, /TEAM expertise|Funnel stages|Owners/i);
+});
+
 test("Founder Operator and new specialist bots load roles and playbooks", () => {
   const operator = loadAgentProfile({ botName: "Founder Operator", profileId: "founder-operator", task: "Run weekly ops triage", root });
   assert.match(operator.instructions, /chief-of-staff|Never spend|decision/i);

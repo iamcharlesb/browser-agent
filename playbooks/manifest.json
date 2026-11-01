@@ -475,6 +475,23 @@
         "tear down"
       ],
       "events": []
+    },
+    {
+      "id": "team-collaboration",
+      "file": "team-collaboration.md",
+      "terms": [
+        "team collaboration",
+        "which bots",
+        "bot responsibilities",
+        "roles and responsibilities",
+        "multi-bot plan",
+        "how the funnel",
+        "funnels are going",
+        "complete plan",
+        "coordinate the bots",
+        "workspace roster"
+      ],
+      "events": []
     }
   ]
 }

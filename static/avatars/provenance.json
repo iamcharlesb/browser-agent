@@ -30,5 +30,13 @@
     "imageSource": "https://karpathy.ai/assets/me_new.jpg",
     "sha256": "2aaa21c78fa61320406e3e0cbd9fd26f88354c7db71ab554200e3b649a267202",
     "basis": "Named portrait on the linked first-party profile page; not identification from the uploaded photos."
+  },
+  {
+    "botName": "Mark Zuckerberg",
+    "file": "mark-zuckerberg.webp",
+    "profileSource": "https://www.meta.com/about/leadership/mark-zuckerberg/",
+    "imageSource": "https://lookaside.fbsbx.com/elementpath/media/?media_id=323764547398564&version=1785790967&transcode_extension=webp",
+    "sha256": "b92c127ccf74704219321b8c8fd4ce58142da64ccbb9aa6c0d7c1ecb3a5a5793",
+    "basis": "Official Download Headshot link on Meta's named Mark Zuckerberg leadership page; not identification from uploaded photos."
   }
 ]
