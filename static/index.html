@@ -3392,7 +3392,9 @@ dialog.modal-dialog::backdrop {
   .queued-command button { flex-shrink: 0; border: 0; background: transparent; color: #525866; cursor: pointer; padding: 5px; font: inherit; }
   .queued-command button:disabled { opacity: .45; cursor: default; }
   .queued-command button:focus-visible, #composer-stop-button:focus-visible { outline: 2px solid #1677ff; outline-offset: 2px; }
-  #composer-stop-button { border-radius: 50%; background: #1677ff; color: white; width: 38px; height: 38px; }
+  #composer-stop-button { border: 0; border-radius: 8px; background: #111111; color: white; width: 30px; height: 30px; }
+  #composer-stop-button:hover { background: #262626; }
+  #composer-stop-button svg { width: 15px; height: 15px; }
 
 /* Header hierarchy: identity first, utilities grouped at the right. */
 #agent-chip .agent-avatar.small .bot { --size: 20px; }
@@ -4571,6 +4573,7 @@ dialog.modal-dialog::backdrop {
   function resizePrompt() {
     prompt.style.height = "44px";
     if (prompt.value) prompt.style.height = Math.min(prompt.scrollHeight, 160) + "px";
+    syncComposerAction();
   }
   function syncPromptPlaceholder() {
     var current = activeAgent();
@@ -4829,13 +4832,21 @@ dialog.modal-dialog::backdrop {
     }
   }
 
+  function syncComposerAction() {
+    var hasDraft = Boolean(prompt.value.trim() || (attachments && attachments.length) || (taggedDiscussionBots && taggedDiscussionBots.length));
+    var showStop = !stopRunBtn.hidden && !hasDraft;
+    document.getElementById("composer-stop-button").hidden = !showStop;
+    sendButton.hidden = showStop;
+    sendButton.setAttribute("aria-label", !stopRunBtn.hidden ? "Send follow-up message" : "Send message");
+  }
+
   function setStatusState(state, text) {
     var running = state === "running";
     botIsWorking = running && !/waiting for|approval/i.test(text || "");
     statusBadge.className = "status-badge " + (running ? "running" : "ready");
     statusBadgeText.textContent = text || (running ? "Working" : "Ready");
     stopRunBtn.hidden = !running;
-    document.getElementById("composer-stop-button").hidden = !running;
+    syncComposerAction();
     chipAvatar.classList.add("is-expressive");
     chipAvatar.classList.toggle("is-working", botIsWorking && activeAgentId === runningAgentId);
     setBotExpression(chipAvatar, botIsWorking && activeAgentId === runningAgentId ? "attentive" : chipAvatar.dataset.botExpression || "neutral");
@@ -6978,9 +6989,10 @@ dialog.modal-dialog::backdrop {
 
   function focusComposer() {
     var active = document.activeElement;
+    var composerControl = active && active.closest("#send-button, #composer-stop-button, [data-interaction-mode], [data-agent-engine], #auto-approve-toggle, #voice-button");
     if (!OpenBotsBrowserRuntime.shouldFocusComposer({
       hidden: document.hidden, dialogOpen: Boolean(document.querySelector("dialog[open]")),
-      otherInput: active && active !== prompt && Boolean(active.matches("input,textarea,select,button,a[href],[tabindex],[contenteditable='true']")),
+      otherInput: !composerControl && active && active !== prompt && Boolean(active.matches("input,textarea,select,button,a[href],[tabindex],[contenteditable='true']")),
       browserInteraction: active && browserViewport.contains(active),
       textSelected: Boolean(window.getSelection && String(window.getSelection()))
     })) return;
@@ -6988,7 +7000,7 @@ dialog.modal-dialog::backdrop {
   }
   prompt.addEventListener("blur", function() { setTimeout(focusComposer, 0); });
   document.addEventListener("pointerdown", function(event) {
-    var control = event.target.closest && event.target.closest("#send-button, #composer-stop-button, .composer-action, .message-feedback-btn");
+    var control = event.target.closest && event.target.closest("#send-button, #composer-stop-button, .composer-action, [data-interaction-mode], [data-agent-engine], #voice-button, .message-feedback-btn");
     if (control && document.activeElement === prompt) event.preventDefault();
   });
 
@@ -8034,6 +8046,7 @@ dialog.modal-dialog::backdrop {
   });
 
   function renderAttachments() {
+    syncComposerAction();
     var list = document.getElementById("attachment-list");
     list.innerHTML = "";
     attachments.forEach(function(file, idx) {
@@ -8187,6 +8200,7 @@ dialog.modal-dialog::backdrop {
   var taggedDiscussionBots = [];
   var mentionMenuIndex = 0;
   function renderTaggedBots() {
+    syncComposerAction();
     var host = document.getElementById("tagged-bots");
     if (!host) return;
     host.replaceChildren();
@@ -9097,8 +9111,8 @@ dialog.modal-dialog::backdrop {
     inp.value = "";
     var runBtn = document.getElementById("terminal-run-btn");
     runBtn.disabled = true;
-    document.getElementById("composer-stop-button").hidden = false;
     stopRunBtn.hidden = false;
+    syncComposerAction();
     fetch("/api/terminal", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -9121,8 +9135,8 @@ dialog.modal-dialog::backdrop {
       .finally(function() {
         runBtn.disabled = false;
         if (!isRunning && !learnEvents) {
-          document.getElementById("composer-stop-button").hidden = true;
           stopRunBtn.hidden = true;
+          syncComposerAction();
         }
         inp.focus();
       });
