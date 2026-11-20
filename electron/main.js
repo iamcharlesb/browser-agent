@@ -304,7 +304,7 @@ ipcMain.handle("auth:google-sign-in", async (event, handoff) => {
 
 async function boot() {
   if (process.platform === "darwin" && app.dock) {
-    const icon = nativeImage.createFromPath(path.join(PROJECT_ROOT, "static", "pilo-icon.png"));
+    const icon = nativeImage.createFromPath(path.join(PROJECT_ROOT, "static", "pilo-dock-icon.png"));
     if (!icon.isEmpty()) app.dock.setIcon(icon);
   }
   buildMenu();
