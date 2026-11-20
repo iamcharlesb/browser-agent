@@ -43,6 +43,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
     if (file.endsWith(".js") && !file.endsWith(".test.js")) await copyFile(join(__dirname, file), join(compiled, file));
   }
   await symlink(resolve(__dirname, "..", "node_modules"), join(directory, "node_modules"), "dir");
+  await cp(resolve(__dirname, "..", "config"), join(directory, "config"), { recursive: true });
   await mkdir(join(directory, "static"));
   await cp(resolve(__dirname, "..", "static", "avatars"), join(directory, "static", "avatars"), { recursive: true });
   await cp(resolve(__dirname, "..", "docs"), join(directory, "docs"), { recursive: true });
@@ -706,6 +707,28 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.equal(JSON.stringify(state).includes("test-key-xai-ui"), false);
         assert.equal(modelCalls, before, "saving a connection must never automatically retry a model request");
         assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    });
+    await t.test("Settings connects Qwen and Kimi, selects the saved model, and makes no provider calls", async () => {
+      const before = modelCalls;
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage();
+        await page.goto(base);
+        await page.locator("#header-settings-btn").click();
+        for (const provider of ["qwen", "kimi"]) {
+          await page.selectOption("#settings-provider", provider);
+          await page.locator("#settings-provider-key").fill(`fixture-${provider}-ui-key`);
+          await page.locator('#settings-form button[type="submit"]').click();
+          await page.waitForFunction(() => document.querySelector("#settings-provider-key")!.getAttribute("type") === "password" && (document.querySelector("#settings-provider-key") as HTMLInputElement).value === "");
+          const state = await fetch(base + "/api/status").then(r => r.json());
+          const selected = state.providers.find((item: any) => item.id === provider);
+          assert.equal(selected.configured, true);
+          assert.equal(state.defaultModel, selected.model);
+          await page.waitForFunction(model => (document.querySelector("#composer-model-select") as HTMLSelectElement).value === model, selected.model);
+          assert.equal(JSON.stringify(state).includes(`fixture-${provider}-ui-key`), false);
+        }
+        assert.equal(modelCalls, before, "saving connections is not authorization to call a model");
       } finally { await browser.close(); }
     });
   } finally {

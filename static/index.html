@@ -4134,6 +4134,18 @@ dialog.modal-dialog::backdrop {
 </select>
       </div>
       <p id="claude-cli-status" style="margin:0 0 10px;font-size:12px;color:var(--muted);"></p>
+      <fieldset style="border:1px solid var(--border);border-radius:10px;padding:14px;margin:0 0 14px;">
+        <legend style="font-weight:600;padding:0 5px;">Connect a model provider</legend>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 12px;">Choose a provider, paste its API key, and save. The suggested model and endpoint are ready to use; you can change them below. Saving does not make a paid model request.</p>
+        <div class="form-field"><label for="settings-provider">Provider</label><select id="settings-provider" style="width:100%;height:36px;"></select></div>
+        <div class="form-field"><label for="settings-provider-key">API key</label><input id="settings-provider-key" type="password" autocomplete="off" placeholder="Paste your provider API key; blank keeps the saved key" /></div>
+        <details><summary style="cursor:pointer;font-size:12px;">Model and regional endpoint</summary>
+          <div class="form-field"><label for="settings-provider-model">Model ID</label><input id="settings-provider-model" type="text" autocomplete="off" /></div>
+          <div class="form-field"><label for="settings-provider-url">API base URL</label><input id="settings-provider-url" type="url" autocomplete="off" /></div>
+          <p style="font-size:12px;color:var(--muted);">Qwen keys must match the endpoint region. Use the API Host from your provider console if the preset differs. Other compatible services need their own model ID and endpoint. Browser tasks need a model with image input and tool calling.</p>
+        </details>
+        <p id="settings-provider-status" role="status" style="font-size:12px;color:var(--muted);"></p>
+      </fieldset>
       <details id="provider-credentials" class="form-field">
         <summary style="cursor:pointer;font-weight:600;">Provider keys and connection</summary>
         <p style="font-size:12px;color:var(--muted);">Connections are saved privately on this computer and survive app restarts. Blank key fields keep your existing connection.</p>
@@ -8558,12 +8570,28 @@ dialog.modal-dialog::backdrop {
   var modelSelect = document.getElementById("model-select");
   var composerModelSelect = document.getElementById("composer-model-select");
   var lastModelState = null;
+  var providerSetupDirty = false;
+  function loadProviderSetup(providerId) {
+    var providers = lastModelState && lastModelState.providers || [];
+    var selected = providers.find(function(provider) { return provider.id === providerId; }) || providers[0];
+    if (!selected) return;
+    document.getElementById("settings-provider").value = selected.id;
+    document.getElementById("settings-provider-key").value = "";
+    document.getElementById("settings-provider-model").value = selected.model;
+    document.getElementById("settings-provider-url").value = selected.baseURL;
+    document.getElementById("settings-provider-status").textContent = selected.configured ? "Connection configured. A blank API key keeps it." : "Add your API key to connect this provider.";
+  }
+  document.getElementById("settings-provider").addEventListener("change", function() { loadProviderSetup(this.value); providerSetupDirty = true; });
+  ["settings-provider-key", "settings-provider-model", "settings-provider-url"].forEach(function(id) {
+    document.getElementById(id).addEventListener("input", function() { providerSetupDirty = true; });
+  });
   function updateExecutionModelNotice() {
     if (!lastModelState) return;
     var id = modelSelect.value || configuredDefaultModel;
     var entry = (lastModelState.models || []).find(function(model) { return model.id === id; });
     var provider = entry && entry.provider || (/^claude-cli/.test(id) ? "claude-cli" : /^ollama:/.test(id) ? "ollama" : /^claude/i.test(id) ? "anthropic" : /^grok/i.test(id) ? "xai" : "openai");
     var configured = { openai: lastModelState.hasOpenAiKey, anthropic: lastModelState.hasAnthropicKey, xai: lastModelState.hasXaiKey, "claude-cli": lastModelState.hasClaudeCli };
+    (lastModelState.providers || []).forEach(function(item) { configured[item.id] = item.configured; });
     var message = id === "local-engine" ? "Local Engine runs tools only. Bot discussions and conversational analysis need a configured language model."
       : configured[provider] === false ? "The selected model is not configured. Open Settings to connect its provider; it will not be replaced by Local Engine." : "";
     var text = document.getElementById("execution-model-notice-text");
@@ -8592,6 +8620,15 @@ dialog.modal-dialog::backdrop {
       ensureModelOption(select, selected);
       select.value = selected;
     });
+    if (!providerSetupDirty) {
+      var providerSelect = document.getElementById("settings-provider");
+      providerSelect.replaceChildren();
+      (state.providers || []).forEach(function(provider) {
+        var option = document.createElement("option"); option.value = provider.id; option.textContent = provider.label; providerSelect.appendChild(option);
+      });
+      var activeModel = (state.models || []).find(function(model) { return model.id === selected; });
+      loadProviderSetup(activeModel && activeModel.provider);
+    }
     document.getElementById("provider-connection-status").textContent = "OpenAI: " + (state.hasOpenAiKey ? "key configured" : "needs a key") +
       " · Anthropic: " + (state.hasAnthropicKey ? "key configured" : "needs a key") + " · xAI: " + (state.hasXaiKey ? "key configured" : "needs a key");
     updateExecutionModelNotice();
@@ -8602,6 +8639,11 @@ dialog.modal-dialog::backdrop {
       provider = selected && selected.provider || (/^claude/i.test(modelSelect.value) ? "anthropic" : /^grok/i.test(modelSelect.value) ? "xai" : "openai");
     }
     document.getElementById("header-settings-btn").click();
+    if (provider === "qwen" || provider === "kimi" || provider === "compatible" || provider === "ollama") {
+      loadProviderSetup(provider);
+      document.getElementById("settings-provider-key").focus();
+      return;
+    }
     document.getElementById("provider-credentials").open = true;
     var field = provider === "anthropic" ? "settings-anthropic-key" : provider === "xai" ? "settings-xai-key" : "settings-openai-key";
     document.getElementById(field).focus();
@@ -8976,6 +9018,10 @@ dialog.modal-dialog::backdrop {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        ...(providerSetupDirty ? { provider: document.getElementById("settings-provider").value,
+          providerApiKey: document.getElementById("settings-provider-key").value.trim(),
+          providerModel: document.getElementById("settings-provider-model").value.trim(),
+          providerBaseURL: document.getElementById("settings-provider-url").value.trim() } : {}),
         openaiApiKey: openaiKey || undefined,
         anthropicApiKey: anthropicKey || undefined,
         xaiApiKey: xaiKey || undefined,
@@ -8986,6 +9032,11 @@ dialog.modal-dialog::backdrop {
     })
       .then(readResponse)
       .then(function(saved) {
+        if (providerSetupDirty && saved.defaultModel) {
+          localStorage.setItem("agentFireworksModel", saved.defaultModel);
+          providerSetupDirty = false;
+        }
+        document.getElementById("settings-provider-key").value = "";
         ["settings-openai-key", "settings-anthropic-key", "settings-xai-key", "settings-deepgram-key", "settings-elevenlabs-key"].forEach(function(id) {
           document.getElementById(id).value = "";
         });

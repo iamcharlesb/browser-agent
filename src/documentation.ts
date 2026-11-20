@@ -6,6 +6,7 @@ export const DOCUMENTATION_TOPICS = [
   { id: "conversations", title: "Conversations and reset", file: "docs/conversations.md" },
   { id: "cli", title: "CLI installation and usage", file: "docs/cli.md" },
   { id: "validation", title: "Validation and limits", file: "docs/cli-validation.md" },
+  { id: "providers", title: "First-time setup and providers", file: "docs/provider-setup.md" },
   { id: "setup", title: "Models, browser and account setup", file: "README.md" },
   { id: "orchestration", title: "Multi-bot orchestration", file: "docs/bounded-orchestration.md" },
   { id: "coding", title: "Coding tools", file: "docs/coding-capability.md" },

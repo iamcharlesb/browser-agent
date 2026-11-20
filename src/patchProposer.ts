@@ -1,3 +1,4 @@
+import { createModelClient } from "./modelProviderFactory";
 import { redactSecrets } from "./security";
 import { defaultModel, resolveModel } from "./runtimeConfig";
 /**
@@ -156,7 +157,7 @@ export function parsePatchResponse(raw: string, maxPatches: number): ProposedPat
 function defaultComplete(options: PatchProposerOptions): ((input: { systemPrompt: string; userPrompt: string }) => Promise<string>) | null {
   const model = (options.model || process.env.BROWSER_AGENT_PATCH_MODEL || defaultModel()).trim();
   const provider = resolveModel(model).provider;
-  const apiKey = options.apiKey ?? (provider === "anthropic" ? process.env.ANTHROPIC_API_KEY : provider === "xai" ? process.env.XAI_API_KEY : provider === "openai" ? process.env.OPENAI_API_KEY : undefined);
+
 
   if (isClaudeCliModel(model) && isClaudeCliAvailable()) {
     const alias = claudeCliModelAlias(model);
@@ -172,27 +173,15 @@ function defaultComplete(options: PatchProposerOptions): ((input: { systemPrompt
     };
   }
 
-  // The local heuristic engine cannot write a patch, so there is nothing to fall back to.
-  if (!apiKey || model === "local-engine") return null;
-
+  if (model === "local-engine") return null;
+  const connection = createModelClient(model, { apiKey: options.apiKey });
+  if (!connection.apiKey && provider !== "ollama") return null;
+  const client = connection.client;
   const isClaudeApi = provider === "anthropic";
-  const client = new OpenAI({
-    apiKey,
-    ...(isClaudeApi
-      ? {
-          baseURL: process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com/v1/",
-          defaultHeaders: { "anthropic-version": "2023-06-01" }
-        }
-      : provider === "xai"
-        ? { baseURL: process.env.XAI_BASE_URL || "https://api.x.ai/v1" }
-        : process.env.OPENAI_BASE_URL
-        ? { baseURL: process.env.OPENAI_BASE_URL }
-        : {})
-  });
 
   return async ({ systemPrompt, userPrompt }) => {
-    const resolvedModel = model;
-    if (resolveModel(model).api === "responses" && provider === "openai") {
+    const resolvedModel = connection.model;
+    if (connection.api === "responses") {
       const response = await client.responses.create({
         model, instructions: redactSecrets(systemPrompt), input: redactSecrets(userPrompt),
         max_output_tokens: 4000, store: false

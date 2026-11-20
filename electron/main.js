@@ -223,13 +223,13 @@ function buildMenu() {
     ...(isMac
       ? [
           {
-            label: app.name,
+            label: "Pilo",
             submenu: [
-              { role: "about" },
+              { role: "about", label: "About Pilo" },
               { type: "separator" },
               { role: "services" },
               { type: "separator" },
-              { role: "hide" },
+              { role: "hide", label: "Hide Pilo" },
               { role: "hideOthers" },
               { role: "unhide" },
               { type: "separator" },

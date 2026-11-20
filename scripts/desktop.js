@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { desktopExecutable } = require("./desktopExecutable");
 /**
  * Opens Pilo in Electron against the PRODUCTION copy.
  *
@@ -63,7 +64,7 @@ if (attach) {
 }
 
 // Launch the binary directly: Electron's CLI reports normal Ctrl+C as a failure.
-const child = spawn(require("electron"), ["."], { cwd: projectRoot, stdio: "inherit", env });
+const child = spawn(desktopExecutable(), ["."], { cwd: projectRoot, stdio: "inherit", env });
 let shuttingDown = false;
 child.on("error", (error) => {
   console.error(`[desktop] Could not start Electron: ${error.message}`);

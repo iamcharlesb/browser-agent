@@ -1,3 +1,4 @@
+import { createModelClient } from "./modelProviderFactory";
 import { RESPONSE_STYLE } from "./responseStyle";
 import { loadAgentProfile, LoadedProfile } from "./agentProfile";
 import { compactContext, ContextMessage } from "./contextBudget";
@@ -242,7 +243,7 @@ export interface AgentOrchestratorOptions {
 
 type ChatMessage =
   | OpenAI.Chat.Completions.ChatCompletionMessageParam
-  | { role: "assistant"; content: string | null; tool_calls?: unknown[] };
+  | { role: "assistant"; content: string | null; tool_calls?: unknown[]; reasoning_content?: string };
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -386,38 +387,19 @@ export class AgentOrchestrator {
       throw new Error("maxApiRetries must be a positive integer");
     }
 
-    const rawModel = (options.model || DEFAULT_MODEL).trim();
+    const rawModel = (options.model || defaultModel()).trim();
     const modelDefinition = resolveModel(rawModel);
     const isLocalEngineRequested = modelDefinition.provider === "local";
-    const isOllamaModel = modelDefinition.provider === "ollama";
-    const isGrokModel = modelDefinition.provider === "xai";
     const useClaudeCli = modelDefinition.provider === "claude-cli";
-    const isClaudeModel = modelDefinition.provider === "anthropic";
-
-    const cloudKey =
-      options.apiKey ??
-      (isClaudeModel
-        ? process.env.ANTHROPIC_API_KEY
-        : isGrokModel
-          ? process.env.XAI_API_KEY
-          : process.env.OPENAI_API_KEY);
-
-    // Claude CLI uses the local `claude` login — no cloud key required.
     this.useLocalEngine = isLocalEngineRequested;
     this.modelConfigurationIssue = modelConfigurationIssue(rawModel, options.apiKey);
     this.useClaudeCli = useClaudeCli;
     this.claudeCliModelAlias = useClaudeCli ? claudeCliModelAlias(rawModel) : undefined;
-
-    const resolvedKey = isOllamaModel ? "ollama-local" : cloudKey || "local-no-cloud-key";
-    const resolvedBaseURL =
-      options.baseURL ??
-      (isOllamaModel
-        ? process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434/v1"
-        : isClaudeModel
-          ? process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com/v1/"
-          : isGrokModel
-            ? process.env.XAI_BASE_URL || "https://api.x.ai/v1"
-            : process.env.OPENAI_BASE_URL);
+    const connection = createModelClient(rawModel, { apiKey: options.apiKey, baseURL: options.baseURL, fetch: options.fetch,
+      timeoutMs: Math.min(envInteger("BROWSER_AGENT_MODEL_TIMEOUT_MS", 120_000),
+        (options.maxDurationSeconds ?? envInteger("BROWSER_AGENT_MAX_DURATION_SECONDS", 900)) * 1000) });
+    const resolvedKey = connection.apiKey || "local-unconfigured";
+    const resolvedBaseURL = connection.baseURL;
 
     this.task = task;
     this.botName = options.botName?.trim() || "Open Bot";
@@ -426,24 +408,9 @@ export class AgentOrchestrator {
     this.taskImages = options.taskImages || [];
     this.onKnowledgeBase = options.onKnowledgeBase;
     this.browser = options.browser;
-    this.client = new OpenAI({
-      apiKey: resolvedKey,
-      // The orchestration loop owns retry policy; avoid multiplying SDK retries.
-      maxRetries: 0,
-      timeout: Math.min(envInteger("BROWSER_AGENT_MODEL_TIMEOUT_MS", 120_000),
-        (options.maxDurationSeconds ?? envInteger("BROWSER_AGENT_MAX_DURATION_SECONDS", 900)) * 1000),
-      ...(options.fetch ? { fetch: options.fetch } : {}),
-      ...(resolvedBaseURL ? { baseURL: resolvedBaseURL } : {}),
-      ...(isClaudeModel
-        ? {
-            // Anthropic's OpenAI-compatible Chat Completions endpoint.
-            defaultHeaders: { "anthropic-version": "2023-06-01" }
-          }
-        : {})
-    });
-    this.model = isOllamaModel ? rawModel.replace(/^ollama:/, "") : rawModel;
-    this.useResponsesApi =
-      modelDefinition.api === "responses" && modelDefinition.provider === "openai";
+    this.client = connection.client;
+    this.model = connection.model;
+    this.useResponsesApi = connection.api === "responses";
     this.keepRecentImages = Math.max(keepRecentImages, this.taskImages.length + 1);
     this.maxApiRetries = maxApiRetries;
     this.onEvent = options.onEvent;
@@ -1739,10 +1706,12 @@ export class AgentOrchestrator {
     message: OpenAI.Chat.Completions.ChatCompletionMessage,
     maxCalls = 4
   ): ChatMessage {
-    const serialized: { role: "assistant"; content: string | null; tool_calls?: unknown[] } = {
+    const serialized: { role: "assistant"; content: string | null; tool_calls?: unknown[]; reasoning_content?: string } = {
       role: "assistant",
       content: message.content
     };
+    const reasoning = (message as unknown as { reasoning_content?: unknown }).reasoning_content;
+    if (typeof reasoning === "string") serialized.reasoning_content = reasoning;
     if (message.tool_calls && message.tool_calls.length > 0 && maxCalls > 0) {
       serialized.tool_calls = message.tool_calls.slice(0, maxCalls).map((call) => ({
         id: call.id,

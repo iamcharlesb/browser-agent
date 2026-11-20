@@ -2,6 +2,7 @@ import { lstat, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promi
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { environmentFilePath } from "./environment";
+import { providerDefinition, providerModel, providerURL } from "./providerRegistry";
 
 const fields: Record<string, string> = {
   openaiApiKey: "OPENAI_API_KEY", anthropicApiKey: "ANTHROPIC_API_KEY",
@@ -13,6 +14,29 @@ let saves: Promise<unknown> = Promise.resolve();
 /** Persist only connection fields, preserving unrelated environment configuration. */
 export async function saveProviderSettings(input: Record<string, unknown>, file = environmentFilePath): Promise<Record<string, string | undefined>> {
   const updates: Record<string, string | undefined> = {};
+  if (input.provider !== undefined) {
+    const provider = typeof input.provider === "string" && providerDefinition(input.provider);
+    if (!provider) throw new Error("Choose a supported provider.");
+    const text = (field: string, fallback = "") => {
+      const value = input[field] ?? fallback;
+      if (typeof value !== "string" || /[\r\n\0]/.test(value)) throw new Error("Connection settings must be single-line text values.");
+      return value.trim();
+    };
+    const model = text("providerModel", providerModel(provider));
+    const url = text("providerBaseURL", providerURL(provider));
+    const key = text("providerApiKey");
+    if (!model) throw new Error("Enter the model ID supplied by your provider.");
+    if (url) {
+      let parsed: URL;
+      try { parsed = new URL(url); } catch { throw new Error("Enter a valid API endpoint URL."); }
+      if (!["https:", "http:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) throw new Error("Use an http(s) API base URL without credentials, query parameters, or fragments.");
+    } else throw new Error("Enter your provider's API endpoint URL.");
+    updates.BROWSER_AGENT_PROVIDER = provider.id;
+    updates.BROWSER_AGENT_MODEL = provider.id === "ollama" ? `ollama:${model.replace(/^ollama:/, "")}` : model;
+    updates[provider.modelVariable] = model.replace(/^ollama:/, "");
+    updates[provider.urlVariable] = url;
+    if (key && provider.keyVariable) updates[provider.keyVariable] = key;
+  }
   for (const [field, variable] of Object.entries(fields)) {
     if (input[field] === undefined) continue;
     if (typeof input[field] !== "string" || /[\r\n\0]/.test(input[field] as string)) throw new Error("Connection settings must be single-line text values.");

@@ -6,7 +6,9 @@
 
 [Project home](https://github.com/iamcharlesb/pilo) · [The story behind Pilo](https://medium.com/@iamcharlesb/meet-pilo-inspired-by-grok-bots-and-chatgpt-dots-13a17c6c5e41)
 
-Pilo is an source-available personal bot inspired by Grok Bots, built on the browser-agent runtime. It uses compact per-bot playbooks, a local pub/sub bus and optional MongoDB-backed event synchronization. Fireworks++ is not a dependency or prerequisite.
+Pilo is a source-available personal bot inspired by Grok Bots, built on the browser-agent runtime. It uses compact per-bot playbooks, a local pub/sub bus and optional MongoDB-backed event synchronization. Fireworks++ is not a dependency or prerequisite.
+
+New installation? Follow the [first-time setup and provider guide](docs/provider-setup.md): install Node 22.12+, clone with submodules, install dependencies, launch, then choose OpenAI, Qwen, or Kimi in Settings and paste an API key. Model and endpoint presets are editable. For file-based setup, copy [.env.example](.env.example) to `.env` and fill only the chosen provider's key. Google sign-in and MongoDB are optional.
 
 See [production-readiness and operating boundaries](docs/buddy-bot-production.md) before deployment.
 
@@ -141,9 +143,9 @@ Do not commit `.env` or real client secrets. `.env.example` documents the keys o
 
 ### Model and budget configuration
 
-The server and CLI load `.env` before deriving defaults. Precedence is inherited shell variables, then `node/browser_agent/.env`, then the parent repository `.env` when running this submodule checkout. Set `BROWSER_AGENT_ENV_FILE` to load only a specific file. Settings saves connection changes to the app file (or that explicit file), with private file permissions. Set `BROWSER_AGENT_MODEL` for the selected default and provider versions through `OPENAI_MODEL`, `ANTHROPIC_MODEL`, `XAI_MODEL`, and `OLLAMA_MODEL`. `OPENAI_IMAGE_MODEL` enables image generation. With no configured model the default is the explicit Local Engine.
+The server and CLI load `.env` before deriving defaults. Precedence is inherited shell variables, then `node/browser_agent/.env`, then the parent repository `.env` when running this submodule checkout. Set `BROWSER_AGENT_ENV_FILE` to load only a specific file. Settings saves connection changes to the app file (or that explicit file), with private file permissions. Set `BROWSER_AGENT_MODEL` for the selected default and provider versions through `OPENAI_MODEL`, `QWEN_MODEL`, `KIMI_MODEL`, `ANTHROPIC_MODEL`, `XAI_MODEL`, and `OLLAMA_MODEL`. `BROWSER_AGENT_PROVIDER` selects a provider default when `BROWSER_AGENT_MODEL` is empty. `OPENAI_IMAGE_MODEL` enables image generation. With no configured model the default is the explicit Local Engine.
 
-`BROWSER_AGENT_MODELS_JSON` adds models as `{ "id": "deployment-id", "label": "Optional name", "provider": "openai", "api": "responses" }`. Supported providers are `openai`, `anthropic`, `xai`, `ollama`, `claude-cli`, and `local`; API modes are `responses` or `chat`. Explicit registry metadata wins over legacy model-name inference. `OPENAI_API_MODE` controls unregistered OpenAI models. The settings/composer menus are populated from the server catalog, with saved custom selections preserved.
+`BROWSER_AGENT_MODELS_JSON` adds models as `{ "id": "deployment-id", "label": "Optional name", "provider": "openai", "api": "responses" }`. Supported providers are `openai`, `qwen`, `kimi`, `compatible`, `anthropic`, `xai`, `ollama`, `claude-cli`, and `local`; API modes are `responses` or `chat`. Explicit registry metadata wins over legacy model-name inference. `OPENAI_API_MODE` controls unregistered OpenAI models. The settings/composer menus are populated from the server catalog, with saved custom selections preserved.
 
 `.env.example` also documents step/output/context limits and reasoning effort. The custom loop removes complete old rounds above the text budget, preserves the task and recent observations, and starts a new Responses chain after compaction. Images have a separate retention limit. Oversized pinned context produces an explicit error. The SDK checks the shared tool step/time budget, but its internal history is not compacted by the custom-loop policy.
 

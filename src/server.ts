@@ -1,6 +1,7 @@
 import { isSameOriginRequest, requestRejection } from "./requestSecurity";
 import { handleTerminalRequest } from "./terminalRoutes";
-import { envInteger } from "./runtimeConfig";
+import { envInteger, defaultModel } from "./runtimeConfig";
+import { providerCatalog, providerKey, providerDefinitions } from "./providerRegistry";
 import { readPlaybookPage } from "./agentProfile";
 import { AsyncAgentQueue } from "./asyncAgentQueue";
 import { DurableEventStream } from "./durableEventStream";
@@ -76,7 +77,6 @@ import {
   AgentEvent,
   AgentOrchestrator,
   AgentResult,
-  DEFAULT_MODEL,
   requiresInitialBrowserState
 } from "./promptLoop";
 import { ApprovalCategory, assessTaskRisk, redactSecrets, redactSecretValues } from "./security";
@@ -592,7 +592,7 @@ function validateRunRequest(body: unknown): RunRequestBody {
   if (!Number.isFinite(maxDurationSeconds) || maxDurationSeconds <= 0 || maxDurationSeconds > 86_400) {
     throw new Error("maxDurationSeconds must be a number between 1 and 86400.");
   }
-  const model = record.model === undefined ? DEFAULT_MODEL : String(record.model);
+  const model = record.model === undefined ? defaultModel() : String(record.model);
   const approvedCategories = Array.isArray(record.approvedCategories)
     ? record.approvedCategories.filter(
         (value): value is ApprovalCategory => value === "financial_transaction" || value === "external_side_effect"
@@ -711,7 +711,7 @@ async function executeSchedule(id: string): Promise<void> {
     headless: true,
     maxSteps: 120,
     maxDurationSeconds: 14_400,
-    model: DEFAULT_MODEL,
+    model: defaultModel(),
     approvedCategories: [],
     scheduleTimeZone: schedule.timeZone,
     scheduleId: schedule.id
@@ -904,7 +904,7 @@ function continueCoordinatorDiscussion(discussionId: string, update: string, for
 
 type RunPromise = Promise<AgentResult> & { runId: string };
 function validateRunModel(body: RunRequestBody): void {
-  const model = body.model || DEFAULT_MODEL;
+  const model = body.model || defaultModel();
   const issue = modelConfigurationIssue(model);
   if (issue) throw Object.assign(new Error(issue), { code: "model_not_configured", provider: resolveModel(model).provider });
   if (resolveModel(model).provider === "local" && requestedCoordination(body.task, body.workspaceBots, body.botName || "default").length) {
@@ -918,7 +918,7 @@ function startRun(body: RunRequestBody, options: { runId?: string; handoffDepth?
   if ((body.conversationResetAt !== undefined || body.conversationTurns?.length || body.conversationArtifacts?.length) && (body.conversationResetAt || 0) < resetAt) throw new Error("This conversation was reset. Refresh this bot before retrying.");
   options = { discussionId: body.discussionId, consultationId: body.consultationId, specialist: body.specialist, finalSynthesis: body.finalSynthesis, ...options };
   const internalContinuation = Boolean(options.discussionId);
-  if (!internalContinuation && (body.model || DEFAULT_MODEL) !== "local-engine" && !userRequestsDirectAnswer(currentUserRequest(body.task)) && requestedCoordination(body.task, body.workspaceBots, body.botName || "default").length) {
+  if (!internalContinuation && (body.model || defaultModel()) !== "local-engine" && !userRequestsDirectAnswer(currentUserRequest(body.task)) && requestedCoordination(body.task, body.workspaceBots, body.botName || "default").length) {
     options.discussionId = createDiscussion(body);
   }
   if (options.discussionId) {
@@ -987,7 +987,7 @@ function startRun(body: RunRequestBody, options: { runId?: string; handoffDepth?
     { botName: run.botName, task: body.task, handoffDepth, unattended: Boolean(body.scheduleId) },
     { source: run.botName }
   );
-  publishRunEvent(run, { type: "execution_configuration", model: body.model || DEFAULT_MODEL, engine: body.agentEngine || "openai-sdk", mode: body.interactionMode || "act", consultation: Boolean(options.specialist) });
+  publishRunEvent(run, { type: "execution_configuration", model: body.model || defaultModel(), engine: body.agentEngine || "openai-sdk", mode: body.interactionMode || "act", consultation: Boolean(options.specialist) });
 
   const runPromise = (async (): Promise<AgentResult> => {
     let result: AgentResult = {
@@ -1758,7 +1758,7 @@ function startLearnSession(input: {
     maxRounds: input.maxRounds ?? 3,
     allowSelfFix: LEARN_SELF_FIX_ENABLED && input.allowSelfFix !== false,
     verify: createDefaultVerifier(REPO_ROOT),
-    proposePatches: createPatchProposer({ repoRoot: REPO_ROOT, model: input.model ?? process.env.BROWSER_AGENT_PATCH_MODEL ?? DEFAULT_MODEL }),
+    proposePatches: createPatchProposer({ repoRoot: REPO_ROOT, model: input.model ?? process.env.BROWSER_AGENT_PATCH_MODEL ?? defaultModel() }),
     // Patches are written, documented, and then held here until the user says yes.
     onFixApproval: fixApprovalGate.request,
     runner: ({ message, round, transcript }) => {
@@ -2649,7 +2649,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         googleEnabled: Boolean(GOOGLE_CLIENT_ID),
         ...persistenceMeta()
       },
-      hasApiKey: Boolean(process.env.OPENAI_API_KEY || process.env.XAI_API_KEY || process.env.ANTHROPIC_API_KEY),
+      hasApiKey: providerDefinitions.some(provider => Boolean(providerKey(provider))),
       hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
       hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
       hasXaiKey: Boolean(process.env.XAI_API_KEY),
@@ -2657,9 +2657,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       hasElevenLabsKey: Boolean(process.env.ELEVENLABS_API_KEY),
       hasClaudeCli: Boolean(resolveClaudeCliBinary()),
       claudeCliPath: process.env.CLAUDE_CLI_PATH || resolveClaudeCliBinary(),
-      defaultModel: DEFAULT_MODEL,
+      defaultModel: defaultModel(),
       coordinationCapabilities: { structuredRoster: true, savedProfiles: true, multiBotCoverage: true, durableReceipts: true, consultations: "read-only" },
       models: modelCatalog(),
+      providers: providerCatalog(),
       profileRuntime: { ...profileMetrics, playbookNotifications, modelWakeupsFromNotifications: 0, wakePolicy: "explicit-task-or-approved-schedule" },
       sharedEventsEnabled: eventStream.enabled,
       sharedEventsWorkspace: eventStream.enabled ? eventStream.workspaceId : null,
@@ -2796,6 +2797,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       }
       sendJson(res, 200, {
         status: "saved",
+        defaultModel: defaultModel(),
         hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
         hasXaiKey: Boolean(process.env.XAI_API_KEY),
         hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),

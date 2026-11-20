@@ -1,9 +1,10 @@
 import "./environment";
+import { providerDefinitions, providerDefinition, providerKey, providerModel, providerURL, providerApi } from "./providerRegistry";
 
-export type ModelProvider = "openai" | "anthropic" | "xai" | "ollama" | "claude-cli" | "local";
+export type ModelProvider = "openai" | "anthropic" | "xai" | "ollama" | "claude-cli" | "local" | "qwen" | "kimi" | "compatible";
 export type ModelApi = "responses" | "chat";
 export interface ModelDefinition { id: string; label: string; provider: ModelProvider; api?: ModelApi }
-const providers: ModelProvider[] = ["openai", "anthropic", "xai", "ollama", "claude-cli", "local"];
+const providers: ModelProvider[] = ["openai", "anthropic", "xai", "ollama", "claude-cli", "local", "qwen", "kimi", "compatible"];
 
 export function envInteger(name: string, fallback: number, min = 1, max = 1_000_000): number {
   const raw = process.env[name]?.trim();
@@ -18,9 +19,9 @@ export function modelCatalog(): ModelDefinition[] {
     { id: "local-engine", label: "Local Engine", provider: "local" },
     { id: "claude-cli", label: "Claude CLI", provider: "claude-cli" }
   ];
-  for (const [variable, provider] of [["OPENAI_MODEL", "openai"], ["ANTHROPIC_MODEL", "anthropic"], ["XAI_MODEL", "xai"], ["OLLAMA_MODEL", "ollama"]] as const) {
-    const configured = process.env[variable]?.trim();
-    if (configured) models.push({ id: provider === "ollama" ? `ollama:${configured}` : configured, label: configured, provider });
+  for (const provider of providerDefinitions) {
+    const configured = providerModel(provider);
+    if (configured) models.push({ id: provider.id === "ollama" ? `ollama:${configured}` : configured, label: `${provider.label} · ${configured}`, provider: provider.id, api: providerApi(provider) });
   }
   const raw = process.env.BROWSER_AGENT_MODELS_JSON?.trim();
   if (raw) {
@@ -40,28 +41,29 @@ export function modelCatalog(): ModelDefinition[] {
 }
 
 export function defaultModel(): string {
-  return process.env.BROWSER_AGENT_MODEL?.trim() || process.env.OPENAI_MODEL?.trim() || "local-engine";
+  const selected = providerDefinition(process.env.BROWSER_AGENT_PROVIDER || "");
+  return process.env.BROWSER_AGENT_MODEL?.trim() || (selected && providerModel(selected)) || process.env.OPENAI_MODEL?.trim() ||
+    providerDefinitions.filter(provider => provider.keyVariable && providerKey(provider)).map(providerModel).find(Boolean) || "local-engine";
 }
 
 /** Explicit registry metadata wins; name inference supports existing saved selections. */
 export function resolveModel(id: string): ModelDefinition & { api: ModelApi } {
   const registered = modelCatalog().find(model => model.id === id);
   const inferred: ModelProvider = id === "local-engine" ? "local" : id.startsWith("claude-cli") ? "claude-cli" :
-    id.startsWith("ollama:") ? "ollama" : /^claude/i.test(id) ? "anthropic" : /^grok/i.test(id) ? "xai" : "openai";
+    id.startsWith("ollama:") ? "ollama" : /^qwen/i.test(id) ? "qwen" : /^(kimi|moonshot)/i.test(id) ? "kimi" : /^claude/i.test(id) ? "anthropic" : /^grok/i.test(id) ? "xai" : "openai";
   const provider = registered?.provider ?? inferred;
-  const configuredApi = process.env.OPENAI_API_MODE?.trim();
-  if (configuredApi && configuredApi !== "responses" && configuredApi !== "chat") throw new Error("OPENAI_API_MODE must be responses or chat.");
-  return { id, label: registered?.label ?? id, provider, api: registered?.api ?? (provider === "openai" ? configuredApi as ModelApi || "responses" : "chat") };
+  const definition = providerDefinition(provider);
+  return { id, label: registered?.label ?? id, provider, api: registered?.api ?? (definition ? providerApi(definition) : "chat") };
 }
 
 /** A selected cloud model must never silently become the deterministic Local Engine. */
 export function modelConfigurationIssue(id: string, apiKey?: string): string | undefined {
   const { provider } = resolveModel(id);
-  const variable = provider === "openai" ? "OPENAI_API_KEY" : provider === "anthropic" ? "ANTHROPIC_API_KEY" : provider === "xai" ? "XAI_API_KEY" : undefined;
-  if (variable && !(apiKey ?? process.env[variable])?.trim()) {
-    const label = provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : "xAI";
-    return `${label} is not connected. Open Settings → Provider keys and connection, enter your API key, and save. Then retry your request.`;
+  const definition = providerDefinition(provider);
+  if (definition?.keyVariable && !(apiKey ?? providerKey(definition))?.trim()) {
+    return `${definition.label} is not connected. Open Settings → Provider keys and connection, enter your API key, and save. Then retry your request.`;
   }
+  if (provider === "compatible" && !providerURL(definition!)) return "Set the API endpoint in Settings or COMPATIBLE_BASE_URL.";
   return undefined;
 }
 

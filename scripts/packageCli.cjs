@@ -18,7 +18,7 @@ try {
   for (const file of readdirSync(join(temporary, "compiled"))) {
     if (file.endsWith(".js") && !file.endsWith(".test.js")) cpSync(join(temporary, "compiled", file), join(stage, "dist", file));
   }
-  for (const entry of ["static", "agents", "playbooks", "docs", "AGENTS.md", "soul.md", "LICENSE", "NOTICE", "LICENSE-APACHE-2.0"]) cpSync(join(root, entry), join(stage, entry), { recursive: true, dereference: false });
+  for (const entry of ["config", "static", "agents", "playbooks", "docs", "AGENTS.md", "soul.md", "LICENSE", "NOTICE", "LICENSE-APACHE-2.0"]) cpSync(join(root, entry), join(stage, entry), { recursive: true, dereference: false });
   cpSync(join(root, "README.md"), join(stage, "docs/runtime-setup.md"));
   cpSync(join(root, "docs/cli.md"), join(stage, "README.md"));
   const source = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
@@ -29,7 +29,7 @@ try {
     description: "Pilo local agent CLI preview", license: source.license,
     bin: { pilo: "dist/piloCli.js" }, engines: { node: ">=22.0.0" },
     repository: { type: "git", url: "https://github.com/iamcharlesb/browser-agent.git" },
-    files: ["dist", "static", "agents", "playbooks", "docs", "AGENTS.md", "soul.md", "README.md", "LICENSE", "NOTICE", "LICENSE-APACHE-2.0", "npm-shrinkwrap.json"], dependencies
+    files: ["dist", "config", "static", "agents", "playbooks", "docs", "AGENTS.md", "soul.md", "README.md", "LICENSE", "NOTICE", "LICENSE-APACHE-2.0", "npm-shrinkwrap.json"], dependencies
   };
   writeFileSync(join(stage, "package.json"), JSON.stringify(manifest, null, 2) + "\n");
   // A shrinkwrap preserves the tested transitive dependency graph for tarball installs.

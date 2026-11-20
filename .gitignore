@@ -39,3 +39,6 @@ artifacts/
 
 # Native VoiceNote build artifacts
 voice-note-macos/.build/
+
+# Generated named Electron shell; rebuilt from npm dependencies.
+.desktop/

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { desktopExecutable } = require("./desktopExecutable");
 /**
  * Opens Pilo in Electron against the DEV output (dist/) with watch/reload.
  *
@@ -77,7 +78,7 @@ spawnChild("tsc --watch", tscBin, ["-w", "-p", "tsconfig.json", "--preserveWatch
 const electronEnv = { ...sharedEnv, BROWSER_AGENT_SERVER_ENTRY: serverEntry };
 delete electronEnv.BROWSER_AGENT_ATTACH_EXISTING;
 // Avoid Electron's CLI treating an intentional Ctrl+C as an error.
-spawnChild("electron", require("electron"), ["."], electronEnv);
+spawnChild("electron", desktopExecutable(), ["."], electronEnv);
 
 function shutdown(code = 0) {
   if (shuttingDown) return;

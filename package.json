@@ -1,5 +1,6 @@
 {
   "name": "pilo",
+  "productName": "Pilo",
   "version": "0.1.0",
   "private": true,
   "description": "Pilo \u2014 local, playbook-driven AI agent desktop runtime (Node.js + Electron).",
@@ -26,7 +27,7 @@
     "profiles:review": "npm run build && node dist/reviewPlaybook.js"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.12.0"
   },
   "dependencies": {
     "@openai/agents": "^0.21.0",
