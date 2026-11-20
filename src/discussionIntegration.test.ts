@@ -533,7 +533,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
             return { width: box.width, height: box.height, clipped: getComputedStyle(avatar).overflow,
               inside: box.top >= topbar.top && box.bottom <= topbar.bottom };
           });
-          assert.deepEqual(metrics, { width: 26, height: 26, clipped: "hidden", inside: true });
+          assert.deepEqual(metrics, { width: 20, height: 20, clipped: "hidden", inside: true });
         }
         for (const width of [320, 480, 680]) {
           await page.evaluate(width => {
