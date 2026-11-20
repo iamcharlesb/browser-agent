@@ -534,6 +534,20 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
               inside: box.top >= topbar.top && box.bottom <= topbar.bottom };
           });
           assert.deepEqual(metrics, { width: 20, height: 20, clipped: "hidden", inside: true });
+          const portraitStates = await page.evaluate(() => {
+            const original = document.querySelector<HTMLElement>("#chip-avatar")!;
+            return ["is-working", "is-step", "needs-you", "just-finished"].map(state => {
+              const host = document.createElement("div"); host.className = "run-presence";
+              const portrait = original.cloneNode(true) as HTMLElement;
+              portrait.removeAttribute("id"); portrait.classList.add("is-expressive", state);
+              host.appendChild(portrait); document.body.appendChild(host);
+              const style = getComputedStyle(portrait);
+              const result = { animation: style.animationName, transform: style.transform, clipped: style.overflow,
+                childAnimation: getComputedStyle(portrait.querySelector("img")!).animationName };
+              host.remove(); return result;
+            });
+          });
+          for (const state of portraitStates) assert.deepEqual(state, { animation: "none", transform: "none", clipped: "hidden", childAnimation: "none" });
         }
         for (const width of [320, 480, 680]) {
           await page.evaluate(width => {
