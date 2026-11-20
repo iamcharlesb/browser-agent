@@ -367,3 +367,15 @@ test("Founder Operator and new specialist bots load roles and playbooks", () => 
     assert.ok(profile.instructions.length <= 2400, name);
   }
 });
+
+
+test("EB1A specialist keeps evidence safeguards and procedure after rename", () => {
+  const profile = loadAgentProfile({ profileId: "eb1a-research", botName: "My RFE Partner", task: "Research my case", root });
+  assert.match(profile.instructions, /Never invent impact/);
+  assert.match(profile.playbooks, /documented bridge/);
+  assert.match(profile.playbooks, /separate self-contained deliverables/);
+  assert.match(profile.playbooks, /base, bonus and equity/);
+  assert.ok(profile.instructions.length <= 2400);
+  assert.ok(profile.soul.length <= 900);
+  assert.ok(profile.playbooks.length <= 3200);
+});

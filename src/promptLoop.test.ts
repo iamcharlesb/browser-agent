@@ -210,7 +210,7 @@ test("GPT-6 Luna uses Responses API with reasoning enabled", { concurrency: fals
   assert.equal(requestBodies[0].reasoning.effort, "low");
   assert.ok(requestBodies[0].max_output_tokens >= 4096, "Article tool arguments must fit without truncation");
   assert.match(requestBodies[0].instructions, /TOKEN DISCIPLINE/);
-  assert.match(requestBodies[0].instructions, /PLAN FIRST ON COMPLEX ASKS/);
+  assert.match(requestBodies[0].instructions, /MULTI-STEP ON COMPLEX ASKS/);
   assert.ok(Array.isArray(requestBodies[0].tools) && requestBodies[0].tools.length > 0);
   assert.equal(requestBodies[0].messages, undefined);
   assert.equal(requestBodies[1].previous_response_id, "resp_first");
@@ -648,45 +648,24 @@ test("premature finish_task admitting blank/unsaved editor is rejected so the ag
   );
 });
 
-test("AgentOrchestrator executes run_action_script and completes when final_answer is called", async () => {
-  const mockFetch: typeof fetch = async () => {
-    return new Response(
-      JSON.stringify(
-        makeResponsesPayload(
-          [
-            {
-              id: "fc_script",
-              type: "function_call",
-              status: "completed",
-              call_id: "call_script",
-              name: "run_action_script",
-              arguments: JSON.stringify({
-                code: `
-                  const a = await calculate({ expression: "10 + 15" });
-                  const b = await calculate({ expression: "25 * 2" });
-                  final_answer("Combined script result: " + a.message + " and " + b.message);
-                `
-              })
-            }
-          ],
-          "resp_script_1"
-        )
-      ),
-      { status: 200, headers: { "content-type": "application/json" } }
-    );
+test("stale action-script requests cannot execute and scripts are not offered to models", async () => {
+  let calls = 0;
+  const mockFetch: typeof fetch = async (_input, init) => {
+    const request = JSON.parse(String(init?.body));
+    assert.equal(request.tools.some((tool: any) => (tool.name || tool.function?.name) === "run_action_script"), false);
+    const output = calls++ === 0
+      ? [{ id: "script", type: "function_call", call_id: "script", name: "run_action_script",
+          arguments: JSON.stringify({ code: 'final_answer("FORGED RESULT")' }) }]
+      : [{ id: "answer", type: "message", role: "assistant", status: "completed",
+          content: [{ type: "output_text", text: "Action scripts are disabled; use individual approved tools." }] }];
+    return new Response(JSON.stringify(makeResponsesPayload(output, "response_" + calls)),
+      { status: 200, headers: { "content-type": "application/json" } });
   };
-
-  const agent = new AgentOrchestrator({
-    task: "Run two calculations in one script.",
-    model: "gpt-6-luna",
-    apiKey: "test-key",
-    fetch: mockFetch,
-    browser: {} as BrowserController,
-    maxApiRetries: 1
-  });
+  const agent = new AgentOrchestrator({ task: "Explain whether scripts are available.", model: "gpt-6-luna",
+    apiKey: "test-key", fetch: mockFetch, browser: {} as BrowserController, maxApiRetries: 1 });
   const result = await agent.run();
-  assert.equal(result.success, true);
-  assert.match(result.summary, /Combined script result:.*25.*50/);
+  assert.doesNotMatch(result.summary, /FORGED RESULT/);
+  assert.match(result.summary, /disabled/);
 });
 
 test("interactionMode turbo auto-runs outward browser actions without prompting", async () => {
@@ -769,7 +748,7 @@ test("interactionMode turbo auto-runs outward browser actions without prompting"
   assert.equal(clicks, 1, "Turbo mode executes the click automatically");
 });
 
-test("follow-up turns recognize an already-open browser screen and do not gate Create New Post", async () => {
+test("follow-up turns retain browser context and preserve declared outward effects", async () => {
   for (const followUp of [
     "yes sir",
     "continue",
@@ -787,15 +766,14 @@ test("follow-up turns recognize an already-open browser screen and do not gate C
     );
   }
 
-  // Opening a CMS draft form ("Create New Post", "+ Create New Post", "Save Draft") stays reversible
-  // even when the model conservatively declares "outward" because of the noun "Post".
+  // A draft-looking label cannot override contextual evidence of an outward effect.
   for (const label of ["Create New Post", "+ Create New Post", "New Post", "Save Draft", "Save as Draft"]) {
     const decision = classifyBrowserAction({
       toolName: "click_element",
       label,
       declaredEffect: "outward"
     });
-    assert.equal(decision.effect, "reversible", `"${label}" must not prompt for outward approval`);
+    assert.equal(decision.effect, "outward", `"${label}" must retain outward approval`);
   }
 });
 

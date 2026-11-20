@@ -25,16 +25,16 @@
   --blue-soft: #fff7ed;
   --brand: #f6430f;
   --brand-hover: #ea580c;
-  --brand-gradient: linear-gradient(134deg, #f6430f 0%, #dc3329 100%);
+  --brand-gradient: var(--brand);
   --green: #16a34a;
   --green-soft: #f0fdf4;
   --red: #dc2626;
   --red-soft: #fef2f2;
   --amber: #d97706;
   --message-column-max-width: 840px;
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
-  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.06), 0 2px 6px rgba(15, 23, 42, 0.03);
-  --shadow-lg: 0 18px 42px rgba(15, 23, 42, 0.1), 0 4px 12px rgba(15, 23, 42, 0.04);
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -293,7 +293,7 @@ button { color: inherit; }
   font-size: 13px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  box-shadow: 0 2px 6px rgba(255, 92, 0, 0.24);
+  box-shadow: none;
   position: relative;
 }
 .agent-avatar.custom-bot {
@@ -306,9 +306,7 @@ button { color: inherit; }
   border-radius: 50%;
   overflow: hidden;
   background: #f2f4f7;
-  box-shadow:
-    0 4px 10px rgba(15, 23, 42, 0.22),
-    0 1px 0 rgba(255, 255, 255, 0.45) inset !important;
+  box-shadow: none !important;
 }
 .agent-avatar.photo-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .bot-portrait[src*="mark-zuckerberg.jpg"] { transform: scale(1.15); object-position: 50% 20%; }
@@ -347,15 +345,9 @@ button { color: inherit; }
 /* ===== BLOB BOT ICON SYSTEM (pure CSS, animated — from blob-bot-icons.html) =====
    Usage: <div class="bot bot--circle bot--happy" style="--c:#3b82f6"><span class="face"><i class="eye"></i><i class="eye"></i><i class="mouth"></i></span></div>
    Vars: --size (default 96px), --c (body colour), --eye (feature colour, default white) */
-.bot{--spring:cubic-bezier(.34,1.8,.5,1);--size:32px;--stroke:max(1.8px,min(3px,calc(var(--size)*.038)));--c:#111;--eye:#fff;--mouth-w:28%;--bot-delay:0ms;position:relative;width:var(--size);height:var(--size);border-radius:50%;flex:0 0 auto;isolation:isolate;transform-origin:50% 85%;animation:bot-idle 1.8s var(--spring) infinite;animation-delay:var(--bot-delay);background:
-    radial-gradient(118% 95% at 30% 18%, rgba(255,255,255,.62) 0%, rgba(255,255,255,0) 46%),
-    radial-gradient(90% 80% at 72% 82%, rgba(0,0,0,.28) 0%, transparent 52%),
-    var(--c);
-  box-shadow:
-    0 5px 12px rgba(15,23,42,.28),
-    0 1px 0 rgba(255,255,255,.55) inset,
-    0 -3px 7px rgba(0,0,0,.22) inset;
-  filter: drop-shadow(0 2px 2px rgba(15,23,42,.18));
+.bot{--spring:cubic-bezier(.34,1.8,.5,1);--size:32px;--stroke:max(1.8px,min(3px,calc(var(--size)*.038)));--c:#111;--eye:#fff;--mouth-w:28%;--bot-delay:0ms;position:relative;width:var(--size);height:var(--size);border-radius:50%;flex:0 0 auto;isolation:isolate;transform-origin:50% 85%;animation:bot-idle 1.8s var(--spring) infinite;animation-delay:var(--bot-delay);background:var(--c);
+  box-shadow: none;
+  filter: none;
 }
 .bot .face{position:absolute;inset:0;pointer-events:none}
 .bot .eye,.bot .mouth,.bot .face::before,.bot .face::after{position:absolute;box-sizing:border-box;font-style:normal}
@@ -536,7 +528,7 @@ button { color: inherit; }
 
 /* Saved SVG silhouettes share the CSS face and squash-and-stretch motion. */
 .bot--legacy { background: transparent; box-shadow: none; filter: none; }
-.bot .bot-silhouette { position: absolute; inset: 0; width: 100%; height: 100%; filter: drop-shadow(0 3px 4px rgba(15,23,42,.25)); }
+.bot .bot-silhouette { position: absolute; inset: 0; width: 100%; height: 100%; filter: none; }
 .agent-avatar.custom-bot { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .bot-hop, .bot, .bot *, .bot .face::before, .bot .face::after {
@@ -983,7 +975,13 @@ button { color: inherit; }
   width: 26px;
   height: 26px;
   font-size: 10px;
-  overflow: visible;
+  flex: 0 0 26px;
+  overflow: hidden;
+  border-radius: 50%;
+}
+#agent-chip .agent-avatar.photo-avatar {
+  animation: none;
+  transform: none;
 }
 .chip-text-group {
   display: flex;
@@ -1129,7 +1127,7 @@ button { color: inherit; }
 .header-engine-btn.active {
   background: var(--brand-gradient);
   color: #ffffff;
-  box-shadow: 0 2px 6px rgba(246, 67, 15, 0.25);
+  box-shadow: none;
 }
 
 /* Workspace Split & Draggable Panel Resizers */
@@ -1366,7 +1364,7 @@ button { color: inherit; }
   min-height: 52px;
   cursor: pointer;
   transition: border-color 0.16s ease, transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s ease;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  box-shadow: none;
   display: flex;
   flex-direction: row;
   align-items: flex-start;
@@ -1376,7 +1374,7 @@ button { color: inherit; }
 .template-card:hover {
   border-color: #cbd5e1;
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+  box-shadow: none;
 }
 .template-card.is-onboarded { opacity: .74; }
 .template-card .template-copy > span.template-status {
@@ -1453,7 +1451,7 @@ button { color: inherit; }
   font-size: 12px;
   line-height: 1.5;
   overflow-wrap: anywhere;
-  box-shadow: 0 8px 24px rgba(16, 24, 40, .18);
+  box-shadow: none;
 }
 #bot-description-tooltip[hidden] { display: none; }
 .template-card.create-custom-card {
@@ -1548,7 +1546,7 @@ button { color: inherit; }
   padding: 12px 16px;
   background: #fff;
   border: 1px solid #eaecf0;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  box-shadow: none;
   word-wrap: break-word;
   line-height: 1.58;
   color: var(--text);
@@ -1692,10 +1690,8 @@ button { color: inherit; }
   margin: 2px 0 8px;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
-  background:
-    radial-gradient(120% 90% at 12% 0%, rgba(255,255,255,.9) 0%, rgba(255,255,255,0) 48%),
-    linear-gradient(180deg, #fbfcfe 0%, #f3f5f8 100%);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06), 0 1px 0 rgba(255,255,255,.8) inset;
+  background: #f8fafc;
+  box-shadow: none;
   overflow: hidden;
   max-width: min(100%, 560px);
 }
@@ -1712,9 +1708,9 @@ button { color: inherit; }
   height: 26px;
   flex: 0 0 auto;
   border-radius: 5px;
-  background: linear-gradient(160deg, #fff 0%, #e8eef7 100%);
+  background: #f1f5f9;
   border: 1px solid #cbd5e1;
-  box-shadow: 0 2px 4px rgba(15,23,42,.08);
+  box-shadow: none;
   position: relative;
 }
 .code-ref-glyph::before {
@@ -1895,7 +1891,7 @@ button { color: inherit; }
   cursor: pointer;
   font-weight: 600;
   font-size: 12.5px;
-  box-shadow: 0 4px 12px rgba(246, 67, 15, 0.25);
+  box-shadow: none;
 }
 .resume-button:hover {
   background: var(--blue-hover);
@@ -1974,12 +1970,12 @@ button { color: inherit; }
   border-radius: 22px;
   padding: 10px;
   background: #fff;
-  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.055);
+  box-shadow: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 #composer:focus-within {
   border-color: #9aa9be;
-  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.085);
+  box-shadow: none;
 }
 #composer textarea {
   display: block;
@@ -2186,10 +2182,10 @@ button { color: inherit; }
   display: grid;
   place-items: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(255, 92, 0, 0.26);
+  box-shadow: none;
   transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
-#send-button:hover { background: var(--brand-hover); box-shadow: 0 4px 12px rgba(255, 92, 0, 0.34); }
+#send-button:hover { background: var(--brand-hover); box-shadow: none; }
 #send-button:disabled { background: #cbd5e1; cursor: not-allowed; }
 #send-button svg { width: 18px; height: 18px; }
 
@@ -2292,18 +2288,20 @@ button { color: inherit; }
   display: inline-flex;
 }
 .browser-toolbar {
-  height: 38px;
+  min-height: 40px;
   flex: 0 0 auto;
-  padding: 4px 8px;
+  padding: 5px 8px;
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
   border-bottom: 1px solid var(--border);
   background: #f8f9fb;
 }
 .browser-nav-btn {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
@@ -2323,6 +2321,7 @@ button { color: inherit; }
 .browser-nav-btn svg { width: 14px; height: 14px; }
 .browser-address {
   flex: 1;
+  min-width: 0;
   height: 28px;
   border: 1px solid #d8dce5;
   border-radius: 7px;
@@ -2386,7 +2385,7 @@ button { color: inherit; }
   border: 1px solid #e4e9f1;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.06);
+  box-shadow: none;
 }
 #browser-placeholder .browser-empty-icon {
   display: grid;
@@ -2493,11 +2492,13 @@ button { color: inherit; }
   display: flex;
 }
 .artifact-preview-bar {
+  min-width: 0;
+  min-height: 40px;
   display: flex;
   align-items: center;
   gap: 10px;
   flex: 0 0 auto;
-  padding: 8px 12px;
+  padding: 5px 8px;
   border-bottom: 1px solid var(--border);
   background: #fff;
 }
@@ -2512,17 +2513,23 @@ button { color: inherit; }
   color: var(--text);
 }
 #artifact-preview-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
   flex: 0 0 auto;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--blue);
-  color: #fff;
-  padding: 6px 12px;
+  background: #fff;
+  color: var(--text-secondary);
+  padding: 0 8px;
   font-size: 12px;
   font-weight: 600;
   text-decoration: none;
 }
-#artifact-preview-download:hover { background: var(--blue-hover); }
+#artifact-preview-download:hover { background: #f1f5f9; color: var(--text); }
+.artifact-preview-bar svg { width: 14px; height: 14px; flex: 0 0 auto; }
 #artifact-preview-close {
   flex: 0 0 auto;
   width: 28px;
@@ -2924,12 +2931,12 @@ dialog.modal-dialog::backdrop {
 .interaction-mode-btn.active {
   background: #fff;
   color: var(--text);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+  box-shadow: none;
 }
 .interaction-mode-btn[data-interaction-mode="turbo"].active {
   background: var(--brand-gradient);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(255, 92, 0, 0.28);
+  box-shadow: none;
 }
 .cdp-command-box {
   margin-top: 8px;
@@ -3216,18 +3223,13 @@ dialog.modal-dialog::backdrop {
      done      - one settle, then stop.
    --------------------------------------------------------------------------- */
 
-/* +4px and a lit, raised surface rather than a flat glyph. */
+/* Flat avatars retain their color and state without bevels or highlights. */
 .agent-avatar {
   width: 40px;
   height: 40px;
   overflow: visible;
-  background-image:
-    radial-gradient(120% 120% at 30% 18%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 55%),
-    linear-gradient(134deg, #f6430f 0%, #dc3329 100%);
-  box-shadow:
-    0 5px 14px rgba(246, 67, 15, 0.32),
-    0 1px 0 rgba(255, 255, 255, 0.55) inset,
-    0 -3px 6px rgba(0, 0, 0, 0.2) inset;
+  background: var(--brand);
+  box-shadow: none;
 }
 .agent-avatar.custom-bot {
   background-image: none;
@@ -3237,15 +3239,15 @@ dialog.modal-dialog::backdrop {
 .agent-avatar svg {
   width: 20px;
   height: 20px;
-  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.4)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.22));
+  filter: none;
 }
 /* Buttons react to the pointer. They do not animate on their own - a row of
    jittering icons is noise, and none of it is about agent state. */
 .composer-action {
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
-.composer-action:hover { transform: translateY(-1px) scale(1.04); }
-.composer-action:active { transform: translateY(1px) scale(0.97); }
+.composer-action:hover { background-color: var(--blue-soft); }
+.composer-action:active { opacity: .8; }
 
 /* Working presence: squashy bounce on the avatar shell (CSS bots also bounce themselves). */
 @keyframes agentBreathe {
@@ -3287,10 +3289,8 @@ dialog.modal-dialog::backdrop {
 .agent-avatar.needs-you,
 .run-presence .agent-avatar.needs-you {
   animation: agentNeedsYou 1.8s ease-in-out infinite;
-  background-image:
-    radial-gradient(120% 120% at 30% 18%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 55%),
-    linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22), 0 4px 12px rgba(245, 158, 11, 0.35);
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22);
 }
 
 /* Done: one settle, then still. */
@@ -3390,6 +3390,22 @@ dialog.modal-dialog::backdrop {
   .queued-command button:disabled { opacity: .45; cursor: default; }
   .queued-command button:focus-visible, #composer-stop-button:focus-visible { outline: 2px solid #1677ff; outline-offset: 2px; }
   #composer-stop-button { border-radius: 50%; background: #1677ff; color: white; width: 38px; height: 38px; }
+
+/* Flat panel surfaces: no floating frame or inset corners. */
+#main, #workspace, #conversation { border-radius: 0; box-shadow: none; }
+#composer { border-radius: 12px; }
+/* Adapt to the browser pane width, independently of the app window. */
+#browser-panel { container-type: inline-size; }
+@container (max-width: 520px) {
+  .browser-toolbar { height: auto; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; padding: 5px 8px; }
+  .browser-toolbar .browser-address { grid-row: 1; grid-column: 1 / 7; width: 100%; min-width: 0; }
+  .browser-toolbar .browser-go { grid-row: 1; grid-column: 7; width: 100%; padding: 0; }
+  .browser-toolbar .browser-nav-btn { grid-row: 2; width: 28px; min-width: 0; justify-self: center; }
+}
+@container (max-width: 360px) {
+  #artifact-preview-download span { display: none; }
+  #artifact-preview-download { width: 28px; padding: 0; }
+}
 </style>
 </head>
 <body>
@@ -3759,8 +3775,8 @@ dialog.modal-dialog::backdrop {
         <div id="artifact-preview" aria-label="Artifact preview">
           <div class="artifact-preview-bar">
             <strong id="artifact-preview-title">Preview</strong>
-            <a id="artifact-preview-download" href="#" download>Download</a>
-            <button type="button" id="artifact-preview-close" title="Close preview" aria-label="Close preview">✕</button>
+            <a id="artifact-preview-download" href="#" download title="Download file" aria-label="Download file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5"/></svg><span>Download</span></a>
+            <button type="button" id="artifact-preview-close" title="Close preview" aria-label="Close preview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
           </div>
           <div id="artifact-preview-body"></div>
         </div>
@@ -4076,7 +4092,7 @@ dialog.modal-dialog::backdrop {
         <label for="settings-elevenlabs-key">ElevenLabs API key <span style="font-weight:400;color:var(--muted);">(optional, long voice)</span></label>
         <input id="settings-elevenlabs-key" type="password" placeholder="Only if you opt in to cloud transcription" autocomplete="off" />
       </div>
-      <p style="font-size:11px;color:var(--muted);margin:0 0 8px;">Voice input can run up to 60 minutes with on-device browser dictation. Deepgram or ElevenLabs is used only when you save a key here; otherwise audio stays local.</p>
+      <p style="font-size:11px;color:var(--muted);margin:0 0 8px;">Voice sessions run up to 60 minutes. Reliable long sessions use your OpenAI key (Whisper) or optional Deepgram / ElevenLabs keys. Browser dictation is a live assist only and can drop on network blips.</p>
       </details>
       <div id="settings-status" style="font-size:12px;color:var(--green);min-height:18px;"></div>
       <div class="modal-actions">
@@ -4150,180 +4166,9 @@ dialog.modal-dialog::backdrop {
 <script src="./uiState.js"></script>
 <script src="./artifactPreview.js"></script>
 <script src="./projectScanner.js"></script>
-<script id="response-markdown-runtime">
-(function(root) {
-  "use strict";
-  function escape(text) { return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
-  function safeUrl(raw) {
-    var url = String(raw).replace(/^sandbox:\s*/, "");
-    return /^(https?:\/\/|\/api\/artifacts\/|\/artifacts\/)/i.test(url) ? escape(url) : "";
-  }
-  function inline(raw) {
-    var saved = [];
-    function hold(html) { saved.push(html); return "\u0001" + (saved.length - 1) + "\u0002"; }
-    var text = String(raw).replace(/\u0001|\u0002/g, "");
-    text = text.replace(/`([^`\n]+)`/g, function(_, code) { return hold("<code>" + escape(code) + "</code>"); });
-    text = text.replace(/(!?)\[([^\]\n]*)\]\(\s*([^\s)]+)\s*\)/g, function(_, image, label, rawUrl) {
-      var url = safeUrl(rawUrl);
-      if (!url) return label;
-      return hold(image ? '<a href="' + url + '" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="' + url + '" alt="' + escape(label) + '"></a>' : '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + escape(label) + '</a>');
-    });
-    text = text.replace(/(?:sandbox:\s*)?\/(?:api\/)?artifacts\/[A-Za-z0-9._%/-]+\.(?:png|jpe?g|webp|gif)\b/gi, function(url) {
-      var safe = safeUrl(url);
-      return hold('<a href="' + safe + '" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="' + safe + '" alt="Generated image"></a>');
-    });
-    text = escape(text).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/(^|\W)\*([^*\n]+)\*(?!\w)/g, "$1<em>$2</em>");
-    return text.replace(/\u0001(\d+)\u0002/g, function(_, id) { return saved[Number(id)]; });
-  }
-  function format(raw) {
-    var lines = String(raw || "").replace(/\r\n?/g, "\n").split("\n"), output = [], i = 0;
-    function listMatch(line) { return /^(\s*)(?:([-*+•])|((?:\d+)[.)]))\s+(.+)$/.exec(line); }
-    function tableRule(line) { return /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line); }
-    function cells(line) { return line.trim().replace(/^\||\|$/g, "").split(/(?<!\\)\|/).map(function(cell) { return cell.trim().replace(/\\\|/g,"|"); }); }
-    function isBlock(line, next) { return /^\s*(?:`{3,}|~{3,}|#{1,6}\s|>\s?|(?:[-*_]\s*){3,}$)/.test(line) || listMatch(line) || (next && tableRule(next)); }
-    function list(indent) {
-      var first = listMatch(lines[i]), ordered = Boolean(first[3]), tag = ordered ? "ol" : "ul";
-      var start = ordered ? parseInt(first[3], 10) : 1;
-      var html = "<" + tag + (ordered && start !== 1 ? ' start="' + start + '"' : "") + ">";
-      while (i < lines.length) {
-        var item = listMatch(lines[i]);
-        if (!item || item[1].length !== indent || Boolean(item[3]) !== ordered) break;
-        var itemText = item[4]; i++;
-        while (i < lines.length && lines[i].trim() && !listMatch(lines[i]) && /^\s+/.test(lines[i]) && !isBlock(lines[i],lines[i+1])) itemText += " " + lines[i++].trim();
-        html += "<li>" + inline(itemText);
-        while (i < lines.length && listMatch(lines[i]) && listMatch(lines[i])[1].length > indent) html += list(listMatch(lines[i])[1].length);
-        html += "</li>";
-        // A blank line may separate items in the same list.
-        if (!String(lines[i] || "").trim() && lines[i+1] && listMatch(lines[i+1]) && listMatch(lines[i+1])[1].length === indent) i++;
-      }
-      return html + "</" + tag + ">";
-    }
-    while (i < lines.length) {
-      if (!lines[i].trim()) { i++; continue; }
-      var line = lines[i], fence = /^\s*(`{3,}|~{3,})([^\s]*)\s*$/.exec(line);
-      if (fence) {
-        var code = [], marker = fence[1][0], count = fence[1].length;
-        i++;
-        while (i < lines.length && !(new RegExp("^\\s*" + marker + "{" + count + ",}\\s*$")).test(lines[i])) code.push(lines[i++]);
-        if (i < lines.length) i++;
-        output.push('<div class="code-block"><div class="code-header"><span>' + escape(fence[2] || "Code") + '</span><button type="button" class="copy-code" aria-label="Copy code">Copy code</button></div><pre><code>' + escape(code.join("\n")) + '</code></pre></div>');
-        continue;
-      }
-      var heading = /^\s*#{1,6}\s+(.+?)(?:\s+#+)?$/.exec(line);
-      if (heading) { var level = Math.min(3, line.trim().match(/^#+/)[0].length); output.push("<h"+level+">"+inline(heading[1])+"</h"+level+">"); i++; continue; }
-      if (i+1 < lines.length && line.includes("|") && tableRule(lines[i+1])) {
-        var headers = cells(line), rows = []; i += 2;
-        while (i < lines.length && lines[i].trim() && lines[i].includes("|")) rows.push(cells(lines[i++]));
-        output.push('<div class="reply-table" role="region" aria-label="Response table" tabindex="0"><table><thead><tr>' + headers.map(function(cell) { return "<th scope=\"col\">"+inline(cell)+"</th>"; }).join("") + "</tr></thead><tbody>" + rows.map(function(row) { return "<tr>"+headers.map(function(_,index) { return "<td>"+inline(row[index]||"")+"</td>"; }).join("")+"</tr>"; }).join("")+"</tbody></table></div>"); continue;
-      }
-      if (/^\s*>/.test(line)) {
-        var quote=[]; while (i < lines.length && /^\s*>/.test(lines[i])) quote.push(lines[i++].replace(/^\s*>\s?/,""));
-        output.push("<blockquote>"+format(quote.join("\n"))+"</blockquote>"); continue;
-      }
-      if (listMatch(line)) { output.push(list(listMatch(line)[1].length)); continue; }
-      if (/^\s*(?:[-*_]\s*){3,}$/.test(line)) { output.push("<hr>"); i++; continue; }
-      var paragraph=[line]; i++;
-      while (i < lines.length && lines[i].trim() && !isBlock(lines[i],lines[i+1])) paragraph.push(lines[i++]);
-      // Soft line wrapping belongs to layout. Only explicit Markdown hard breaks create <br>.
-      output.push("<p>"+paragraph.map(function(part,index) { return inline(part.trimEnd()) + (index < paragraph.length-1 ? (/ {2,}$/.test(part) ? "<br>" : " ") : ""); }).join("")+"</p>");
-    }
-    return '<div class="reply-content">'+output.join("")+"</div>";
-  }
-  root.OpenBotsMarkdown = {format: format};
-})(typeof globalThis !== "undefined" ? globalThis : window);
-</script>
+<script id="response-markdown-runtime" src="./responseMarkdown.js"></script>
 
-<script id="run-stream-runtime">
-(function(root, factory) {
-  if (typeof module === "object" && module.exports) module.exports = factory();
-  else root.OpenBotsRunStreams = factory();
-})(typeof globalThis !== "undefined" ? globalThis : this, function() {
-  "use strict";
-  function create(options) {
-    var records = new Map();
-    var later = options.setTimeout || setTimeout;
-    function changed(record) { if (options.onChange) options.onChange(record); }
-    function receive(record, event) {
-      if (event.runId && event.runId !== record.runId) return;
-      if (record.status !== "running") return;
-      record.lastEvent = event;
-      if (event.type === "privileged_approval_required" || event.type === "human_verification") record.pendingEvent = event;
-      if (event.type === "privileged_approval_resolved" || event.type === "human_verification_resolved") record.pendingEvent = null;
-      if (event.type === "terminal") {
-        record.pendingEvent = null;
-        record.discussionId = event.discussionId;
-        record.status = event.discussionId && !event.discussionFinal && event.terminationReason !== "stopped" ? "following" : "completed";
-        record.source.close();
-      }
-      options.onEvent(record, Object.assign({}, event, { trackedRun: true }));
-      changed(record);
-      if (record.status === "following") follow(record);
-    }
-    function fail(record, message) {
-      if (record.status === "following") record.status = "running";
-      receive(record, { type: "terminal", runId: record.runId, success: false, summary: message, terminationReason: "connection_lost" });
-    }
-    function follow(record) {
-      var version = record.followVersion = (record.followVersion || 0) + 1;
-      function poll() {
-        if (record.status !== "following" || record.followVersion !== version) return;
-        options.fetchJson("/api/discussions/" + encodeURIComponent(record.discussionId)).then(function(state) {
-          if (record.status !== "following" || record.followVersion !== version) return;
-          if (state.runId && state.runId !== record.runId) {
-            record.status = "completed";
-            subscribe({ runId: state.runId, botName: state.botName, ownerId: record.ownerId });
-            changed(record);
-          } else if (["completed", "failed", "cancelled"].indexOf(state.phase) >= 0) {
-            record.status = "completed";
-            changed(record);
-          } else later(poll, 250);
-        }).catch(function(error) {
-          if (record.status !== "following" || record.followVersion !== version) return;
-          if (error.status === 404) fail(record, "This discussion was interrupted by a server restart or has expired. Start a new request.");
-          else { record.connectionError = true; changed(record); later(poll, 800); }
-        });
-      }
-      poll();
-    }
-    function subscribe(input) {
-      if (records.has(input.runId)) return records.get(input.runId);
-      var record = Object.assign({ status: "running", pendingEvent: null, cursor: "0" }, input);
-      records.set(record.runId, record);
-      var source = record.source = new options.EventSource("/api/events?runId=" + encodeURIComponent(record.runId) + "&after=0");
-      source.onmessage = function(message) {
-        if (message.lastEventId) record.cursor = message.lastEventId;
-        try { receive(record, JSON.parse(message.data)); } catch (error) { if (options.onError) options.onError(error); }
-      };
-      source.onerror = function() {
-        if (record.status !== "running" || record.reconciling) return;
-        record.reconciling = true;
-        record.connectionError = true;
-        changed(record);
-        options.fetchJson("/api/runs/" + encodeURIComponent(record.runId)).then(function(state) {
-          if (record.status !== "running") return;
-          record.connectionError = false;
-          if (state.terminal) receive(record, state.terminal);
-          else if (!state.isRunning) fail(record, "This run ended without a recoverable result. Review its work before retrying.");
-          changed(record);
-        }).catch(function(error) {
-          if (record.status === "running" && error.status === 404) fail(record, "This run is unavailable after a server restart or has expired. Review its work before retrying.");
-        }).finally(function() { record.reconciling = false; });
-      };
-      changed(record);
-      return record;
-    }
-    return {
-      subscribe: subscribe,
-      activeFor: function(ownerId) { return Array.from(records.values()).reverse().find(function(record) { return record.ownerId === ownerId && ["running", "following"].indexOf(record.status) >= 0; }); },
-      list: function() { return Array.from(records.values()); },
-      forgetOwner: function(ownerId) { records.forEach(function(record, id) { if (record.ownerId === ownerId) { record.followVersion = (record.followVersion || 0) + 1; record.status = "completed"; if (record.source) record.source.close(); records.delete(id); } }); },
-      cancelFollowing: function(ownerId) { records.forEach(function(record) { if (record.ownerId === ownerId && record.status === "following") { record.followVersion++; record.status = "completed"; changed(record); } }); }
-    };
-  }
-  return { create: create };
-});
-
-</script>
+<script id="run-stream-runtime" src="./runStream.js"></script>
 <script>
 (function() {
   "use strict";
@@ -4713,6 +4558,7 @@ dialog.modal-dialog::backdrop {
   var editingBotId = null;
   var selectedBotPreset = null;
   var LATEST_BOT_PRESETS = [
+    { profileId: "eb1a-research", name: "EB1A Research Agent", description: "Research public evidence and prepare attorney-review EB1A RFE materials. Prioritize independent adoption with metrics, personal attribution, critical role and comparable remuneration. Cite verified sources, mark gaps honestly, and keep USCIS and counsel checklists separate. No invented claims, approval promises, filings or recurring jobs.", color: "#1d4ed8", summary: "Evidence research, RFE issue matrix, attribution checks and counsel-ready gaps." },
     { profileId: "supervisor", name: "Supervisor Bot", description: "Workspace quality supervisor. Observes conversations for missed asks and role drift. After you approve a night schedule, validates bot behavior against public source materials with read-only research and drafts pending soul/playbook improvements—never auto-applies. Notifications alone never start paid jobs.", color: "#57534e", summary: "Observe conversations, nightly source checks, pending improvement proposals." },
     { profileId: "supercomputer", name: "Supercomputer", description: "Continuous technical builder for an assigned project folder. Channels Mark Zuckerberg's shipping urgency and Alexandr Wang's frontier systems ruthlessness toward Jarvis-grade capability: feature parity, papers, self-healing, architecture. Ranked options for approval; never silently rewrite, deploy, spend, or start paid recurring jobs. Brief Mark Zuckerberg / Alexandr Wang peers when useful. Also accepts Jarvis watch briefs from Bot Creator for new specialist bots.", color: "#0ea5e9", summary: "Jarvis-grade continuous codebase success; watches new bots when briefed." },
     { profileId: "bot-creator", name: "Bot Creator", description: "Designs powerful purpose-built specialist bots and creates their files when you approve: agents/<BotId>/AGENTS.md, soul.md, and playbooks/<id>.md (workspace_file), or artifact drafts via create_document. Never auto-seeds the roster. Then asks Supercomputer (Jarvis) and Supervisor Bot to watch over the new bot. Never spend or start paid recurring jobs without approval.", color: "#a855f7", summary: "Create bot files on disk; hand watch to Jarvis and Supervisor." },
@@ -9059,7 +8905,8 @@ dialog.modal-dialog::backdrop {
         ["settings-openai-key", "settings-anthropic-key", "settings-xai-key", "settings-deepgram-key", "settings-elevenlabs-key"].forEach(function(id) {
           document.getElementById(id).value = "";
         });
-        voiceCloudAvailable = Boolean(saved && (saved.hasDeepgramKey || saved.hasElevenLabsKey));
+        voiceCloudAvailable = Boolean(saved && (saved.hasDeepgramKey || saved.hasElevenLabsKey || saved.hasOpenAiKey));
+        refreshVoiceCapabilities();
         return fetch("/api/status").then(readResponse);
       })
       .then(function(state) {
@@ -10172,14 +10019,19 @@ dialog.modal-dialog::backdrop {
   var SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
   var speechRecognition = null;
   var voiceSessionActive = false;
-  var voiceRestarting = false;
   var voiceStartedAt = 0;
   var voiceTimerId = null;
+  var voiceSegmentTimerId = null;
   var voiceMediaRecorder = null;
   var voiceMediaStream = null;
+  var voiceRecorderMime = "";
   var voiceCloudAvailable = false;
+  var voiceSpeechAssistEnabled = true;
+  var voiceSpeechFailCount = 0;
+  var voicePendingSegment = false;
+  var voiceTranscribeQueue = Promise.resolve();
   var VOICE_MAX_MS = 60 * 60 * 1000;
-  var VOICE_CHUNK_MS = 50 * 1000;
+  var VOICE_SEGMENT_MS = 25 * 1000;
 
   function formatVoiceClock(ms) {
     var total = Math.max(0, Math.floor(ms / 1000));
@@ -10197,32 +10049,48 @@ dialog.modal-dialog::backdrop {
     promptField.focus();
   }
 
-  function updateVoiceStatus() {
+  function voiceModeLabel() {
+    if (voiceCloudAvailable) return "stable";
+    if (voiceSpeechAssistEnabled && SpeechRecognitionAPI) return "browser assist";
+    return "needs API key";
+  }
+
+  function updateVoiceStatus(extra) {
     if (!voiceSessionActive) return;
     var elapsed = Date.now() - voiceStartedAt;
-    status.textContent = "Listening… " + formatVoiceClock(elapsed) + " / 60:00" + (voiceCloudAvailable ? " (cloud chunks on)" : " (on-device)");
+    status.textContent = "Listening… " + formatVoiceClock(elapsed) + " / 60:00 (" + voiceModeLabel() + ")" + (extra ? " — " + extra : "");
     if (elapsed >= VOICE_MAX_MS) stopVoiceSession("60-minute voice limit reached. Transcript is in the composer.");
   }
 
-  function stopVoiceMedia() {
+  function stopSpeechAssist() {
+    if (!speechRecognition) return;
+    try { speechRecognition.onend = null; speechRecognition.onerror = null; speechRecognition.onresult = null; speechRecognition.stop(); }
+    catch (err) {}
+    speechRecognition = null;
+  }
+
+  function stopVoiceMedia(finalFlush) {
+    if (voiceSegmentTimerId) { clearTimeout(voiceSegmentTimerId); voiceSegmentTimerId = null; }
     if (voiceMediaRecorder && voiceMediaRecorder.state !== "inactive") {
-      try { voiceMediaRecorder.stop(); } catch (err) {}
-    }
-    voiceMediaRecorder = null;
-    if (voiceMediaStream) {
-      voiceMediaStream.getTracks().forEach(function(track) { track.stop(); });
-      voiceMediaStream = null;
+      try {
+        if (finalFlush) voicePendingSegment = true;
+        voiceMediaRecorder.stop();
+      } catch (err) {}
+    } else {
+      voiceMediaRecorder = null;
+      if (voiceMediaStream) {
+        voiceMediaStream.getTracks().forEach(function(track) { track.stop(); });
+        voiceMediaStream = null;
+      }
     }
   }
 
   function stopVoiceSession(message) {
     voiceSessionActive = false;
-    voiceRestarting = false;
+    voiceSpeechFailCount = 0;
     if (voiceTimerId) { clearInterval(voiceTimerId); voiceTimerId = null; }
-    stopVoiceMedia();
-    if (speechRecognition) {
-      try { speechRecognition.stop(); } catch (err) {}
-    }
+    stopSpeechAssist();
+    stopVoiceMedia(true);
     voiceButton.classList.remove("is-listening");
     voiceButton.setAttribute("aria-label", "Start voice input");
     voiceButton.title = "Start voice input (up to 60 minutes)";
@@ -10243,57 +10111,112 @@ dialog.modal-dialog::backdrop {
   }
 
   function sendVoiceChunk(blob) {
-    if (!voiceCloudAvailable || !blob || !blob.size) return;
-    blobToBase64(blob).then(function(audioBase64) {
-      return fetch("/api/voice/transcribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          audioBase64: audioBase64,
-          mimeType: blob.type || "audio/webm",
-          language: (navigator.language || "en-US").slice(0, 2)
-        })
-      }).then(readResponse);
-    }).then(function(result) {
-      if (result && result.text) appendVoiceTranscript(result.text);
-    }).catch(function(err) {
-      if (voiceSessionActive) status.textContent = (err && err.message) || "Cloud transcription chunk failed; on-device dictation continues.";
-    });
-  }
-
-  function startVoiceMediaChunks() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") return Promise.resolve();
-    return navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-      voiceMediaStream = stream;
-      var mimeType = "";
-      ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].some(function(type) {
-        if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type)) { mimeType = type; return true; }
-        return false;
+    if (!voiceCloudAvailable || !blob || !blob.size) return voiceTranscribeQueue;
+    voiceTranscribeQueue = voiceTranscribeQueue.catch(function() {}).then(function() {
+      return blobToBase64(blob).then(function(audioBase64) {
+        return fetch("/api/voice/transcribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            audioBase64: audioBase64,
+            mimeType: blob.type || voiceRecorderMime || "audio/webm",
+            language: (navigator.language || "en-US").slice(0, 2)
+          })
+        }).then(readResponse);
+      }).then(function(result) {
+        if (result && result.text) appendVoiceTranscript(result.text);
+        if (voiceSessionActive) updateVoiceStatus();
+      }).catch(function(err) {
+        if (voiceSessionActive) updateVoiceStatus((err && err.message) ? "segment retrying" : "segment delayed");
       });
-      voiceMediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType: mimeType }) : new MediaRecorder(stream);
-      voiceMediaRecorder.ondataavailable = function(event) {
-        if (event.data && event.data.size) sendVoiceChunk(event.data);
-      };
-      voiceMediaRecorder.start(VOICE_CHUNK_MS);
-    }).catch(function() {
-      /* On-device SpeechRecognition can still run without MediaRecorder chunks. */
+    });
+    return voiceTranscribeQueue;
+  }
+
+  function preferVoiceRecorderMime() {
+    var mimeType = "";
+    ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].some(function(type) {
+      if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type)) { mimeType = type; return true; }
+      return false;
+    });
+    return mimeType;
+  }
+
+  function armVoiceSegmentTimer() {
+    if (voiceSegmentTimerId) clearTimeout(voiceSegmentTimerId);
+    voiceSegmentTimerId = setTimeout(function() {
+      voiceSegmentTimerId = null;
+      if (!voiceSessionActive || !voiceMediaRecorder || voiceMediaRecorder.state !== "recording") return;
+      voicePendingSegment = true;
+      try { voiceMediaRecorder.stop(); } catch (err) { beginVoiceRecorderSegment(); }
+    }, VOICE_SEGMENT_MS);
+  }
+
+  function beginVoiceRecorderSegment() {
+    if (!voiceSessionActive || !voiceMediaStream) return;
+    try {
+      voiceMediaRecorder = voiceRecorderMime
+        ? new MediaRecorder(voiceMediaStream, { mimeType: voiceRecorderMime })
+        : new MediaRecorder(voiceMediaStream);
+    } catch (err) {
+      updateVoiceStatus("recorder unavailable");
+      return;
+    }
+    voiceMediaRecorder.ondataavailable = function(event) {
+      if (event.data && event.data.size) sendVoiceChunk(event.data);
+    };
+    voiceMediaRecorder.onstop = function() {
+      var shouldContinue = voiceSessionActive && voicePendingSegment;
+      voicePendingSegment = false;
+      voiceMediaRecorder = null;
+      if (!voiceSessionActive) {
+        if (voiceMediaStream) {
+          voiceMediaStream.getTracks().forEach(function(track) { track.stop(); });
+          voiceMediaStream = null;
+        }
+        return;
+      }
+      if (shouldContinue) beginVoiceRecorderSegment();
+    };
+    try {
+      voiceMediaRecorder.start();
+      armVoiceSegmentTimer();
+    } catch (err) {
+      updateVoiceStatus("could not start recorder");
+    }
+  }
+
+  function startVoiceMediaSegments() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") {
+      return Promise.reject(new Error("MediaRecorder unavailable"));
+    }
+    return navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    }).then(function(stream) {
+      voiceMediaStream = stream;
+      voiceRecorderMime = preferVoiceRecorderMime();
+      beginVoiceRecorderSegment();
     });
   }
 
-  if (SpeechRecognitionAPI) {
-    speechRecognition = new SpeechRecognitionAPI();
-    speechRecognition.continuous = true;
-    speechRecognition.interimResults = true;
-    speechRecognition.lang = navigator.language || "en-US";
-    speechRecognition.onstart = function() {
+  function bindSpeechAssist(recognition) {
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.lang = navigator.language || "en-US";
+    recognition.onstart = function() {
+      voiceSpeechFailCount = 0;
       voiceButton.classList.add("is-listening");
       voiceButton.setAttribute("aria-label", "Stop voice input");
       voiceButton.title = "Listening… click to stop (max 60 minutes)";
       updateVoiceStatus();
     };
-    speechRecognition.onresult = function(event) {
-      // When cloud keys are configured, MediaRecorder chunks own the final text
-      // so on-device finals are skipped to avoid duplicates.
+    recognition.onresult = function(event) {
+      // Cloud/Whisper segments own final text when available.
       if (voiceCloudAvailable) { updateVoiceStatus(); return; }
       var pieces = [];
       for (var i = event.resultIndex; i < event.results.length; i++) {
@@ -10304,34 +10227,73 @@ dialog.modal-dialog::backdrop {
         updateVoiceStatus();
       }
     };
-    speechRecognition.onerror = function(event) {
-      if (event.error === "aborted" || event.error === "no-speech") return;
-      if (event.error === "not-allowed") stopVoiceSession("Allow microphone access to use voice input.");
-      else if (voiceSessionActive) status.textContent = "Voice input issue: " + event.error + ". Trying to continue…";
-    };
-    speechRecognition.onend = function() {
-      if (!voiceSessionActive) {
-        voiceButton.classList.remove("is-listening");
-        voiceButton.setAttribute("aria-label", "Start voice input");
-        voiceButton.title = "Start voice input (up to 60 minutes)";
+    recognition.onerror = function(event) {
+      var code = event && event.error;
+      if (code === "aborted" || code === "no-speech" || code === "audio-capture") return;
+      if (code === "not-allowed") {
+        stopVoiceSession("Allow microphone access to use voice input.");
         return;
       }
+      // Chrome Web Speech often fails with "network"; keep recording and retry quietly.
+      voiceSpeechFailCount += 1;
+      if (voiceSpeechFailCount >= 3) {
+        voiceSpeechAssistEnabled = false;
+        stopSpeechAssist();
+        if (voiceSessionActive) {
+          updateVoiceStatus(voiceCloudAvailable
+            ? "browser assist paused; stable transcription continues"
+            : "browser assist paused — add OpenAI key in Settings for stable 60‑min sessions");
+        }
+      }
+    };
+    recognition.onend = function() {
+      if (!voiceSessionActive || !voiceSpeechAssistEnabled) return;
       if (Date.now() - voiceStartedAt >= VOICE_MAX_MS) {
         stopVoiceSession("60-minute voice limit reached. Transcript is in the composer.");
         return;
       }
-      voiceRestarting = true;
+      var delay = Math.min(4000, 300 + voiceSpeechFailCount * 700);
       window.setTimeout(function() {
-        voiceRestarting = false;
-        if (!voiceSessionActive) return;
-        try { speechRecognition.start(); }
-        catch (err) { stopVoiceSession("Voice input stopped. Your transcript so far is in the composer."); }
-      }, 250);
+        if (!voiceSessionActive || !voiceSpeechAssistEnabled) return;
+        startSpeechAssist();
+      }, delay);
     };
   }
+
+  function startSpeechAssist() {
+    // Stable Whisper/Deepgram/ElevenLabs sessions should not start Chrome Web Speech —
+    // that path throws "network" errors and confuses the UI.
+    if (voiceCloudAvailable || !SpeechRecognitionAPI || !voiceSpeechAssistEnabled || !voiceSessionActive) return;
+    stopSpeechAssist();
+    try {
+      speechRecognition = new SpeechRecognitionAPI();
+      bindSpeechAssist(speechRecognition);
+      speechRecognition.start();
+    } catch (err) {
+      voiceSpeechFailCount += 1;
+      if (voiceSpeechFailCount >= 3) voiceSpeechAssistEnabled = false;
+    }
+  }
+
+  function refreshVoiceCapabilities() {
+    return fetch("/api/voice/capabilities")
+      .then(readResponse)
+      .then(function(state) {
+        voiceCloudAvailable = Boolean(state && state.stableTranscription);
+        return voiceCloudAvailable;
+      })
+      .catch(function() {
+        return fetch("/api/status").then(readResponse).then(function(state) {
+          voiceCloudAvailable = Boolean(state && (state.hasDeepgramKey || state.hasElevenLabsKey || state.hasOpenAiKey));
+          return voiceCloudAvailable;
+        });
+      })
+      .catch(function() { return voiceCloudAvailable; });
+  }
+
   voiceButton.title = "Start voice input (up to 60 minutes)";
   voiceButton.onclick = function() {
-    if (!speechRecognition && !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+    if (!(SpeechRecognitionAPI || (navigator.mediaDevices && navigator.mediaDevices.getUserMedia))) {
       status.textContent = "Voice input is not supported by this browser.";
       return;
     }
@@ -10339,23 +10301,41 @@ dialog.modal-dialog::backdrop {
       stopVoiceSession("Voice input stopped. Review the transcript, then send when ready.");
       return;
     }
-    voiceSessionActive = true;
-    voiceStartedAt = Date.now();
-    if (voiceTimerId) clearInterval(voiceTimerId);
-    voiceTimerId = setInterval(updateVoiceStatus, 1000);
-    updateVoiceStatus();
-    startVoiceMediaChunks().then(function() {
-      if (!speechRecognition) {
-        if (!voiceCloudAvailable) status.textContent = "Browser dictation unavailable. Add Deepgram or ElevenLabs in Settings for cloud transcription.";
-        return;
-      }
-      try { speechRecognition.start(); }
-      catch (err) { stopVoiceSession("Voice input is already starting. Please try again in a moment."); }
+    voiceButton.disabled = true;
+    refreshVoiceCapabilities().finally(function() {
+      voiceButton.disabled = false;
+      voiceSessionActive = true;
+      voiceSpeechAssistEnabled = !voiceCloudAvailable;
+      voiceSpeechFailCount = 0;
+      voiceStartedAt = Date.now();
+      voiceButton.classList.add("is-listening");
+      voiceButton.setAttribute("aria-label", "Stop voice input");
+      voiceButton.title = "Listening… click to stop (max 60 minutes)";
+      if (voiceTimerId) clearInterval(voiceTimerId);
+      voiceTimerId = setInterval(function() { updateVoiceStatus(); }, 1000);
+      updateVoiceStatus(voiceCloudAvailable ? "starting stable session" : "starting");
+      startVoiceMediaSegments().then(function() {
+        if (!voiceCloudAvailable && !SpeechRecognitionAPI) {
+          stopVoiceSession("Add an OpenAI API key in Settings for reliable long voice sessions.");
+          return;
+        }
+        if (voiceCloudAvailable) {
+          updateVoiceStatus("stable transcription every ~25s");
+          return;
+        }
+        updateVoiceStatus("live assist on — OpenAI key recommended for full 60 minutes");
+        startSpeechAssist();
+      }).catch(function(err) {
+        if (!voiceCloudAvailable && SpeechRecognitionAPI) {
+          updateVoiceStatus("mic recorder limited; using browser assist");
+          startSpeechAssist();
+          return;
+        }
+        stopVoiceSession((err && err.message) || "Could not access the microphone. Check macOS Mic permission for Pilo.");
+      });
     });
   };
-  fetch("/api/status").then(readResponse).then(function(state) {
-    voiceCloudAvailable = Boolean(state && (state.hasDeepgramKey || state.hasElevenLabsKey));
-  }).catch(function() {});
+  refreshVoiceCapabilities();
 
   document.getElementById("attachment-input").addEventListener("change", function(event) {
     var files = Array.from(event.target.files || []);

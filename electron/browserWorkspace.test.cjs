@@ -93,3 +93,19 @@ test("bounds reject non-finite values before reaching native layout", () => {
   workspace.setBounds({ x: -4, y: Infinity, width: NaN, height: 999999 });
   assert.deepEqual(workspace.bounds, { x: 0, y: 0, width: 0, height: 20000 });
 });
+
+test("new-tab commands await navigation and snapshots replace stale blank titles", async () => {
+  const { workspace } = fixture();
+  const previous = workspace.active();
+  await workspace.command({ type: "navigate", url: "https://analytics.example.test/" });
+  await workspace.command({ type: "new_tab", url: "https://reddit.example.test/" });
+  assert.equal(workspace.tabs.length, 2);
+  assert.equal(previous.view.webContents.getURL(), "https://analytics.example.test/");
+  workspace.active().view.webContents.title = "about:blank";
+  assert.equal(workspace.snapshot().tabs[1].url, "https://reddit.example.test/");
+  assert.equal(workspace.snapshot().tabs[1].title, "reddit.example.test");
+  workspace.active().view.webContents.title = "Reddit";
+  assert.equal(workspace.snapshot().tabs[1].title, "Reddit");
+  await workspace.command({ type: "navigate", url: "https://reddit.example.test/r/testing" });
+  assert.equal(workspace.tabs.length, 2, "current-tab navigation must not create a duplicate");
+});

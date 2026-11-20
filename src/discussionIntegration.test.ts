@@ -44,9 +44,10 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   }
   await symlink(resolve(__dirname, "..", "node_modules"), join(directory, "node_modules"), "dir");
   await mkdir(join(directory, "static"));
+  await cp(resolve(__dirname, "..", "static", "avatars"), join(directory, "static", "avatars"), { recursive: true });
   await cp(resolve(__dirname, "..", "docs"), join(directory, "docs"), { recursive: true });
   await copyFile(resolve(__dirname, "..", "README.md"), join(directory, "README.md"));
-  for (const file of ["index.html", "browserRuntime.js", "uiState.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
+  for (const file of ["index.html", "browserRuntime.js", "uiState.js", "responseMarkdown.js", "runStream.js", "artifactPreview.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
   let capturedPersonaPrompt = "";
   const cliPrompts: string[] = [];
   let cliToolCalls = 0;
@@ -157,6 +158,27 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   const base = `http://127.0.0.1:${uiPort}`;
   try {
     await waitFor(() => fetch(base + "/api/status").then(r => r.json()), value => Boolean(value));
+    await t.test("HTTP boundary blocks cross-origin commands and approvals before any work", async () => {
+      const before = modelCalls;
+      for (const endpoint of ["/api/terminal", "/api/run", "/api/approval", "/api/schedules", "/api/learn"]) {
+        for (const origin of [undefined, "https://example.invalid", "null"]) {
+          const response = await fetch(base + endpoint, { method: "POST",
+            headers: { "content-type": "text/plain", ...(origin ? { origin } : {}) },
+            body: JSON.stringify({ command: "pwd", approved: true, task: "Do work" }) });
+          assert.equal(response.status, 403, endpoint);
+        }
+      }
+      assert.equal(modelCalls, before);
+      const allowed = await fetch(base + "/api/terminal", { method: "POST",
+        headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ command: "pwd" }) });
+      assert.equal(allowed.status, 200);
+      assert.equal((await allowed.json()).ok, true);
+      for (const asset of ["/responseMarkdown.js", "/runStream.js"]) {
+        const response = await fetch(base + asset);
+        assert.equal(response.status, 200);
+        assert.match(response.headers.get("content-type") || "", /javascript/);
+      }
+    });
     await t.test("unavailable coordination models are rejected before starting or queuing specialists", async () => {
       const before = modelCalls;
       const jobsBefore = await fetch(base + "/api/run/jobs").then(r => r.json());
@@ -196,7 +218,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       await t.test(name, async () => {
         scenario = name; coordinatorCalls = 0; workerCalls = 0; finalCalls = 0;
         const submission = await waitFor<{ runId: string }>(async () => {
-          const res = await fetch(base + "/api/run", { method: "POST", headers: { "content-type": "application/json" },
+          const res = await fetch(base + "/api/run", { method: "POST", headers: { "content-type": "application/json", origin: base },
             body: JSON.stringify({ task: "Diagnose why this page has no clicks and recommend the next action.", botName: "Coordinator", interactionMode: "chat", agentEngine: "cheap", model: "integration-model" }) });
           if (!res.ok) throw new Error("Run transition is still in progress.");
           return res.json() as Promise<{ runId: string }>;
@@ -222,7 +244,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
     assert.ok(memories.every(file => !/seo/i.test(file)), "consultation did not overwrite the specialist's user task memory");
     await t.test("renamed specialist and owner instructions reach the actual provider prompt", async () => {
       scenario = "persona";
-      const res = await fetch(base + "/api/run", { method: "POST", headers: { "content-type": "application/json" },
+      const res = await fetch(base + "/api/run", { method: "POST", headers: { "content-type": "application/json", origin: base },
         body: JSON.stringify({ task: "Suggest the next experiment.", botName: "My AI Lab", profileId: "neural-architect",
           botInstructions: "Inspect our support dataset before proposing changes.", interactionMode: "chat", agentEngine: "cheap", model: "integration-model" }) });
       assert.equal(res.status, 200);
@@ -359,7 +381,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       scenario = "async"; asyncStarted.length = 0; releaseAsync.clear(); teamPrompts.length = 0;
       const busy = await fetch(base + "/api/run/queue", { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ task: "ASYNC_A", botName: "SEO Specialist", interactionMode: "chat", model: "integration-model", agentEngine: "cheap" }) }).then(r => r.json());
       await waitFor(async () => asyncStarted, values => values.includes("ASYNC_A"));
-      const submission = await fetch(base + "/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ task: "Check wth seo", botName: "Busy Coordinator", interactionMode: "chat", agentEngine: "cheap", workspaceBots: [{ id: "saved-seo", name: "SEO Specialist", botInstructions: "Use the existing SEO role" }] }) }).then(r => r.json());
+      const submission = await fetch(base + "/api/run", { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ task: "Check wth seo", botName: "Busy Coordinator", interactionMode: "chat", agentEngine: "cheap", workspaceBots: [{ id: "saved-seo", name: "SEO Specialist", botInstructions: "Use the existing SEO role" }] }) }).then(r => r.json());
       const original = terminalEvents(await fetch(base + "/api/events?runId=" + submission.runId).then(r => r.text())).at(-1)!;
       await waitFor(() => fetch(base + "/api/run/jobs").then(r => r.json()), data => data.jobs.some((job: any) => job.input.consultationId && job.input.discussionId === original.discussionId && job.status === "queued"));
       assert.equal((await fetch(base + "/api/run/jobs/" + busy.id).then(r => r.json())).status, "running");
@@ -438,7 +460,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       assert.notEqual(aState.runId, bState.runId);
       const status = await fetch(base + "/api/status").then(r => r.json());
       assert.equal(status.activeRuns.length, 2);
-      await fetch(base + "/api/stop?runId=" + aState.runId, { method: "POST" });
+      await fetch(base + "/api/stop?runId=" + aState.runId, { method: "POST", headers: { origin: base } });
       releaseAsync.get("ASYNC_A")!();
       await waitFor(async () => asyncStarted, value => value.includes("ASYNC_C"));
       assert.equal((await fetch(base + "/api/run/jobs/" + b.id).then(r => r.json())).status, "running");
@@ -477,6 +499,62 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       await waitFor(() => fetch(base + "/api/run/jobs/" + b.id).then(r => r.json()), job => job.status === "completed");
       await assert.rejects(readFile(join(dataRoot, ".browser-agent-task-memory", "Reset_Running_A.json")), /ENOENT/);
       assert.match(await readFile(join(dataRoot, ".browser-agent-task-memory", "Reset_Running_B.json"), "utf8"), /ASYNC_B/);
+    });
+    await t.test("portraits stay inside the header and preview controls fit narrow browser panes", async () => {
+      const before = modelCalls;
+      for (const filename of ["sabri-suby.jpg", "alex-hormozi.webp", "addy-osmani.jpg", "andrej-karpathy.jpg", "mark-zuckerberg.jpg"]) {
+        const response = await fetch(base + "/avatars/" + filename);
+        assert.equal(response.status, 200, filename);
+        assert.match(response.headers.get("content-type") || "", /image\/(jpeg|webp)/);
+        assert.ok((await response.arrayBuffer()).byteLength > 0);
+      }
+      assert.equal((await fetch(base + "/avatars/not-an-avatar.jpg")).status, 404);
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+        await page.addInitScript(() => {
+          localStorage.setItem("agentFireworksAgentsV2", JSON.stringify([
+            { id: "header-addy", name: "Addy Osmani", transcript: [] },
+            { id: "header-mark", name: "Mark Zuckerberg", transcript: [] }
+          ]));
+          localStorage.setItem("openBotsSelectedBot", "header-addy");
+        });
+        await page.goto(base);
+        for (const id of ["header-addy", "header-mark"]) {
+          await page.locator('.agent-row[data-agent-id="' + id + '"]').click();
+          await page.waitForFunction(() => {
+            const image = document.querySelector<HTMLImageElement>("#chip-avatar img");
+            return image?.complete && image.naturalWidth > 0;
+          });
+          const metrics = await page.evaluate(() => {
+            const avatar = document.querySelector<HTMLElement>("#chip-avatar")!;
+            const box = avatar.getBoundingClientRect();
+            const topbar = document.querySelector("#topbar")!.getBoundingClientRect();
+            return { width: box.width, height: box.height, clipped: getComputedStyle(avatar).overflow,
+              inside: box.top >= topbar.top && box.bottom <= topbar.bottom };
+          });
+          assert.deepEqual(metrics, { width: 26, height: 26, clipped: "hidden", inside: true });
+        }
+        for (const width of [320, 480, 680]) {
+          await page.evaluate(width => {
+            const workspace = document.querySelector<HTMLElement>("#workspace")!;
+            workspace.classList.add("has-browser");
+            workspace.style.gridTemplateColumns = "minmax(0, 1fr) " + width + "px";
+            document.querySelector("#browser-panel")!.classList.add("artifact-mode");
+            document.querySelector("#artifact-preview-title")!.textContent = "a-very-long-generated-landscape-website-filename.html";
+          }, width);
+          const fits = await page.evaluate(() => [".browser-toolbar", ".artifact-preview-bar"].every(selector => {
+            const bar = document.querySelector<HTMLElement>(selector)!;
+            const bounds = bar.getBoundingClientRect();
+            return bar.scrollWidth <= bar.clientWidth && Array.from(bar.children).every(child => {
+              const rect = child.getBoundingClientRect();
+              return rect.left >= bounds.left && rect.right <= bounds.right && rect.top >= bounds.top && rect.bottom <= bounds.bottom;
+            });
+          }));
+          assert.equal(fits, true, "controls must fit a " + width + "px pane");
+        }
+      } finally { await browser.close(); }
+      assert.equal(modelCalls, before, "layout and portrait reads do not activate models");
     });
     await t.test("the whole UI boots and two chat results stay in their own conversations", async () => {
       scenario = "async";

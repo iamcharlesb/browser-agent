@@ -801,15 +801,15 @@ export class BrowserController {
   }
 
   async newTab(url = "https://www.google.com/"): Promise<void> {
+    url = this.resolveNavigateUrl(url);
+    this.lastElements = [];
     if (this.config.embeddedMode && desktopBrowserAvailable()) {
       await desktopBrowserRequest({ type: "new_tab", url });
       await this.syncEmbeddedPage();
       return;
     }
-    // Compatibility for an older desktop without the workspace broker.
     if (this.config.embeddedMode) {
-      await this.navigate(url || "about:blank");
-      return;
+      throw new BrowserActionError("Opening a separate tab requires the desktop browser workspace. The current tab was preserved.");
     }
     if (!this.context) await this.start();
     if (!this.context) {

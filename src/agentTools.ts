@@ -36,11 +36,12 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "navigate",
-      description: "Open a URL or search query in the browser.",
+      description: "Navigate the active tab by default. Use list_tabs and switch_tab to reuse a relevant existing tab. Set newTab=true to preserve the current page or when the user requests a separate tab; do not create duplicates unnecessarily.",
       parameters: {
         type: "object",
         properties: {
-          url: { type: "string", description: "URL or search query." }
+          url: { type: "string", description: "URL or search query." },
+          newTab: { type: "boolean", description: "False/default: reuse the active tab. True: open and select a separate new tab." }
         },
         required: ["url"]
       }
@@ -511,25 +512,6 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         offset: { type: "integer", minimum: 0, description: "For project, playbook or outcome reads: start character; for project list/search: result offset. Follow nextOffset for more." },
         text: { type: "string", description: "For save: compact runbook, including when to use it, account/workspace preconditions, procedure, verification and known failure modes. Max 2000 characters." }
       }, required: ["action"] }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "run_action_script",
-      description:
-        "Code-as-action: run a short async JavaScript snippet in a sandboxed worker to compose multiple tool calls, loop over items, filter/compute data, or fill multi-field forms in a single model turn. Every allowed tool is available as `await <toolName>({ ... })` returning `{ ok, message, data }`. Use `state.<key>` to persist data across steps, `console.log(...)` to record observations, and optionally `final_answer(summary)` when the user's goal is completely finished and verified.",
-      parameters: {
-        type: "object",
-        properties: {
-          code: {
-            type: "string",
-            description:
-              "Async JavaScript body (e.g. `const res = await web_search({ query: '...' }); state.last = res.data; return res.message;`)."
-          }
-        },
-        required: ["code"]
-      }
     }
   },
   {
@@ -1089,6 +1071,19 @@ async function understandYouTubeVideo(urlOrQuery: string): Promise<string> {
   return sections.join("\n");
 }
 
+async function withAbortSignal<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return work;
+  signal.throwIfAborted();
+  return await new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(Object.assign(new Error("Stopped by user."), { name: "AbortError" }));
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(
+      (value) => { signal.removeEventListener("abort", onAbort); resolve(value); },
+      (error) => { signal.removeEventListener("abort", onAbort); reject(error); }
+    );
+  });
+}
+
 export async function executeTool(
   name: string,
   toolInput: Record<string, unknown>,
@@ -1097,6 +1092,7 @@ export async function executeTool(
 ): Promise<ToolExecutionResult> {
   try {
     signal?.throwIfAborted();
+    return await withAbortSignal((async (): Promise<ToolExecutionResult> => {
     switch (name) {
       case "list_tabs": {
         return {ok:true,message:JSON.stringify(await controller.getTabs())};
@@ -1113,8 +1109,12 @@ export async function executeTool(
       }
       case "navigate": {
         const url = String(toolInput.url ?? "");
-        await controller.navigate(url);
-        return { ok: true, message: `Navigated to ${controller.currentUrl()}.` };
+        if (toolInput.newTab !== undefined && typeof toolInput.newTab !== "boolean") {
+          return { ok: false, message: "newTab must be a boolean: false reuses the active tab; true opens a separate tab." };
+        }
+        if (toolInput.newTab === true) await controller.newTab(url);
+        else await controller.navigate(url);
+        return { ok: true, message: `${toolInput.newTab === true ? "Opened a new tab" : "Navigated the current tab"}: ${controller.currentUrl()}.` };
       }
       case "click_mark": {
         const markId = Math.trunc(Number(toolInput.markId));
@@ -1402,7 +1402,9 @@ export async function executeTool(
       default:
         return { ok: false, message: `Unknown tool '${name}'.` };
     }
+    })(), signal);
   } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") throw err;
     if (err instanceof BrowserActionError) {
       return { ok: false, message: err.message };
     }

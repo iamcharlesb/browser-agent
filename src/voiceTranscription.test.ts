@@ -4,7 +4,7 @@ import { transcribeAudioChunk } from "./voiceTranscription";
 
 it("rejects empty or oversized audio payloads", async () => {
   await assert.rejects(transcribeAudioChunk({ audioBase64: "", deepgramApiKey: "k" }), /empty or too large/);
-  await assert.rejects(transcribeAudioChunk({ audioBase64: "QQ==", }), /Deepgram or ElevenLabs/);
+  await assert.rejects(transcribeAudioChunk({ audioBase64: "QQ==" }), /OpenAI, Deepgram, or ElevenLabs/);
 });
 
 it("uses Deepgram when a key is present", async () => {
@@ -45,4 +45,23 @@ it("falls back to ElevenLabs when only that key is present", async () => {
   });
   assert.equal(result.provider, "elevenlabs");
   assert.equal(result.text, "eleven labs text");
+});
+
+it("uses OpenAI Whisper when only an OpenAI key is present", async () => {
+  const result = await transcribeAudioChunk({
+    audioBase64: Buffer.from("fake-audio").toString("base64"),
+    mimeType: "audio/webm",
+    openaiApiKey: "sk-test",
+    fetchImpl: (async (url, init) => {
+      assert.equal(String(url), "https://api.openai.com/v1/audio/transcriptions");
+      assert.equal((init?.headers as Record<string, string>).Authorization, "Bearer sk-test");
+      return {
+        ok: true,
+        async json() { return { text: " whisper text " }; },
+        async text() { return ""; }
+      } as Response;
+    }) as typeof fetch
+  });
+  assert.equal(result.provider, "openai");
+  assert.equal(result.text, "whisper text");
 });

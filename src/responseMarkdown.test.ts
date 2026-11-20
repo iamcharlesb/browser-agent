@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import vm from 'node:vm';
 import { RESPONSE_STYLE } from './responseStyle';
 const html=readFileSync(join(__dirname,'..','static','index.html'),'utf8');
-const script=/<script id="response-markdown-runtime">([\s\S]*?)<\/script>/.exec(html)![1];
+const script=readFileSync(join(__dirname,'..','static','responseMarkdown.js'),'utf8');
 const scope: any={}; vm.createContext(scope); vm.runInContext(script,scope);
 const format=(text:string):string=>scope.OpenBotsMarkdown.format(text);
 
@@ -59,6 +59,7 @@ test('response layout keeps code and tables inside the reading column, supports 
       const url=new URL(route.request().url());
       if(url.hostname!=='response.test')return route.abort();
       if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:html});
+      if(['/responseMarkdown.js','/runStream.js'].includes(url.pathname))return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static',url.pathname.slice(1)))});
       if(url.pathname==='/browserRuntime.js')return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static','browserRuntime.js'))});
       if(url.pathname==='/uiState.js')return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static','uiState.js'))});
       if(url.pathname.startsWith('/api/'))return route.fulfill({contentType:'application/json',body:JSON.stringify({isRunning:false,models:[],jobs:[],events:[],workflows:[],suggestions:[],schedules:[]})});

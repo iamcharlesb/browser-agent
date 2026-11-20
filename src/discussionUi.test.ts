@@ -60,7 +60,7 @@ test("stopping the UI invalidates a pending discussion poll", async () => {
 });
 
 function streamHarness(fetchJson: (path: string) => Promise<unknown> = async () => ({})) {
-  const runtime = /<script id="run-stream-runtime">([\s\S]*?)<\/script>/.exec(html)![1];
+  const runtime = readFileSync(join(__dirname, "..", "static", "runStream.js"), "utf8");
   const scope: Record<string, any> = { module: { exports: {} }, setTimeout, encodeURIComponent };
   vm.createContext(scope);
   vm.runInContext(runtime, scope);

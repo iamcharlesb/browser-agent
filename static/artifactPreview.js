@@ -16,6 +16,7 @@
       controller = new AbortController();
       options.onOpen();
       options.title.textContent = decodeURIComponent(url.pathname.split("/").pop());
+      options.title.title = options.title.textContent;
       options.body.replaceChildren();
       options.body.textContent = "Loading preview…";
       var download = new URL(url); download.search = "?download=1";

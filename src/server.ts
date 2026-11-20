@@ -1,3 +1,5 @@
+import { isSameOriginRequest, requestRejection } from "./requestSecurity";
+import { handleTerminalRequest } from "./terminalRoutes";
 import { envInteger } from "./runtimeConfig";
 import { readPlaybookPage } from "./agentProfile";
 import { AsyncAgentQueue } from "./asyncAgentQueue";
@@ -49,10 +51,7 @@ import {
 import type { InteractionMode, ObserveMode } from "./promptLoop";
 import {
   ARTIFACTS_DIR,
-  WORKSPACE_ROOT,
-  clearTerminalHistory,
-  getTerminalHistory,
-  runTerminalCommand
+  WORKSPACE_ROOT
 } from "./agentTools";
 import { artifactContentType, artifactPreviewKind, artifactUrlFor, isRunInProgressMessage, resolveLoginDuringRun } from "./apiContract";
 import { resolveClaudeCliBinary } from "./claudeCli";
@@ -224,21 +223,6 @@ function persistenceMeta() {
   };
 }
 
-function isSameOriginRequest(req: IncomingMessage): boolean {
-  const origin = req.headers.origin;
-  const host = req.headers.host;
-  if (!origin || !host) return false;
-  try {
-    const originUrl = new URL(origin);
-    const forwardedProtocol = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0].trim();
-    const expectedProtocol = forwardedProtocol === "https" || Boolean((req.socket as typeof req.socket & { encrypted?: boolean }).encrypted)
-      ? "https:"
-      : "http:";
-    return originUrl.host === host && originUrl.protocol === expectedProtocol;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Dev-only live reload: this tool is explicitly local/single-user, so it's safe to always run
@@ -404,6 +388,9 @@ let currentRun: RunState | null = null;
 /** Set while an orchestrator is still executing, which outlasts `currentRun.isRunning` on a stop. */
 const activeRunPromises = new Map<string, Promise<AgentResult>>();
 const runSlots = new RunSlots(envInteger("BROWSER_AGENT_MAX_CONCURRENT_RUNS", 4, 1, 32));
+/** Stop must free capacity even when a browser/model await ignores abort. */
+const hungRunClearTimers = new Map<string, NodeJS.Timeout>();
+const HUNG_RUN_CLEAR_MS = 2500;
 let completingRunTransitions = 0;
 let resettingConversations = false;
 let conversationResets: ConversationResets = { all: 0, bots: {} };
@@ -1523,6 +1510,7 @@ function startRun(body: RunRequestBody, options: { runId?: string; handoffDepth?
   void runPromise
     .finally(() => {
       completingRunTransitions++;
+      clearHungRunTimer(run.id);
       activeRunPromises.delete(run.id);
       runSlots.release(run.id);
       if (currentRun === run) {
@@ -1832,8 +1820,35 @@ function startLearnSession(input: {
   return activeLearnSession;
 }
 
+function clearHungRunTimer(runId: string): void {
+  const timer = hungRunClearTimers.get(runId);
+  if (!timer) return;
+  clearTimeout(timer);
+  hungRunClearTimers.delete(runId);
+}
+
+/** If stop cannot finish a hung CDP/model await, free the maps so every other bot is not frozen. */
+function scheduleHungRunClear(runId: string): void {
+  if (hungRunClearTimers.has(runId)) return;
+  const timer = setTimeout(() => {
+    hungRunClearTimers.delete(runId);
+    if (!activeRunPromises.has(runId)) return;
+    console.warn(`[server] Clearing hung run ${runId} after stop; a browser or model call did not finish.`);
+    activeRunPromises.delete(runId);
+    runSlots.release(runId);
+    if (currentRun?.id === runId) {
+      currentRun = [...recentRuns.values()].find(item => activeRunPromises.has(item.id)) || null;
+    }
+  }, HUNG_RUN_CLEAR_MS);
+  timer.unref?.();
+  hungRunClearTimers.set(runId, timer);
+}
+
 function stopCurrentRun(runId?: string): boolean {
-  const targets = [...recentRuns.values()].filter(run => activeRunPromises.has(run.id) && (!runId || run.id === runId));
+  const targets = [...recentRuns.values()].filter(run =>
+    (!runId || run.id === runId) &&
+    (activeRunPromises.has(run.id) || runSlots.list().some(slot => slot.id === run.id))
+  );
   for (const discussion of botDiscussions.values()) {
     if ((!runId || targets.some(run => run.discussionId && botDiscussions.get(run.discussionId) === discussion)) &&
       (discussion.controller.phase === "consulting" || discussion.controller.phase === "synthesizing")) discussion.controller.cancel();
@@ -1845,14 +1860,19 @@ function stopCurrentRun(runId?: string): boolean {
     for (const controller of terminalControllers) controller.abort();
   }
   for (const run of targets) {
-    if (run.cancelled) continue;
-    run.cancelled = true;
-    run.abortController.abort();
-    run.resolveVerification?.();
-    run.resolveApproval?.(false);
-    publishRunEvent(run, { type: "terminal", success: false, summary: "Stopped by user.", terminationReason: "stopped", stepsTaken: 0, elapsedSeconds: 0 });
-    run.isRunning = false;
-    publishRunEvent(run, null);
+    if (!run.cancelled) {
+      run.cancelled = true;
+      run.abortController.abort();
+      run.resolveVerification?.();
+      run.resolveApproval?.(false);
+      publishRunEvent(run, { type: "terminal", success: false, summary: "Stopped by user.", terminationReason: "stopped", stepsTaken: 0, elapsedSeconds: 0 });
+      run.isRunning = false;
+      publishRunEvent(run, null);
+    }
+    // Do not wait for a stuck browser/model await — that is what froze every bot.
+    runSlots.release(run.id);
+    if (activeRunPromises.has(run.id)) scheduleHungRunClear(run.id);
+    else clearHungRunTimer(run.id);
   }
   return targets.length > 0 || hadLearnSession || (!runId && terminalControllers.size > 0);
 }
@@ -2159,7 +2179,10 @@ async function handleSharedEventsStream(req: IncomingMessage, res: ServerRespons
 }
 
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+  // Use a fixed parsing base; never trust Host as an authorization source.
+  const url = new URL(req.url ?? "/", "http://localhost");
+  const rejection = requestRejection(req, url.pathname, HOST, PORT);
+  if (rejection) { sendJson(res, 403, { detail: rejection }); return; }
   if (req.method === "GET" && url.pathname === "/api/coordination") {
     await conversationResetsReady;
     sendJson(res, 200, coordinationStatus({ task: "", botName: (url.searchParams.get("bot") || "default").slice(0, 120) })); return;
@@ -2224,6 +2247,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       "alex-hormozi.webp": { file: "alex-hormozi.webp", mime: "image/webp" },
       "addy-osmani.jpg": { file: "addy-osmani.jpg", mime: "image/jpeg" },
       "andrej-karpathy.jpg": { file: "andrej-karpathy.jpg", mime: "image/jpeg" },
+      "mark-zuckerberg.jpg": { file: "mark-zuckerberg.jpg", mime: "image/jpeg" },
       "blog-writer.svg": { file: "blog-writer.svg", mime: "image/svg+xml" }
     };
     const legacy: Record<string, string> = {
@@ -2257,7 +2281,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     res.end(bytes); return;
   }
 
-  if (req.method === "GET" && ["/browserRuntime.js", "/uiState.js", "/artifactPreview.js", "/projectScanner.js"].includes(url.pathname)) {
+  if (req.method === "GET" && ["/browserRuntime.js", "/uiState.js", "/artifactPreview.js", "/projectScanner.js", "/responseMarkdown.js", "/runStream.js"].includes(url.pathname)) {
     const script = await readFile(join(STATIC_DIR, url.pathname.slice(1)), "utf8");
     res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
     res.end(script);
@@ -2596,8 +2620,29 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/voice/capabilities") {
+    sendJson(res, 200, {
+      hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
+      hasDeepgramKey: Boolean(process.env.DEEPGRAM_API_KEY),
+      hasElevenLabsKey: Boolean(process.env.ELEVENLABS_API_KEY),
+      stableTranscription: Boolean(process.env.OPENAI_API_KEY || process.env.DEEPGRAM_API_KEY || process.env.ELEVENLABS_API_KEY)
+    });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/status") {
-    const tabs = activeSession ? await activeSession.controller.getTabs() : [];
+    // Never let a stuck browser CDP session block status/UI capability checks.
+    let tabs: unknown[] = [];
+    if (activeSession) {
+      try {
+        tabs = await Promise.race([
+          activeSession.controller.getTabs().catch(() => []),
+          new Promise<unknown[]>((resolve) => setTimeout(() => resolve([]), 1200))
+        ]);
+      } catch {
+        tabs = [];
+      }
+    }
     sendJson(res, 200, {
       ok: true,
       auth: {
@@ -2778,7 +2823,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         mimeType,
         language,
         deepgramApiKey: process.env.DEEPGRAM_API_KEY,
-        elevenLabsApiKey: process.env.ELEVENLABS_API_KEY
+        elevenLabsApiKey: process.env.ELEVENLABS_API_KEY,
+        openaiApiKey: process.env.OPENAI_API_KEY
       });
       sendJson(res, 200, result);
     } catch (err) {
@@ -2833,46 +2879,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  if (req.method === "GET" && url.pathname === "/api/terminal") {
-    sendJson(res, 200, {
-      ok: true,
-      cwd: WORKSPACE_ROOT,
-      history: getTerminalHistory()
-    });
-    return;
-  }
-
-  if (req.method === "POST" && url.pathname === "/api/terminal") {
-    try {
-      const body = (await readJsonBody(req)) as Record<string, unknown>;
-      const command = typeof body.command === "string" ? body.command.trim() : "";
-      const cwd = typeof body.cwd === "string" ? body.cwd.trim() : undefined;
-      if (!command) {
-        sendJson(res, 400, { detail: "command is required." });
-        return;
-      }
-      const risk = assessTaskRisk(command);
-      if (risk.blocked) {
-        sendJson(res, 403, { detail: risk.reason, code: "credential_exposure_blocked" });
-        return;
-      }
-      const controller = new AbortController();
-      terminalControllers.add(controller);
-      try {
-        const entry = await runTerminalCommand(command, cwd, 20_000, "user", controller.signal);
-        sendJson(res, 200, { ok: entry.exitCode === 0, entry });
-      } finally { terminalControllers.delete(controller); }
-    } catch (err) {
-      sendJson(res, 400, { detail: (err as Error).message });
-    }
-    return;
-  }
-
-  if (req.method === "POST" && url.pathname === "/api/terminal/clear") {
-    clearTerminalHistory();
-    sendJson(res, 200, { ok: true });
-    return;
-  }
+  if (await handleTerminalRequest(req, res, url, { readJsonBody, sendJson, terminalControllers })) return;
 
   if (req.method === "GET" && url.pathname === "/api/workflows") {
     try { sendJson(res, 200, { workflows: redactSecretValues(await workflowOrchestrator.list()) }); }

@@ -185,3 +185,14 @@ test("financial controls cannot be downgraded as local draft actions", () => {
     assert.equal(classifyBrowserAction({ toolName: "click_element", label, declaredEffect: "outward" }).effect, "irreversible", label);
   }
 });
+
+test("draft-looking labels never suppress a declared outward effect", () => {
+  for (const toolName of ["click_mark", "click_element", "key_press"]) {
+    for (const label of ["Edit profile", "Create New Post", "Save Draft", "Open Request"]) {
+      const decision = classifyBrowserAction({ toolName, label, declaredEffect: "outward" });
+      assert.equal(decision.effect, "outward");
+      assert.equal(effectRequiresApproval(decision.effect, false), true);
+      assert.equal(classifyBrowserAction({ toolName, label, declaredEffect: "irreversible" }).effect, "irreversible");
+    }
+  }
+});

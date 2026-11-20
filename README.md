@@ -16,6 +16,18 @@ Open `/docs` on the running local server for setup, conversation reset, orchestr
 coding, CLI installation, validation and known limitations. Settings includes a
 Reset conversations control for one bot or all bots.
 
+## Action scripts and local API access
+
+Arbitrary JavaScript action scripts are disabled until OS-enforced isolation is
+available. Pilo continues multi-step work using individual tools and their normal
+approval gates. Older requests for `run_action_script` fail without executing code.
+
+The local API validates Host and requires a matching Origin for state-changing
+requests. The Pilo CLI supplies this header. Custom local clients must send an
+Origin matching the server URL. Google sign-in callbacks retain their separate
+nonce, CSRF and token verification. This remains a local, single-operator service;
+Origin checks do not authenticate other processes on the same computer.
+
 ## Approvals and conversation flow
 
 Common read-only shell checks (`pwd`, `ls`, `cat`, and supported Git inspection

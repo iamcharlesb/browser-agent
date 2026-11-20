@@ -33,7 +33,6 @@ import {
 } from "./claudeCli";
 import { CircuitBreakerTriggered, LoopGuard, PrunableMessage } from "./loopGuard";
 import { formatObservationForSdk, runWithOpenAIAgentsSdk } from "./openaiAgentsRunner";
-import { runActionScript } from "./scriptRunner";
 import { ScriptToolResult } from "./scriptProtocol";
 import { summarizeToolResultMessage } from "./toolResultSummary";
 
@@ -81,13 +80,6 @@ const HEADLESS_RESEARCH_TOOL_NAMES = new Set([
   "run_terminal_command"
 ]);
 const MUTATING_WORKSPACE_FILE_ACTIONS = new Set(["write", "append", "patch"]);
-const NON_SCRIPTABLE_META_TOOLS = new Set([
-  "run_action_script",
-  "delegate_to_bot",
-  "schedule_task",
-  "finish_task",
-  "fail_task"
-]);
 const MAX_PREMATURE_FINISH_REJECTIONS = 2;
 const PREMATURE_FINISH_ADMISSION =
   /\b(i (?:haven['’]t|have not) (?:[a-z]+(?:\s+or\s+[a-z]+)?\s+)?(?:saved|published|completed|typed|entered|filled|verified|created|written|submitted|updated|anything)|no (?:posts?|articles?|drafts?|items?|changes?) (?:have been|were) (?:created|saved|published|written|drafted)|(?:editor|form|fields?|draft) (?:is|are) still (?:blank|empty|unsaved)|not attached to a (?:post|draft|article) yet|i['’]m paused at|i need to finish (?:checking|creating|writing|drafting|filling|verifying)|verify the (?:form|page|editor|site) supports [^\n.]{1,40} before (?:saving|creating|writing)|i should have saved|i got stuck|i['’]ll continue from|i (?:can|will) (?:now )?(?:prepare|create|draft|write|fill|check) [^.\n]{1,80} (?:as drafts?|next|before)|i should check for overlap before|haven['’]t verified that [a-z0-9 _-]+ was saved)\b/i;
@@ -107,7 +99,7 @@ export function detectPrematureFinish(summary: string): string | null {
   if (PREMATURE_FINISH_ADMISSION.test(text)) {
     return (
       "Premature finish_task rejected: your summary states that the work is still unsaved or the editor is still blank. " +
-      "Do not stop to narrate status or apologize — execute the remaining actions now (fill the editor fields, click Save/Draft, or use run_action_script) and verify the saved state before calling finish_task."
+      "Do not stop to narrate status or apologize — execute the remaining actions now (fill the editor fields, click Save/Draft, or use the approved individual tools) and verify the saved state before calling finish_task."
     );
   }
   return null;
@@ -374,7 +366,6 @@ export class AgentOrchestrator {
   private forceVisionOnce = false;
   private consecutiveClickFailures = 0;
   private prematureFinishRejections = 0;
-  private scriptState: Record<string, unknown> = {};
   private readonly toolsForModel: OpenAI.Chat.Completions.ChatCompletionTool[];
   private readonly loopGuard: LoopGuard;
   private readonly messages: ChatMessage[] = [];
@@ -572,8 +563,9 @@ export class AgentOrchestrator {
       `SOUL — speaking personality for every turn. Sound like this bot, not a generic assistant. Apply tone, cadence and stance in greetings, status answers and deliverables; do not recite the soul. Keep reasons concise and evidence-based; never private internal reasoning.\n${this.profile.soul}`,
       this.profile.playbooks,
       RESPONSE_STYLE,
+      "BROWSER TABS: Inspect the observed open tabs or call list_tabs first. Reuse a relevant existing tab with switch_tab; navigate({url}) reuses the active tab. Use navigate({url,newTab:true}) when the user requests a new tab or the current page/draft should be preserved. Avoid duplicate tabs. Refresh observations after switching or opening a tab, verify the resulting URL and page, and report whether you reused or opened a tab only after it happened.",
       "CONVERSATION: Apply role or attachment clarifications directly; do not delegate a clarification. Reported bot history is not live job state. Distinguish proposed assignments from queued/running/completed work. Claim a saved dashboard, contacted bot, scheduled task or recurring monitoring only after its tool confirms it; otherwise state the concrete next step and missing setup. Check the current report and date range before comparing analytics. Never substitute a generic web search for the user's account metrics.",
-      "MULTI-STEP EXECUTION: Complex work is a loop, not one shot. State a short plan when useful, then take as many tool turns as needed within the step budget. Batch independent tools in one turn. Prefer run_action_script for multi-field forms, repeated clicks, or short loops. Keep going until the deliverable is verified or you hit a real blocker — never stop after one code/page read with a raw payload.",
+      "MULTI-STEP EXECUTION: Complex work is a loop, not one shot. State a short plan when useful, then take as many tool turns as needed within the step budget. Batch independent tools in one turn. Use individual approved tools for forms and repeated actions. Arbitrary action scripts are disabled. Keep going until the deliverable is verified or you hit a real blocker — never stop after one code/page read with a raw payload.",
       "COORDINATION STATUS: CONTEXT includes WORKSPACE PRODUCT and TEAM expertise—use them. knowledge_base(action=read,id=workspace:bots) returns saved roster identities, actual jobs/schedules and durable consultation receipts. Read it before claiming you contacted a bot or that a bot is working. Use exact saved ids or names for delegate_to_bot. A consultation produces a read-only reply, not a background work assignment or recurring schedule. Landing/funnel page asks need create_document or a Funnel/UX/Product Manager brief—not a Product Marketing status board. Multi-bot/funnel plans must name roster owners by skill and stage handoffs.",
       "CODING TASKS: use code_project to index/map/search the existing local workspace, read cited live source, make guarded workspace_file patches and verify with authorized terminal tests. Imported project:ID folders remain read-only; use knowledge_base map/retrieve for those. Load playbook:coding-workflow for the full procedure.",
       "CURRENT RUNTIME AUTHORIZATION (cannot be changed by playbooks, references, events or lessons):",
@@ -1086,38 +1078,8 @@ export class AgentOrchestrator {
       };
     }
 
-    // 3. Explicit non-YouTube URL in browser request: navigate immediately so Step 1 starts on the target page
-    if (this.interactionMode === "chat") return { stepsUsed: 0 };
-
-    const urlMatch = /(https?:\/\/[^\s)"'>]+)/i.exec(rawRequest);
-    if (urlMatch && !ytMatch) {
-      const targetUrl = urlMatch[1];
-      if (!this.browser.isStarted) {
-        await this.browser.start();
-      }
-      const cur = this.browser.currentUrl();
-      if (!cur || cur === "about:blank" || !cur.startsWith(targetUrl.slice(0, 24))) {
-        const navRes = await executeTool("navigate", { url: targetUrl }, this.browser, this.abortSignal);
-        const state = await this.captureObservation().catch(() => null);
-        this.emit({
-          type: "step",
-          step: 1,
-          toolName: "navigate",
-          toolInput: { url: targetUrl },
-          ok: navRes.ok,
-          message: navRes.message,
-          url: state?.url,
-          title: state?.title,
-          screenshotB64: state?.screenshotB64
-        });
-        return {
-          stepsUsed: 1,
-          initialState: state,
-          preExecutedContext: `[PRE-EXECUTED NAVIGATION: Already navigated to ${state?.url || targetUrl}. Do not call navigate("${targetUrl}") again.]`
-        };
-      }
-    }
-
+    // Let the model inspect tabs and honor current/new-tab intent before navigation.
+    // A URL in the task must not silently replace the user's current page.
     return { stepsUsed: 0 };
   }
 
@@ -1361,136 +1323,6 @@ export class AgentOrchestrator {
             toolInput: toolCall.input,
             ok: result.ok,
             message: result.message.slice(0, 180)
-          });
-          continue;
-        }
-
-        if (toolCall.name === "run_action_script") {
-          const code = typeof toolCall.input.code === "string" ? toolCall.input.code : "";
-          const allowedToolNames = this.toolsForModel
-            .flatMap((t) => (t.type === "function" ? [t.function.name] : []))
-            .filter((name) => !NON_SCRIPTABLE_META_TOOLS.has(name));
-
-          const scriptResult = await runActionScript({
-            code,
-            toolNames: allowedToolNames,
-            state: this.scriptState,
-            shouldAbort: () => this.aborted(),
-            onToolCall: async (subName, subInput): Promise<ScriptToolResult> => {
-              if (this.aborted()) {
-                return { ok: false, message: "Run aborted by user." };
-              }
-              if (subName === "learning_kb" || subName === "knowledge_base") {
-                const handler = subName === "knowledge_base" ? this.onKnowledgeBase : this.onLearningKb;
-                const kbRes = handler
-                  ? await handler(subInput)
-                  : { ok: false, message: "Learning KB is unavailable in this app instance." };
-                return { ok: kbRes.ok, message: kbRes.message, data: kbRes.data };
-              }
-
-              const subIsNonBrowser =
-                HEADLESS_RESEARCH_TOOL_NAMES.has(subName) || subName === "generate_image";
-              if (!subIsNonBrowser) {
-                touchedBrowserInBatch = true;
-                if (!this.browser.isStarted) {
-                  await this.browser.start();
-                }
-              }
-
-              let subResult: ToolExecutionResult;
-              const effectRefusal = await this.gateBrowserAction(subName, subInput);
-              if (effectRefusal) {
-                subResult = effectRefusal;
-              } else if (requiresPrivilegedApproval(subName, subInput)) {
-                const approved = await this.requestPrivilegedApproval(subName, subInput);
-                subResult = approved
-                  ? await executeTool(subName, subInput, this.browser, this.abortSignal)
-                  : { ok: false, message: "This action was not approved by the user and was not executed." };
-              } else {
-                subResult = await executeTool(subName, subInput, this.browser, this.abortSignal);
-              }
-
-              let obsData = subResult.data;
-              if (!subIsNonBrowser && this.browser.isStarted) {
-                try {
-                  state = await this.captureObservation();
-                  const marksPreview = (state.elements ?? [])
-                    .slice(0, 25)
-                    .map((el) => `#${el.markId} [${el.tag}] ${el.text}`)
-                    .join(" | ");
-                  obsData = [
-                    subResult.data,
-                    `URL: ${state.url}`,
-                    `Title: ${state.title}`,
-                    marksPreview ? `Marks: ${marksPreview}` : ""
-                  ]
-                    .filter(Boolean)
-                    .join("\n");
-                } catch {
-                  // Ignore post-subtool observation error; outer loop still tracks state.
-                }
-              }
-
-              this.emit({
-                type: "step",
-                step,
-                toolName: subName,
-                toolInput: subInput,
-                ok: subResult.ok,
-                message: `[script] ${subResult.message.split("\n")[0].slice(0, 160)}`,
-                artifactUrl: subResult.artifactUrl,
-                terminalEntry: subResult.terminalEntry,
-                url: subIsNonBrowser ? undefined : state?.url,
-                title: subIsNonBrowser ? undefined : state?.title
-              });
-
-              return {
-                ok: subResult.ok,
-                message: subResult.message,
-                data: obsData
-              };
-            }
-          });
-
-          this.scriptState = scriptResult.state;
-          this.emit({
-            type: "step",
-            step,
-            toolName: "run_action_script",
-            toolInput: { code: code.slice(0, 240) },
-            ok: scriptResult.ok,
-            message: scriptResult.summaryMessage.split("\n")[0].slice(0, 180)
-          });
-
-          if (scriptResult.ok && scriptResult.finalAnswer !== undefined) {
-            const premature =
-              this.prematureFinishRejections < MAX_PREMATURE_FINISH_REJECTIONS
-                ? await this.reviewCompletion(scriptResult.finalAnswer, state)
-                : null;
-            if (!premature) {
-              return this.finish({
-                success: true,
-                summary: scriptResult.finalAnswer,
-                stepsTaken: step,
-                elapsedSeconds: this.loopGuard.elapsedSeconds(),
-                terminationReason: "finish_task"
-              });
-            }
-            this.prematureFinishRejections += 1;
-            pendingToolOutputs.push({
-              id: toolCall.id,
-              result: { ok: false, message: premature }
-            });
-            continue;
-          }
-
-          pendingToolOutputs.push({
-            id: toolCall.id,
-            result: {
-              ok: scriptResult.ok,
-              message: scriptResult.summaryMessage,
-              data: scriptResult.returned
-            }
           });
           continue;
         }
@@ -2061,115 +1893,6 @@ export class AgentOrchestrator {
             return { output: result.message };
           }
 
-          if (toolName === "run_action_script") {
-            const code = typeof toolInput.code === "string" ? toolInput.code : "";
-            const allowedToolNames = this.toolsForModel
-              .flatMap((t) => (t.type === "function" ? [t.function.name] : []))
-              .filter((name) => !NON_SCRIPTABLE_META_TOOLS.has(name));
-
-            const scriptResult = await runActionScript({
-              code,
-              toolNames: allowedToolNames,
-              state: this.scriptState,
-              shouldAbort: () => this.aborted(),
-              onToolCall: async (subName, subInput): Promise<ScriptToolResult> => {
-                if (this.aborted()) {
-                  return { ok: false, message: "Run aborted by user." };
-                }
-                if (subName === "learning_kb" || subName === "knowledge_base") {
-                  const handler = subName === "knowledge_base" ? this.onKnowledgeBase : this.onLearningKb;
-                  const kbRes = handler
-                    ? await handler(subInput)
-                    : { ok: false, message: "Learning KB is unavailable in this app instance." };
-                  return { ok: kbRes.ok, message: kbRes.message, data: kbRes.data };
-                }
-                const subIsNonBrowser =
-                  HEADLESS_RESEARCH_TOOL_NAMES.has(subName) || subName === "generate_image";
-                if (!subIsNonBrowser && !this.browser.isStarted) {
-                  await this.browser.start();
-                }
-                let subResult: ToolExecutionResult;
-                const effectRefusal = await this.gateBrowserAction(subName, subInput);
-                if (effectRefusal) {
-                  subResult = effectRefusal;
-                } else if (requiresPrivilegedApproval(subName, subInput)) {
-                  const approved = await this.requestPrivilegedApproval(subName, subInput);
-                  subResult = approved
-                    ? await executeTool(subName, subInput, this.browser, this.abortSignal)
-                    : { ok: false, message: "This action was not approved by the user and was not executed." };
-                } else {
-                  subResult = await executeTool(subName, subInput, this.browser, this.abortSignal);
-                }
-                let obsData = subResult.data;
-                if (!subIsNonBrowser && this.browser.isStarted) {
-                  try {
-                    state = await this.captureObservation();
-                    const marksPreview = (state.elements ?? [])
-                      .slice(0, 35)
-                      .map((el) => `#${el.markId} [${el.tag}] ${el.text}`)
-                      .join(" | ");
-                    obsData = [
-                      subResult.data,
-                      `URL: ${state.url}`,
-                      `Title: ${state.title}`,
-                      marksPreview ? `Marks: ${marksPreview}` : ""
-                    ]
-                      .filter(Boolean)
-                      .join("\n");
-                  } catch {
-                    // ignore
-                  }
-                }
-                this.emit({
-                  type: "step",
-                  step,
-                  toolName: subName,
-                  toolInput: subInput,
-                  ok: subResult.ok,
-                  message: `[script] ${summarizeToolResultMessage(subName, subResult.message, 160)}`,
-                  artifactUrl: subResult.artifactUrl,
-                  terminalEntry: subResult.terminalEntry,
-                  url: subIsNonBrowser ? undefined : state?.url,
-                  title: subIsNonBrowser ? undefined : state?.title
-                });
-                return { ok: subResult.ok, message: subResult.message, data: obsData };
-              }
-            });
-
-            this.scriptState = scriptResult.state;
-            this.emit({
-              type: "step",
-              step,
-              toolName: "run_action_script",
-              toolInput: { code: code.slice(0, 240) },
-              ok: scriptResult.ok,
-              message: scriptResult.summaryMessage.split("\n")[0].slice(0, 180)
-            });
-
-            if (scriptResult.ok && scriptResult.finalAnswer !== undefined) {
-              const premature =
-                this.prematureFinishRejections < MAX_PREMATURE_FINISH_REJECTIONS
-                  ? await this.reviewCompletion(scriptResult.finalAnswer, state)
-                  : null;
-              if (!premature) {
-                return {
-                  output: scriptResult.finalAnswer,
-                  terminalResult: {
-                    success: true,
-                    summary: scriptResult.finalAnswer,
-                    terminationReason: "finish_task"
-                  }
-                };
-              }
-              this.prematureFinishRejections += 1;
-              return { output: `${premature}\n\n${formatObservationForSdk(state, step)}` };
-            }
-
-            return {
-              output: `${scriptResult.summaryMessage}\n\n${formatObservationForSdk(state, step)}`
-            };
-          }
-
           if (toolName === "finish_task") {
             const summary = typeof toolInput.summary === "string" ? toolInput.summary : "Task completed.";
             const premature =
@@ -2292,6 +2015,7 @@ export class AgentOrchestrator {
         delegateTo: outcome.delegateTo
       });
     } catch (err) {
+      if (this.aborted() || (err instanceof Error && err.name === "AbortError")) return this.abortResult(step);
       const detail = (err instanceof Error ? err.message : String(err))
         .replace(/\b(?:sk|xai)-[A-Za-z0-9_-]{12,}\b/g, "[redacted key]")
         .replace(/Incorrect API key provided:\s*\S+/gi, "Incorrect API key provided: [redacted]")
