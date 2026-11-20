@@ -3409,6 +3409,22 @@ dialog.modal-dialog::backdrop {
   #agent-chip { flex: 0 1 auto; min-width: 0; }
 }
 @media (max-width: 1100px) { #chip-meta { display: none; } }
+/* Head portraits for compact identity; header and brand retain the full mascot. */
+:is(.agent-row, .message, .run-presence) .mascot-avatar {
+  position: relative;
+  overflow: hidden;
+  clip-path: ellipse(50% 40% at 50% 40%);
+}
+:is(.agent-row, .message, .run-presence) .mascot-avatar img.bot-portrait {
+  position: absolute;
+  width: 170%;
+  max-width: none;
+  height: auto;
+  left: -35%;
+  top: -14%;
+  object-fit: contain;
+  transform: none;
+}
 /* Compact identity and controls keep attention on the work. */
 /* Size the artwork itself as well as its container: CSS bots have their own dimensions. */
 #sidebar .agent-avatar { width: 24px; height: 24px; flex: 0 0 24px; }
@@ -4773,6 +4789,7 @@ dialog.modal-dialog::backdrop {
     var avatarImage = defaultAvatarImage(agent && agent.name) || (agent && agent.avatarImage);
     var showExpression = Boolean(expressive);
     el.classList.toggle("role-avatar", Boolean(avatarImage && (avatarImage.indexOf("/pilo-") >= 0 || avatarImage.indexOf("pilo-icon.png") >= 0)));
+    el.classList.toggle("mascot-avatar", Boolean(avatarImage && avatarImage.indexOf("pilo-icon.png") >= 0));
     el.classList.toggle("is-expressive", showExpression);
     if (avatarImage) {
       el.classList.add("custom-bot");
