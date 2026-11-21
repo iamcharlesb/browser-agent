@@ -240,7 +240,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "fetch_url",
-      description: "Read a public http(s) page as text without opening the browser. Use it to verify a search result (price, spec, stock, docs). Use the browser only when the user asked for page interaction or the page needs sign-in.",
+      description: "Read a public http(s) page as text with image candidate URLs, or check a direct image response. Use it to verify sources, photo pages, prices, specs and docs. Image responses report type and bytes, not visual quality or reuse rights. Use the browser for visual review, requested page interaction or sign-in.",
       parameters: {
         type: "object",
         properties: {

@@ -164,15 +164,47 @@ export async function fetchPublic(raw: string, signal?: AbortSignal, accept = "t
   throw new Error(`Too many redirects for ${raw}.`);
 }
 
-/** Reads a public page as text without starting Chrome. */
+/** Exposes source URLs instead of discarding photos while stripping HTML tags. */
+export function pageImageCandidates(html: string, pageUrl: string): string[] {
+  const candidates = new Set<string>();
+  const add = (raw: string | undefined) => {
+    if (!raw || raw.length > 2048 || candidates.size >= 12) return;
+    try {
+      const url = new URL(decodeEntities(raw), pageUrl);
+      if (/^https?:$/.test(url.protocol) && !url.username && !url.password) candidates.add(url.href);
+    } catch { /* Ignore malformed source attributes. */ }
+  };
+  const source = html.replace(/<!--[\s\S]*?-->|<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, "");
+  for (const tag of source.match(/<(?:img|meta)\b[^>]*>/gi) || []) {
+    const attrs: Record<string, string> = {};
+    for (const match of tag.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)) {
+      attrs[match[1].toLowerCase()] = match[2] ?? match[3] ?? match[4];
+    }
+    if (/^<meta\b/i.test(tag)) {
+      if (/^(?:og:image(?::url|:secure_url)?|twitter:image(?::src)?)$/i.test(attrs.property || attrs.name || "")) add(attrs.content);
+    } else {
+      add(attrs["data-src"] || attrs["data-original"] || attrs.src);
+    }
+  }
+  return [...candidates];
+}
+
+/** Reads public page text and image sources, or reports a direct image response. */
 export async function fetchUrlText(raw: string, signal?: AbortSignal): Promise<string> {
   const maxChars = envInteger("BROWSER_AGENT_FETCH_CHARS", 6000, 500, 50_000);
   const { response, url } = await fetchPublic(raw, signal);
   if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}. The page could not be read.`);
   const type = response.headers.get("content-type") || "";
+  if (/^image\//i.test(type)) {
+    const bytes = (await response.arrayBuffer()).byteLength;
+    if (!bytes) throw new Error(`${url} returned an empty image response.`);
+    return `URL: ${url}\nImage response: ${type}\nBytes: ${bytes}\nVisual quality and reuse rights have not been verified; inspect the image and its source license.`;
+  }
   if (!/text\/|json|xml/i.test(type)) throw new Error(`${url} returned ${type || "unknown content"}, not readable text.`);
   const body = (await response.text()).slice(0, 2_000_000);
   const { title, text } = /html/i.test(type) ? htmlToText(body) : { title: "", text: body };
   const clipped = text.length > maxChars ? `${text.slice(0, maxChars)}\n[truncated: ${text.length - maxChars} more characters]` : text;
-  return `${title ? `Title: ${title}\n` : ""}URL: ${url}\n\n${clipped}`;
+  const images = /html/i.test(type) ? pageImageCandidates(body, url.href) : [];
+  const imageSection = images.length ? `\n\nImage candidates (not visually reviewed or licensed by this tool):\n${images.join("\n")}` : "";
+  return `${title ? `Title: ${title}\n` : ""}URL: ${url}\n\n${clipped}${imageSection}`;
 }

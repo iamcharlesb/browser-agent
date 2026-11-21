@@ -11,6 +11,13 @@ import { classifyBrowserAction } from "./actionEffect";
 import { BrowserController, PageState } from "./browserController";
 import { WORKSPACE_ROOT } from "./agentTools";
 
+test("website design briefs retain image tools without adding them to unrelated requests", () => {
+  for (const request of ["Design a landscaping website", "Create a landing page", "Draft a homepage mockup"]) {
+    assert.equal(toolNeededForRequest("generate_image", request), true);
+  }
+  assert.equal(toolNeededForRequest("generate_image", "Explain the arithmetic"), false);
+});
+
 test("a product domain in the pasted marketing request does not eagerly require Chrome", () => {
   assert.equal(requiresInitialBrowserState("Iam good. iam hiring you to market magicsite.ai, can you fix this", "about:blank", "turbo"), false);
   assert.equal(requiresInitialBrowserState("Inspect the live account on this page", "https://example.test", "turbo"), true);

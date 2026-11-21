@@ -84,6 +84,8 @@ export function botIdFromName(name: string): string {
     "chief of staff": "Founder_Operator",
     "gif animator": "GIF_Animator",
     "funnel specialist": "Funnel_Specialist",
+    "website designer": "Website_Designer",
+    "web designer": "Website_Designer",
     "linkedin growth": "LinkedIn_Growth",
     "linkedin bot": "LinkedIn_Growth",
     "resume bot": "Resume_Bot",

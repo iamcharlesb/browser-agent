@@ -1,6 +1,19 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fetchUrlText, hostedSearchConfig, htmlToText } from "./webResearch";
+import { fetchUrlText, hostedSearchConfig, htmlToText, pageImageCandidates } from "./webResearch";
+
+test("photo pages retain actual image URLs, including lazy images and social previews", () => {
+  const html = `<meta property="og:image" content="https://cdn.example.test/hero.jpg?w=1600&amp;fit=crop">
+    <img src="data:image/gif;base64,placeholder" data-src="/photos/garden.jpg">
+    <img src="/photos/garden.jpg"><img src="javascript:alert(1)">
+    <img src="https://user:password@example.test/private.jpg">
+    <script>const fake = '<img src="/invented.jpg">';</script>
+    <!-- <img src="/comment.jpg"> -->`;
+  assert.deepEqual(pageImageCandidates(html, "https://stock.example.test/photo/garden"), [
+    "https://cdn.example.test/hero.jpg?w=1600&fit=crop", "https://stock.example.test/photos/garden.jpg"
+  ]);
+  assert.equal(pageImageCandidates(Array.from({ length: 20 }, (_, i) => `<img src="/${i}.jpg">`).join(""), "https://example.test/").length, 12);
+});
 
 test("page text drops scripts, styles and navigation and keeps readable lines", () => {
   const { title, text } = htmlToText("<html><head><title>Hibiscus &amp; Co</title><style>p{}</style></head><body><nav>Menu</nav><p>Price: $49</p><script>track()</script><p>Ships to 95119</p></body></html>");

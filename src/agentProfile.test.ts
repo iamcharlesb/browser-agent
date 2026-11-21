@@ -371,6 +371,7 @@ test("Founder Operator and new specialist bots load roles and playbooks", () => 
   for (const [name, playbook, habit] of [
     ["GIF Animator", "gif-animator", /motion designer|frames|loop/i],
     ["Funnel Specialist", "funnel", /conversion operator|drop-off/i],
+    ["Website Designer", "website-designer", /senior web designer|conversion number/i],
     ["LinkedIn Growth", "linkedin", /personalization-obsessed|ban-aware/i],
     ["Resume Bot", "resume", /career editor|quantified/i]
   ] as const) {
@@ -382,6 +383,19 @@ test("Founder Operator and new specialist bots load roles and playbooks", () => 
   }
 });
 
+
+test("Website Designer retains its dedicated profile after renaming and through its alias", () => {
+  const renamed = loadAgentProfile({ profileId: "website-designer", botName: "My Design Partner", task: "Help", root });
+  const alias = loadAgentProfile({ botName: "Web Designer", task: "Help", root });
+  for (const profile of [renamed, alias]) {
+    assert.match(profile.instructions, /finished, responsive, accessible HTML/);
+    assert.match(profile.soul, /senior web designer/);
+    assert.ok(profile.selected.includes("website-designer"));
+    assert.match(profile.playbooks, /Label prototype forms/);
+    assert.ok(profile.instructions.length <= 2400);
+    assert.ok(profile.soul.length <= 900);
+  }
+});
 
 test("EB1A specialist keeps evidence safeguards and procedure after rename", () => {
   const profile = loadAgentProfile({ profileId: "eb1a-research", botName: "My RFE Partner", task: "Research my case", root });

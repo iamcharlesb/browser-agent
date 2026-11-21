@@ -4599,6 +4599,7 @@ dialog.modal-dialog::backdrop {
   var editingBotId = null;
   var selectedBotPreset = null;
   var LATEST_BOT_PRESETS = [
+    { profileId: "website-designer", name: "Website Designer", description: "Senior web designer who ships responsive, accessible HTML websites and landing pages with relevant real photography, clear copy, real proof, focused calls to action, and lead follow-up drafts. Verifies photo sources and usage terms; labels stock imagery, prototype forms and missing details honestly. Never invents proof or service promises. Publishing, live edits, outreach, and spend require explicit approval.", color: "#7c3aed", summary: "Responsive websites with real photography, landing pages, and lead follow-up drafts." },
     { profileId: "product-marketing", name: "Product Marketing", description: "Product marketing specialist for customer research, positioning, messaging, competitive differentiation, launch briefs, and sales enablement. Turns verified capabilities and customer evidence into clear pitches, launch copy, one-pagers, and battlecards. Coordinates channel and page-build handoffs with saved specialists. Never invents proof or metrics; publishing, outreach, pricing changes, and spend require explicit approval.", color: "#db2777", summary: "Customer insight, positioning, messaging, launches, and sales enablement." },
     { profileId: "eb1a-research", name: "EB1A Research Agent", description: "Research public evidence and prepare attorney-review EB1A RFE materials. Prioritize independent adoption with metrics, personal attribution, critical role and comparable remuneration. Cite verified sources, mark gaps honestly, and keep USCIS and counsel checklists separate. No invented claims, approval promises, filings or recurring jobs.", color: "#1d4ed8", summary: "Evidence research, RFE issue matrix, attribution checks and counsel-ready gaps." },
     { profileId: "supervisor", name: "Supervisor Bot", description: "Workspace quality supervisor. Observes conversations for missed asks and role drift. After you approve a night schedule, validates bot behavior against public source materials with read-only research and drafts pending soul/playbook improvements—never auto-applies. Notifications alone never start paid jobs.", color: "#57534e", summary: "Observe conversations, nightly source checks, pending improvement proposals." },
@@ -4910,12 +4911,13 @@ dialog.modal-dialog::backdrop {
       var operator = specialist.profileId === "founder-operator" || /Founder Operator/.test(specialist.name);
       var cmo = specialist.profileId === "chief-marketing-officer";
       var productMarketing = specialist.profileId === "product-marketing";
+      var websiteDesigner = specialist.profileId === "website-designer";
       var supervisor = specialist.profileId === "supervisor" || /Supervisor Bot/.test(specialist.name);
       var supercomputer = specialist.profileId === "supercomputer" || /Supercomputer/.test(specialist.name);
       var botCreator = specialist.profileId === "bot-creator" || /Bot Creator/.test(specialist.name);
       var critica = specialist.profileId === "critica" || /Critica/.test(specialist.name);
       var possession = /Alex Hormozi|Addy Osmani|Andrej Karpathy|Mark Zuckerberg|Alexandr Wang|Alex Wang|Sundar Pichai|Inspired by Sabri Suby/.test(specialist.name);
-      var kind = engineering || supercomputer ? "coding" : botCreator ? "bot-creator" : critica ? "critica" : operator ? "founder-ops" : cmo ? "cmo" : productMarketing ? "product-marketing" : supervisor ? "supervisor" : possession ? "personality" : "sales";
+      var kind = engineering || supercomputer ? "coding" : botCreator ? "bot-creator" : critica ? "critica" : operator ? "founder-ops" : cmo ? "cmo" : productMarketing ? "product-marketing" : websiteDesigner ? "website-designer" : supervisor ? "supervisor" : possession ? "personality" : "sales";
       var suggestions = engineering
         ? ["Review my architecture", "Diagnose a performance bottleneck", "Design a measurable experiment"]
         : supercomputer
@@ -4930,6 +4932,8 @@ dialog.modal-dialog::backdrop {
             ? ["Build this week's content calendar", "Tighten brand voice on this draft", "Prepare the marketing weekly review"]
             : productMarketing
               ? ["Define positioning and message pillars for my product", "Draft a feature launch brief and announcement", "Create a competitive battlecard and sales one-pager"]
+            : websiteDesigner
+              ? ["Design a responsive website for my business", "Redesign this landing page", "Create a lead capture page and follow-up drafts"]
             : supervisor
               ? ["Review tonight's delivery misses", "Propose a nightly validation schedule", "Draft pending bot improvements"]
             : possession

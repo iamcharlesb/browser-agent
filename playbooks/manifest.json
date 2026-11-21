@@ -353,6 +353,27 @@
       ]
     },
     {
+      "id": "website-designer",
+      "file": "website-designer.md",
+      "terms": [
+        "website designer",
+        "web designer",
+        "website design",
+        "web design",
+        "landing page design",
+        "homepage",
+        "redesign",
+        "website",
+        "web page",
+        "lead capture",
+        "leads to customers",
+        "mockup"
+      ],
+      "events": [
+        "landing.page.created"
+      ]
+    },
+    {
       "id": "founder-operator",
       "file": "founder-operator.md",
       "terms": [

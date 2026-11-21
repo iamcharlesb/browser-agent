@@ -97,7 +97,7 @@ const TOPIC_TOOLS: Record<string, RegExp> = {
   understand_youtube_video: /youtu/i,
   reddit_search: /\breddit\b|\bsubreddits?\b|\br\/\w/i,
   google_property: /\b(?:analytics|ga4|gtm|tag manager|search console|google ads|ads manager)\b/i,
-  generate_image: /\b(?:images?|pictures?|photos?|illustrations?|logos?|thumbnails?|banners?|visuals?|blog|articles?|posts?|graphics?)\b/i,
+  generate_image: /\b(?:images?|pictures?|photos?|illustrations?|logos?|thumbnails?|banners?|visuals?|blog|articles?|posts?|graphics?|websites?|landing pages?|homepages?|mockups?|hero)\b/i,
   code_project: CODE_TOPIC,
   workspace_file: CODE_TOPIC,
   run_terminal_command: CODE_TOPIC,
