@@ -14,6 +14,7 @@ artifacts/
 .browser-agent-learn/
 # Google-signed-in user profiles when Mongo is not configured.
 .browser-agent-users/
+.browser-agent-profiles/
 
 # Durable per-bot task continuity (private local runtime data).
 .browser-agent-task-memory/

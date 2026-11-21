@@ -115,14 +115,14 @@ test("background updates keep the composer focused while deliberate inputs remai
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
-    await page.setContent("<textarea id='prompt'></textarea><button id='send-button'>Send</button><button data-interaction-mode='browse'>Browse</button><button data-agent-engine='cheap'>Cheap</button><input id='other'><div id='browser-viewport'><input id='browser-input'></div><dialog id='modal'><input></dialog>");
+    await page.setContent("<textarea id='prompt'></textarea><button id='send-button'>Send</button><button id='auto-approve-toggle' class='composer-action'>Shield</button><button data-agent-engine='cheap'>Cheap</button><input id='other'><div id='browser-viewport'><input id='browser-input'></div><dialog id='modal'><input></dialog>");
     await page.addScriptTag({ content: readFileSync(join(__dirname, "../static/browserRuntime.js"), "utf8") });
     await page.addScriptTag({ content: `var prompt=document.getElementById('prompt'),browserViewport=document.getElementById('browser-viewport');${source("focusComposer", "\n  function startRun")}` });
     await page.locator("#prompt").focus();
     await page.getByRole("button", { name: "Send", exact: true }).click();
     assert.equal(await page.locator("#prompt").evaluate(element => element === document.activeElement), true);
     await page.locator("#prompt").fill("Keep this draft");
-    for (const label of ["Browse", "Cheap"]) {
+    for (const label of ["Shield", "Cheap"]) {
       await page.getByRole("button", { name: label, exact: true }).click();
       assert.equal(await page.locator("#prompt").evaluate(element => element === document.activeElement), true);
       await page.getByRole("button", { name: label, exact: true }).focus();

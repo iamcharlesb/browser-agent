@@ -37,8 +37,12 @@ export interface RunOpenAIAgentsSdkOptions {
   maxSteps: number;
   tools: OpenAI.Chat.Completions.ChatCompletionTool[];
   shouldAbort: () => boolean;
+  /** Run-level cancellation; replaces polling shouldAbort when supplied. */
+  abortSignal?: AbortSignal;
+  /** Browser snapshots default to low detail; "high" is reserved for verifying visual claims. */
+  snapshotDetail?: () => "low" | "high";
   onToolCall: (name: string, input: Record<string, unknown>) => Promise<OpenAIAgentsSdkToolResult>;
-  onUsage?: (usage: { promptTokens: number; completionTokens: number; totalTokens: number }) => void;
+  onUsage?: (usage: { promptTokens: number; completionTokens: number; totalTokens: number; cachedTokens: number }) => void;
   checkPrematureFinish?: (text: string) => string | null | Promise<string | null>;
   getLatestObservationImage?: () => string | undefined;
   getLatestObservationText?: () => string;
@@ -82,7 +86,11 @@ export async function runWithOpenAIAgentsSdk(
   let stepsTaken = 0;
   let capturedTerminal: OpenAIAgentsSdkRunOutcome | null = null;
 
-  const abortPollTimer = setInterval(() => {
+  const abortFromRun = () => abortController.abort();
+  options.abortSignal?.addEventListener("abort", abortFromRun, { once: true });
+  if (options.abortSignal?.aborted) abortController.abort();
+  // Without a run signal, fall back to polling the cooperative stop flag.
+  const abortPollTimer = options.abortSignal ? null : setInterval(() => {
     try {
       if (options.shouldAbort() && !abortController.signal.aborted) {
         abortController.abort();
@@ -172,12 +180,15 @@ export async function runWithOpenAIAgentsSdk(
       tracingDisabled: true
     });
 
-    const buildInput = (text: string): string | AgentInputItem[] => {
-      const snapshot=options.getLatestObservationImage?.();
-      const images=[...(options.taskImages||[]),...(snapshot?[`data:image/jpeg;base64,${snapshot}`]:[])];
-      return images.length ? [user([{type:"input_text",text},...images.map(image=>({type:"input_image" as const,image,detail:"high" as const}))])] : text;
+    const userMessage = (text: string, withTaskImages: boolean): AgentInputItem => {
+      const snapshot = options.getLatestObservationImage?.();
+      const images = [
+        ...(withTaskImages ? (options.taskImages || []).map(image => ({ type: "input_image" as const, image, detail: "auto" as const })) : []),
+        ...(snapshot ? [{ type: "input_image" as const, image: `data:image/jpeg;base64,${snapshot}`, detail: options.snapshotDetail?.() ?? "low" }] : [])
+      ];
+      return user(images.length ? [{ type: "input_text", text }, ...images] : text);
     };
-    let currentInput = buildInput(options.initialUserPrompt);
+    let currentInput: AgentInputItem[] = [userMessage(options.initialUserPrompt, true)];
     let prematureRetries = 0;
 
     while (true) {
@@ -216,7 +227,8 @@ export async function runWithOpenAIAgentsSdk(
             options.onUsage({
               promptTokens: resp.usage.inputTokens ?? 0,
               completionTokens: resp.usage.outputTokens ?? 0,
-              totalTokens: resp.usage.totalTokens ?? (resp.usage.inputTokens ?? 0) + (resp.usage.outputTokens ?? 0)
+              totalTokens: resp.usage.totalTokens ?? (resp.usage.inputTokens ?? 0) + (resp.usage.outputTokens ?? 0),
+              cachedTokens: cachedInputTokens(resp.usage.inputTokensDetails)
             });
           }
         }
@@ -238,7 +250,8 @@ export async function runWithOpenAIAgentsSdk(
         if (premature) {
           prematureRetries += 1;
           const latestObs = options.getLatestObservationText ? options.getLatestObservationText() : "";
-          currentInput = buildInput(`${options.initialUserPrompt}\n\n[PREVIOUS ATTEMPT INCOMPLETE]:\n${premature}\n${latestObs}`);
+          // Continue the same conversation; restarting would resend and redo every earlier turn.
+          currentInput = [...runResult.history, userMessage(`[PREVIOUS ATTEMPT INCOMPLETE]:\n${premature}\n${latestObs}`, false)];
           continue;
         }
       }
@@ -251,6 +264,16 @@ export async function runWithOpenAIAgentsSdk(
       };
     }
   } finally {
-    clearInterval(abortPollTimer);
+    if (abortPollTimer) clearInterval(abortPollTimer);
+    options.abortSignal?.removeEventListener("abort", abortFromRun);
   }
+}
+
+/** Sums provider-reported prompt-cache hits so the UI can show whether caching is working. */
+function cachedInputTokens(details: unknown): number {
+  const entries = Array.isArray(details) ? details : details ? [details] : [];
+  return entries.reduce((total: number, entry) => {
+    const value = entry && typeof entry === "object" ? (entry as Record<string, unknown>).cached_tokens : 0;
+    return total + (typeof value === "number" ? value : 0);
+  }, 0);
 }

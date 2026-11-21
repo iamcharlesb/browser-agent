@@ -38,7 +38,7 @@ test('tables, quotes and artifact previews are structured and links cannot injec
 });
 test('shared response guidance requests direct writing without prose dashes while preserving exact technical text',()=>{
   assert.match(RESPONSE_STYLE,/Lead with the answer/);
-  assert.match(RESPONSE_STYLE,/Do not use hyphen bullets/);
+  assert.match(RESPONSE_STYLE,/FORMAT MATRIX/);
   assert.match(RESPONSE_STYLE,/Preserve exact code/);
 });
 

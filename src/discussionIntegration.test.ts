@@ -34,7 +34,7 @@ function message(text: string) {
 const terminalEvents = (sse: string): Array<Record<string, any>> => sse.split("\n")
   .filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6))).filter(event => event.type === "terminal");
 
-test("real server discussion lifecycle terminates repetition, worker failure, and policy rejection", { timeout: 45_000 }, async t => {
+test("real server discussion lifecycle terminates repetition, worker failure, and policy rejection", { timeout: 120_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "bounded-discussion-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const compiled = join(directory, "runtime");
@@ -54,6 +54,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   let cliToolCalls = 0;
   const teamPrompts: Array<{ name: string; text: string; tools: string[] }> = [];
   let teamFinalPrompt = "";
+  let workflowPlanCalls = 0, dependencyPrompt = "";
   let scenario = "repeat", modelCalls = 0, coordinatorCalls = 0, workerCalls = 0, finalCalls = 0;
   const asyncStarted: string[] = [];
   const releaseAsync = new Map<string, () => void>();
@@ -63,6 +64,19 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
     for await (const chunk of req) raw += chunk;
     const body = JSON.parse(raw);
     modelCalls++;
+    if (scenario === "workflow-delivery") {
+      res.setHeader("content-type", "application/json");
+      const instructions = String(body.instructions || "");
+      if (instructions.startsWith("You are Workflow Planner.")) {
+        if (workflowPlanCalls++ === 0) res.end(JSON.stringify(response([{ id: "fc_plan", type: "function_call", call_id: "plan1", name: "plan_workflow", arguments: JSON.stringify({ action: "create", tasks: [
+          { id: "copy", botName: "SEO Specialist", task: "Write three landscaping headlines", executionMode: "text", expectedOutput: "text", acceptanceCriteria: "Three specific headlines" },
+          { id: "review", botName: "Blog Writer", task: "Review the supplied headline options", dependsOn: ["copy"], executionMode: "text", expectedOutput: "text", acceptanceCriteria: "Choose one headline and explain why" }
+        ] }) }], modelCalls)));
+        else res.end(JSON.stringify(response(message("Saved the team delivery draft. Review and start it in Workflows."), modelCalls)));
+      } else if (instructions.startsWith("You are SEO Specialist.")) res.end(JSON.stringify(response(message("DELIVERED_HEADLINES: landscaping websites; quote requests; local proof."), modelCalls)));
+      else { dependencyPrompt = JSON.stringify(body); res.end(JSON.stringify(response(message("Selected the quote-request headline based on the supplied options."), modelCalls))); }
+      return;
+    }
     if (scenario === "unknown-roster") {
       const names = (body.tools || []).map((tool: any) => tool.name || tool.function?.name);
       res.setHeader("content-type", "application/json");
@@ -75,7 +89,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       const name = /^You are ([^.]+)\./.exec(instructions)?.[1] || "unknown";
       const names = (body.tools || []).map((tool: any) => tool.name || tool.function?.name);
       res.setHeader("content-type", "application/json");
-      if (names.every((name: string) => ["finish_task", "fail_task"].includes(name))) {
+      if (names.every((name: string) => ["finish_task", "fail_task", "plan_workflow"].includes(name))) {
         teamFinalPrompt = JSON.stringify(body); finalCalls++;
         res.end(JSON.stringify(response(message("The requested team reports have been collected. Here are the supported next steps; no recurring work was scheduled."), modelCalls)));
       } else {
@@ -118,7 +132,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       res.end(JSON.stringify(response(message(`Completed ${key} independently.`), modelCalls)));
       return;
     }
-    if (names.every((name: string) => ["finish_task", "fail_task"].includes(name))) {
+    if (names.every((name: string) => ["finish_task", "fail_task", "plan_workflow"].includes(name))) {
       finalCalls++;
       res.end(JSON.stringify(response(message(finalAnswer), modelCalls)));
     } else if (names.includes("delegate_to_bot")) {
@@ -158,7 +172,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   child.stderr!.on("data", chunk => { logs += chunk; });
   const base = `http://127.0.0.1:${uiPort}`;
   try {
-    await waitFor(() => fetch(base + "/api/status").then(r => r.json()), value => Boolean(value));
+    await waitFor(() => fetch(base + "/api/status").then(r => r.json()), value => Boolean(value)).catch(error => { throw new Error(error.message + "\nIsolated server log:\n" + logs); });
     await t.test("HTTP boundary blocks cross-origin commands and approvals before any work", async () => {
       const before = modelCalls;
       for (const endpoint of ["/api/terminal", "/api/run", "/api/approval", "/api/schedules", "/api/learn"]) {
@@ -198,6 +212,62 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       assert.deepEqual(await fetch(base + "/api/run/jobs").then(r => r.json()), jobsBefore);
       const state = await fetch(base + "/api/status").then(r => r.json());
       assert.equal(state.isRunning, false);
+    });
+    await t.test("browser profiles switch separate Chrome endpoints and retain Default", async () => {
+      const post = (body: unknown, origin = true) => fetch(base + "/api/browser/profiles", { method: "POST", headers: { "content-type": "application/json", ...(origin ? { Origin: base } : {}) }, body: JSON.stringify(body) });
+      assert.equal((await post({ action: "create", name: "Denied" }, false)).status, 403);
+      const created = await post({ action: "create", name: "Test Work" }).then(r => r.json());
+      const profile = created.profiles.find((item: any) => item.name === "Test Work");
+      assert.ok(profile);
+      const switched = await post({ action: "switch", id: profile.id }).then(r => r.json());
+      assert.equal(switched.activeId, profile.id);
+      assert.equal(switched.sessionMode, "cdp");
+      const chrome = await fetch(base + "/api/chrome/cdp").then(r => r.json());
+      assert.ok(chrome.endpoint.endsWith(":" + profile.port));
+      assert.ok(chrome.profileDir.endsWith(profile.id));
+      assert.equal((await post({ action: "switch", id: "default" }).then(r => r.json())).activeId, "default");
+    });
+    await t.test("profile switcher creates and switches browser sessions without model calls", async () => {
+      const before = modelCalls;
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage();
+        await page.route("https://fonts.**/*", route => route.abort());
+        await page.goto(base, { waitUntil: "domcontentloaded" });
+        await page.locator('#browser-profiles-btn').click();
+        await page.locator('#browser-profile-name').fill('UI Client');
+        await page.getByRole('button', { name: 'Create profile', exact: true }).click();
+        await page.waitForFunction(() => document.getElementById('browser-profiles-btn')!.textContent!.includes('UI Client'));
+        const state = await fetch(base + '/api/browser/profiles').then(r => r.json());
+        assert.equal(state.profiles.find((profile: any) => profile.id === state.activeId).name, 'UI Client');
+        await page.selectOption('#browser-profile-select', 'default');
+        await page.waitForFunction(() => document.getElementById('browser-profiles-btn')!.textContent === 'Profiles: Default');
+        assert.equal((await fetch(base + '/api/browser/profiles').then(r => r.json())).activeId, 'default');
+        assert.equal(modelCalls, before);
+      } finally { await browser.close(); }
+    });
+    await t.test("scheduled permissions stay bound to the creation profile and mismatches wake no model", async () => {
+      const before = modelCalls;
+      const headers = { "content-type": "application/json", Origin: base };
+      const createdResponse = await fetch(base + "/api/schedules", { method: "POST", headers, body: JSON.stringify({
+        task: "Prepare a status note", scheduleType: "once", runAt: new Date(Date.now() + 3000).toISOString(),
+        grant: { browser: true, outward: true, maxOutwardActions: 1 }
+      }) });
+      assert.equal(createdResponse.status, 201);
+      const created = (await createdResponse.json()).schedule;
+      assert.equal(created.browserProfileId, "default");
+      assert.equal(created.grant.maxOutwardActions, 1);
+      const profiles = await fetch(base + "/api/browser/profiles").then(r => r.json());
+      const other = profiles.profiles.find((item: any) => item.id !== "default");
+      try {
+        assert.equal((await fetch(base + "/api/browser/profiles", { method: "POST", headers, body: JSON.stringify({ action: "switch", id: other.id }) })).status, 200);
+        const waiting = await waitFor(() => fetch(base + "/api/schedules").then(r => r.json()), value => value.schedules.some((item: any) => item.id === created.id && item.status === "queued"));
+        assert.match(waiting.schedules.find((item: any) => item.id === created.id).lastResult, /Waiting for the browser profile/);
+        assert.equal(modelCalls, before);
+      } finally {
+        await fetch(base + "/api/schedules/" + created.id, { method: "DELETE", headers });
+        await fetch(base + "/api/browser/profiles", { method: "POST", headers, body: JSON.stringify({ action: "switch", id: "default" }) });
+      }
     });
     await t.test("documentation route works without a model call", async () => {
       const before = modelCalls;
@@ -255,7 +325,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       assert.match(capturedPersonaPrompt, /SOUL/);
       assert.match(capturedPersonaPrompt, /tiny working baseline/);
       assert.match(capturedPersonaPrompt, /OWNER BOT PROFILE/);
-      assert.match(capturedPersonaPrompt, /Do not use hyphen bullets/);
+      assert.match(capturedPersonaPrompt, /FORMAT MATRIX/);
       assert.match(capturedPersonaPrompt, /Inspect our support dataset/);
       assert.doesNotMatch(capturedPersonaPrompt, /customer-obsessed/);
     });
@@ -329,6 +399,43 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       assert.equal(JSON.parse(result.stdout).discussionFinal, true);
       assert.equal(finalCalls, 1);
     });
+    for (const engine of ["cheap", "openai-sdk"] as const) await t.test(engine + " chat plans a dormant workflow and explicit start passes delivered results to the next owner", async () => {
+      scenario = "workflow-delivery"; workflowPlanCalls = 0; dependencyPrompt = "";
+      const client = new TerminalClient(base);
+      await client.run({ task: "Prepare a team delivery draft", botName: "Workflow Planner", interactionMode: "chat", agentEngine: engine,
+        workspaceBots: [{ id: "seo", name: "SEO Specialist", botInstructions: "SAVED_SEO_ROLE: produce headlines" }, { id: "writer", name: "Blog Writer" }] } as any, { signal: AbortSignal.timeout(12_000) });
+      const drafts = await fetch(base + "/api/workflows").then(r => r.json());
+      const draft = drafts.workflows.find((item: any) => item.status === "draft");
+      assert.ok(draft);
+      assert.ok(draft.tasks.every((item: any) => item.status === "blocked"));
+      assert.equal(dependencyPrompt, "", "draft planning did not start workers");
+      const started = await fetch(base + `/api/workflows/${draft.id}/start`, { method: "POST", headers: { Origin: base } });
+      assert.equal(started.status, 202);
+      const completed = await waitFor(() => fetch(base + `/api/workflows/${draft.id}`).then(r => r.json()), value => ["completed", "failed"].includes(value.workflow.status));
+      assert.equal(completed.workflow.status, "completed");
+      assert.match(completed.workflow.tasks[0].result.summary, /DELIVERED_HEADLINES/);
+      assert.match(dependencyPrompt, /DELIVERED_HEADLINES/);
+      assert.match(dependencyPrompt, /DELIVERY CONTRACT/);
+      assert.ok(completed.workflow.tasks.every((item: any) => item.attempts === 1));
+    });
+    await t.test("workflow cancellation stops its active job and prevents dependent dispatch", async () => {
+      scenario = "async";
+      const created = await fetch(base + "/api/workflows", { method: "POST", headers: { "content-type": "application/json", Origin: base }, body: JSON.stringify({ tasks: [
+        { id: "build", botName: "Cancel Workflow Builder", task: "ASYNC_C", model: "integration-model", executionMode: "text" },
+        { id: "review", botName: "Cancel Workflow Reviewer", task: "Review the draft", model: "integration-model", executionMode: "text", dependsOn: ["build"] }
+      ] }) }).then(r => r.json());
+      const id = created.workflow.id;
+      assert.equal((await fetch(base + `/api/workflows/${id}/start`, { method: "POST", headers: { Origin: base } })).status, 202);
+      await waitFor(async () => asyncStarted, value => value.includes("ASYNC_C"));
+      assert.equal((await fetch(base + `/api/workflows/${id}/cancel`, { method: "POST" })).status, 403);
+      const cancelled = await fetch(base + `/api/workflows/${id}/cancel`, { method: "POST", headers: { Origin: base } }).then(r => r.json());
+      releaseAsync.get("ASYNC_C")!();
+      assert.equal(cancelled.workflow.status, "cancelled");
+      assert.ok(cancelled.workflow.tasks.every((task: any) => task.status === "cancelled"));
+      const jobs = await fetch(base + "/api/run/jobs").then(r => r.json());
+      assert.ok(jobs.jobs.filter((job: any) => job.input.workflowId === id).every((job: any) => job.status === "cancelled"));
+      assert.equal(jobs.jobs.some((job: any) => job.input.workflowId === id && job.input.workflowTaskId === "review"), false);
+    });
     for (const engine of ["cheap", "openai-sdk"] as const) for (const fail of [false, true]) await t.test(engine + " four-bot coordination uses saved identities, profiles and work context" + (fail ? " and continues past one failure" : ""), async () => {
       scenario = fail ? "team-failure" : "team"; teamPrompts.length = 0; finalCalls = 0;
       const peers = ["SEO Specialist", "Blog Writer", "Reddit Community Growth", "Instagram Follower Growth"].map((name, index) => ({ id: `team-${index}`, name,
@@ -339,7 +446,10 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         before.set(peer.name, await readFile(join(dataRoot, ".browser-agent-task-memory", botIdFromName(peer.name) + ".json"), "utf8"));
       }
       const client = new TerminalClient(base);
-      const result = await client.run({ task: "Coordinate with all the saved bots on our organic strategy. Collect each role's progress and next action; draft only.", botName: fail ? "Team Coordinator Failure" : "Team Coordinator", interactionMode: "chat", agentEngine: engine,
+      const owner = fail ? "Team Coordinator Failure" : "Team Coordinator";
+      await saveTaskMemory(join(dataRoot, ".browser-agent-task-memory"), botIdFromName(owner),
+        rememberTurn(emptyTaskMemory(), "user", "We are not going to spend a penny. Prepare organic marketing for MagicSite landscapers."));
+      const result = await client.run({ task: "can you work with all the bots and keep things ready?", botName: owner, interactionMode: "chat", agentEngine: engine,
         workspaceBots: peers } as any, { signal: AbortSignal.timeout(12_000) });
       assert.equal(result.discussionFinal, true);
       assert.equal(teamPrompts.length, 4, logs);
@@ -349,6 +459,9 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.ok(prompt, peer.name + " was actually contacted");
         assert.match(prompt.text.split("SOUL")[0], new RegExp(`OWNER_ROLE_${index}`));
         assert.match(prompt.text, new RegExp(`OWN_WORK_${index}`));
+        assert.match(prompt.text, /Latest explicit user spending constraint.*not going to spend a penny/);
+        assert.match(prompt.text, /MagicSite landscapers/);
+        assert.match(prompt.text, /usable role-specific draft or analysis/);
         assert.deepEqual(prompt.tools.slice().sort(), ["fail_task", "finish_task", "knowledge_base"]);
         assert.equal(await readFile(join(dataRoot, ".browser-agent-task-memory", botIdFromName(peer.name) + ".json"), "utf8"), before.get(peer.name), "consultation did not replace the worker's user task");
       }
@@ -432,6 +545,8 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.waitForFunction(() => document.querySelector("#messages")!.textContent!.includes("Actual coordination results"));
         const text = await page.locator("#messages").innerText();
         for (const name of ["SEO Specialist", "Blog Writer", "Reddit Community Growth", "Instagram Follower Growth"]) assert.ok(text.includes(name), name);
+        assert.equal(await page.locator('#messages section').filter({ hasText: '— findings' }).count(), 4, "receipts expose actual specialist replies without asking again");
+        assert.match(text, /concrete role-specific next action/);
         assert.equal(teamPrompts.length, 4); assert.equal(finalCalls, 1);
         const bots = await page.evaluate(() => JSON.parse(localStorage.getItem("agentFireworksAgentsV2")!));
         assert.ok(bots.filter((bot: any) => bot.id.startsWith("ui-specialist-")).every((bot: any) => bot.transcript.length === 1), "consultation replies stayed with their requesting coordinator");
@@ -459,6 +574,8 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       const aState = await fetch(base + "/api/run/jobs/" + a.id).then(r => r.json());
       const bState = await fetch(base + "/api/run/jobs/" + b.id).then(r => r.json());
       assert.notEqual(aState.runId, bState.runId);
+      const switchBusy = await fetch(base + "/api/browser/profiles", { method: "POST", headers: { "content-type": "application/json", Origin: base }, body: JSON.stringify({ action: "switch", id: "default" }) });
+      assert.equal(switchBusy.status, 409);
       const status = await fetch(base + "/api/status").then(r => r.json());
       assert.equal(status.activeRuns.length, 2);
       await fetch(base + "/api/stop?runId=" + aState.runId, { method: "POST", headers: { origin: base } });
@@ -580,6 +697,14 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       const browser = await chromium.launch({ headless: true });
       try {
         const page = await browser.newPage();
+        const submitted: any[] = [];
+        // Exercise the real UI payload, while keeping this concurrency fixture's
+        // workers text-only so it does not need two shared browser owners.
+        await page.route(/\/api\/run(?:\/queue)?$/, async route => {
+          const payload = route.request().postDataJSON();
+          submitted.push(payload);
+          await route.continue({ postData: JSON.stringify({ ...payload, interactionMode: "chat" }) });
+        });
         const errors: string[] = [];
         page.on("pageerror", error => errors.push(error.message));
         await page.route("https://fonts.**/*", route => route.abort());
@@ -589,11 +714,14 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
             { id: "researcher", name: "Async Researcher", description: "Research concise answers", transcript: [] }
           ]));
           localStorage.setItem("openBotsInteractionMode", "chat");
+          localStorage.setItem("agentFireworksAutoApprove", "0");
           localStorage.setItem("openBotsAgentEngine", "cheap");
         });
         await page.goto(base, { waitUntil: "domcontentloaded" });
         await page.waitForSelector('.agent-row[data-agent-id="writer"]');
         assert.deepEqual(errors, [], "UI initialization must not stop before rendering bot icons");
+        assert.equal(await page.locator('[data-interaction-mode]').count(), 0);
+        assert.equal(await page.evaluate(() => localStorage.getItem("openBotsInteractionMode")), "turbo");
         const avatars = page.locator('.template-card[data-name] .template-avatar');
         assert.ok(await avatars.count() > 0);
         assert.equal(await avatars.locator(':scope > *').count(), await avatars.count(), "every catalog bot has a rendered icon");
@@ -603,11 +731,16 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.locator("#prompt").fill("UI_A");
         await page.locator("#send-button").click();
         await waitFor(async () => asyncStarted, value => value.includes("UI_A"));
+        assert.equal(submitted[0].interactionMode, "turbo");
+        assert.equal(submitted[0].autoApprove, false);
         await page.locator('.agent-row[data-agent-id="researcher"]').click();
         await page.waitForTimeout(450);
+        await page.locator('#auto-approve-toggle').click();
         await page.locator("#prompt").fill("UI_B");
         await page.locator("#send-button").click();
         await waitFor(async () => asyncStarted, value => value.includes("UI_B"));
+        assert.equal(submitted[1].interactionMode, "turbo");
+        assert.equal(submitted[1].autoApprove, true);
         releaseAsync.get("UI_B")!();
         await page.waitForFunction(() => document.querySelector("#messages")!.textContent!.includes("Completed UI_B independently."));
         await page.locator('.agent-row[data-agent-id="writer"]').click();

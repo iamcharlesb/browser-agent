@@ -10,6 +10,14 @@ import { BrowserActionError, BrowserController } from "./browserController";
 import { googlePropertyGuide, redditSearch } from "./siteAdapters";
 import { redactSecrets } from "./security";
 import { workspaceCode, guardedCodePatch } from "./workspaceCode";
+import { fetchUrlText, hostedSearchConfig, hostedWebSearch } from "./webResearch";
+import {
+  browserSearchBlockedMessage,
+  isBareSearchQuery,
+  isSearchEngineResultsUrl,
+  isSearchEngineSiteUrl,
+  searchQueryFromNavigateTarget
+} from "./searchRouting";
 
 import { DATA_ROOT } from "./runtimePaths";
 export const ARTIFACTS_DIR = join(DATA_ROOT, "artifacts");
@@ -29,6 +37,13 @@ function safeResolveWorkspacePath(filePath: string): string {
 
 export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 
+  { type: "function", function: { name: "plan_workflow", description: "Save a dependency-aware team workflow draft, or read/list actual workflow progress and outputs. Use for requests to prepare work across saved bots, rather than merely listing proposed owners. Every task needs a concrete deliverable and acceptance criteria. Draft creation starts no models or jobs. The user starts execution in Workflows; this tool cannot grant approvals or launch work.", parameters: {
+    type: "object", properties: { action: { type: "string", enum: ["create", "read", "list"] }, id: { type: "string" }, tasks: { type: "array", items: { type: "object", properties: {
+      id: { type: "string" }, botName: { type: "string" }, task: { type: "string" }, dependsOn: { type: "array", items: { type: "string" } },
+      executionMode: { type: "string", enum: ["text", "browser"], description: "Use text for drafting, local artifact generation and analysis. Use browser only for live account inspection or interactive page work." }, expectedOutput: { type: "string", enum: ["text", "artifact"] }, acceptanceCriteria: { type: "string" }
+    }, required: ["id", "botName", "task", "executionMode", "expectedOutput", "acceptanceCriteria"] } } }, required: ["action"]
+  } } },
+
   { type:"function", function:{name:"list_tabs",description:"List the actual open browser tabs with indices, titles, URLs and the active tab. Use before assuming the current tab is the requested application.",parameters:{type:"object",properties:{}}}},
   { type:"function", function:{name:"switch_tab",description:"Switch to an existing tab by its observed index. Refresh marks after switching; old marks belong to the previous tab.",parameters:{type:"object",properties:{index:{type:"integer"}},required:["index"]}}},
   { type:"function", function:{name:"inspect_view",description:"Read evidence from the current view or a precise CSS scope: selected contexts, open choices, native/ARIA rows and explicit empty/access-denied messages. Required before concluding a resource has no data or access. Missing selectors or missing HTML tables do not prove absence.",parameters:{type:"object",properties:{selector:{type:"string"}}}}},
@@ -36,11 +51,11 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "navigate",
-      description: "Navigate the active tab by default. Use list_tabs and switch_tab to reuse a relevant existing tab. Set newTab=true to preserve the current page or when the user requests a separate tab; do not create duplicates unnecessarily.",
+      description: "Open a specific http(s) page URL in the active tab (or newTab). Do not pass search queries or Google/Bing/DuckDuckGo results URLs — use web_search for public research and fetch_url to read a specific page. Navigate only when the user asked for browser work or the page needs sign-in or interaction.",
       parameters: {
         type: "object",
         properties: {
-          url: { type: "string", description: "URL or search query." },
+          url: { type: "string", description: "Absolute http(s) URL of a specific page (not a search query)." },
           newTab: { type: "boolean", description: "False/default: reuse the active tab. True: open and select a separate new tab." }
         },
         required: ["url"]
@@ -211,13 +226,27 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "web_search",
-      description: "Fast background lookup (Wikipedia + DuckDuckGo Instant Answers) without leaving the current tab.",
+      description: "Default public lookup for facts, news, research, shopping, prices and shipping. Returns cited findings without opening the browser. Run several focused queries in one turn when the question has several parts.",
       parameters: {
         type: "object",
         properties: {
           query: { type: "string" }
         },
         required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "fetch_url",
+      description: "Read a public http(s) page as text without opening the browser. Use it to verify a search result (price, spec, stock, docs). Use the browser only when the user asked for page interaction or the page needs sign-in.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string" }
+        },
+        required: ["url"]
       }
     }
   },
@@ -458,12 +487,24 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "schedule_task",
       description:
-        "Create a one-time or recurring daily task in the app's persistent local scheduler. Use only for safe read-only research, monitoring, or preparation. Scheduled tasks must not post, like, follow, send messages, purchase, or otherwise cause external side effects. For a recurrence, first ask the user to approve possible recurring model-token charges; only then set costApproved=true.",
+        "Create a one-time, daily or interval task in the app's persistent local scheduler. To watch for a change (new feed item, page text, price or JSON value), use scheduleType=interval with a trigger: the app checks it without a model and runs the task only when it changed. Scheduled tasks are read-only unless the user grants permissions for that schedule in the app. For a recurrence, first ask the user to approve possible recurring model-token charges; only then set costApproved=true.",
       parameters: {
         type: "object",
         properties: {
-          task: { type: "string", description: "A concrete read-only task to run unattended." },
-          scheduleType: { type: "string", enum: ["once", "daily"] },
+          task: { type: "string", description: "A concrete task to run unattended, written for when it wakes up." },
+          scheduleType: { type: "string", enum: ["once", "daily", "interval"] },
+          recurrenceMinutes: { type: "number", description: "Interval schedules: minutes between checks, at least 5." },
+          trigger: {
+            type: "object",
+            description: "Optional change trigger checked in code before waking the model.",
+            properties: {
+              kind: { type: "string", enum: ["page", "feed", "json"] },
+              url: { type: "string" },
+              contains: { type: "string", description: "page: wake only when this phrase is present." },
+              path: { type: "string", description: "json: dot path of the watched value." }
+            },
+            required: ["kind", "url"]
+          },
           runAt: { type: "string", description: "ISO timestamp for a one-time run, including timezone offset." },
           localTime: { type: "string", description: "Local 24-hour time HH:mm for a daily schedule." },
           timeZone: { type: "string", description: "IANA timezone, e.g. America/Los_Angeles." },
@@ -519,14 +560,14 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "finish_task",
       description:
-        "Complete the task only after the multi-step work is done or a concrete blocker is verified. Do not finish after a single inspection or raw tool dump. Text the user like a close, sharp friend — casual, warm, direct (1–3 short paragraphs; no robotic preambles or textbook essays).",
+        "Complete the task only after the multi-step work is done or a concrete blocker is verified. Do not finish after a single inspection or raw tool dump. Text the user like a close, sharp friend — casual, warm, direct. Use the ACTIVE FINISH FORMAT from the system prompt (shopping cards, comparison table, numbered steps, roster bullets, metrics table, or direct answer).",
       parameters: {
         type: "object",
         properties: {
           summary: {
             type: "string",
             description:
-              "Your conversational reply to the user, written like a smart friend texting back (short, natural paragraphs; no corporate filler)."
+              "Final reply in the format required for this task (see ACTIVE FINISH FORMAT). Warm, concise; structure matches the job (table, steps, product cards, or short prose)."
           }
         },
         required: ["summary"]
@@ -681,7 +722,20 @@ export async function runTerminalCommand(
   return entry;
 }
 
-async function runWebSearch(query: string): Promise<string> {
+async function runWebSearch(query: string, signal?: AbortSignal): Promise<string> {
+  const hosted = hostedSearchConfig();
+  if (hosted) {
+    try {
+      return await hostedWebSearch(query, hosted, signal);
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      // Hosted search is optional; a provider outage falls back to the keyless scrape below.
+    }
+  }
+  return scrapeWebSearch(query);
+}
+
+async function scrapeWebSearch(query: string): Promise<string> {
   const results: string[] = [];
   const q = query.trim();
 
@@ -1112,6 +1166,9 @@ export async function executeTool(
         if (toolInput.newTab !== undefined && typeof toolInput.newTab !== "boolean") {
           return { ok: false, message: "newTab must be a boolean: false reuses the active tab; true opens a separate tab." };
         }
+        if (isBareSearchQuery(url) || isSearchEngineResultsUrl(url) || isSearchEngineSiteUrl(url)) {
+          return { ok: false, message: browserSearchBlockedMessage(searchQueryFromNavigateTarget(url) || url) };
+        }
         if (toolInput.newTab === true) await controller.newTab(url);
         else await controller.navigate(url);
         return { ok: true, message: `${toolInput.newTab === true ? "Opened a new tab" : "Navigated the current tab"}: ${controller.currentUrl()}.` };
@@ -1151,6 +1208,9 @@ export async function executeTool(
         if (Number.isNaN(markId)) {
           return { ok: false, message: "Invalid markId: must be an integer." };
         }
+        if (isSearchEngineResultsUrl(controller.currentUrl())) {
+          return { ok: false, message: browserSearchBlockedMessage(text) };
+        }
         const el = await controller.typeMark(markId, text, clear, pressEnter);
         return {
           ok: true,
@@ -1181,6 +1241,9 @@ export async function executeTool(
         if (Number.isNaN(x) || Number.isNaN(y)) {
           return { ok: false, message: `Invalid arguments for tool '${name}': x and y must be numbers` };
         }
+        if (isSearchEngineResultsUrl(controller.currentUrl())) {
+          return { ok: false, message: browserSearchBlockedMessage(text) };
+        }
         await controller.typeText(x, y, text, clear, pressEnter);
         return {
           ok: true,
@@ -1206,11 +1269,18 @@ export async function executeTool(
       }
       case "web_search": {
         const query = String(toolInput.query ?? "");
-        const searchOutput = await runWebSearch(query);
+        const searchOutput = await runWebSearch(query, signal);
         return {
           ok: true,
           message: `Web search results for "${query}":\n${searchOutput}`
         };
+      }
+      case "fetch_url": {
+        const url = String(toolInput.url ?? "");
+        if (isSearchEngineResultsUrl(url) || isSearchEngineSiteUrl(url)) {
+          return { ok: false, message: browserSearchBlockedMessage(searchQueryFromNavigateTarget(url)) };
+        }
+        return { ok: true, message: await fetchUrlText(url, signal) };
       }
       case "reddit_search": {
         const query = String(toolInput.query ?? "");

@@ -20,14 +20,13 @@ when the server starts. Local Engine is a deterministic toolbox, not a conversat
 language model. Ollama requires a configured local language model. The server
 does not silently replace a failed API model with web search.
 
-## Understand the execution modes
+## Execution and approvals
 
-| Mode | Behavior |
-| --- | --- |
-| Chat | Text and workspace tools; no browser navigation or clicks |
-| Browse | Read and navigate browser pages; no interactive browser actions |
-| Act | Browser tools with independent effect and approval checks |
-| Turbo | Explicit broader approval mode; payments, destructive actions and human verification still have gates |
+The desktop uses Turbo by default. The shield is the single control for automatic approvals; turning it off restores prompts. Payments, destructive actions and human verification keep their gates. The former Chat/Browse/Act/Turbo selector has been removed.
+
+Internally, API calls and workflow steps retain separate text-only and browser-capable execution for resource scheduling. A text task does not acquire the shared browser. Turbo execution alone never grants approval.
+
+Research uses Pilo’s search API and text tools. Browser tools are withheld unless the user explicitly requests page/browser work or an interactive action, or starts a reviewed browser workflow. Missing API details stay labelled unverified; the agent cannot open a retailer page on its own to fill the gap. Domains, “blog,” “page,” and unrelated open tabs do not grant browser access. A short continuation inherits browser access only from the same bot’s preceding browser-scoped task, and switching profiles clears that scope. Turbo does not override this rule.
 
 Live Google Analytics or Search Console inspection needs an accessible, signed-in
 browser session and a browser-capable mode, or an attached report/export. A public

@@ -11,6 +11,14 @@ Pilo uses application code for routing and task state. Models handle the request
 - **Queue and recovery:** queued jobs are persisted locally. Queued tasks resume after restart. A task interrupted while running is marked failed for review; it is never retried automatically. Retrying a failed workflow step requires an explicit confirmation and fresh policy approvals.
 - **Conversation observer:** completed turns are checked locally for explicit correction or persistent preference language. Matching instructions become pending voice or playbook suggestions. The Observer header panel lets the operator approve or dismiss each suggestion. Voice changes write to `agents/<bot-id>/soul.md` only after approval; playbook changes go through the reviewed revision store. The observer never makes a model call.
 
+## Schedules, watchers and saved permissions
+
+A schedule can carry a `trigger` (`page`, `feed` or `json` with a `url`, plus optional `contains` or `path`). Each time the schedule fires, application code fetches the source and compares it with the stored fingerprint or seen feed items. Nothing changed means no model call; the schedule simply moves to its next occurrence. The first check only records a baseline. When a change is found, the run receives the change and the previous run's result as context, not a replay of earlier runs. Watcher fetches use the same public-address guard as `fetch_url`.
+
+Scheduled runs are read-only by default. The operator can save a grant for one schedule with `PUT /api/schedules/:id/grant` (`{ "browser": true, "outward": true, "maxOutwardActions": 3 }`) or the checkboxes in the schedule list. A grant is never accepted from a model tool call. Outward actions are approved up to the per-run cap; irreversible actions and payments are always declined. A granted schedule interrupted by a restart moves to its next occurrence instead of re-running immediately.
+
+Attended approvals that nobody answers are declined after `BROWSER_AGENT_APPROVAL_TIMEOUT_SECONDS`, so the run finishes the safe part of its work.
+
 ## Enable shared events and workflow state
 
 Set `MONGODB_URI`, `MONGODB_DB`, and the same non-`local` `BROWSER_AGENT_WORKSPACE_ID` on each trusted installation. MongoDB Change Streams require a deployment that supports them (typically a replica set or sharded cluster). Leave the workspace ID unset or `local` for local-only operation.

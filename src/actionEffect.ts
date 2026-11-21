@@ -56,6 +56,7 @@ const READ_ONLY_TOOLS = new Set([
   "wait",
   "go_back",
   "web_search",
+  "fetch_url",
   "calculate",
   "understand_youtube_video",
   "learning_kb"

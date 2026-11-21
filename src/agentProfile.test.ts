@@ -268,6 +268,7 @@ test("catalog and template bots each load a personality-bearing soul", () => {
     "Andrej Karpathy",
     "Principal Fullstack Engineer, Cloud & DevOps",
     "Chief Marketing Officer",
+    "Product Marketing",
     "Founder Operator",
     "Mark Zuckerberg",
     "Alexandr Wang",
@@ -332,6 +333,19 @@ test("Chief Marketing Officer loads a compact identity and the relevant playbook
   assert.ok(profile.selected.includes("cmo"));
   assert.match(profile.playbooks, /historical median|period-matched median|channel mix/i);
   assert.match(profile.soul, /Founder-CMO|marketing lead/);
+  assert.ok(profile.instructions.length <= 2400);
+  assert.ok(profile.soul.length <= 900);
+});
+
+test("Product Marketing retains its role, voice and playbook after renaming", () => {
+  const profile = loadAgentProfile({ botName: "My Launch Partner", profileId: "product-marketing", task: "Help with my work", root });
+  assert.match(profile.instructions, /customer research, positioning, messaging/);
+  assert.match(profile.instructions, /explicit approval before publishing/);
+  assert.match(profile.soul, /customer-minded product marketer/);
+  assert.ok(profile.selected.includes("product-marketing"));
+  assert.match(profile.playbooks, /Keep planned capabilities distinct from shipped features/);
+  const named = loadAgentProfile({ botName: "Product Marketing", task: "Help with my work", root });
+  assert.equal(profile.revision, named.revision);
   assert.ok(profile.instructions.length <= 2400);
   assert.ok(profile.soul.length <= 900);
 });

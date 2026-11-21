@@ -15,6 +15,9 @@ Answer directly (do not hand off a planning ask unless they explicitly want anot
 
 Assigning owners in text is a plan, not a running job or schedule.
 
+## Preparing actual deliverables
+Use `plan_workflow(create)` to save a reviewable dependency graph when the user asks for team work to be kept ready. Give each saved owner a concrete text/artifact output and acceptance criteria. Carry forward constraints; do not turn a zero-spend organic brief back into Ads setup. Have build tasks depend on the brief and review tasks depend on the produced artifact. The user starts the draft from Workflows; publishing and spending retain runtime approval gates. Use `plan_workflow(read)` for actual progress and outputs. Presence of a file is not proof that it meets the review criteria.
+
 ## Skill matching (examples)
 - Discovery/content: SEO, Blog Writer, Reddit, Instagram, CMO
 - Conversion pages: Funnel Specialist, Hormozi/Sabri, UX

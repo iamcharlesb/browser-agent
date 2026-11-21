@@ -2902,42 +2902,6 @@ dialog.modal-dialog::backdrop {
 #browser-panel.embedded-live #browser-placeholder {
   display: none !important;
 }
-.interaction-mode-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  padding: 3px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #f1f5f9;
-  margin: 0;
-  flex: 0 0 auto;
-}
-.interaction-mode-btn {
-  border: 0;
-  background: transparent;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 5px 12px;
-  border-radius: 5px;
-  cursor: pointer;
-  line-height: 1.2;
-  transition: background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
-}
-.interaction-mode-btn:hover {
-  color: var(--text);
-}
-.interaction-mode-btn.active {
-  background: #fff;
-  color: var(--text);
-  box-shadow: none;
-}
-.interaction-mode-btn[data-interaction-mode="turbo"].active {
-  background: #eff6ff;
-  color: #1d4ed8;
-  box-shadow: none;
-}
 .cdp-command-box {
   margin-top: 8px;
   padding: 8px 10px;
@@ -3132,8 +3096,6 @@ dialog.modal-dialog::backdrop {
     flex-wrap: wrap;
     gap: 8px;
   }
-  .interaction-mode-switch { width: 100%; justify-content: stretch; }
-  .interaction-mode-btn { flex: 1 1 0; text-align: center; padding: 6px 8px; }
   #status-bar { width: 100%; justify-content: flex-start; }
   #status-bar #status { text-align: left; }
   #composer { width: 100%; padding: 8px; border-radius: 20px; }
@@ -3547,6 +3509,7 @@ dialog.modal-dialog::backdrop {
         <button id="header-new-btn" class="header-pill-btn" title="Create New Bot (Name, Role & Icon)" aria-label="Create New Bot">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         </button>
+        <button id="browser-profiles-btn" class="header-pill-btn" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Switch separate browser login sessions" aria-label="Browser profiles">Profiles: Default</button>
         <button id="header-connect-btn" class="header-pill-btn header-signin-btn" title="Sign in with Google or manage Account" aria-label="Sign in or Account">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           <span id="header-connect-label" class="btn-label">Sign in</span>
@@ -3783,12 +3746,6 @@ dialog.modal-dialog::backdrop {
             </div>
           </form>
           <div class="composer-meta">
-            <div class="interaction-mode-switch" role="tablist" aria-label="Agent mode">
-              <button type="button" class="interaction-mode-btn" data-interaction-mode="chat" title="Text tools only — cheapest">Chat</button>
-              <button type="button" class="interaction-mode-btn" data-interaction-mode="browse" title="Navigate and read pages; no click/type">Browse</button>
-              <button type="button" class="interaction-mode-btn active" data-interaction-mode="act" title="Full browser actions with approval gates">Act</button>
-              <button type="button" class="interaction-mode-btn turbo-mode-btn" data-interaction-mode="turbo" title="Turbo mode: auto-run routine actions. Payments and irreversible actions always ask.">Turbo</button>
-            </div>
             <div id="status-bar">
               <span id="status"></span>
               <span id="step-counter"></span>
@@ -3937,6 +3894,15 @@ dialog.modal-dialog::backdrop {
   </div>
 </dialog>
 
+<dialog id="browser-profiles-modal" class="modal-dialog" closedby="any" style="width:min(92vw,440px);" aria-labelledby="browser-profiles-title">
+  <div class="modal-inner">
+    <div class="modal-header"><h2 id="browser-profiles-title">Browser profiles</h2><button type="button" class="modal-close" data-close-modal="browser-profiles-modal" aria-label="Close">✕</button></div>
+    <p>Keep separate website logins, cookies and sessions. Your bots and Pilo account stay the same.</p>
+    <label class="form-field">Active profile<select id="browser-profile-select" aria-label="Active browser profile"></select></label>
+    <form id="browser-profile-create"><label class="form-field">New profile name<input id="browser-profile-name" maxlength="60" required placeholder="Work, Personal, Client…" /></label><button type="submit" class="btn-secondary">Create profile</button></form>
+    <p id="browser-profile-status" role="status">New profiles start signed out. Switch only when work is idle.</p>
+  </div>
+</dialog>
 <!-- Sign-In & Connect Apps Modal -->
 <dialog id="connect-modal" class="modal-dialog" closedby="any" aria-labelledby="connect-modal-title" style="width:min(92vw, 420px);">
   <div class="modal-inner">
@@ -4353,11 +4319,8 @@ dialog.modal-dialog::backdrop {
     currentSessionMode = "cdp";
     storedSessionMode = "cdp";
   }
-  var storedInteractionMode = localStorage.getItem("openBotsInteractionMode");
-  var currentInteractionMode =
-    storedInteractionMode === "chat" || storedInteractionMode === "browse" || storedInteractionMode === "turbo"
-      ? storedInteractionMode
-      : "act";
+  var currentInteractionMode = "turbo";
+  localStorage.setItem("openBotsInteractionMode", currentInteractionMode);
   var cdpLaunchInfo = null;
   var gmailAccount = localStorage.getItem("openBotsGmailAccount") || "";
   var googleIdentityLoader = null;
@@ -4563,11 +4526,6 @@ dialog.modal-dialog::backdrop {
       if (mergedJson !== remoteBotsJson) scheduleGooglePersist();
     }
     var settings = persistence.settings || {};
-    if (typeof settings.interactionMode === "string" && (settings.interactionMode === "chat" || settings.interactionMode === "browse" || settings.interactionMode === "act" || settings.interactionMode === "turbo")) {
-      currentInteractionMode = settings.interactionMode;
-      localStorage.setItem("openBotsInteractionMode", currentInteractionMode);
-      if (typeof renderInteractionModeUI === "function") renderInteractionModeUI();
-    }
     if (typeof settings.model === "string" && settings.model) {
       localStorage.setItem("agentFireworksModel", settings.model);
       var modelSelect = document.getElementById("model-select");
@@ -4641,6 +4599,7 @@ dialog.modal-dialog::backdrop {
   var editingBotId = null;
   var selectedBotPreset = null;
   var LATEST_BOT_PRESETS = [
+    { profileId: "product-marketing", name: "Product Marketing", description: "Product marketing specialist for customer research, positioning, messaging, competitive differentiation, launch briefs, and sales enablement. Turns verified capabilities and customer evidence into clear pitches, launch copy, one-pagers, and battlecards. Coordinates channel and page-build handoffs with saved specialists. Never invents proof or metrics; publishing, outreach, pricing changes, and spend require explicit approval.", color: "#db2777", summary: "Customer insight, positioning, messaging, launches, and sales enablement." },
     { profileId: "eb1a-research", name: "EB1A Research Agent", description: "Research public evidence and prepare attorney-review EB1A RFE materials. Prioritize independent adoption with metrics, personal attribution, critical role and comparable remuneration. Cite verified sources, mark gaps honestly, and keep USCIS and counsel checklists separate. No invented claims, approval promises, filings or recurring jobs.", color: "#1d4ed8", summary: "Evidence research, RFE issue matrix, attribution checks and counsel-ready gaps." },
     { profileId: "supervisor", name: "Supervisor Bot", description: "Workspace quality supervisor. Observes conversations for missed asks and role drift. After you approve a night schedule, validates bot behavior against public source materials with read-only research and drafts pending soul/playbook improvements—never auto-applies. Notifications alone never start paid jobs.", color: "#57534e", summary: "Observe conversations, nightly source checks, pending improvement proposals." },
     { profileId: "supercomputer", name: "Supercomputer", description: "Continuous technical builder for an assigned project folder. Channels Mark Zuckerberg's shipping urgency and Alexandr Wang's frontier systems ruthlessness toward Jarvis-grade capability: feature parity, papers, self-healing, architecture. Ranked options for approval; never silently rewrite, deploy, spend, or start paid recurring jobs. Brief Mark Zuckerberg / Alexandr Wang peers when useful. Also accepts Jarvis watch briefs from Bot Creator for new specialist bots.", color: "#0ea5e9", summary: "Jarvis-grade continuous codebase success; watches new bots when briefed." },
@@ -4950,12 +4909,13 @@ dialog.modal-dialog::backdrop {
       var engineering = /Addy Osmani|Andrej Karpathy|Systems Architect|Fullstack Engineer|Cloud & DevOps/.test(specialist.name);
       var operator = specialist.profileId === "founder-operator" || /Founder Operator/.test(specialist.name);
       var cmo = specialist.profileId === "chief-marketing-officer";
+      var productMarketing = specialist.profileId === "product-marketing";
       var supervisor = specialist.profileId === "supervisor" || /Supervisor Bot/.test(specialist.name);
       var supercomputer = specialist.profileId === "supercomputer" || /Supercomputer/.test(specialist.name);
       var botCreator = specialist.profileId === "bot-creator" || /Bot Creator/.test(specialist.name);
       var critica = specialist.profileId === "critica" || /Critica/.test(specialist.name);
       var possession = /Alex Hormozi|Addy Osmani|Andrej Karpathy|Mark Zuckerberg|Alexandr Wang|Alex Wang|Sundar Pichai|Inspired by Sabri Suby/.test(specialist.name);
-      var kind = engineering || supercomputer ? "coding" : botCreator ? "bot-creator" : critica ? "critica" : operator ? "founder-ops" : cmo ? "cmo" : supervisor ? "supervisor" : possession ? "personality" : "sales";
+      var kind = engineering || supercomputer ? "coding" : botCreator ? "bot-creator" : critica ? "critica" : operator ? "founder-ops" : cmo ? "cmo" : productMarketing ? "product-marketing" : supervisor ? "supervisor" : possession ? "personality" : "sales";
       var suggestions = engineering
         ? ["Review my architecture", "Diagnose a performance bottleneck", "Design a measurable experiment"]
         : supercomputer
@@ -4968,6 +4928,8 @@ dialog.modal-dialog::backdrop {
           ? ["Run this week's ops triage", "Draft a decision memo", "Brief the right specialist bots"]
           : cmo
             ? ["Build this week's content calendar", "Tighten brand voice on this draft", "Prepare the marketing weekly review"]
+            : productMarketing
+              ? ["Define positioning and message pillars for my product", "Draft a feature launch brief and announcement", "Create a competitive battlecard and sales one-pager"]
             : supervisor
               ? ["Review tonight's delivery misses", "Propose a nightly validation schedule", "Draft pending bot improvements"]
             : possession
@@ -6900,6 +6862,7 @@ dialog.modal-dialog::backdrop {
       // the continuation takes ownership of them; never run two agents on the page.
       queuedRunsAfterActive = queuedRunsAfterActive.filter(function(entry) { return entry.id !== id; });
       item.task = "Continue the interrupted task from the current state. Follow this updated user instruction, which takes priority over earlier instructions. Do not repeat completed actions. User request: " + item.task.replace(/^Continue the conversation\. User request: /, "");
+      item.displayText = formatQueueDisplay(item.task);
       item.approvedCategories = [];
       item.serverJobId = null;
       queuedRunsAfterActive.unshift(item);
@@ -6954,9 +6917,9 @@ dialog.modal-dialog::backdrop {
       collaborationContext: [buildWorkspaceBotsContext(agent), collaborationContext || ""].filter(Boolean).join("\n\n"),
       conversationTurns: memory.conversationTurns, conversationArtifacts: memory.conversationArtifacts,
       conversationResetAt: Number(agent && agent.conversationResetAt) || 0,
-      approvedCategories: approvedCategories || [], autoApprove: autoApproveEnabled || currentInteractionMode === "turbo",
+      approvedCategories: approvedCategories || [], autoApprove: autoApproveEnabled,
       model: document.getElementById("model-select").value || configuredDefaultModel,
-      interactionMode: currentInteractionMode || "act", agentEngine: currentAgentEngine || "openai-sdk",
+      interactionMode: "turbo", agentEngine: currentAgentEngine || "openai-sdk",
       observeMode: "text", headless: true
     };
   }
@@ -6982,15 +6945,40 @@ dialog.modal-dialog::backdrop {
     }).finally(function() { item.submitting = false; renderCommandQueue(); scheduleQueuedRun(); focusComposer(); });
   }
 
+  function formatQueueDisplay(task) {
+    return task.replace(/^Continue the interrupted task[\s\S]*?User request: /, "").replace(/^Continue the conversation\. User request: /, "").replace(/^Continue acting as [^(]+\(Role & Purpose:[^)]+\)\.\s*User request: /, "");
+  }
+  function attachQueueItemToRun(item, job) {
+    if (!job || !job.runId) return;
+    var owner = item.runAgentOverride || agents.find(function(agent) { return agent.id === item.conversationAgentId; });
+    runTracker.subscribe({ runId: job.runId, ownerId: item.conversationAgentId, botName: owner && owner.name || "Bot", jobId: item.serverJobId || job.id });
+    restoreSelectedRun(false);
+  }
+  function reconcileOwnerRunFromStatus(ownerId) {
+    var agent = agents.find(function(a) { return a.id === ownerId; });
+    if (!agent || runTracker.activeFor(ownerId)) return Promise.resolve();
+    return fetch("/api/status").then(readResponse).then(function(st) {
+      var match = (st.activeRuns || []).find(function(run) { return (run.conversationBotName || run.botName || "") === agent.name; });
+      if (!match || !match.runId) return;
+      runTracker.subscribe({ runId: match.runId, ownerId: ownerId, botName: match.botName || agent.name });
+      restoreSelectedRun(false);
+    }).catch(function() {});
+  }
   fetch("/api/run/jobs").then(readResponse).then(function(data) {
     (data.jobs || []).filter(function(job) { return job.status === "queued" || job.status === "running"; }).forEach(function(job) {
       if (queuedRunsAfterActive.some(function(item) { return item.serverJobId === job.id; })) return;
       var input = job.input || {};
       var agent = agents.find(function(item) { return item.name === input.botName; }) || activeAgent();
-      queuedRunsAfterActive.push({ id: "restored-" + job.id, serverJobId: job.id, task: input.task || "", displayText: input.task || "Restored queued task", approvedCategories: input.approvedCategories || [], collaborationContext: input.collaborationContext || "", runAgentOverride: agent, conversationAgentId: agent && agent.id, recovered: true });
+      var item = { id: "restored-" + job.id, serverJobId: job.id, task: input.task || "", displayText: formatQueueDisplay(input.task || "Restored queued task"), approvedCategories: input.approvedCategories || [], collaborationContext: input.collaborationContext || "", runAgentOverride: agent, conversationAgentId: agent && agent.id, recovered: true };
+      if (job.status === "running" && job.runId) {
+        attachQueueItemToRun(item, job);
+        return;
+      }
+      queuedRunsAfterActive.push(item);
     });
     renderCommandQueue();
     scheduleQueuedRun();
+    reconcileOwnerRunFromStatus(activeAgentId);
   }).catch(function() {});
 
   function clearRunClientState() {
@@ -7009,7 +6997,7 @@ dialog.modal-dialog::backdrop {
 
   function focusComposer() {
     var active = document.activeElement;
-    var composerControl = active && active.closest("#send-button, #composer-stop-button, [data-interaction-mode], [data-agent-engine], #auto-approve-toggle, #voice-button");
+    var composerControl = active && active.closest("#send-button, #composer-stop-button, [data-agent-engine], #auto-approve-toggle, #voice-button");
     if (!OpenBotsBrowserRuntime.shouldFocusComposer({
       hidden: document.hidden, dialogOpen: Boolean(document.querySelector("dialog[open]")),
       otherInput: !composerControl && active && active !== prompt && Boolean(active.matches("input,textarea,select,button,a[href],[tabindex],[contenteditable='true']")),
@@ -7020,7 +7008,7 @@ dialog.modal-dialog::backdrop {
   }
   prompt.addEventListener("blur", function() { setTimeout(focusComposer, 0); });
   document.addEventListener("pointerdown", function(event) {
-    var control = event.target.closest && event.target.closest("#send-button, #composer-stop-button, .composer-action, [data-interaction-mode], [data-agent-engine], #voice-button, .message-feedback-btn");
+    var control = event.target.closest && event.target.closest("#send-button, #composer-stop-button, .composer-action, [data-agent-engine], #voice-button, .message-feedback-btn");
     if (control && document.activeElement === prompt) event.preventDefault();
   });
 
@@ -7544,19 +7532,20 @@ dialog.modal-dialog::backdrop {
           item.waitingFor = job.waitingFor;
           if (job.status === "queued" || (job.status === "running" && !job.runId)) return;
           queuedRunsAfterActive = queuedRunsAfterActive.filter(function(entry) { return entry !== item; });
+          if (job.status === "cancelled") return reconcileOwnerRunFromStatus(item.conversationAgentId);
           var previousOwner = eventMessageAgent;
           eventMessageAgent = agents.find(function(agent) { return agent.id === item.conversationAgentId; }) || null;
           try {
             if (item.userMarkup) appendMessage("user", item.userMarkup);
-            if (job.runId) {
-              var owner = item.runAgentOverride || eventMessageAgent;
-              runTracker.subscribe({ runId: job.runId, ownerId: item.conversationAgentId, botName: owner && owner.name || "Bot", jobId: item.serverJobId });
-            } else if (job.status !== "cancelled") appendMessage("agent", esc(job.detail || "This queued request could not start."), "error");
+            if (job.runId) attachQueueItemToRun(item, job);
+            else if (job.status !== "cancelled") appendMessage("agent", esc(job.detail || "This queued request could not start."), "error");
           } finally { eventMessageAgent = previousOwner; }
         }).catch(function(error) {
           if (error.status === 404) {
             queuedRunsAfterActive = queuedRunsAfterActive.filter(function(entry) { return entry !== item; });
-            if (item.conversationAgentId === activeAgentId) status.textContent = "This queued request was interrupted by a restart. Review its work before retrying.";
+            reconcileOwnerRunFromStatus(item.conversationAgentId).then(function() {
+              if (item.conversationAgentId === activeAgentId && !runTracker.activeFor(item.conversationAgentId)) status.textContent = "This queued request was interrupted by a restart. Review its work before retrying.";
+            });
           }
         });
       })).finally(function() { renderCommandQueue(); restoreSelectedRun(false); scheduleQueuedRun(); });
@@ -7808,7 +7797,10 @@ dialog.modal-dialog::backdrop {
         appendMessage("agent", "<strong>Actual coordination results</strong><br>Replies received: " + esc((coverage.completed || []).join(", ") || "none") +
           ((coverage.failed || []).length ? "<br>Failed: " + esc(coverage.failed.map(function(item) { return item.bot + ": " + (item.reason || "no usable reply"); }).join("; ")) : "") +
           ((coverage.notContacted || []).length ? "<br>Not contacted within this discussion's limit: " + esc(coverage.notContacted.join(", ")) : "") +
-          "<br>These were read-only consultations. No ongoing work or recurring schedule was started.");
+          "<br>These were read-only consultations. No ongoing work or recurring schedule was started." +
+          (coverage.consultations || []).filter(function(item) { return item.status === "completed" && item.summary; }).map(function(item) {
+            return '<section style="margin-top:12px;"><strong>' + esc(item.bot) + ' — findings</strong><div>' + formatMarkdown(item.summary) + '</div></section>';
+          }).join(""));
       }
       setAgentMotion("done");
       clearRunClientState();
@@ -8488,18 +8480,40 @@ dialog.modal-dialog::backdrop {
           group.schedules.forEach(function(item) {
           var row = document.createElement("div");
           row.className = "schedule-item";
-          var summaryHtml = item.lastResultSummary
-            ? '<br><span style="color:var(--text-secondary);font-size:11px;">Last result: ' + esc(item.lastResultSummary.slice(0, 80)) + "</span>"
+          var lastResult = item.lastResult || item.lastResultSummary;
+          var summaryHtml = lastResult
+            ? '<br><span style="color:var(--text-secondary);font-size:11px;">Last result: ' + esc(lastResult.slice(0, 80)) + "</span>"
             : "";
+          var watchHtml = item.trigger
+            ? '<br><span style="color:var(--muted);font-size:11px;">Wakes only on change: ' + esc(item.trigger.kind) + ' ' + esc(item.trigger.url.slice(0, 60)) +
+              (item.triggerState && item.triggerState.checkedAt ? ' · checked ' + esc(new Date(item.triggerState.checkedAt).toLocaleString()) : '') + '</span>'
+            : "";
+          var grant = item.grant || { browser: false, outward: false, maxOutwardActions: 3 };
           row.innerHTML =
             '<div><strong>' + esc(item.task.slice(0, 90)) + '</strong>' +
             '<br><span style="color:var(--muted);font-size:11px;">Next: ' + esc(new Date(item.nextRunAt).toLocaleString()) + (item.recurrenceType === "daily" ? ' · daily at ' + esc(item.localTime) + ' ' + esc(item.timeZone) : '') + ' (' + esc(item.status) + ')</span>' +
-            summaryHtml + '</div>' +
-            '<button type="button" class="btn-secondary" style="padding:4px 8px;font-size:11px;">Delete</button>';
-          row.querySelector("button").onclick = function() {
+            watchHtml + summaryHtml +
+            '<br><label style="font-size:11px;"><input type="checkbox" data-grant="browser"' + (grant.browser ? ' checked' : '') + '> Can use the browser</label> ' +
+            '<label style="font-size:11px;"><input type="checkbox" data-grant="outward"' + (grant.outward ? ' checked' : '') + '> Can post/send without asking (up to ' + esc(String(grant.maxOutwardActions)) + ' per run)</label>' +
+            '</div>' +
+            '<button type="button" class="btn-secondary" data-action="delete" style="padding:4px 8px;font-size:11px;">Delete</button>';
+          row.querySelector('[data-action="delete"]').onclick = function() {
             fetch("/api/schedules/" + encodeURIComponent(item.id), { method: "DELETE" })
               .then(function() { loadSchedulesList(); });
           };
+          row.querySelectorAll("[data-grant]").forEach(function(box) {
+            box.onchange = function() {
+              var next = { browser: row.querySelector('[data-grant="browser"]').checked, outward: row.querySelector('[data-grant="outward"]').checked, maxOutwardActions: grant.maxOutwardActions };
+              fetch("/api/schedules/" + encodeURIComponent(item.id) + "/grant", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) })
+                .then(readResponse)
+                .then(function() { loadSchedulesList(); })
+                .catch(function(error) {
+                  box.checked = !box.checked;
+                  box.parentNode.title = error.message || "Could not save the schedule permission.";
+                  box.parentNode.style.color = "var(--danger, #c0392b)";
+                });
+            };
+          });
           taskList.appendChild(row);
           });
           section.appendChild(taskList);
@@ -8667,6 +8681,41 @@ dialog.modal-dialog::backdrop {
     localStorage.setItem("agentFireworksModel", composerModelSelect.value);
     scheduleGooglePersist();
   });
+
+  var browserProfileSelect = document.getElementById("browser-profile-select");
+  var browserProfileStatus = document.getElementById("browser-profile-status");
+  function renderBrowserProfiles(data) {
+    browserProfileSelect.innerHTML = data.profiles.map(function(profile) { return '<option value="' + esc(profile.id) + '">' + esc(profile.name) + '</option>'; }).join('');
+    browserProfileSelect.value = data.activeId;
+    var active = data.profiles.find(function(profile) { return profile.id === data.activeId; });
+    document.getElementById("browser-profiles-btn").textContent = "Profiles: " + (active ? active.name : "Default");
+  }
+  function loadBrowserProfiles() { return fetch("/api/browser/profiles").then(readResponse).then(renderBrowserProfiles); }
+  function switchBrowserProfile(id) {
+    browserProfileSelect.disabled = true;
+    browserProfileStatus.textContent = "Switching browser profile…";
+    return fetch("/api/browser/profiles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "switch", id: id }) }).then(readResponse).then(function(data) {
+      renderBrowserProfiles(data);
+      currentSessionMode = data.sessionMode;
+      localStorage.setItem("openBotsSessionMode", currentSessionMode);
+      closeBrowserFrames();
+      document.getElementById("browser-screen").removeAttribute("src");
+      browserPlaceholder.style.display = "";
+      browserAddress.value = "";
+      renderBrowserTabs([]);
+      renderSessionModeUI();
+      browserProfileStatus.textContent = "Profile selected. Open a website to use its saved logins, or sign in once for a new profile.";
+    }).catch(function(error) { browserProfileStatus.textContent = error.message; return loadBrowserProfiles(); }).finally(function() { browserProfileSelect.disabled = false; });
+  }
+  document.getElementById("browser-profiles-btn").onclick = function() { document.getElementById("browser-profiles-modal").showModal(); loadBrowserProfiles().catch(function(error) { browserProfileStatus.textContent = error.message; }); };
+  browserProfileSelect.onchange = function() { switchBrowserProfile(browserProfileSelect.value); };
+  document.getElementById("browser-profile-create").onsubmit = function(event) {
+    event.preventDefault(); var button = event.target.querySelector("button"); button.disabled = true;
+    fetch("/api/browser/profiles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create", name: document.getElementById("browser-profile-name").value }) }).then(readResponse).then(function(data) {
+      renderBrowserProfiles(data); document.getElementById("browser-profile-name").value = ""; return switchBrowserProfile(data.profiles[data.profiles.length - 1].id);
+    }).catch(function(error) { browserProfileStatus.textContent = error.message; }).finally(function() { button.disabled = false; });
+  };
+  loadBrowserProfiles().catch(function() {});
 
   // Read-only checks run freely. Shell/file access can also be granted for one task inline.
   // This toggle is the broader persistent setting; financial task gates still apply.
@@ -8942,12 +8991,14 @@ dialog.modal-dialog::backdrop {
       if (!(data.workflows || []).length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);">No workflows yet. Save a task graph draft above.</div>'; return; }
       list.innerHTML = data.workflows.map(function(workflow) {
         var tasks = (workflow.tasks || []).map(function(task) {
-          var retry = task.status === "failed" ? '<button type="button" class="btn-secondary workflow-retry" data-workflow-id="' + esc(workflow.id) + '" data-task-id="' + esc(task.id) + '">Retry failed step</button>' : '';
-          return '<li style="margin:5px 0;"><strong>' + esc(task.id) + '</strong> · ' + esc(task.botName) + ' · ' + esc(task.status) + (task.error ? ' <span style="color:var(--red);">' + esc(task.error) + '</span>' : '') + ' ' + retry + '</li>';
+          var retry = task.status === "failed" && workflow.status !== "cancelled" ? '<button type="button" class="btn-secondary workflow-retry" data-workflow-id="' + esc(workflow.id) + '" data-task-id="' + esc(task.id) + '">Retry failed step</button>' : '';
+          var output = task.result ? '<details><summary>Recorded output — review before use</summary><p style="white-space:pre-wrap;">' + esc(task.result.summary || '') + '</p>' + (task.result.artifactUrls || []).map(function(url) { return '<p><a target="_blank" rel="noopener" href="' + esc(url) + '">' + esc(url) + '</a></p>'; }).join('') + '</details>' : '';
+          return '<li style="margin:8px 0;"><strong>' + esc(task.id) + '</strong> · ' + esc(task.botName) + ' · ' + esc(task.status) + '<p>' + esc(task.task) + '</p>' + (task.acceptanceCriteria ? '<p>Review criteria: ' + esc(task.acceptanceCriteria) + '</p>' : '') + (task.dependsOn.length ? '<small>After: ' + esc(task.dependsOn.join(', ')) + '</small>' : '') + (task.error ? ' <span style="color:var(--red);">' + esc(task.error) + '</span>' : '') + output + ' ' + retry + '</li>';
         }).join("");
+        var cancel = ['draft', 'running', 'failed'].includes(workflow.status) ? '<button type="button" class="btn-secondary workflow-cancel" data-workflow-id="' + esc(workflow.id) + '">Cancel workflow</button>' : '';
         var start = workflow.status === "draft" ? '<button type="button" class="btn-primary workflow-start" data-workflow-id="' + esc(workflow.id) + '">Start workflow</button>' : '';
         var dispatch = workflow.status === "running" ? '<button type="button" class="btn-secondary workflow-dispatch" data-workflow-id="' + esc(workflow.id) + '">Dispatch ready steps</button>' : '';
-        return '<article class="observer-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;"><strong>' + esc(workflow.status.toUpperCase()) + ' · ' + esc(workflow.id.slice(0, 8)) + '</strong><span>' + start + dispatch + '</span></div><ol style="padding-left:20px;margin:10px 0 0;">' + tasks + '</ol></article>';
+        return '<article class="observer-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;"><strong>' + esc(workflow.status.toUpperCase()) + ' · ' + esc(workflow.id.slice(0, 8)) + '</strong><span>' + start + dispatch + cancel + '</span></div><ol style="padding-left:20px;margin:10px 0 0;">' + tasks + '</ol></article>';
       }).join("");
     }).catch(function(error) { document.getElementById("workflow-list").textContent = error.message || "Could not load workflows."; });
   }
@@ -8964,6 +9015,14 @@ dialog.modal-dialog::backdrop {
       .catch(function(error) { statusEl.textContent = error.message || "Could not save workflow draft."; });
   };
   document.getElementById("workflow-list").addEventListener("click", function(event) {
+    var cancel = event.target.closest(".workflow-cancel");
+    if (cancel) {
+      cancel.disabled = true;
+      fetch("/api/workflows/" + encodeURIComponent(cancel.getAttribute("data-workflow-id")) + "/cancel", { method: "POST" }).then(readResponse)
+        .then(function() { document.getElementById("workflow-status").textContent = "Workflow cancelled. Active steps are stopping; no dependent steps will start."; loadWorkflows(); })
+        .catch(function(error) { cancel.disabled = false; document.getElementById("workflow-status").textContent = error.message || "Could not cancel workflow."; });
+      return;
+    }
     var start = event.target.closest(".workflow-start");
     if (start) {
       start.disabled = true;
@@ -9507,8 +9566,8 @@ dialog.modal-dialog::backdrop {
     }
     if (cardCdp) cardCdp.classList.toggle("active", isCdp);
 
-    if (isCdp) setAccountDisclosure("cdp-help-panel", "cdp-help-toggle", true);
-    if (isPersistent) setAccountDisclosure("browser-advanced-panel", "browser-advanced-toggle", true);
+    // Keep Chrome connect / Advanced collapsed unless the user opens them.
+    // Status badges already show the active mode.
 
     if (embeddedBtn) {
       embeddedBtn.classList.toggle("primary", isEmbedded);
@@ -9551,9 +9610,6 @@ dialog.modal-dialog::backdrop {
             : "External Chrome: sign in in the Chrome window, then continue here.";
     }
 
-    document.querySelectorAll("[data-interaction-mode]").forEach(function(btn) {
-      btn.classList.toggle("active", btn.getAttribute("data-interaction-mode") === currentInteractionMode);
-    });
     syncLiveBrowserChrome();
   }
 
@@ -9571,9 +9627,6 @@ dialog.modal-dialog::backdrop {
   }
 
   function renderInteractionModeUI() {
-    document.querySelectorAll("[data-interaction-mode]").forEach(function(btn) {
-      btn.classList.toggle("active", btn.getAttribute("data-interaction-mode") === currentInteractionMode);
-    });
     document.querySelectorAll("[data-agent-engine]").forEach(function(btn) {
       btn.classList.toggle("active", btn.getAttribute("data-agent-engine") === currentAgentEngine);
     });
@@ -9994,28 +10047,6 @@ dialog.modal-dialog::backdrop {
     });
   });
 
-  document.querySelectorAll("[data-interaction-mode]").forEach(function(btn) {
-    btn.addEventListener("click", function() {
-      currentInteractionMode = btn.getAttribute("data-interaction-mode") || "act";
-      localStorage.setItem("openBotsInteractionMode", currentInteractionMode);
-      if (currentInteractionMode === "turbo" && !autoApproveEnabled) {
-        autoApproveEnabled = true;
-        localStorage.setItem("agentFireworksAutoApprove", "1");
-        if (typeof renderAutoApproveToggle === "function") renderAutoApproveToggle();
-      }
-      renderInteractionModeUI();
-      scheduleGooglePersist();
-      status.textContent =
-        currentInteractionMode === "chat"
-          ? "Chat mode: text tools only (lowest tokens)."
-          : currentInteractionMode === "browse"
-            ? "Browse mode: navigate and read; no click/type."
-            : currentInteractionMode === "turbo"
-              ? "⚡ Turbo mode: routine actions auto-run. Payments and irreversible actions always ask."
-              : "Act mode: full browser with approval gates.";
-      focusComposer();
-    });
-  });
   renderInteractionModeUI();
 
   document.getElementById("copy-cdp-cmd-btn").onclick = function() {
@@ -10545,7 +10576,10 @@ dialog.modal-dialog::backdrop {
       }
       (st.activeRuns || (st.isRunning && st.runId ? [{ runId: st.runId, botName: st.runBotName }] : [])).forEach(function(run) {
         var owner = agents.find(function(agent) { return agent.name === (run.conversationBotName || run.botName); });
-        if (owner) runTracker.subscribe({ runId: run.runId, ownerId: owner.id, botName: run.botName });
+        if (owner) {
+          queuedRunsAfterActive = queuedRunsAfterActive.filter(function(item) { return item.conversationAgentId !== owner.id; });
+          runTracker.subscribe({ runId: run.runId, ownerId: owner.id, botName: run.botName });
+        }
       });
       restoreSelectedRun(true);
       if (st.hasBrowserSession) {
@@ -10573,6 +10607,11 @@ dialog.modal-dialog::backdrop {
     sessionStorage.removeItem("openBotsSelectedBot");
   }
   focusComposer();
+  document.addEventListener("visibilitychange", function() {
+    if (document.hidden) return;
+    reconcileOwnerRunFromStatus(activeAgentId);
+    scheduleQueuedRun();
+  });
 })();
 </script>
 <script>

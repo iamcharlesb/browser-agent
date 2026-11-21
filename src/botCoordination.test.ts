@@ -30,6 +30,21 @@ test("read-only consultation can discuss a no-publishing plan but cannot run a f
   assert.equal(decideHandoff({ ...request, discussionId: undefined, task: "Publish my article" }).allowed, false);
 });
 
+test("Mark's natural-language team requests contact the requested saved roster", () => {
+  for (const task of ["can you work with all the bots and keep things ready?",
+    "hey mark work with all the bots to see what can be done next where are and whats your target",
+    "Please collaborate with every bot on a draft"]) {
+    assert.deepEqual(requestedCoordination(task, roster, "Coordinator").map(bot => bot.id), ["seo", "blog", "reddit", "instagram"], task);
+  }
+  for (const task of ["Did you work with all the bots?", "we should not work with all the bots", "User request: is everything ready?"]) {
+    assert.deepEqual(requestedCoordination(task, roster, "Coordinator"), [], task);
+  }
+  const ux = { id: "ux", name: "UX Psychology & Conversion Expert" };
+  assert.deepEqual(requestedCoordination("nowcan you work with UX bot and createone", [...roster, ux], "Coordinator"), [ux]);
+  assert.equal(resolveWorkspaceBot([ux], "UX bot").id, "ux");
+  assert.throws(() => resolveWorkspaceBot([ux, { id: "ux2", name: "UX Researcher" }], "UX"), /ambiguous/);
+});
+
 test("coordination receipts survive restart without restarting models or claiming interrupted work completed", async () => {
   const directory = await mkdtemp(join(tmpdir(), "coordination-journal-"));
   try {

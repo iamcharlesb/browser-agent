@@ -5,11 +5,119 @@ import {
   AgentOrchestratorOptions,
   detectPrematureFail,
   extractArithmeticExpression,
-  requiresInitialBrowserState
+  requiresInitialBrowserState, browserWorkRequested, toolNeededForRequest
 } from "./promptLoop";
 import { classifyBrowserAction } from "./actionEffect";
 import { BrowserController, PageState } from "./browserController";
 import { WORKSPACE_ROOT } from "./agentTools";
+
+test("a product domain in the pasted marketing request does not eagerly require Chrome", () => {
+  assert.equal(requiresInitialBrowserState("Iam good. iam hiring you to market magicsite.ai, can you fix this", "about:blank", "turbo"), false);
+  assert.equal(requiresInitialBrowserState("Inspect the live account on this page", "https://example.test", "turbo"), true);
+});
+
+test("browser startup is demand-driven even when a previous task left a page open", () => {
+  for (const url of ["about:blank", "https://example.test/unrelated-account"]) for (const request of [
+    "Hi, how are you?", "Write a blog post about small business websites", "Summarize this text: plants need sunlight.",
+    "Can you find some hibiscus plants online that can be shipped to 95119? It should be above 4ft",
+    "Research https://example.test products", "Explain the difference between Qwen and Ollama", "Create a landing page draft", "Plan marketing for magicsite.ai"
+  ]) assert.equal(requiresInitialBrowserState(request, url, "turbo"), false, request);
+  assert.equal(requiresInitialBrowserState("Open https://example.test", "about:blank", "turbo"), true);
+  assert.equal(requiresInitialBrowserState("Read the current page", "https://example.test", "turbo"), true);
+  assert.equal(requiresInitialBrowserState("Continue acting as Browser Agent for website navigation. User request: Hi", "about:blank", "turbo"), false);
+});
+
+test("research never grants browser access; explicit user actions do", () => {
+  assert.equal(browserWorkRequested("continue", "https://example.test/old-tab"), false);
+  assert.equal(browserWorkRequested("continue", "https://example.test/task", "turbo", true), true);
+  for (const task of ["Find hibiscus over 4ft that ships to 95119", "Research prices on example.com", "Search online for reviews", "Write a blog post", "Don't use Chrome; research plant availability"]) {
+    assert.equal(browserWorkRequested(task, "https://example.test/old-tab"), false, task);
+  }
+  for (const task of ["Use your browser to check the shipping page", "Open https://example.test", "Click this button", "Read the current page", "Publish the approved article"]) assert.equal(browserWorkRequested(task), true, task);
+});
+
+test("knowledge questions about logging in or clicking never start Chrome", () => {
+  for (const task of ["How do I log in to the AWS console?", "What should I click to export GA4 data?", "Explain how to sign in with SSO"]) {
+    assert.equal(browserWorkRequested(task), false, task);
+  }
+  assert.equal(browserWorkRequested("How do I log in? Use the browser and show me"), true);
+  assert.equal(browserWorkRequested("Log in to my dashboard for me"), true);
+});
+
+test("a short yes grants Chrome only after Pilo offered it", () => {
+  assert.equal(browserWorkRequested("yes"), false);
+  assert.equal(browserWorkRequested("yes", "about:blank", "turbo", false, true), true);
+});
+
+test("topic tools are sent only when the request mentions their topic", () => {
+  assert.equal(toolNeededForRequest("understand_youtube_video", "Summarize https://youtu.be/abc"), true);
+  assert.equal(toolNeededForRequest("understand_youtube_video", "Find hibiscus that ships to 95119"), false);
+  assert.equal(toolNeededForRequest("run_terminal_command", "Fix the failing test in my repo"), true);
+  assert.equal(toolNeededForRequest("run_terminal_command", "Write a LinkedIn post"), false);
+  assert.equal(toolNeededForRequest("web_search", "anything"), true);
+  process.env.BROWSER_AGENT_TOOL_PRUNING = "off";
+  try { assert.equal(toolNeededForRequest("google_property", "Write a LinkedIn post"), true); }
+  finally { delete process.env.BROWSER_AGENT_TOOL_PRUNING; }
+});
+
+for (const engine of ["cheap", "openai-sdk"] as const) test(`${engine} API-only scope excludes every browser tool while retaining search`, async () => {
+  const browser = { isStarted: true, currentUrl: () => "https://example.test", captureState: async () => { throw new Error("Browser scope was not granted"); } } as unknown as BrowserController;
+  const fetch: typeof globalThis.fetch = async (_input, init) => {
+    const names = JSON.parse(String(init?.body)).tools.map((tool: any) => tool.name || tool.function?.name);
+    assert.ok(names.includes("web_search"));
+    for (const name of ["navigate", "list_tabs", "click_mark", "inspect_view", "upload_file", "extract_page_data"]) assert.equal(names.includes(name), false, name);
+    return new Response(JSON.stringify(makeResponsesPayload([{ type: "message", role: "assistant", content: [{ type: "output_text", text: "I can use search results and label unverified availability." }] }])), { headers: { "content-type": "application/json" } });
+  };
+  assert.equal((await new AgentOrchestrator({ task: "Research plant availability", model: "gpt-6-luna", apiKey: "test-key", agentEngine: engine, interactionMode: "turbo", allowBrowserTools: false, browser, fetch }).run()).success, true);
+});
+
+for (const engine of ["cheap", "openai-sdk"] as const) test(`${engine} listing tabs alone does not launch Chrome`, async () => {
+  let starts = 0, calls = 0;
+  const browser = { isStarted: false, start: async () => { starts++; throw new Error("Do not launch just to list tabs"); } } as unknown as BrowserController;
+  const fetch: typeof globalThis.fetch = async () => new Response(JSON.stringify(makeResponsesPayload(++calls === 1
+    ? [{ type: "function_call", call_id: "tabs_only", name: "list_tabs", arguments: "{}" }]
+    : [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "No browser is attached. I can prepare the outline without one." }] }])), { headers: { "content-type": "application/json" } });
+  const result = await new AgentOrchestrator({ task: "Prepare an outline", model: "gpt-6-luna", apiKey: "test-key", agentEngine: engine, interactionMode: "turbo", browser, fetch }).run();
+  assert.equal(result.success, true); assert.equal(starts, 0);
+});
+
+for (const engine of ["cheap", "openai-sdk"] as const) test(`${engine} writes without observing an unrelated open browser`, async () => {
+  let observations = 0;
+  const browser = { isStarted: true, currentUrl: () => "https://example.test/old-account",
+    captureState: async () => { observations++; throw new Error("An unrelated page must not be inspected"); } } as unknown as BrowserController;
+  const fetch: typeof globalThis.fetch = async (_input, init) => {
+    const request = JSON.parse(String(init?.body));
+    assert.match(request.instructions, /BROWSER ACCESS/);
+    assert.match(request.instructions, /web_search/);
+    assert.match(request.instructions, /Never open Google\/Bing\/DuckDuckGo/);
+    return new Response(JSON.stringify(makeResponsesPayload([{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Bring your garden to life with vibrant hibiscus. Explore our nursery collection and find your next favorite bloom." }] }])), { headers: { "content-type": "application/json" } });
+  };
+  const result = await new AgentOrchestrator({ task: "Write a short landing page paragraph for a hibiscus nursery", model: "gpt-6-luna", apiKey: "test-key", agentEngine: engine, interactionMode: "turbo", browser, fetch }).run();
+  assert.equal(result.success, true);
+  assert.equal(observations, 0);
+});
+
+for (const engine of ["cheap", "openai-sdk"] as const) for (const startupFailed of [false, true]) test(`${engine} continues useful text tools after Chrome attachment failure (${startupFailed ? "startup" : "on demand"})`, async () => {
+  let starts = 0, calls = 0;
+  const events: Record<string, any>[] = [];
+  const browser = { isStarted: false, start: async () => { starts++; throw new Error("connectOverCDP: Timeout exceeded"); } } as unknown as BrowserController;
+  const fetch: typeof globalThis.fetch = async () => {
+    const names = ["navigate", "list_tabs", "calculate"];
+    const args = [{ url: "https://example.test" }, {}, { expression: "2 + 2" }];
+    const index = calls++;
+    const output = index < 3 ? [{ type: "function_call", call_id: `browser_fail_${index}`, name: names[index], arguments: JSON.stringify(args[index]) }]
+      : [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Organic marketing draft: target landscaping owners, prepare a relevant demo and measure qualified enquiries. Live account inspection remains unavailable." }] }];
+    return new Response(JSON.stringify(makeResponsesPayload(output, `response_browser_${calls}`)), { headers: { "content-type": "application/json" } });
+  };
+  const result = await new AgentOrchestrator({ task: "Prepare a marketing strategy for magicsite.ai", model: "gpt-6-luna", apiKey: "test-key", agentEngine: engine,
+    interactionMode: "turbo", standingApproval: true, browser, fetch, initialBrowserError: startupFailed ? "Chrome connection timed out at startup" : undefined,
+    onEvent: event => events.push(event) }).run();
+  assert.equal(result.success, true);
+  assert.equal(starts, startupFailed ? 0 : 1, "a failed connection is not retried on every tool call");
+  assert.equal(events.filter(event => ["navigate", "list_tabs"].includes(event.toolName) && event.ok === false).length, 2);
+  assert.ok(events.some(event => event.toolName === "calculate" && event.ok === true));
+  assert.match(result.summary, /inspection remains unavailable/);
+});
 
 test("an unconfigured cloud model stops before local tools or specialist consultation", async () => {
   for (const model of ["openai-test-model", "claude-test-model", "grok-test-model"]) {
@@ -109,7 +217,7 @@ test("shell approval is reused only when explicitly granted for this task", asyn
     };
     const agent = new AgentOrchestrator({
       task: "Use terminal tools to check two shell commands.", model: "gpt-6-luna", apiKey: "test-key",
-      browser: {} as BrowserController, fetch, standingApproval,
+      browser: {} as BrowserController, fetch, standingApproval, interactionMode: "turbo",
       onEvent: event => events.push(event),
       onTerminalApproval: () => { prompts++; return decision; }
     });
@@ -668,7 +776,7 @@ test("stale action-script requests cannot execute and scripts are not offered to
   assert.match(result.summary, /disabled/);
 });
 
-test("interactionMode turbo auto-runs outward browser actions without prompting", async () => {
+test("turbo with the shield enabled auto-runs scoped outward browser actions", async () => {
   const asked: string[] = [];
   let clicks = 0;
   const pageState: PageState = {
@@ -738,6 +846,7 @@ test("interactionMode turbo auto-runs outward browser actions without prompting"
     browser,
     fetch: mockFetch,
     interactionMode: "turbo",
+    standingApproval: true,
     onTerminalApproval: ({ description }) => {
       asked.push(description);
       return false;

@@ -450,7 +450,7 @@ export function distillLearningKb(state: LearningKbState, maxChars = MAX_DISTILL
 }
 
 const CORRECTION_PATTERN =
-  /\b(don'?t|do not|didn'?t|didnt|stop|wrong|instead|never\b|not that|why\s+(?:didn'?t|didnt|you\s+didn'?t|you\s+didnt|haven'?t|havent)|you\s+(?:forgot|missed|broke|skipped|ignored|failed)|still\s+not|i\s+(?:said|meant|told you|want|asked)|should\s+(?:have|be)|supposed\s+to|correct(?:ion)?|mistake|avoid|no more|you (?:have|need) to|you have (?:edit|upload|open)|(?:edit|upload|open|find|use) (?:it |the [a-z ]{0,30})?(?:from|through|via)|(?:it |was |is )?not (?:uploaded|saved|attached|published))\b/i;
+  /\b(don'?t|do not|didn'?t|didnt|stop|wrong|instead|never\b|not that|why\s+(?:didn'?t|didnt|you\s+didn'?t|you\s+didnt|haven'?t|havent)|you\s+(?:forgot|missed|broke|skipped|ignored|failed)|still\s+not|i\s+(?:said|meant|told you|want|asked)|should\s+have|supposed\s+to|correct(?:ion)?|mistake|avoid|no more|you (?:have|need) to|you have (?:edit|upload|open)|(?:edit|upload|open|find|use) (?:it |the [a-z ]{0,30})?(?:from|through|via)|(?:it |was |is )?not (?:uploaded|saved|attached|published))\b/i;
 const PREFERENCE_RULE_PATTERN =
   /\b(always\b|from now on|make sure|remember\s+(?:to|that)|prefer\b|whenever\b|every\s+time|keep\s+in\s+mind|must\s+always)\b/i;
 const NICHE_PATTERN =

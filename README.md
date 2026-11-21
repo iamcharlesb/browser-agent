@@ -96,19 +96,17 @@ access for that task; the two grants are tracked separately.
 The task-text patterns in `src/security.ts` still run, but only as an up-front
 heads-up when a run starts. Enforcement happens at the click.
 
-## Agent modes (Chat / Browse / Act)
+## Execution and the approval shield
 
-Above the composer:
+The desktop composer always uses Turbo execution; there is no separate Chat/Browse/Act selector. The shield is the single automatic-approval control. Turning it off restores approval prompts for actions that need them. Payments, irreversible actions and human verification retain their gates.
 
-| Mode | What it can do | Token profile |
-| --- | --- | --- |
-| **Chat** | Text tools only (`web_search`, `reddit_search`, docs, shell read-only path) — no browser navigate/click | Cheapest |
-| **Browse** | Navigate, scroll, extract — no click/type | Low (text-first observations) |
-| **Act** | Full browser with effect-based approval gates | Same as before; still text-first by default |
+Internal API and workflow runs still support text-only (`chat`) and browser-capable execution. Workflow tasks declare `executionMode: "text"` for drafting/local tools or `"browser"` for live page work; text tasks can run alongside the shared browser owner. Execution mode does not grant approvals.
 
 Observations default to **text-first** (marks + page text). Vision screenshots are sent only for CAPTCHA/access walls, icon-only UIs, or after consecutive click failures.
 
 ## Auth modes (Google vs Guest)
+
+For separate website logins, use the toolbar's [browser profiles](docs/browser-profiles.md) switcher. Named profiles keep independent Chrome sessions while preserving the existing Default profile. Pilo sign-in and bot conversations remain shared.
 
 Pilo supports two identity modes for noncommercial / local use:
 
@@ -391,7 +389,7 @@ The chat UI renders image `artifactUrl` values inline; non-image artifacts remai
 
 ## Interactive browser architecture
 
-Independent **Chat** agents can work in parallel while one **Browse**, **Act**, or **Turbo** task owns the shared browser. The default is four total execution slots and one task per bot; configure `BROWSER_AGENT_MAX_CONCURRENT_RUNS` and `BROWSER_AGENT_MAX_PENDING_RUNS` in the environment. Browser tasks queue with a visible reason. Switching chats preserves each run's event stream and sends its results to its original chat. Stop and Steer affect the selected bot's work. Use Chat for drafting or analysis that should continue alongside another bot's browser task.
+Independent **Chat** agents can work in parallel while one **Browse**, **Act**, or **Turbo** task owns the shared browser. The default is four total execution slots and one task per bot; configure `BROWSER_AGENT_MAX_CONCURRENT_RUNS` and `BROWSER_AGENT_MAX_PENDING_RUNS` in the environment. Browser tasks queue with a visible reason. Switching chats preserves each run's event stream and sends its results to its original chat. Stop and Steer affect the selected bot's work. Use text execution for workflow drafting or analysis that should continue alongside another bot's browser task.
 
 The browser and Electron share the same workspace and agent server. Run
 `npm run desktop` from either the repository root or this directory for the
@@ -453,7 +451,7 @@ Runtime behavior now loads `AGENTS.md`, `soul.md`, relevant role playbooks, and 
 
 ### Event-driven orchestration
 
-The app supports shared MongoDB event delivery, resumable workflows with dependencies, restart recovery, bounded event-selected playbooks, and a correction observer with human-reviewed voice/playbook drafts. See [event-driven orchestration](docs/event-driven-orchestration.md) for configuration, API usage, and delivery guarantees.
+The app supports shared MongoDB event delivery, resumable workflows with dependencies, restart recovery, bounded event-selected playbooks, and a correction observer with human-reviewed voice/playbook drafts. See [team delivery](docs/team-delivery.md) for conversation-created workflow drafts, output contracts and result handoffs, and [event-driven orchestration](docs/event-driven-orchestration.md) for configuration, API usage, and delivery guarantees.
 
 ### Reopening your session
 

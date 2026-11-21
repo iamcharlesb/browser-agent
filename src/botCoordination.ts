@@ -22,7 +22,9 @@ const key = (value: string) => value.trim().toLowerCase();
 const alias = (value: string) => key(value).replace(/\b(?:bot|agent|specialist)\b/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 export function resolveWorkspaceBot(bots: WorkspaceBot[], target: string): WorkspaceBot {
   const exact = bots.filter(bot => bot.id === target || key(bot.name) === key(target));
-  const matches = exact.length ? exact : bots.filter(bot => alias(bot.name) === alias(target));
+  const aliased = bots.filter(bot => alias(bot.name) === alias(target));
+  const shortName = alias(target);
+  const matches = exact.length ? exact : aliased.length ? aliased : bots.filter(bot => shortName && alias(bot.name).startsWith(shortName + " "));
   if (matches.length !== 1) throw new Error(matches.length ? `The bot name '${target}' is ambiguous; use its saved id.` : `No saved workspace bot matches '${target}'. Use a bot from the roster.`);
   return matches[0];
 }
@@ -34,9 +36,9 @@ export function currentUserRequest(task: string): string {
 export function requestedCoordination(task: string, bots: WorkspaceBot[] | undefined, owner: string): WorkspaceBot[] {
   if (!bots) return [];
   const text = currentUserRequest(task);
-  if (/^(?:did|have|has|were|was|are|is|what|who|when|how)\b/i.test(text) || /\b(?:don't|do not|never|stop)\s+(?:delegate|consult|ask|coordinate|talk|check)/i.test(text)) return [];
+  if (/^(?:did|have|has|were|was|are|is|what|who|when|how)\b/i.test(text) || /\b(?:don['’]t|do not|not|never|stop)\s+(?:delegate|consult|ask|coordinate|talk|check|work\s+with|collaborate\s+with)/i.test(text)) return [];
   const peers = bots.filter(bot => key(bot.name) !== key(owner));
-  if (/\b(?:coordinate|consult|check|speak|talk|discuss|ask)\b[\s\S]{0,60}\b(?:all|every|each|the team)\b/i.test(text)) return peers;
+  if (/\b(?:coordinate|consult|check|speak|talk|discuss|ask|work\s+with|collaborate\s+with)\b[\s\S]{0,60}\b(?:all|every|each|the team)\b/i.test(text)) return peers;
   const tagged = new Map<string, WorkspaceBot>();
   const mentionPattern = /@\[([^\]]+)\]|@([A-Za-z0-9][A-Za-z0-9&/'+.-]{0,80})/g;
   let mention: RegExpExecArray | null;
@@ -55,12 +57,17 @@ export function requestedCoordination(task: string, bots: WorkspaceBot[] | undef
     }
   }
   if (tagged.size) return Array.from(tagged.values());
-  const named = /\b(?:check\s+(?:with|wth)|ask|consult|talk\s+(?:to|with)|speak\s+(?:to|with)|coordinate\s+with|discuss\s+with)\s+(.+)/i.exec(text);
+  const named = /\b(?:check\s+(?:with|wth)|ask|consult|talk\s+(?:to|with)|speak\s+(?:to|with)|coordinate\s+with|discuss\s+with|work\s+with|collaborate\s+with)\s+(.+)/i.exec(text);
   if (!named) return [];
   const target = alias(named[1]);
-  return peers.filter(bot => {
+  const matches = peers.filter(bot => {
     const name = alias(bot.name); return name && (target === name || target.startsWith(name + " ") || target.includes(" and " + name) || target.includes(" " + name + " "));
   });
+  if (matches.length) return matches;
+  // A short role such as "UX bot" may name one saved specialist. Never select an
+  // arbitrary match when multiple saved names share the abbreviation.
+  try { return [resolveWorkspaceBot(peers, named[1].split(/\s+(?:and|for|to)\s+/i)[0])]; }
+  catch { return []; }
 }
 export interface CoordinationRecord {
   id: string; discussionId: string; fromBot: string; toBot: string; targetBotId?: string;
