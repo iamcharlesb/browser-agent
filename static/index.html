@@ -911,6 +911,28 @@ button { color: inherit; }
   background: #fcfcfd;
   transform: translateY(-1px);
 }
+.connect-apps.signed-in .profile-avatar { flex: 0 0 32px; }
+.connect-apps.signed-in .connect-pill {
+  min-width: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 4px 0;
+  justify-content: flex-start;
+  text-align: left;
+  transform: none;
+}
+.connect-apps.signed-in .connect-pill > svg { display: none; }
+.connect-apps.signed-in .connect-label { min-width: 0; }
+.sidebar-profile-name, .sidebar-profile-email {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-profile-email { margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+#app.sidebar-collapsed .connect-apps.signed-in .profile-avatar { display: grid !important; }
+#app.sidebar-collapsed .connect-apps.signed-in .connect-pill { display: none; }
 
 /* Workspace header */
 #main {
@@ -3359,8 +3381,13 @@ dialog.modal-dialog::backdrop {
 #agent-chip .agent-avatar.small .bot { --size: 20px; }
 #agent-chip .agent-avatar.small :is(.bot--capsule, .bot--cloud) { --size: 18px; }
 #agent-chip .agent-avatar svg.bot-char-svg { width: 20px; height: 20px; }
-#agent-chip .agent-avatar:not(.is-working):not(.needs-you),
-#agent-chip .agent-avatar:not(.is-working):not(.needs-you) * { animation: none !important; }
+#agent-chip .agent-avatar,
+#agent-chip .agent-avatar *,
+#agent-chip .agent-avatar *::before,
+#agent-chip .agent-avatar *::after {
+  animation: none !important;
+  transition: none !important;
+}
 #chip-meta { max-width: 220px; }
 #topbar .header-pill-btn svg { width: 14px; height: 14px; }
 #topbar .header-signin-btn { height: 28px; border-color: transparent; background: transparent; }
@@ -9536,20 +9563,42 @@ dialog.modal-dialog::backdrop {
           : isEmbedded
             ? "In-app browser — click for Account"
             : "Pilo Chrome — click for Account";
+      if (googleIdentityUser) {
+        avatarBtn.textContent = (googleIdentityUser.name || googleIdentityUser.email || "G").charAt(0).toUpperCase();
+        avatarBtn.title = googleIdentityUser.email || "Account";
+        avatarBtn.setAttribute("aria-label", "Account: " + (googleIdentityUser.name || googleIdentityUser.email || "Google"));
+      } else {
+        avatarBtn.setAttribute("aria-label", "Account & Session Mode");
+      }
     }
 
+    var accountFooter = document.querySelector("#sidebar .connect-apps");
+    if (accountFooter) accountFooter.classList.toggle("signed-in", Boolean(googleIdentityUser));
     if (pillLabel) {
-      pillLabel.textContent = googleIdentityUser
-        ? ("Signed in · " + (googleIdentityUser.email || "Google"))
-        : isGuest
-          ? "Guest · Connect Apps"
-          : "Sign in · Connect Apps";
+      pillLabel.replaceChildren();
+      if (googleIdentityUser) {
+        var profileName = document.createElement("span");
+        profileName.className = "sidebar-profile-name";
+        profileName.textContent = googleIdentityUser.name || googleIdentityUser.email || "Google account";
+        pillLabel.appendChild(profileName);
+        if (googleIdentityUser.name && googleIdentityUser.email) {
+          var profileEmail = document.createElement("span");
+          profileEmail.className = "sidebar-profile-email";
+          profileEmail.textContent = googleIdentityUser.email;
+          pillLabel.appendChild(profileEmail);
+        }
+      } else {
+        pillLabel.textContent = isGuest ? "Guest · Connect Apps" : "Sign in · Connect Apps";
+      }
     }
 
     var headerConnectLabel = document.getElementById("header-connect-label");
     var headerConnectBtn = document.getElementById("header-connect-btn");
     if (headerConnectLabel) headerConnectLabel.textContent = googleIdentityUser ? "Account" : "Sign in";
-    if (headerConnectBtn) headerConnectBtn.classList.toggle("signed-in", Boolean(googleIdentityUser));
+    if (headerConnectBtn) {
+      headerConnectBtn.classList.toggle("signed-in", Boolean(googleIdentityUser));
+      headerConnectBtn.hidden = Boolean(googleIdentityUser);
+    }
 
     if (badgeEl) {
       badgeEl.classList.toggle("guest", isGuest);

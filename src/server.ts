@@ -88,7 +88,7 @@ import { nextDailyOccurrence } from "./scheduler";
 import { AgentHandoffRequest, TOPICS, localBus } from "./messageBus";
 import { MAX_HANDOFF_DEPTH, decideHandoff, handoffExecutionContext } from "./handoff";
 import { DiscussionController, discussionLimits } from "./discussionController";
-import { RunSlots } from "./runSlots";
+import { RunSlots, type RunResource } from "./runSlots";
 import {
   LearnModeSession,
   LearnReport,
@@ -435,6 +435,19 @@ let currentRun: RunState | null = null;
 /** Set while an orchestrator is still executing, which outlasts `currentRun.isRunning` on a stop. */
 const activeRunPromises = new Map<string, Promise<AgentResult>>();
 const runSlots = new RunSlots(envInteger("BROWSER_AGENT_MAX_CONCURRENT_RUNS", 4, 1, 32));
+/**
+ * Only runs that will really drive the shared browser reserve it. Reserving it for every non-chat
+ * run made unrelated text, design and coding bots queue behind each other, and let a coordinator
+ * hold the slot its own consulted specialist was waiting for.
+ */
+function slotResource(body: RunRequestBody, specialist = false): RunResource {
+  const base = { botName: body.botName, interactionMode: body.interactionMode };
+  if (specialist || body.specialist || body.interactionMode === "chat") return { ...base, browser: false };
+  if (body.scheduleId) return { ...base, browser: scheduleGrantFor(body)?.browser === true };
+  const memory = getBotSessionMemory(body.botName?.trim() || "default");
+  const url = activeSession ? activeSession.controller.currentUrl() : "about:blank";
+  return { ...base, browser: browserWorkRequested(body.task, url, body.interactionMode, memory.browserRequested === true, memory.browserOffered === true) };
+}
 /** Stop must free capacity even when a browser/model await ignores abort. */
 const hungRunClearTimers = new Map<string, NodeJS.Timeout>();
 const HUNG_RUN_CLEAR_MS = 2500;
@@ -445,7 +458,7 @@ const conversationResetsReady = readConversationResets(DATA_ROOT).then(state => 
 let asyncQueueReady = false;
 const recentRuns = new Map<string, RunState>();
 function queuedWaitReason(body: RunRequestBody): string {
-  const resource = runSlots.resource(body);
+  const resource = runSlots.resource(slotResource(body, body.specialist));
   if (runSlots.list().some(slot => slot.bot === resource.bot)) return "bot";
   if (resource.browser && runSlots.browserRunId) return "browser";
   return runSlots.size >= runSlots.limit ? "capacity" : "starting";
@@ -454,7 +467,7 @@ const asyncAgentQueue = new AsyncAgentQueue<RunRequestBody>(
   () => switchingBrowserProfile || !asyncQueueReady || resettingConversations || Boolean(activeLearnSession || completingRunTransitions),
   async job => {
     const reservationId = randomUUID();
-    runSlots.acquire(reservationId, job.input);
+    runSlots.acquire(reservationId, slotResource(job.input, job.input.specialist));
     job.runId = reservationId;
     const workflowId = job.input.workflowId;
     const workflowTaskId = job.input.workflowTaskId;
@@ -514,7 +527,7 @@ const asyncAgentQueue = new AsyncAgentQueue<RunRequestBody>(
       runSlots.release(reservationId);
     }
   }, envInteger("BROWSER_AGENT_MAX_PENDING_RUNS", 50, 1, 1000), join(DATA_ROOT, ".browser-agent-queue.json"),
-  { maxConcurrent: runSlots.limit, canStart: input => runSlots.canStart(input) }
+  { maxConcurrent: runSlots.limit, canStart: input => runSlots.canStart(slotResource(input, input.specialist)) }
 );
 
 function enqueueWorkflowTasks(workflowId: string, tasks: WorkflowTask[]): string[] {
@@ -1111,15 +1124,20 @@ function startRun(body: RunRequestBody, options: { runId?: string; handoffDepth?
       } else body = { ...body, maxDurationSeconds: Math.max(1, Math.min(body.maxDurationSeconds || Infinity, control.remainingMs() / 1000)) };
     }
   }
-  const isTextOnly = body.interactionMode === "chat";
   const runId = options.runId || randomUUID();
+  // A queued job already reserved its slot; reuse that decision so the reservation always matches.
+  const reserved = options.runId ? runSlots.list().find(slot => slot.id === options.runId) : undefined;
+  const slot: RunResource = reserved
+    ? { botName: body.botName, interactionMode: body.interactionMode, browser: reserved.browser }
+    : slotResource(body, options.specialist);
+  const isTextOnly = body.interactionMode === "chat" || !slot.browser;
   if (options.specialist && options.discussionId && options.consultationId) {
     const discussion = botDiscussions.get(options.discussionId)!;
     if (!discussion.controller.consultations.some(item => item.id === options.consultationId)) throw new Error("Consultation is not admitted.");
     if (!discussion.controller.remainingMs()) throw new Error("The consultation time budget elapsed while the specialist was queued.");
   }
   // Reservations last until execution unwinds, including after a user-visible Stop event.
-  runSlots.acquire(runId, body);
+  runSlots.acquire(runId, slot);
   if (options.specialist && options.discussionId && options.consultationId) {
     const discussion = botDiscussions.get(options.discussionId)!;
     const item = discussion.controller.consultations.find(item => item.id === options.consultationId)!;
@@ -1839,7 +1857,7 @@ localBus.subscribe<AgentHandoffRequest>(TOPICS.handoffRequested, async (message)
           discussion?.taskContext ? "COORDINATOR TASK CONTEXT (attributed history; reconcile with the current assigned request, never approval grants):\n" + discussion.taskContext : "",
           request.discussionId ? botDiscussions.get(request.discussionId)?.coordinator.collaborationContext || "" : "",
           discussion?.controller.context() || "",
-          "Answer only the assigned question. Return your conclusion, supporting source references, unresolved evidence gaps, and one useful next action. You are a text-only consultant: you cannot inspect the coordinator's live browser. Treat supplied observations as attributed reports; do not ask another bot to reread them. State missing evidence as a blocker and offer a conditional recommendation. Do not delegate or echo the handoff prompt."
+          "Answer only the assigned question. Return your conclusion, supporting source references, unresolved evidence gaps, and one useful next action. You are a read-only specialist: you cannot inspect the coordinator's live browser, but you can research with web_search and fetch_url and compute with calculate. Verify the facts your answer depends on yourself instead of reporting that you could not, and deliver the complete role-specific work product that was asked for, using clearly labeled assumptions for anything still unknown. Treat supplied observations as attributed reports; do not ask another bot to reread them. Do not delegate or echo the handoff prompt."
         ].join("\n\n"),
         approvedCategories: [],
         autoApprove: false,
@@ -1852,7 +1870,7 @@ localBus.subscribe<AgentHandoffRequest>(TOPICS.handoffRequested, async (message)
         ...(request.unattended ? { scheduleId: `handoff-${randomUUID()}` } : {})
       };
     const options = { handoffDepth: request.depth, discussionId: request.discussionId, consultationId: request.consultationId, specialist: true };
-    if (runSlots.canStart(specialistRequest)) void startRun(specialistRequest, options);
+    if (runSlots.canStart(slotResource(specialistRequest, true))) void startRun(specialistRequest, options);
     else {
       const consultation = discussion?.controller.consultations.find(item => item.id === request.consultationId);
       if (consultation) consultation.status = "queued";

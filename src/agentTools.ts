@@ -11,6 +11,7 @@ import { googlePropertyGuide, redditSearch } from "./siteAdapters";
 import { redactSecrets } from "./security";
 import { workspaceCode, guardedCodePatch } from "./workspaceCode";
 import { fetchUrlText, hostedSearchConfig, hostedWebSearch } from "./webResearch";
+import { prepareHtmlArtifact, qualityReport } from "./htmlArtifact";
 import {
   browserSearchBlockedMessage,
   isBareSearchQuery,
@@ -305,7 +306,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "create_document",
-      description: "Save a downloadable report or file (md, csv, json, html, svg, txt). For a chart or bar graph, create a self-contained SVG with clear labels, units, legend, accessible title/description, readable colors, and the supplied data only; SVG files are previewable in the app and downloadable as artifacts. You may also save the underlying data as CSV.",
+      description: "Save a downloadable report or file (md, csv, json, html, svg, txt). For a chart or bar graph, create a self-contained SVG with clear labels, units, legend, accessible title/description, readable colors, and the supplied data only; SVG files are previewable in the app and downloadable as artifacts. You may also save the underlying data as CSV. For html, remote images are fetched and embedded and the result lists QA issues (broken images, low contrast, missing tags): fix every listed issue and save again with the same filename.",
       parameters: {
         type: "object",
         properties: {
@@ -1327,12 +1328,20 @@ export async function executeTool(
         } else if (format === "html" && !/<html/i.test(content)) {
           formatted = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:system-ui,sans-serif;max-width:820px;margin:2rem auto;padding:0 1rem;line-height:1.6}</style></head><body><h1>${title}</h1><div>${content.replace(/\n/g, "<br>")}</div></body></html>`;
         }
+        // HTML pages get a deterministic QA pass: remote images are fetched and embedded (or reported
+        // broken) and lint findings come back to the model so it repairs the page before finishing.
+        let qualityNote = "";
+        if (format === "html") {
+          const prepared = await prepareHtmlArtifact(formatted);
+          formatted = prepared.html;
+          qualityNote = `\n${qualityReport(prepared)}`;
+        }
         await writeFile(fullPath, formatted, "utf8");
         const artifactUrl = artifactUrlFor(safeFilename);
         return {
           ok: true,
           artifactUrl,
-          message: `Created document "${safeFilename}" (Download: ${artifactUrl}).`
+          message: `Created document "${safeFilename}" (Download: ${artifactUrl}).${qualityNote}`
         };
       }
       case "generate_image": {

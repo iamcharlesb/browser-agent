@@ -1,5 +1,5 @@
 import { createModelClient } from "./modelProviderFactory";
-import { RESPONSE_STYLE } from "./responseStyle";
+import { DELIVERABLE_BAR, RESPONSE_STYLE } from "./responseStyle";
 import { loadAgentProfile, LoadedProfile } from "./agentProfile";
 import { compactContext, ContextMessage } from "./contextBudget";
 import { defaultModel, envInteger, modelConfigurationIssue, resolveModel } from "./runtimeConfig";
@@ -46,7 +46,7 @@ import { summarizeToolResultMessage } from "./toolResultSummary";
 
 export const DEFAULT_MODEL = defaultModel();
 /** Leave room for complete article text and tool arguments; the prompt keeps ordinary replies concise. */
-const MAX_TOKENS = envInteger("BROWSER_AGENT_MAX_OUTPUT_TOKENS", 4096);
+const MAX_TOKENS = envInteger("BROWSER_AGENT_MAX_OUTPUT_TOKENS", 16384);
 const REASONING_EFFORT = (() => {
   const value = process.env.BROWSER_AGENT_REASONING_EFFORT || "low";
   if (!["low", "medium", "high"].includes(value)) throw new Error("Invalid BROWSER_AGENT_REASONING_EFFORT.");
@@ -76,6 +76,8 @@ const BROWSER_TOOL_NAMES = new Set([
   "key_press",
   "go_back"
 ]);
+/** Consulted specialists may research and compute but never act: no browser, files, terminal or paid tools. */
+const CONSULTATION_TOOL_NAMES = new Set(["knowledge_base", "finish_task", "fail_task", "web_search", "fetch_url", "calculate"]);
 const HEADLESS_RESEARCH_TOOL_NAMES = new Set([
   "web_search",
   "fetch_url",
@@ -482,7 +484,7 @@ export class AgentOrchestrator {
     this.toolsForModel = TOOLS.filter((tool) => {
       if (tool.type !== "function") return true;
       const name = tool.function.name;
-      if (options.consultationOnly && !["knowledge_base", "finish_task", "fail_task"].includes(name)) return false;
+      if (options.consultationOnly && !CONSULTATION_TOOL_NAMES.has(name)) return false;
       if (name === "plan_workflow" && (!options.onWorkflowPlan || (!this.allowPrivilegedTools && !options.finalAnswerOnly))) return false;
       if (options.finalAnswerOnly && !["finish_task", "fail_task", "plan_workflow"].includes(name)) return false;
       if (name === "delegate_to_bot" && (options.allowBotDelegation === false || userRequestsDirectAnswer(this.extractUserRequestCore()))) return false;
@@ -580,6 +582,7 @@ export class AgentOrchestrator {
       `You are ${this.botName}. Role & Purpose: ${this.expertise}.`,
       RESPONSE_STYLE,
       HELPFULNESS_RULES,
+      DELIVERABLE_BAR,
       "MULTI-STEP EXECUTION: Work in a loop until the deliverable is verified or you hit a real blocker. Batch independent tool calls in one turn. Never stop after one read with a raw payload.",
       browserTools
         ? "BROWSER ACCESS: The user asked for page work in this request. Use web_search and fetch_url for public facts, and the browser only for the requested page work. Never open Google/Bing/DuckDuckGo in the browser or type searches into Chrome."

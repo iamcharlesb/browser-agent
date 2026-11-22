@@ -462,7 +462,8 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.match(prompt.text, /Latest explicit user spending constraint.*not going to spend a penny/);
         assert.match(prompt.text, /MagicSite landscapers/);
         assert.match(prompt.text, /usable role-specific draft or analysis/);
-        assert.deepEqual(prompt.tools.slice().sort(), ["fail_task", "finish_task", "knowledge_base"]);
+        // Consulted specialists may research and compute but never act: no browser, files, terminal, paid or outward tools.
+        assert.deepEqual(prompt.tools.slice().sort(), ["calculate", "fail_task", "fetch_url", "finish_task", "knowledge_base", "web_search"]);
         assert.equal(await readFile(join(dataRoot, ".browser-agent-task-memory", botIdFromName(peer.name) + ".json"), "utf8"), before.get(peer.name), "consultation did not replace the worker's user task");
       }
       assert.deepEqual(result.coordination.requested, peers.map(peer => peer.name));

@@ -550,6 +550,27 @@
         "workspace roster"
       ],
       "events": []
+    },
+    {
+      "id": "ai-engineer",
+      "file": "ai-engineer.md",
+      "terms": [
+        "ai engineer",
+        "ai engineering",
+        "llm application",
+        "llm app",
+        "rag",
+        "retrieval augmented",
+        "eval harness",
+        "evals",
+        "prompt engineering",
+        "vector database",
+        "embeddings",
+        "function calling",
+        "fine-tuning",
+        "fine tuning"
+      ],
+      "events": []
     }
   ]
 }
