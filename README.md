@@ -28,7 +28,7 @@ Reset conversations control for one bot or all bots.
 
 ## Huddles
 
-Use **New Huddle** in the sidebar to create a named session. Search your saved bots, select participants, then choose **Create huddle**. If a bot is not listed, add it from the catalog first.
+Use **New Huddle** in the sidebar to create a named session. Search the complete bot catalog, select participants, then choose **Create huddle**. The same catalog powers the main bot selector and includes built-in and custom bots. Selected bots are saved automatically when needed; you do not have to add them beforehand.
 
 Ask a question in the huddle to gather each selected bot's perspective, show attributed replies, and produce a shared synthesis. Follow-up questions use the session's conversation history. Sessions remain in the sidebar and reopen without starting model work. Use **Edit huddle** to change the name or participants once its work finishes or is stopped.
 

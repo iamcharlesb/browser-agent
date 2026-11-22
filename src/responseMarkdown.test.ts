@@ -31,8 +31,8 @@ test('mixed nested lists retain list types and numbered starting values',()=>{
 test('tables, quotes and artifact previews are structured and links cannot inject HTML',()=>{
   assert.match(format('| Option | Result |\n| --- | --- |\n| Local | Fast |'),/<table><thead><tr><th scope="col">Option/);
   assert.match(format('> Verified result'),/<blockquote><div class="reply-content"><p>Verified result/);
-  assert.match(format('![Preview](sandbox:/api/artifacts/report.png)'),/<img loading="lazy" src="\/api\/artifacts\/report.png"/);
-  assert.match(format('[![Product photo](https://cdn.example.com/item.jpg)](https://shop.example.com/item)'),/<a href="https:\/\/shop\.example\.com\/item" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="https:\/\/cdn\.example\.com\/item\.jpg" alt="Product photo"><\/a>/);
+  assert.match(format('![Preview](sandbox:/api/artifacts/report.png)'),/<img loading="lazy" referrerpolicy="no-referrer" src="\/api\/artifacts\/report.png"/);
+  assert.match(format('[![Product photo](https://cdn.example.com/item.jpg)](https://shop.example.com/item)'),/<a href="https:\/\/shop\.example\.com\/item" target="_blank" rel="noopener noreferrer"><img loading="lazy" referrerpolicy="no-referrer" src="https:\/\/cdn\.example\.com\/item\.jpg" alt="Product photo"><\/a>/);
   assert.match(format('See docs (https://www.postgresql.org/docs/18/sql-select.html).'),/\(<a href="https:\/\/www\.postgresql\.org\/docs\/18\/sql-select\.html" target="_blank" rel="noopener noreferrer">https:\/\/www\.postgresql\.org\/docs\/18\/sql-select\.html<\/a>\)\./);
   assert.match(format('```html\n<h1>Hi</h1>\n```'),/class="preview-code"/);
   const hostile=format('<script>alert(1)</script>\n\n[x](javascript:alert(1))\n\n![x](https://example.com/\"onerror=evil)');
@@ -62,7 +62,7 @@ test('response layout keeps code and tables inside the reading column, supports 
       const url=new URL(route.request().url());
       if(url.hostname!=='response.test')return route.abort();
       if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:html});
-      if(['/responseMarkdown.js','/runStream.js'].includes(url.pathname))return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static',url.pathname.slice(1)))});
+      if(['/responseMarkdown.js','/runStream.js','/botCatalog.js'].includes(url.pathname))return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static',url.pathname.slice(1)))});
       if(url.pathname==='/browserRuntime.js')return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static','browserRuntime.js'))});
       if(url.pathname==='/uiState.js')return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static','uiState.js'))});
       if(url.pathname.startsWith('/api/'))return route.fulfill({contentType:'application/json',body:JSON.stringify({isRunning:false,models:[],jobs:[],events:[],workflows:[],suggestions:[],schedules:[]})});

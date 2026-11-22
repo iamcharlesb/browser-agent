@@ -29,6 +29,8 @@ Notable user-visible changes are recorded here. Entries describe completed chang
 
 ### Fixed
 
+- Huddles now use the same complete catalog as the main bot selector and onboarding picker. Built-in bots no longer require manual pre-adding; custom bots are included and renamed saved profiles resolve without duplicates. Only selected unadded participants are saved, with distinct bot identities.
+
 - Returning Home clears the prior bot's header, run controls, status and draft view while preserving its saved draft and background run.
 - Restoring a running conversation shows readable activity instead of raw tool-result JSON.
 - Continuation risk checks inspect the user's request separately from generated role instructions.

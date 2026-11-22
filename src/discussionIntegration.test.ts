@@ -48,7 +48,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   await cp(resolve(__dirname, "..", "static", "avatars"), join(directory, "static", "avatars"), { recursive: true });
   await cp(resolve(__dirname, "..", "docs"), join(directory, "docs"), { recursive: true });
   await copyFile(resolve(__dirname, "..", "README.md"), join(directory, "README.md"));
-  for (const file of ["index.html", "browserRuntime.js", "uiState.js", "responseMarkdown.js", "runStream.js", "artifactPreview.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
+  for (const file of ["index.html", "browserRuntime.js", "botCatalog.js", "uiState.js", "responseMarkdown.js", "runStream.js", "artifactPreview.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
   let capturedPersonaPrompt = "";
   const cliPrompts: string[] = [];
   let cliToolCalls = 0;
@@ -593,7 +593,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.equal(await page.locator("#huddle-member-list .huddle-member").count(), 2);
         assert.equal(await page.locator("#prompt").getAttribute("placeholder"), "Ask the huddle…");
         const session = await page.evaluate(() => JSON.parse(localStorage.getItem("agentFireworksAgentsV2")!).find((bot: any) => bot.kind === "huddle"));
-        assert.deepEqual(session.participantIds, ["h-seo", "h-writer"]);
+        assert.deepEqual(new Set(session.participantIds), new Set(["h-seo", "h-writer"]));
         await page.reload();
         await page.waitForSelector("#huddle-members:not([hidden])");
         assert.equal(modelCalls, before, "reopening a saved session starts no model work");
@@ -602,13 +602,13 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.locator("#prompt").fill("What should our launch prioritize?");
         await page.locator("#send-button").click();
         await page.waitForFunction(() => document.querySelector("#messages")!.textContent!.includes("Actual coordination results"));
-        assert.deepEqual(submitted[0].huddleParticipantIds, ["h-seo", "h-writer"]);
+        assert.deepEqual(submitted[0].huddleParticipantIds, session.participantIds);
         assert.equal(submitted[0].interactionMode, "chat");
         assert.equal(submitted[0].autoApprove, false);
         assert.deepEqual(submitted[0].workspaceBots.map((bot: any) => bot.id), ["h-seo", "h-writer"]);
-        assert.deepEqual(teamPrompts.map(item => item.name), ["SEO Specialist", "Blog Writer"]);
+        assert.deepEqual(new Set(teamPrompts.map(item => item.name)), new Set(["SEO Specialist", "Blog Writer"]));
         assert.equal(await page.locator("#messages section").filter({ hasText: "— findings" }).count(), 2);
-        assert.ok(teamPrompts[1].text.includes("SEO Specialist"), "later speakers receive the attributed shared discussion context");
+        assert.ok(teamPrompts[1].text.includes(teamPrompts[0].name), "later speakers receive the attributed shared discussion context");
         await page.waitForFunction(() => document.querySelector("#status-badge-text")!.textContent === "Ready");
         teamPrompts.length = 0;
         await page.locator("#edit-huddle").click();
@@ -622,7 +622,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.waitForFunction(() => document.querySelectorAll("#messages section").length >= 4, null, { timeout: 10000 }).catch(async error => {
           throw new Error(error.message + "\n" + JSON.stringify({ submitted, teamPrompts, text: await page.locator("#messages").innerText(), status: await page.locator("#status").innerText() }));
         });
-        assert.deepEqual(teamPrompts.map(item => item.name), ["SEO Specialist", "Founder Operator"]);
+        assert.deepEqual(new Set(teamPrompts.map(item => item.name)), new Set(["SEO Specialist", "Founder Operator"]));
         assert.equal(await page.locator("#messages").innerText().then(text => text.includes("What should our launch prioritize?")), true);
         await page.waitForFunction(() => document.querySelector("#status-badge-text")!.textContent === "Ready");
         scenario = "async"; asyncStarted.length = 0; releaseAsync.clear();
@@ -641,6 +641,51 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.deepEqual(asyncStarted, ["UI_C"], "Stop cancels the remaining speakers and queued follow-up");
         assert.equal(await page.locator("#command-queue").isVisible(), false);
         assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    });
+    await t.test("Huddles and the main selector share all built-ins and custom bots without pre-adding them", async () => {
+      scenario = "team"; teamPrompts.length = 0;
+      const browser = await chromium.launch({headless:true});
+      try {
+        const page = await browser.newPage();
+        const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+        await page.addInitScript(() => {
+          localStorage.setItem("agentFireworksAgentsV2", JSON.stringify([
+            {id:"renamed-pichai",name:"My Platform Advisor",profileId:"sundar-pichai",transcript:[]},
+            {id:"my-custom",name:"My Custom Reviewer",description:"Review assumptions",transcript:[]}
+          ]));
+          localStorage.setItem("openBotsAgentEngine","cheap");
+        });
+        await page.goto(base);
+        const catalogNames = await page.locator(".template-card[data-name]").evaluateAll(cards => cards.map(card=>card.getAttribute("data-name")!).sort());
+        assert.ok(catalogNames.includes("Wall Street Analyst"));
+        assert.ok(catalogNames.includes("Goldman Sachs Analyst"));
+        assert.ok(catalogNames.includes("My Custom Reviewer"));
+        assert.ok(catalogNames.includes("My Platform Advisor"));
+        assert.equal(catalogNames.includes("Sundar Pichai"),false,"a renamed saved profile is not duplicated");
+        const before = modelCalls;
+        await page.locator("#new-huddle-button").click();
+        const pickerNames = await page.locator("#huddle-choices input").evaluateAll(inputs=>inputs.map(input=>input.getAttribute("aria-label")!).sort());
+        assert.deepEqual(pickerNames,catalogNames,"both selectors consume the same catalog");
+        assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem("agentFireworksAgentsV2")!).length),2,"opening the picker does not seed the roster");
+        await page.waitForFunction(()=>document.querySelector("#huddle-limit")!.textContent!.includes("up to"));
+        await page.locator("#huddle-name").fill("Research review");
+        for(const name of ["Wall Street Analyst","Goldman Sachs Analyst","My Custom Reviewer"]) await page.getByRole("checkbox",{name,exact:true}).check();
+        await page.locator("#huddle-save").click();
+        const saved = await page.evaluate(()=>JSON.parse(localStorage.getItem("agentFireworksAgentsV2")!));
+        const session = saved.find((bot:any)=>bot.kind === "huddle");
+        assert.equal(new Set(session.participantIds).size,3,"newly added bot identities are distinct");
+        assert.equal(saved.length,5,"only selected unadded bots and the huddle are saved");
+        assert.ok(saved.some((bot:any)=>bot.profileId === "wall-street-analyst"));
+        assert.ok(saved.some((bot:any)=>bot.profileId === "goldman-sachs-analyst"));
+        assert.equal(modelCalls,before,"selecting catalog participants starts no model work");
+        await page.waitForFunction(()=>Boolean(document.querySelector('#composer-model-select option[value="integration-model"]')));
+        await page.selectOption("#composer-model-select","integration-model");
+        await page.locator("#prompt").fill("What assumptions should we check?");
+        await page.locator("#send-button").click();
+        await page.waitForFunction(()=>document.querySelector("#messages")!.textContent!.includes("Actual coordination results"));
+        assert.deepEqual(new Set(teamPrompts.map(item=>item.name)),new Set(["Wall Street Analyst","Goldman Sachs Analyst","My Custom Reviewer"]));
+        assert.deepEqual(errors,[]);
       } finally { await browser.close(); }
     });
     await t.test("invalid Huddle participants are rejected before queuing or model work", async () => {

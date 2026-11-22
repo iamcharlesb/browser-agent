@@ -1621,7 +1621,60 @@ dialog::backdrop {
   .message.agent.is-new { animation: none; }
 }
 .message.user { justify-content: flex-end; }
-.message.user .message-body { max-width: 100%; }
+.message.user .message-body { max-width: 100%; display: flex; flex-direction: column; align-items: flex-end; }
+.user-msg-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 4px;
+}
+.user-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #98a2b3;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.user-edit-btn:hover, .user-edit-btn:focus-visible {
+  background: #f1f3f6;
+  color: var(--text);
+}
+.user-edit-btn svg { width: 14px; height: 14px; }
+.user-edit-box {
+  width: min(560px, 82vw);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.user-edit-input {
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  resize: vertical;
+}
+.user-edit-input:focus {
+  outline: 2px solid var(--blue-soft);
+  border-color: var(--blue);
+}
+.user-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .msg-bot-avatar {
   width: 32px;
   height: 32px;
@@ -4482,6 +4535,7 @@ dialog.modal-dialog::backdrop {
 
 <script src="./browserRuntime.js"></script>
 <script src="./uiState.js"></script>
+<script src="./botCatalog.js"></script>
 <script src="./artifactPreview.js"></script>
 <script src="./projectScanner.js"></script>
 <script id="response-markdown-runtime" src="./responseMarkdown.js"></script>
@@ -5734,10 +5788,93 @@ dialog.modal-dialog::backdrop {
     // Like / Correction / Reply on every agent reply. This is the cheapest read we get on whether the
     // bot understood the intent, and it writes straight into the bot's learning KB.
     if (role === "agent") body.appendChild(buildFeedbackRow(body.querySelector(".bubble"), a));
+    if (role === "user") body.appendChild(buildUserEditRow(body.querySelector(".bubble"), row, a));
     if (visible) messages.appendChild(row);
     if (visible && followLatest) messages.scrollTop = messages.scrollHeight;
     if (persist !== false) persistMessage(role, html, cls);
     return body.querySelector(".bubble");
+  }
+
+  function buildUserEditRow(bubble, row, agent) {
+    var actions = document.createElement("div");
+    actions.className = "user-msg-actions";
+    actions.innerHTML =
+      '<button type="button" class="user-edit-btn" title="Edit message" aria-label="Edit message">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg></button>';
+    var editBtn = actions.querySelector(".user-edit-btn");
+    editBtn.onclick = function() {
+      if (bubble.querySelector(".user-edit-box")) return;
+      var originalHtml = bubble.innerHTML;
+      var originalText = (bubble.textContent || "").trim();
+      var box = document.createElement("div");
+      box.className = "user-edit-box";
+      box.innerHTML =
+        '<textarea class="user-edit-input" aria-label="Edit your message"></textarea>' +
+        '<div class="user-edit-actions">' +
+        '<button type="button" class="btn-secondary user-edit-cancel">Cancel</button>' +
+        '<button type="button" class="btn-primary user-edit-save">Save &amp; resend</button>' +
+        '</div>';
+      var input = box.querySelector(".user-edit-input");
+      input.value = originalText;
+      bubble.innerHTML = "";
+      bubble.appendChild(box);
+      actions.hidden = true;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+
+      function cancelEdit() {
+        bubble.innerHTML = originalHtml;
+        actions.hidden = false;
+      }
+      function commitEdit() {
+        var nextText = input.value.trim();
+        if (!nextText) { input.focus(); return; }
+        var targetAgent = agent || activeAgent();
+        var msgNodes = Array.from(messages.querySelectorAll(":scope > .message"));
+        var msgIndex = msgNodes.indexOf(row);
+        if (msgIndex >= 0) {
+          for (var i = msgNodes.length - 1; i >= msgIndex; i--) msgNodes[i].remove();
+          if (targetAgent && Array.isArray(targetAgent.transcript)) {
+            var userCountBefore = 0;
+            for (var j = 0; j < msgIndex; j++) {
+              if (msgNodes[j].classList.contains("user")) userCountBefore++;
+            }
+            var seenUsers = 0, cutAt = -1;
+            for (var k = 0; k < targetAgent.transcript.length; k++) {
+              if (targetAgent.transcript[k] && targetAgent.transcript[k].role === "user") {
+                if (seenUsers === userCountBefore) { cutAt = k; break; }
+                seenUsers++;
+              }
+            }
+            if (cutAt >= 0) {
+              targetAgent.transcript.splice(cutAt);
+              saveAgents();
+            }
+          }
+        }
+        var sendEdited = function() {
+          prompt.value = nextText;
+          prompt.dispatchEvent(new Event("input"));
+          lastSubmitAt = 0;
+          submitPrompt();
+        };
+        if (isRunning) {
+          fetch("/api/stop", { method: "POST" }).catch(function() {}).finally(function() {
+            setTimeout(sendEdited, 250);
+          });
+        } else {
+          sendEdited();
+        }
+      }
+      box.querySelector(".user-edit-cancel").onclick = cancelEdit;
+      box.querySelector(".user-edit-save").onclick = commitEdit;
+      input.addEventListener("keydown", function(e) {
+        if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+        else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitEdit(); }
+      });
+    };
+    return actions;
   }
 
   // Verification cards are persisted as transcript HTML, so their controls must
@@ -5790,6 +5927,17 @@ dialog.modal-dialog::backdrop {
       };
     }
   }
+
+  messages.addEventListener("error", function(event) {
+    var img = event.target;
+    if (!img || img.tagName !== "IMG") return;
+    var link = img.parentElement && img.parentElement.tagName === "A" ? img.parentElement : null;
+    if (link && link.children.length === 1 && !link.textContent.trim()) {
+      link.hidden = true;
+    } else {
+      img.hidden = true;
+    }
+  }, true);
 
   messages.addEventListener("click", function(event) {
     var previewBtn = event.target.closest(".preview-code");
@@ -6334,20 +6482,20 @@ dialog.modal-dialog::backdrop {
     document.getElementById("huddle-search").value = "";
     document.getElementById("huddle-search-empty").hidden = true;
     var choices = document.getElementById("huddle-choices"); choices.innerHTML = '<legend class="sr-only">Participants</legend>';
-    agents.filter(function(bot) { return bot.kind !== "huddle" && !bot.deleted; }).forEach(function(bot) {
+    getBotCatalog().forEach(function(bot) {
       var label = document.createElement("label"); label.className = "huddle-choice";
-      var input = document.createElement("input"); input.type = "checkbox"; input.value = bot.id;
-      input.checked = Boolean(session && session.participantIds.indexOf(bot.id) >= 0);
+      var input = document.createElement("input"); input.type = "checkbox"; input.value = bot.catalogKey;
+      input.checked = Boolean(session && session.participantIds.indexOf(bot.savedId) >= 0);
       input.setAttribute("aria-label", bot.name);
       input.onchange = function() { document.getElementById("huddle-error").textContent = ""; updateHuddleSelection(); };
       var avatar = document.createElement("span"); avatar.className = "agent-avatar"; avatar.setAttribute("aria-hidden", "true");
-      applyAvatarElement(avatar, bot, false, false);
+      applyAvatarElement(avatar, Object.assign({}, bot, { avatarImage: bot.avatar }), false, false);
       var copy = document.createElement("span"); copy.className = "huddle-choice-copy";
       var title = document.createElement("span"); title.className = "huddle-choice-name"; title.textContent = bot.name;
       var role = document.createElement("span"); role.className = "huddle-choice-role"; role.textContent = bot.summary || bot.description || "Personal AI assistant";
       copy.append(title, role); label.append(input, avatar, copy); choices.appendChild(label);
     });
-    if (choices.querySelectorAll("input").length < 2) document.getElementById("huddle-error").textContent = "Add at least two bots from the catalog first.";
+
     updateHuddleSelection();
     modal.showModal();
     fetch("/api/status").then(readResponse).then(function(state) {
@@ -6375,10 +6523,14 @@ dialog.modal-dialog::backdrop {
     if (!name) { error.textContent = "Enter a session name."; return; }
     if (!huddleParticipantLimit || ids.length < 2 || ids.length > huddleParticipantLimit) { error.textContent = "Choose between 2 and " + (huddleParticipantLimit || "the configured maximum") + " bots."; return; }
     if (agents.some(function(bot) { return bot.id !== editingHuddleId && bot.name.toLowerCase() === ("Huddle: " + name).toLowerCase(); })) { error.textContent = "Choose a different session name."; return; }
-    var members = ids.map(function(id) { return agents.find(function(bot) { return bot.id === id && bot.kind !== "huddle" && !bot.deleted; }); });
+    var catalog = getBotCatalog();
+    var entries = ids.map(function(key) { return catalog.find(function(bot) { return bot.catalogKey === key; }); });
+    var members = entries;
     if (members.some(function(bot) { return !bot; }) || new Set(members.map(function(bot) { return bot.name.toLowerCase(); })).size !== ids.length) { error.textContent = "Choose available bots with distinct names."; return; }
     var session = editingHuddleId && agents.find(function(bot) { return bot.id === editingHuddleId; });
     if (session && (runTracker.activeFor(session.id) || queuedRunsAfterActive.some(function(item) { return item.conversationAgentId === session.id; }))) { error.textContent = "Wait for this huddle to finish or stop it before editing."; return; }
+    members = entries.map(ensureCatalogBot);
+    ids = members.map(function(bot) { return bot.id; });
     if (!session) {
       session = { id: "huddle_" + crypto.randomUUID(), kind: "huddle", transcript: [], color: "#2563eb", shape: "circle" };
       agents.push(session);
@@ -6396,7 +6548,7 @@ dialog.modal-dialog::backdrop {
     var intent = inferredIntent(name, desc, profileId);
     var idx = Math.abs(name.split("").reduce(function(acc, c) { return acc + c.charCodeAt(0); }, 0));
     var a = {
-      id: "agent_" + Date.now(),
+      id: "agent_" + crypto.randomUUID(),
       name: name,
       description: desc,
       profileId: profileId,
@@ -6414,7 +6566,7 @@ dialog.modal-dialog::backdrop {
     if (!options || options.select !== false) {
       selectAgent(a.id);
       appendMessage("agent", "<strong>" + esc(a.name) + "</strong> ready — " + esc(a.summary));
-    } else {
+    } else if (!options || options.render !== false) {
       renderSidebar();
     }
     if (intent && intent.url) {
@@ -6514,7 +6666,9 @@ dialog.modal-dialog::backdrop {
     renderBotPickerPreview();
   }
 
+  var builtinBotPresets;
   function getBotOnboardingPresets() {
+    if (builtinBotPresets) return builtinBotPresets;
     var presets = [];
     var seen = Object.create(null);
     function add(preset) {
@@ -6525,9 +6679,18 @@ dialog.modal-dialog::backdrop {
     }
     LATEST_BOT_PRESETS.forEach(add);
     document.querySelectorAll(".template-card[data-name]").forEach(function(card) {
-      add({ name: card.getAttribute("data-name"), description: card.getAttribute("data-desc"), shape: card.getAttribute("data-shape"), color: card.getAttribute("data-color") });
+      add({ name: card.getAttribute("data-name"), profileId: card.getAttribute("data-profile-id") || undefined, description: card.getAttribute("data-desc"), summary: (card.querySelector(".template-copy > span") || {}).textContent, shape: card.getAttribute("data-shape"), color: card.getAttribute("data-color") });
     });
-    return presets;
+    builtinBotPresets = presets;
+    return builtinBotPresets;
+  }
+  function getBotCatalog() {
+    return PiloBotCatalog.merge(getBotOnboardingPresets(), agents);
+  }
+  function ensureCatalogBot(entry) {
+    var existing = entry.savedId && agents.find(function(bot) { return bot.id === entry.savedId && !bot.deleted; });
+    if (existing) return existing;
+    return createAgent(entry.name, entry.description || "", entry.shape || "circle", entry.color || "#1677ff", { profileId: entry.profileId, select: false, render: false });
   }
 
   var botDescriptionTooltip;
@@ -6650,11 +6813,13 @@ dialog.modal-dialog::backdrop {
     var grid = document.querySelector(".template-grid");
     if (!grid) return;
     var customCard = document.getElementById("welcome-create-bot-btn");
+    var presets = getBotCatalog();
+    var catalogNames = new Set(presets.map(function(bot) { return bot.name.toLowerCase(); }));
+    grid.querySelectorAll(".template-card[data-name]").forEach(function(card) { if (!catalogNames.has(card.getAttribute("data-name").toLowerCase())) card.remove(); });
     var cardsByName = Object.create(null);
     grid.querySelectorAll(".template-card[data-name]").forEach(function(card) {
       cardsByName[String(card.getAttribute("data-name") || "").trim().toLowerCase()] = card;
     });
-    var presets = getBotOnboardingPresets();
     presets.forEach(function(preset) {
       var key = preset.name.toLowerCase();
       var card = cardsByName[key];
@@ -6707,7 +6872,9 @@ dialog.modal-dialog::backdrop {
         star.onkeydown = function(event) { if (event.key === " " || event.key === "Enter") toggleFavorite(event); };
         card.appendChild(star);
       }
-      var isAdded = agents.some(function(bot) { return String(bot.name || "").trim().toLowerCase() === key; });
+      var isAdded = Boolean(preset.savedId);
+      card.dataset.catalogKey = preset.catalogKey;
+      card.setAttribute("data-desc", preset.description || "");
       card.classList.toggle("is-onboarded", isAdded);
       card.hidden = false;
       attachBotDescription(card, preset.description || preset.summary);
@@ -6726,7 +6893,7 @@ dialog.modal-dialog::backdrop {
       } else if (avatarHolder) { avatarHolder.innerHTML = catalogIcon(preset.name); }
     });
     var ordered = presets.map(function(preset) {
-      return { card: cardsByName[preset.name.toLowerCase()], added: agents.some(function(bot) { return String(bot.name || "").trim().toLowerCase() === preset.name.toLowerCase(); }), name: preset.name };
+      return { card: cardsByName[preset.name.toLowerCase()], added: Boolean(preset.savedId), name: preset.name };
     }).sort(function(a, b) {
       if (a.added !== b.added) return a.added ? 1 : -1;
       var ai = CATALOG_FEATURED.findIndex(function(item) { return item[0] === a.name; });
@@ -6751,7 +6918,7 @@ dialog.modal-dialog::backdrop {
   }
   function syncBotPresetTrigger() {
     var value = document.getElementById("bot-preset-select").value;
-    var preset = getBotOnboardingPresets().find(function(item) { return item.name === value; });
+    var preset = getBotCatalog().find(function(item) { return item.name === value; });
     document.getElementById("bot-preset-value").textContent = preset ? preset.name : "Blank bot";
     applyAvatarElement(document.querySelector("#bot-preset-trigger .agent-avatar"), preset || {name:"New Bot",shape:"circle",color:"#ff2d3b"}, false);
     document.querySelectorAll("#bot-preset-options [role=option]").forEach(function(option) { option.setAttribute("aria-selected", String(option.dataset.value === value)); });
@@ -6764,7 +6931,7 @@ dialog.modal-dialog::backdrop {
     if (!select || !list || !optionsHost) return;
     var query = String((search && search.value) || "").trim().toLowerCase();
     optionsHost.replaceChildren();
-    var ordered = getBotOnboardingPresets().map(function(preset) {
+    var ordered = getBotCatalog().map(function(preset) {
       return { preset: preset, onboarded: agents.some(function(bot) {
         return (preset.profileId && bot.profileId === preset.profileId) ||
           String(bot.name || "").trim().toLowerCase() === preset.name.toLowerCase();
@@ -6888,7 +7055,7 @@ dialog.modal-dialog::backdrop {
   }
 
   document.getElementById("bot-preset-select").addEventListener("change", function() {
-    var presets = getBotOnboardingPresets();
+    var presets = getBotCatalog();
     var preset = this.value === "" ? null : presets.find(function(item) { return item.name === this.value; }, this);
     selectedBotPreset = preset;
     syncBotPresetTrigger();
@@ -10824,14 +10991,9 @@ dialog.modal-dialog::backdrop {
   if (templateGrid) templateGrid.addEventListener("click", function(event) {
     var card = event.target.closest(".template-card[data-name]");
     if (!card || !templateGrid.contains(card)) return;
-    var name = card.getAttribute("data-name");
-    var preset = LATEST_BOT_PRESETS.find(function(item) { return item.name === name; });
-    var existing = agents.find(function(bot) {
-      if (preset && bot.profileId && bot.profileId === preset.profileId) return true;
-      return String(bot.name || "").trim().toLowerCase() === String(name || "").trim().toLowerCase();
-    });
-    if (existing) { selectAgent(existing.id); return; }
-    createAgent(name, card.getAttribute("data-desc") || "", card.getAttribute("data-shape") || "circle", card.getAttribute("data-color") || "#ff2d3b", preset ? { profileId: preset.profileId } : undefined);
+    var entry = getBotCatalog().find(function(bot) { return bot.catalogKey === card.dataset.catalogKey; });
+    if (!entry) return;
+    selectAgent(ensureCatalogBot(entry).id);
   });
 
   var attachmentMenu = document.getElementById("attachment-menu");

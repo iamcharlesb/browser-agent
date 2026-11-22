@@ -2519,7 +2519,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     res.end(bytes); return;
   }
 
-  if (req.method === "GET" && ["/browserRuntime.js", "/uiState.js", "/artifactPreview.js", "/projectScanner.js", "/responseMarkdown.js", "/runStream.js"].includes(url.pathname)) {
+  if (req.method === "GET" && ["/browserRuntime.js", "/botCatalog.js", "/uiState.js", "/artifactPreview.js", "/projectScanner.js", "/responseMarkdown.js", "/runStream.js"].includes(url.pathname)) {
     const script = await readFile(join(STATIC_DIR, url.pathname.slice(1)), "utf8");
     res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
     res.end(script);
