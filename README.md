@@ -26,6 +26,14 @@ Open `/docs` on the running local server for setup, conversation reset, orchestr
 coding, CLI installation, validation and known limitations. Settings includes a
 Reset conversations control for one bot or all bots.
 
+## Huddles
+
+Use **New Huddle** in the sidebar to create a named session. Search your saved bots, select participants, then choose **Create huddle**. If a bot is not listed, add it from the catalog first.
+
+Ask a question in the huddle to gather each selected bot's perspective, show attributed replies, and produce a shared synthesis. Follow-up questions use the session's conversation history. Sessions remain in the sidebar and reopen without starting model work. Use **Edit huddle** to change the name or participants once its work finishes or is stopped.
+
+Creating a huddle starts no model request. Sending a question may incur provider charges. Discussions and specialist research are read-only; the session does not authorize publication, transactions, or recurring jobs. The server's configured participant and time limits apply; failures and missing replies are reported explicitly. A configured conversational model is required.
+
 ## Action scripts and local API access
 
 Arbitrary JavaScript action scripts are disabled until OS-enforced isolation is

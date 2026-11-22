@@ -558,6 +558,104 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }
     });
+    await t.test("Huddle setup persists members and each question gathers only the selected bots", async () => {
+      scenario = "team"; teamPrompts.length = 0; finalCalls = 0;
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+        const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+        const submitted: any[] = [];
+        await page.route(/\/api\/run(?:\/queue)?$/, async route => { submitted.push(route.request().postDataJSON()); await route.continue(); });
+        await page.addInitScript(() => {
+          if (!localStorage.getItem("agentFireworksAgentsV2")) localStorage.setItem("agentFireworksAgentsV2", JSON.stringify([
+            { id: "h-seo", name: "SEO Specialist", description: "HUDDLE_ROLE_SEO search strategy", transcript: [] },
+            { id: "h-writer", name: "Blog Writer", description: "HUDDLE_ROLE_WRITER content strategy", transcript: [] },
+            { id: "h-founder", name: "Founder Operator", description: "HUDDLE_ROLE_FOUNDER priorities", transcript: [] }
+          ]));
+          localStorage.setItem("openBotsAgentEngine", "cheap");
+        });
+        await page.goto(base, { waitUntil: "domcontentloaded" });
+        const before = modelCalls;
+        await page.getByRole("button", { name: "Create a huddle", exact: true }).click();
+        await page.waitForFunction(() => document.querySelector("#huddle-limit")!.textContent!.includes("up to"));
+        assert.equal(await page.locator("#huddle-save").isDisabled(), true);
+        await page.locator("#huddle-name").fill("Launch planning");
+        await page.getByRole("checkbox", { name: "SEO Specialist", exact: true }).check();
+        await page.locator("#huddle-search").fill("Blog");
+        assert.equal(await page.locator(".huddle-choice:visible").count(), 1);
+        await page.getByRole("checkbox", { name: "Blog Writer", exact: true }).check();
+        await page.locator("#huddle-search").fill("");
+        assert.match(await page.locator("#huddle-count").innerText(), /2.*selected/);
+        await page.screenshot({ path: join(tmpdir(), "pilo-huddle-setup.png") });
+        assert.equal(modelCalls, before, "opening and selecting participants starts no model work");
+        await page.locator("#huddle-save").click();
+        assert.equal(await page.locator("#huddle-modal").isVisible(), false);
+        assert.equal(await page.locator("#huddle-member-list .huddle-member").count(), 2);
+        assert.equal(await page.locator("#prompt").getAttribute("placeholder"), "Ask the huddle…");
+        const session = await page.evaluate(() => JSON.parse(localStorage.getItem("agentFireworksAgentsV2")!).find((bot: any) => bot.kind === "huddle"));
+        assert.deepEqual(session.participantIds, ["h-seo", "h-writer"]);
+        await page.reload();
+        await page.waitForSelector("#huddle-members:not([hidden])");
+        assert.equal(modelCalls, before, "reopening a saved session starts no model work");
+        await page.waitForFunction(() => Boolean(document.querySelector('#composer-model-select option[value="integration-model"]')));
+        await page.selectOption("#composer-model-select", "integration-model");
+        await page.locator("#prompt").fill("What should our launch prioritize?");
+        await page.locator("#send-button").click();
+        await page.waitForFunction(() => document.querySelector("#messages")!.textContent!.includes("Actual coordination results"));
+        assert.deepEqual(submitted[0].huddleParticipantIds, ["h-seo", "h-writer"]);
+        assert.equal(submitted[0].interactionMode, "chat");
+        assert.equal(submitted[0].autoApprove, false);
+        assert.deepEqual(submitted[0].workspaceBots.map((bot: any) => bot.id), ["h-seo", "h-writer"]);
+        assert.deepEqual(teamPrompts.map(item => item.name), ["SEO Specialist", "Blog Writer"]);
+        assert.equal(await page.locator("#messages section").filter({ hasText: "— findings" }).count(), 2);
+        assert.ok(teamPrompts[1].text.includes("SEO Specialist"), "later speakers receive the attributed shared discussion context");
+        await page.waitForFunction(() => document.querySelector("#status-badge-text")!.textContent === "Ready");
+        teamPrompts.length = 0;
+        await page.locator("#edit-huddle").click();
+        await page.waitForFunction(() => document.querySelector("#huddle-limit")!.textContent!.includes("up to"));
+        await page.getByRole("checkbox", { name: "Blog Writer", exact: true }).uncheck();
+        await page.getByRole("checkbox", { name: "Founder Operator", exact: true }).check();
+        await page.locator("#huddle-save").click();
+        await page.waitForTimeout(450);
+        await page.locator("#prompt").fill("How does that change our next step?");
+        await page.locator("#send-button").click();
+        await page.waitForFunction(() => document.querySelectorAll("#messages section").length >= 4, null, { timeout: 10000 }).catch(async error => {
+          throw new Error(error.message + "\n" + JSON.stringify({ submitted, teamPrompts, text: await page.locator("#messages").innerText(), status: await page.locator("#status").innerText() }));
+        });
+        assert.deepEqual(teamPrompts.map(item => item.name), ["SEO Specialist", "Founder Operator"]);
+        assert.equal(await page.locator("#messages").innerText().then(text => text.includes("What should our launch prioritize?")), true);
+        await page.waitForFunction(() => document.querySelector("#status-badge-text")!.textContent === "Ready");
+        scenario = "async"; asyncStarted.length = 0; releaseAsync.clear();
+        await page.waitForTimeout(450);
+        await page.locator("#prompt").fill("UI_C");
+        await page.locator("#send-button").click();
+        await waitFor(async () => asyncStarted, values => values.includes("UI_C"));
+        await page.waitForTimeout(450);
+        await page.locator("#prompt").fill("UI_A");
+        await page.locator("#send-button").click();
+        await page.waitForSelector(".queued-command");
+        await page.locator("#stop-run-btn").click();
+        await page.waitForFunction(() => document.querySelector("#status-badge-text")!.textContent === "Ready");
+        releaseAsync.get("UI_C")!();
+        await page.waitForTimeout(400);
+        assert.deepEqual(asyncStarted, ["UI_C"], "Stop cancels the remaining speakers and queued follow-up");
+        assert.equal(await page.locator("#command-queue").isVisible(), false);
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    });
+    await t.test("invalid Huddle participants are rejected before queuing or model work", async () => {
+      const before = modelCalls;
+      const workspaceBots = [{ id: "h-a", name: "First" }, { id: "h-b", name: "Second" }];
+      for (const endpoint of ["/api/run", "/api/run/queue"]) {
+        const response = await fetch(base + endpoint, { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ task: "What should we do?", botName: "Huddle: invalid", model: "integration-model", workspaceBots, huddleParticipantIds: ["h-a", "absent"] }) });
+        assert.equal(response.status, 400);
+        assert.match((await response.json()).detail, /available saved bot/);
+      }
+      const local = await fetch(base + "/api/run", { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ task: "What should we do?", botName: "Huddle: local", model: "local-engine", workspaceBots, huddleParticipantIds: ["h-a", "h-b"] }) });
+      assert.equal(local.status, 400);
+      assert.match((await local.json()).detail, /cannot run bot consultations/);
+      assert.equal(modelCalls, before);
+    });
     await t.test("two agents execute concurrently; same-bot work waits and scoped Stop leaves the other agent running", async () => {
       scenario = "async";
       const enqueue = async (botName: string, task: string) => fetch(base + "/api/run/queue", {
@@ -735,6 +833,9 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await waitFor(async () => asyncStarted, value => value.includes("UI_A"));
         assert.equal(submitted[0].interactionMode, "turbo");
         assert.equal(submitted[0].autoApprove, false);
+        const currentAvatar = page.locator('.agent-row[data-agent-id="writer"] .agent-avatar');
+        assert.equal(await currentAvatar.evaluate(el => el.classList.contains("is-expressive")), false);
+        assert.equal(await currentAvatar.locator(".bot").evaluate(el => getComputedStyle(el).animationName), "none");
         await page.locator("#prompt").fill("Keep this writer draft");
         await page.locator("#brand-home-btn").click();
         assert.equal(await page.locator("#welcome").isVisible(), true);
@@ -743,6 +844,11 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.equal(await page.locator("#step-counter").innerText(), "");
         assert.equal(await page.locator("#composer-stop-button").isVisible(), false);
         assert.equal(await page.locator("#prompt").inputValue(), "");
+        const backgroundAvatar = page.locator('.agent-row[data-agent-id="writer"] .agent-avatar');
+        assert.equal(await backgroundAvatar.evaluate(el => el.classList.contains("is-expressive")), true);
+        assert.notEqual(await backgroundAvatar.locator(".bot").evaluate(el => getComputedStyle(el).animationName), "none");
+        const idleAvatar = page.locator('.agent-row[data-agent-id="researcher"] .agent-avatar');
+        assert.equal(await idleAvatar.locator(".bot").evaluate(el => getComputedStyle(el).animationName), "none");
         await page.locator('.agent-row[data-agent-id="writer"]').click();
         assert.equal(await page.locator("#welcome").isVisible(), false);
         assert.equal(await page.locator("#prompt").inputValue(), "Keep this writer draft");

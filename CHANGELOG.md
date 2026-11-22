@@ -6,12 +6,18 @@ Notable user-visible changes are recorded here. Entries describe completed chang
 
 ### Added
 
+- Huddle sessions with names, searchable saved-bot selection, participant counts, avatars, membership editing, persistent shared conversations, and attributed replies with a synthesis.
+- Explicit Huddle participant validation before queuing or model work, with server-configured limits and read-only discussion mode. Only the selected roster is supplied to a huddle.
+
 - Wall Street Analyst and Goldman Sachs Analyst catalog entries, registered runtime profiles, separate voices, and on-demand research/valuation playbooks. These are independent AI assistants with no institutional affiliation.
 - Sundar Pichai portrait sourced from Google's official author page, with source URL and checksum recorded in avatar provenance.
 - Expandable bot-independence, endorsement, and financial-analysis disclaimer in the catalog.
 - README navigation to the product roadmap, feature inventory, and this changelog.
 
 ### Changed
+
+- Refined Huddle setup with a padded header, compact searchable participant list, selection feedback, and a stable action footer that fits desktop and mobile screens.
+- Keep the open bot's animation in the main view; animate sidebar avatars only for background work.
 
 - Redesigned the bot selector with a compact heading, four-column desktop cards, role icons, and the existing white background.
 - Show every built-in bot by default; Favorites and Recent remain available.

@@ -10,6 +10,12 @@
     function hold(html) { saved.push(html); return "\u0001" + (saved.length - 1) + "\u0002"; }
     var text = String(raw).replace(/\u0001|\u0002/g, "");
     text = text.replace(/`([^`\n]+)`/g, function(_, code) { return hold("<code>" + escape(code) + "</code>"); });
+    text = text.replace(/\[!\[([^\]\n]*)\]\(\s*([^\s)]+)\s*\)\]\(\s*([^\s)]+)\s*\)/g, function(_, alt, rawImg, rawHref) {
+      var imgUrl = safeUrl(rawImg), href = safeUrl(rawHref);
+      if (!imgUrl) return href ? hold('<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + escape(alt || rawHref) + '</a>') : escape(alt);
+      var target = href || imgUrl;
+      return hold('<a href="' + target + '" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="' + imgUrl + '" alt="' + escape(alt) + '"></a>');
+    });
     text = text.replace(/(!?)\[([^\]\n]*)\]\(\s*([^\s)]+)\s*\)/g, function(_, image, label, rawUrl) {
       var url = safeUrl(rawUrl);
       if (!url) return label;

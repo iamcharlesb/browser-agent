@@ -86,6 +86,7 @@ button { color: inherit; }
   padding: 0 0 10px;
   width: 100%;
 }
+#app.sidebar-collapsed #new-huddle-button,
 #app.sidebar-collapsed #new-agent-button,
 #app.sidebar-collapsed .agent-row {
   justify-content: center;
@@ -213,7 +214,7 @@ button { color: inherit; }
   box-shadow: 0 0 0 3px rgba(255, 92, 0, 0.12);
 }
 
-#new-agent-button, .agent-row {
+#new-agent-button, #new-huddle-button, .agent-row {
   width: 100%;
   border: 0;
   border-radius: 12px;
@@ -3613,6 +3614,52 @@ dialog.modal-dialog::backdrop {
 @media (hover: none) { .catalog-favorite { opacity: .65; } }
 @media (prefers-reduced-motion: reduce) { #welcome .template-card, #welcome .welcome-mark { transition: none; } }
 
+#new-huddle-button { min-height:36px; margin: 0 0 4px; padding:6px 10px; font-weight:600; }
+#new-huddle-button:hover { background: #e9edf3; }
+.huddle-avatar { background:#e6edff !important; color:#2563eb; border-radius:8px; }
+#sidebar .agent-row:not(.is-working) .agent-avatar, #sidebar .agent-row:not(.is-working) .agent-avatar * { animation:none !important; }
+#huddle-members { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 20px; border-bottom:1px solid var(--border); }
+#huddle-member-list { display:flex; flex-wrap:wrap; gap:6px; min-width:0; }
+.huddle-member { padding:3px 9px; background:var(--blue-soft); color:var(--text-secondary); border-radius:999px; font-size:11px; }
+#edit-huddle { flex-shrink:0; border:0; background:transparent; color:var(--blue); cursor:pointer; font-size:12px; }
+#huddle-modal { width:min(92vw,500px); max-height:calc(100dvh - 32px); border-radius:18px; box-shadow:0 24px 80px #0f172a26; }
+#huddle-form { display:flex; flex-direction:column; max-height:calc(100dvh - 34px); }
+.huddle-modal-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:24px 24px 18px; }
+#huddle-title { margin:0 0 5px; font-size:21px; font-weight:650; letter-spacing:-.025em; line-height:1.25; }
+#huddle-form p { margin:0; }
+.huddle-help { color:var(--muted); font-size:12px; line-height:1.5; }
+.huddle-modal-body { padding:0 24px 18px; overflow-y:auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
+.huddle-name-field { display:flex; flex-direction:column; gap:7px; margin-bottom:8px; }
+.huddle-name-field label, .huddle-picker-heading { font-size:12px; font-weight:600; }
+#huddle-name { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; }
+#huddle-name:focus-visible, #huddle-search:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
+.huddle-picker-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+#huddle-count { font-size:11px; font-weight:500; color:var(--blue); background:var(--blue-soft); border-radius:999px; padding:3px 8px; }
+.huddle-search-wrap { position:relative; }
+.huddle-search-wrap svg { position:absolute; left:11px; top:10px; width:16px; height:16px; color:var(--muted); }
+#huddle-search { width:100%; height:36px; padding:0 12px 0 35px; border:1px solid var(--border); border-radius:8px; background:#fafbfc; font-size:12px; }
+#huddle-choices { display:flex; flex-direction:column; gap:3px; max-height:250px; min-height:80px; overflow-y:auto; border:1px solid var(--border); border-radius:10px; padding:6px; margin:0; }
+.huddle-choice { display:flex; align-items:center; gap:10px; padding:8px; cursor:pointer; border-radius:7px; min-height:52px; }
+.huddle-choice:hover { background:#f7f8fb; }
+.huddle-choice:has(input:checked) { background:var(--blue-soft); }
+.huddle-choice:has(input:disabled) { opacity:.5; cursor:default; }
+.huddle-choice input { order:3; width:16px; height:16px; margin:0 2px 0 auto; flex-shrink:0; accent-color:var(--blue); }
+.huddle-choice .agent-avatar { width:30px; height:30px; flex:0 0 30px; border-radius:50%; overflow:hidden; }
+.huddle-choice .agent-avatar .bot { --size:30px; }
+.huddle-choice .agent-avatar * { animation:none !important; }
+.huddle-choice-copy { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.huddle-choice-name { font-size:12px; font-weight:600; line-height:1.4; }
+.huddle-choice-role { color:var(--muted); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:300px; }
+#huddle-error { color:#b42318; font-size:12px; line-height:1.4; }
+#huddle-error:empty { display:none; }
+.huddle-modal-footer { padding:16px 24px 20px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:14px; background:#fcfcfd; }
+.huddle-modal-footer .huddle-help { font-size:11px; }
+.huddle-modal-actions { display:flex; justify-content:flex-end; gap:8px; }
+#huddle-cancel, #huddle-save { height:36px; border-radius:8px; padding:0 14px; font-size:12px; font-weight:500; cursor:pointer; }
+#huddle-cancel { border:1px solid var(--border); background:#fff; }
+#huddle-save:disabled { opacity:.4; cursor:not-allowed; }
+@media (max-width:430px) { .huddle-modal-header { padding:20px 18px 16px; } .huddle-modal-body { padding:0 18px 16px; } .huddle-modal-footer { padding:14px 18px 18px; } .huddle-choice-role { max-width:200px; } }
+
 </style>
 </head>
 <body>
@@ -3641,6 +3688,10 @@ dialog.modal-dialog::backdrop {
     <button id="new-agent-button" class="active" title="New Bot — Create a custom autonomous bot">
       <span class="agent-avatar small"><span class="spark"></span></span>
       <span class="agent-copy"><span class="agent-name">New Bot</span><span class="agent-subtitle">Create a custom autonomous bot</span></span>
+    </button>
+    <button type="button" id="new-huddle-button" title="Create a huddle" aria-label="Create a huddle">
+      <span class="agent-avatar small huddle-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 5"/></svg></span>
+      <span class="agent-copy"><span class="agent-name">New Huddle</span><span class="agent-subtitle">Discuss with multiple bots</span></span>
     </button>
     <div class="sidebar-section-label">Your Bots</div>
     <div id="agent-list" class="agent-list"></div>
@@ -3896,6 +3947,7 @@ dialog.modal-dialog::backdrop {
         <section id="saved-bot-instructions" hidden aria-label="Edit bot profile">
           <button id="edit-bot-instructions" type="button" aria-label="Edit bot profile" title="Edit bot profile"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/></svg></button>
         </section>
+        <section id="huddle-members" hidden aria-label="Huddle participants"><div id="huddle-member-list"></div><button type="button" id="edit-huddle">Edit huddle</button></section>
         <div id="messages" hidden></div>
 
         <div id="composer-wrap">
@@ -4031,6 +4083,21 @@ dialog.modal-dialog::backdrop {
 </div>
 
 <!-- Create / Customize Bot Modal (Grok Bots Customizer) -->
+<dialog id="huddle-modal" class="modal-dialog" closedby="closerequest" aria-labelledby="huddle-title">
+  <form id="huddle-form">
+    <header class="huddle-modal-header"><div><h2 id="huddle-title">Create a huddle</h2><p class="huddle-help">Bring the right bots into one conversation.</p></div><button type="button" id="huddle-close" class="modal-close" aria-label="Close huddle setup">✕</button></header>
+    <div class="huddle-modal-body">
+      <div class="huddle-name-field"><label for="huddle-name">Huddle name</label><input id="huddle-name" maxlength="100" required placeholder="e.g. Product strategy" autocomplete="off" /></div>
+      <div class="huddle-picker-heading"><span>Choose your bots</span><span id="huddle-count" aria-live="polite">0 selected</span></div>
+      <div class="huddle-search-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg><input type="search" id="huddle-search" placeholder="Search your bots…" aria-label="Search huddle participants" autocomplete="off" /></div>
+      <fieldset id="huddle-choices" aria-describedby="huddle-limit"><legend class="sr-only">Participants</legend></fieldset>
+      <p id="huddle-search-empty" class="huddle-help" hidden>No bots match your search.</p>
+      <p id="huddle-limit" class="huddle-help">Loading participant limits…</p>
+      <p id="huddle-error" role="status" aria-live="polite"></p>
+    </div>
+    <footer class="huddle-modal-footer"><p class="huddle-help">Questions may incur model charges. Discussion and research only.</p><div class="huddle-modal-actions"><button type="button" id="huddle-cancel">Cancel</button><button type="submit" id="huddle-save" class="catalog-create-bot" disabled>Create huddle</button></div></footer>
+  </form>
+</dialog>
 <dialog id="create-bot-modal" class="modal-dialog" closedby="closerequest" aria-labelledby="create-bot-modal-title" style="width:min(92vw, 420px);">
   <div class="modal-inner">
     <div class="modal-header">
@@ -4759,7 +4826,7 @@ dialog.modal-dialog::backdrop {
   function syncPromptPlaceholder() {
     var current = activeAgent();
     prompt.placeholder = current
-      ? "Message " + current.name + "…"
+      ? current.kind === "huddle" ? "Ask the huddle…" : "Message " + current.name + "…"
       : window.matchMedia("(max-width: 430px)").matches
       ? "Ask anything…"
       : "Ask anything, run $ command, or paste a URL…";
@@ -4974,6 +5041,11 @@ dialog.modal-dialog::backdrop {
 
   function applyAvatarElement(el, agent, working, expressive) {
     if (!el) return;
+    if (agent && agent.kind === "huddle") {
+      el.className = "agent-avatar small huddle-avatar";
+      el.innerHTML = document.querySelector("#new-huddle-button .agent-avatar").innerHTML;
+      return;
+    }
     var seedKey = (agent && (agent.id || agent.name)) || "new-bot";
     var avatarImage = defaultAvatarImage(agent && agent.name) || (agent && agent.avatarImage);
     var showExpression = Boolean(expressive);
@@ -5491,7 +5563,7 @@ dialog.modal-dialog::backdrop {
       quickStarts.hidden = true;
       return;
     }
-    var items = (agent && agent.intent && agent.intent.suggestions) || [
+    var items = agent.kind === "huddle" ? ["What should we prioritize next?", "Compare the options and challenge each other’s assumptions"] : (agent && agent.intent && agent.intent.suggestions) || [
       "Summarize a YouTube video",
       "Search the web",
       "$ git status -s"
@@ -5516,11 +5588,19 @@ dialog.modal-dialog::backdrop {
       if (!searchQuery) return true;
       return (a.name + " " + (a.summary || "")).toLowerCase().indexOf(searchQuery) !== -1;
     });
+    filtered.sort(function(a,b) { return Number(a.kind === "huddle") - Number(b.kind === "huddle"); });
+    var huddleHeadingAdded = false;
     filtered.forEach(function(agent) {
+      if (agent.kind === "huddle" && !huddleHeadingAdded) {
+        var heading = document.createElement("div"); heading.className = "sidebar-section-label"; heading.textContent = "Huddles";
+        agentList.appendChild(heading); huddleHeadingAdded = true;
+      }
       var isCurrent = agent.id === activeAgentId;
       var isAgentWorking = Boolean(runTracker.activeFor(agent.id));
+      var mainBotVisible = isCurrent || (isRunning && agent.id === runningAgentId && runConversationAgentId === activeAgentId);
+      var sidebarWorking = isAgentWorking && !mainBotVisible;
       var row = document.createElement("div");
-      row.className = "agent-row" + (isCurrent ? " active" : "") + (isAgentWorking ? " is-working" : "");
+      row.className = "agent-row" + (isCurrent ? " active" : "") + (sidebarWorking ? " is-working" : "");
       row.draggable = true;
       row.dataset.agentId = agent.id;
       row.style.setProperty("--bot-color", agent.color || "#1677ff");
@@ -5531,7 +5611,7 @@ dialog.modal-dialog::backdrop {
         '<span class="agent-copy"><span class="agent-name">' + esc(agent.name) + '</span>' +
         '<span class="agent-subtitle">' + esc(agent.summary || "Bot") + '</span></span>' +
         '<button type="button" class="agent-delete" title="Delete bot" aria-label="Delete bot">✕</button>';
-      applyAvatarElement(row.querySelector(".agent-avatar"), agent, isAgentWorking, isCurrent);
+      applyAvatarElement(row.querySelector(".agent-avatar"), agent, sidebarWorking, sidebarWorking);
       row.onclick = function(e) {
         if (e.target.closest(".agent-delete")) return;
         selectAgent(agent.id);
@@ -5951,6 +6031,7 @@ dialog.modal-dialog::backdrop {
     requestAnimationFrame(function() { messages.scrollTop = messages.scrollHeight; });
     renderSidebar();
     renderQuickStarts(a);
+    renderHuddleMembers(a);
     syncPromptPlaceholder();
     if (a.intent && a.intent.url) {
       browserAddress.value = a.intent.url;
@@ -5979,6 +6060,7 @@ dialog.modal-dialog::backdrop {
     restoreComposerDraft();
     syncPromptPlaceholder();
     quickStarts.hidden = true;
+    renderHuddleMembers(null);
     status.textContent = "";
     stepCounter.textContent = "";
     renderSidebar();
@@ -6207,6 +6289,105 @@ dialog.modal-dialog::backdrop {
       })
       .catch(function() {});
   }
+
+  var editingHuddleId = null;
+  var huddleParticipantLimit = null;
+  var huddleModalGeneration = 0;
+  function availableHuddleBots(session) {
+    return (session.participantIds || []).map(function(id) { return agents.find(function(bot) { return bot.id === id && bot.kind !== "huddle" && !bot.deleted; }); }).filter(Boolean);
+  }
+  function renderHuddleMembers(session) {
+    var panel = document.getElementById("huddle-members");
+    panel.hidden = !session || session.kind !== "huddle";
+    var list = document.getElementById("huddle-member-list"); list.innerHTML = "";
+    if (panel.hidden) return;
+    (session.participantIds || []).forEach(function(id) {
+      var bot = agents.find(function(item) { return item.id === id && !item.deleted; });
+      var chip = document.createElement("span"); chip.className = "huddle-member";
+      chip.textContent = bot ? bot.name : "Unavailable participant"; list.appendChild(chip);
+    });
+  }
+  function updateHuddleSelection() {
+    var inputs = Array.from(document.querySelectorAll("#huddle-choices input"));
+    var selected = inputs.filter(function(input) { return input.checked; }).length;
+    document.getElementById("huddle-count").textContent = selected + (huddleParticipantLimit ? " / " + huddleParticipantLimit : "") + " selected";
+    inputs.forEach(function(input) { input.disabled = Boolean(huddleParticipantLimit && selected >= huddleParticipantLimit && !input.checked); });
+    document.getElementById("huddle-save").disabled = !huddleParticipantLimit || selected < 2 || selected > huddleParticipantLimit || !document.getElementById("huddle-name").value.trim();
+  }
+  function filterHuddleBots() {
+    var query = document.getElementById("huddle-search").value.trim().toLowerCase();
+    var visible = 0;
+    document.querySelectorAll(".huddle-choice").forEach(function(row) { row.hidden = query && row.textContent.toLowerCase().indexOf(query) < 0; if (!row.hidden) visible++; });
+    document.getElementById("huddle-search-empty").hidden = visible > 0 || !query;
+  }
+  function openHuddleModal(session) {
+    editingHuddleId = session && session.id || null;
+    huddleParticipantLimit = null;
+    var generation = ++huddleModalGeneration;
+    var modal = document.getElementById("huddle-modal");
+    document.getElementById("huddle-title").textContent = session ? "Edit huddle" : "Create a huddle";
+    document.getElementById("huddle-save").textContent = session ? "Save huddle" : "Create huddle";
+    document.getElementById("huddle-save").disabled = true;
+    document.getElementById("huddle-name").value = session ? session.name.replace(/^Huddle: /, "") : "";
+    document.getElementById("huddle-error").textContent = "";
+    document.getElementById("huddle-limit").textContent = "Loading participant limits…";
+    document.getElementById("huddle-search").value = "";
+    document.getElementById("huddle-search-empty").hidden = true;
+    var choices = document.getElementById("huddle-choices"); choices.innerHTML = '<legend class="sr-only">Participants</legend>';
+    agents.filter(function(bot) { return bot.kind !== "huddle" && !bot.deleted; }).forEach(function(bot) {
+      var label = document.createElement("label"); label.className = "huddle-choice";
+      var input = document.createElement("input"); input.type = "checkbox"; input.value = bot.id;
+      input.checked = Boolean(session && session.participantIds.indexOf(bot.id) >= 0);
+      input.setAttribute("aria-label", bot.name);
+      input.onchange = function() { document.getElementById("huddle-error").textContent = ""; updateHuddleSelection(); };
+      var avatar = document.createElement("span"); avatar.className = "agent-avatar"; avatar.setAttribute("aria-hidden", "true");
+      applyAvatarElement(avatar, bot, false, false);
+      var copy = document.createElement("span"); copy.className = "huddle-choice-copy";
+      var title = document.createElement("span"); title.className = "huddle-choice-name"; title.textContent = bot.name;
+      var role = document.createElement("span"); role.className = "huddle-choice-role"; role.textContent = bot.summary || bot.description || "Personal AI assistant";
+      copy.append(title, role); label.append(input, avatar, copy); choices.appendChild(label);
+    });
+    if (choices.querySelectorAll("input").length < 2) document.getElementById("huddle-error").textContent = "Add at least two bots from the catalog first.";
+    updateHuddleSelection();
+    modal.showModal();
+    fetch("/api/status").then(readResponse).then(function(state) {
+      if (generation !== huddleModalGeneration || !modal.open) return;
+      var cap = state.coordinationCapabilities && state.coordinationCapabilities.maxHuddleParticipants;
+      if (!Number.isInteger(cap) || cap < 2) throw new Error("Huddles need a server configuration allowing at least two participants.");
+      huddleParticipantLimit = cap;
+      document.getElementById("huddle-limit").textContent = "Select at least 2 bots, up to " + cap + ".";
+      updateHuddleSelection();
+    }).catch(function(error) {
+      if (generation === huddleModalGeneration && modal.open) document.getElementById("huddle-error").textContent = error.message + " Close and reopen to retry.";
+    });
+  }
+  document.getElementById("huddle-name").addEventListener("input", updateHuddleSelection);
+  document.getElementById("huddle-search").addEventListener("input", filterHuddleBots);
+  document.getElementById("huddle-close").onclick = function() { document.getElementById("huddle-modal").close(); };
+  document.getElementById("new-huddle-button").onclick = function() { openHuddleModal(); };
+  document.getElementById("edit-huddle").onclick = function() { openHuddleModal(activeAgent()); };
+  document.getElementById("huddle-cancel").onclick = function() { document.getElementById("huddle-modal").close(); };
+  document.getElementById("huddle-form").onsubmit = function(event) {
+    event.preventDefault();
+    var error = document.getElementById("huddle-error");
+    var ids = Array.from(document.querySelectorAll("#huddle-choices input:checked")).map(function(input) { return input.value; });
+    var name = document.getElementById("huddle-name").value.trim();
+    if (!name) { error.textContent = "Enter a session name."; return; }
+    if (!huddleParticipantLimit || ids.length < 2 || ids.length > huddleParticipantLimit) { error.textContent = "Choose between 2 and " + (huddleParticipantLimit || "the configured maximum") + " bots."; return; }
+    if (agents.some(function(bot) { return bot.id !== editingHuddleId && bot.name.toLowerCase() === ("Huddle: " + name).toLowerCase(); })) { error.textContent = "Choose a different session name."; return; }
+    var members = ids.map(function(id) { return agents.find(function(bot) { return bot.id === id && bot.kind !== "huddle" && !bot.deleted; }); });
+    if (members.some(function(bot) { return !bot; }) || new Set(members.map(function(bot) { return bot.name.toLowerCase(); })).size !== ids.length) { error.textContent = "Choose available bots with distinct names."; return; }
+    var session = editingHuddleId && agents.find(function(bot) { return bot.id === editingHuddleId; });
+    if (session && (runTracker.activeFor(session.id) || queuedRunsAfterActive.some(function(item) { return item.conversationAgentId === session.id; }))) { error.textContent = "Wait for this huddle to finish or stop it before editing."; return; }
+    if (!session) {
+      session = { id: "huddle_" + crypto.randomUUID(), kind: "huddle", transcript: [], color: "#2563eb", shape: "circle" };
+      agents.push(session);
+    }
+    session.name = "Huddle: " + name; session.participantIds = ids;
+    session.summary = members.map(function(bot) { return bot.name; }).join(" · ");
+    session.description = "Facilitate this huddle. Gather each selected bot’s distinct perspective, consider earlier contributions, identify agreement and disagreement, and synthesize the evidence and next steps. Attribute only actual replies. This is discussion and read-only research, never permission to execute actions or schedule work.";
+    saveAgents(); document.getElementById("huddle-modal").close(); selectAgent(session.id);
+  };
 
   function createAgent(name, customDescription, shapeId, colorHex, options) {
     var desc = (customDescription || "").trim();
@@ -6664,6 +6845,7 @@ dialog.modal-dialog::backdrop {
   document.addEventListener("pointerdown", function(event) { if (!event.target.closest("#bot-preset-picker")) closeBotPresetList(false); });
 
   function openCreateBotModal(prefill) {
+    if (prefill && prefill.editAgent && prefill.editAgent.kind === "huddle") { openHuddleModal(prefill.editAgent); return; }
     var modal = document.getElementById("create-bot-modal");
     var titleEl = document.getElementById("create-bot-modal-title");
     var submitBtn = document.getElementById("create-bot-submit-btn");
@@ -7032,13 +7214,13 @@ dialog.modal-dialog::backdrop {
     if (!q) return null;
     // 1. Exact name match
     var exact = agents.find(function(a) {
-      return a.id !== excludeId && a.name.toLowerCase() === q;
+      return a.kind !== "huddle" && a.id !== excludeId && a.name.toLowerCase() === q;
     });
     if (exact) return exact;
     // 2. Substring match on name
     var sub = agents.find(function(a) {
       var n = a.name.toLowerCase();
-      return a.id !== excludeId && (n.indexOf(q) !== -1 || q.indexOf(n) !== -1);
+      return a.kind !== "huddle" && a.id !== excludeId && (n.indexOf(q) !== -1 || q.indexOf(n) !== -1);
     });
     if (sub) return sub;
     // 3. Keyword overlap on name + summary
@@ -7047,7 +7229,7 @@ dialog.modal-dialog::backdrop {
     var best = null;
     var bestScore = 0;
     agents.forEach(function(a) {
-      if (a.id === excludeId) return;
+      if (a.kind === "huddle" || a.id === excludeId) return;
       var hay = (a.name + " " + (a.description || "") + " " + (a.summary || "")).toLowerCase();
       var score = 0;
       words.forEach(function(w) {
@@ -7134,7 +7316,7 @@ dialog.modal-dialog::backdrop {
         "- [YOU] \"" + currentAgent.name + "\" — " + botExpertiseLine(currentAgent)
       );
     }
-    var peerBots = agents.filter(function(a) { return !a.deleted && (!currentAgent || a.id !== currentAgent.id); });
+    var peerBots = agents.filter(function(a) { return !a.deleted && a.kind !== "huddle" && (!currentAgent || a.id !== currentAgent.id) && (!currentAgent || currentAgent.kind !== "huddle" || currentAgent.participantIds.indexOf(a.id) >= 0); });
     if (peerBots.length === 0) {
       lines.push("- No saved peer bots are available in this workspace. Ask the user to add the intended bot; do not invent a target or create a generic replacement.");
     } else {
@@ -7283,20 +7465,23 @@ dialog.modal-dialog::backdrop {
 
   function buildAgentRunPayload(task, approvedCategories, collaborationContext, agent) {
     var memory = conversationMemoryPayload(agent);
+    var huddleIds = agent && agent.kind === "huddle" ? agent.participantIds.slice() : undefined;
+    var roster = agents.filter(function(bot) { return bot.kind !== "huddle" && (!huddleIds || huddleIds.indexOf(bot.id) >= 0); });
     return {
+      huddleParticipantIds: huddleIds,
       task: task, sessionMode: currentSessionMode, botName: agent && agent.name,
       expertise: agent && agent.intent && agent.intent.expertise,
       profileId: agent && agent.profileId,
       botInstructions: agent && agent.description,
-      workspaceBots: agents.map(function(bot) { return { id: bot.id, name: bot.name, profileId: bot.profileId, botInstructions: bot.description || "", expertise: botExpertiseLine(bot) }; }),
+      workspaceBots: roster.map(function(bot) { return { id: bot.id, name: bot.name, profileId: bot.profileId, botInstructions: bot.description || "", expertise: botExpertiseLine(bot) }; }),
       initialUrl: (agent && agent.intent && agent.intent.url) || browserAddress.value || "about:blank",
       scheduleTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       collaborationContext: [buildWorkspaceBotsContext(agent), collaborationContext || ""].filter(Boolean).join("\n\n"),
       conversationTurns: memory.conversationTurns, conversationArtifacts: memory.conversationArtifacts,
       conversationResetAt: Number(agent && agent.conversationResetAt) || 0,
-      approvedCategories: approvedCategories || [], autoApprove: autoApproveEnabled,
+      approvedCategories: huddleIds ? [] : approvedCategories || [], autoApprove: huddleIds ? false : autoApproveEnabled,
       model: document.getElementById("model-select").value || configuredDefaultModel,
-      interactionMode: "turbo", agentEngine: currentAgentEngine || "openai-sdk",
+      interactionMode: huddleIds ? "chat" : "turbo", agentEngine: currentAgentEngine || "openai-sdk",
       observeMode: "text", headless: true
     };
   }
@@ -8719,8 +8904,15 @@ dialog.modal-dialog::backdrop {
     var value = prompt.value.trim() || (attachments.length ? "Use the attached evidence for the current task." : "");
     if (!value && !taggedDiscussionBots.length) return;
     if (!value) value = "Discuss this with the tagged bots and return a concise synthesis.";
+    var huddle = activeAgent();
+    if (huddle && huddle.kind === "huddle") {
+      var members = availableHuddleBots(huddle);
+      if (members.length !== (huddle.participantIds || []).length || members.length < 2) {
+        status.textContent = "A participant is unavailable. Edit this huddle and select at least two available bots."; return;
+      }
+    }
     var displayValue = value;
-    if (taggedDiscussionBots.length && !/@\[|@\w/.test(value) && !/\bcoordinate with\b/i.test(value)) {
+    if ((!huddle || huddle.kind !== "huddle") && taggedDiscussionBots.length && !/@\[|@\w/.test(value) && !/\bcoordinate with\b/i.test(value)) {
       value = discussionTagPrefix() + value;
     }
     var now = Date.now();
@@ -8734,6 +8926,14 @@ dialog.modal-dialog::backdrop {
     prompt.style.height = "auto";
     quickStarts.hidden = true;
     welcome.classList.remove("is-typing");
+
+    if (huddle && huddle.kind === "huddle") {
+      var huddleTask = value + attachmentContext();
+      appendMessage("user", userMessageWithAttachments(displayValue));
+      clearAttachments();
+      startRun(huddleTask);
+      return;
+    }
 
     // `/learn <task>` runs the task as a rehearsal: the bot plays the user, grades its own
     // experience, and fixes what it finds. Only available in the built copy (npm run built).

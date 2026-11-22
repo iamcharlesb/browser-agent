@@ -88,6 +88,7 @@ import { nextDailyOccurrence } from "./scheduler";
 import { AgentHandoffRequest, TOPICS, localBus } from "./messageBus";
 import { MAX_HANDOFF_DEPTH, decideHandoff, handoffExecutionContext } from "./handoff";
 import { DiscussionController, discussionLimits } from "./discussionController";
+import { parseHuddleParticipants } from "./huddle";
 import { RunSlots, type RunResource } from "./runSlots";
 import {
   LearnModeSession,
@@ -348,6 +349,7 @@ interface BrowserSession {
 }
 
 interface RunRequestBody {
+  huddleParticipantIds?: string[];
   workspaceBots?: WorkspaceBot[];
   conversationResetAt?: number;
   profileId?: string;
@@ -681,12 +683,15 @@ function validateRunRequest(body: unknown): RunRequestBody {
         (value): value is ApprovalCategory => value === "financial_transaction" || value === "external_side_effect"
       )
     : [];
+  const roster = parseWorkspaceBots(record.workspaceBots);
+  const huddleParticipantIds = parseHuddleParticipants(record.huddleParticipantIds, roster, typeof record.botName === "string" ? record.botName : undefined, discussionLimits().maxConsultations);
   return {
+    huddleParticipantIds,
     task,
-    workspaceBots: parseWorkspaceBots(record.workspaceBots),
+    workspaceBots: huddleParticipantIds ? roster!.filter(bot => huddleParticipantIds.includes(bot.id)) : roster,
     conversationResetAt: typeof record.conversationResetAt === "number" && Number.isSafeInteger(record.conversationResetAt) && record.conversationResetAt >= 0 ? record.conversationResetAt : undefined,
     sessionMode: parseSessionMode(record.sessionMode),
-    interactionMode:
+    interactionMode: huddleParticipantIds ? "chat" :
       record.interactionMode === "chat" ||
       record.interactionMode === "browse" ||
       record.interactionMode === "act" ||
@@ -707,8 +712,8 @@ function validateRunRequest(body: unknown): RunRequestBody {
     ...parseConversationMemory(record),
     collaborationContext:
       typeof record.collaborationContext === "string" ? record.collaborationContext.slice(0, 10_000) : undefined,
-    approvedCategories,
-    autoApprove: Boolean(record.autoApprove),
+    approvedCategories: huddleParticipantIds ? [] : approvedCategories,
+    autoApprove: !huddleParticipantIds && Boolean(record.autoApprove),
     scheduleId: typeof record.scheduleId === "string" ? record.scheduleId : undefined,
     scheduleTimeZone: typeof record.scheduleTimeZone === "string" ? record.scheduleTimeZone.slice(0, 100) : undefined
   };
@@ -984,10 +989,15 @@ const SPECIALIST_MAX_STEPS = envInteger("BROWSER_AGENT_SPECIALIST_MAX_STEPS", 24
 const SYNTHESIS_MAX_STEPS = envInteger("BROWSER_AGENT_SYNTHESIS_MAX_STEPS", 12, 1, 100);
 const SYNTHESIS_MAX_SECONDS = envInteger("BROWSER_AGENT_SYNTHESIS_MAX_SECONDS", 60, 1, 900);
 
+function discussionTargets(body: RunRequestBody): WorkspaceBot[] {
+  if (body.huddleParticipantIds) return body.huddleParticipantIds.map(id => body.workspaceBots!.find(bot => bot.id === id)!);
+  return userRequestsDirectAnswer(currentUserRequest(body.task)) ? [] : requestedCoordination(body.task, body.workspaceBots, body.botName || "default");
+}
+
 function createDiscussion(body: RunRequestBody): string {
   const id = randomUUID();
   botDiscussions.set(id, { coordinator: body, controller: new DiscussionController(body.botName || "default", discussionLimits()),
-    targets: userRequestsDirectAnswer(currentUserRequest(body.task)) ? [] : requestedCoordination(body.task, body.workspaceBots, body.botName || "default") });
+    targets: discussionTargets(body) });
   // Completed metadata remains available while the UI follows a specific discussion.
   for (const [oldId, item] of botDiscussions) {
     if (botDiscussions.size <= 100) break;
@@ -1090,7 +1100,7 @@ function validateRunModel(body: RunRequestBody): void {
   const model = body.model || defaultModel();
   const issue = modelConfigurationIssue(model);
   if (issue) throw Object.assign(new Error(issue), { code: "model_not_configured", provider: resolveModel(model).provider });
-  if (resolveModel(model).provider === "local" && requestedCoordination(body.task, body.workspaceBots, body.botName || "default").length) {
+  if (resolveModel(model).provider === "local" && discussionTargets(body).length) {
     throw new Error("Local Engine cannot run bot consultations. Select a configured language model in Settings, then retry this request. No specialist consultations were started.");
   }
 }
@@ -1107,7 +1117,7 @@ function startRun(body: RunRequestBody, options: { runId?: string; handoffDepth?
   if ((body.conversationResetAt !== undefined || body.conversationTurns?.length || body.conversationArtifacts?.length) && (body.conversationResetAt || 0) < resetAt) throw new Error("This conversation was reset. Refresh this bot before retrying.");
   options = { discussionId: body.discussionId, consultationId: body.consultationId, specialist: body.specialist, finalSynthesis: body.finalSynthesis, ...options };
   const internalContinuation = Boolean(options.discussionId);
-  if (!internalContinuation && (body.model || defaultModel()) !== "local-engine" && !userRequestsDirectAnswer(currentUserRequest(body.task)) && requestedCoordination(body.task, body.workspaceBots, body.botName || "default").length) {
+  if (!internalContinuation && (body.model || defaultModel()) !== "local-engine" && discussionTargets(body).length) {
     options.discussionId = createDiscussion(body);
   }
   if (options.discussionId) {
@@ -2886,7 +2896,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       hasClaudeCli: Boolean(resolveClaudeCliBinary()),
       claudeCliPath: process.env.CLAUDE_CLI_PATH || resolveClaudeCliBinary(),
       defaultModel: defaultModel(),
-      coordinationCapabilities: { structuredRoster: true, savedProfiles: true, multiBotCoverage: true, durableReceipts: true, consultations: "read-only" },
+      coordinationCapabilities: { structuredRoster: true, savedProfiles: true, multiBotCoverage: true, durableReceipts: true, consultations: "read-only", huddles: true, maxHuddleParticipants: discussionLimits().maxConsultations },
       models: modelCatalog(),
       providers: providerCatalog(),
       profileRuntime: { ...profileMetrics, playbookNotifications, modelWakeupsFromNotifications: 0, wakePolicy: "explicit-task-or-approved-schedule" },
