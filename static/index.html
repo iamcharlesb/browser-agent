@@ -4,8 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Pilo — Autonomous Bots &amp; Agents</title>
-<link rel="icon" type="image/png" href="./pilo-icon.png?v=mascot-restored-3" />
-<link rel="apple-touch-icon" href="./pilo-icon.png?v=mascot-restored-3" />
+<link rel="icon" type="image/png" href="./pilo-mascot.png" />
+<link rel="apple-touch-icon" href="./pilo-mascot.png" />
 <style>
 :root {
   color-scheme: light;
@@ -518,9 +518,9 @@ button { color: inherit; }
 #workspace.has-browser #welcome .welcome-mark .bot { --size: 42px; }
 #workspace.has-browser #welcome .welcome-mark .bot--capsule,
 #workspace.has-browser #welcome .welcome-mark .bot--cloud { --size: 34px; }
-#bot-modal-preview .bot { --size: 100px; }
+#bot-modal-preview .bot { --size: 64px; animation: none; }
 #bot-modal-preview .bot--capsule,
-#bot-modal-preview .bot--cloud { --size: 78px; }
+#bot-modal-preview .bot--cloud { --size: 54px; }
 .bot-shape-btn .bot { --size: 34px; animation: none !important; }
 .bot-shape-btn .bot--capsule,
 .bot-shape-btn .bot--cloud { --size: 27px; }
@@ -579,15 +579,28 @@ button { color: inherit; }
 #welcome .welcome-mark .bot { border-radius: 24%; background: var(--c); border: 0; box-shadow: none; }
 #welcome .welcome-mark .bot::after { display: none; }
 
+/* Prevent scroll chaining behind native modal dialogs without locking body overflow */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
 /* Create Bot Modal (Blob Bot Shape, Expression & Colour Customizer) */
 #create-bot-modal .modal-inner {
   padding: 0;
 }
-#create-bot-modal { max-height:92vh; overflow-y:auto; }
+#create-bot-modal { max-height: 92dvh; overflow-y: auto; scrollbar-gutter: stable; }
 #create-bot-modal .modal-header {
-  padding: 16px 20px;
+  padding: 14px 20px;
   margin-bottom: 0;
   border-bottom: 1px solid #f1f5f9;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #fff;
 }
 #create-bot-modal .modal-close {
   background: transparent;
@@ -599,24 +612,25 @@ button { color: inherit; }
   color: var(--text);
 }
 #create-bot-form {
-  padding: 16px 22px 0;
+  padding: 14px 22px 0;
 }
 .bot-preview-stage {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 14px 12px 14px;
-  margin-bottom: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   position: relative;
-  min-height: 148px;
+  min-height: 112px;
+  overflow: clip;
 }
 #bot-modal-preview {
-  width: 108px;
-  height: 108px;
+  width: 88px;
+  height: 88px;
   display: grid;
   place-items: center;
   position: relative;
@@ -807,10 +821,13 @@ button { color: inherit; }
   transform: scale(1.06);
 }
 #create-bot-modal .modal-actions {
-  margin: 16px -24px 0;
-  padding: 14px 20px;
+  margin: 14px -22px 0;
+  padding: 12px 20px;
   border-top: 1px solid #f1f5f9;
   background: #fff;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
 }
 #create-bot-modal .btn-secondary {
   border-radius: 999px;
@@ -1116,6 +1133,20 @@ button { color: inherit; }
   font-size: 12px;
   font-weight: 500;
 }
+#browser-profiles-btn {
+  width: auto;
+  min-width: 0;
+  max-width: 150px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#app.sidebar-collapsed #sidebar-collapse-btn { display: none; }
 
 .header-engine-switch {
   display: inline-flex;
@@ -1453,8 +1484,67 @@ button { color: inherit; }
   color: var(--muted);
   overflow-wrap: anywhere;
 }
-/* Keep catalog cards compact; full role descriptions live in the shared tooltip. */
-.template-card .template-copy > span:not(.template-status) { display: none; }
+/* Show a concise 2-line role summary directly on catalog cards; full text remains in the shared tooltip. */
+.template-card .template-copy > span:not(.template-status) {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  overflow: clip;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.catalog-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 920px;
+  margin: 4px auto 14px;
+}
+.catalog-search {
+  flex: 1 1 220px;
+  max-width: 300px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.catalog-search:focus {
+  outline: 2px solid var(--blue-soft);
+  border-color: var(--blue);
+}
+.catalog-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+}
+.catalog-filter-btn {
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+.catalog-filter-btn:hover { background: #f8fafc; color: var(--text); }
+.catalog-filter-btn.active {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+}
+.template-card[hidden] { display: none !important; }
 #bot-description-tooltip {
   position: fixed;
   z-index: 10000;
@@ -1823,14 +1913,23 @@ button { color: inherit; }
 .reply-content > :first-child { margin-top: 0; }
 .reply-content > :last-child { margin-bottom: 0; }
 .bubble code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .86em; padding: 2px 5px; border-radius: 5px; background: #edf0f3; overflow-wrap: anywhere; }
-.bubble pre { margin: 12px 0; padding: 14px 16px; border-radius: 10px; background: #f1f3f6; color: #1d2939; font-size: 12.5px; line-height: 1.65; overflow-x: auto; white-space: pre; }
+.bubble pre { margin: 12px 0; padding: 14px 16px; border-radius: 10px; background: #f1f3f6; color: #1d2939; font-size: 12.5px; line-height: 1.65; overflow-x: auto; scrollbar-gutter: stable; scrollbar-width: thin; white-space: pre; }
 .bubble pre code { padding: 0; background: transparent; color: inherit; font-size: inherit; overflow-wrap: normal; }
-.bubble .code-block { margin: 16px 0; border: 1px solid #dfe3e8; border-radius: 10px; overflow: hidden; background: #f1f3f6; }
-.bubble .code-block pre { margin: 0; border-radius: 0; }
-.code-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 12px; border-bottom: 1px solid #dfe3e8; color: #667085; font-size: 11px; }
-.copy-code { border: 0; border-radius: 5px; padding: 4px 6px; background: transparent; color: #475467; cursor: pointer; font-size: 11px; }
-.copy-code:hover { background: #e4e7ec; color: #101828; }
-.copy-code:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.bubble .code-block { margin: 16px 0; border: 1px solid #dfe3e8; border-radius: 10px; overflow: clip; background: #f1f3f6; }
+.bubble .code-block pre { margin: 0; border-radius: 0 0 10px 10px; }
+.code-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 12px; border-bottom: 1px solid #dfe3e8; background: #eaedf2; color: #475467; font-size: 11px; font-weight: 600; border-radius: 10px 10px 0 0; }
+.code-header-actions { display: inline-flex; align-items: center; gap: 4px; }
+.copy-code, .preview-code { border: 0; border-radius: 5px; padding: 4px 8px; background: transparent; color: #344054; cursor: pointer; font-size: 11px; font-weight: 600; }
+.copy-code:hover, .preview-code:hover { background: #dce1e8; color: #101828; }
+.preview-code { color: var(--blue); }
+.copy-code:focus-visible, .preview-code:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+#browser-panel.terminal-mode .browser-toolbar { display: none; }
+#code-preview-modal { width: min(960px, 94vw); max-height: 90dvh; padding: 0; border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); }
+#code-preview-modal .modal-inner { padding: 0; display: flex; flex-direction: column; height: min(760px, 86dvh); }
+#code-preview-modal .modal-header { padding: 12px 16px; border-bottom: 1px solid var(--border); margin: 0; }
+#code-preview-body { flex: 1 1 auto; display: flex; min-height: 0; }
+#code-preview-body iframe { flex: 1 1 auto; width: 100%; border: 0; background: #fff; border-radius: 0 0 16px 16px; }
+#settings-modal .settings-sticky-footer { position: sticky; bottom: 0; z-index: 3; background: #fff; border-top: 1px solid var(--border); margin: 14px -22px -20px; padding: 12px 22px; }
 .bubble blockquote { margin: 14px 0; padding: 2px 0 2px 14px; border-left: 3px solid #d0d5dd; color: #667085; }
 .bubble blockquote .reply-content > :last-child { margin-bottom: 0; }
 .bubble hr { margin: 22px 0; border: 0; border-top: 1px solid #e4e7ec; }
@@ -1951,12 +2050,8 @@ button { color: inherit; }
   justify-content: center;
   margin: 0 auto 8px;
   max-width: var(--message-column-max-width);
-  overflow-x: auto;
-  flex-wrap: nowrap;
-  scrollbar-width: none;
-}
-#quick-starts::-webkit-scrollbar {
-  display: none;
+  flex-wrap: wrap;
+  flex-wrap: balance;
 }
 .quick-start {
   border: 1px solid #e2e8f0;
@@ -1967,8 +2062,9 @@ button { color: inherit; }
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  white-space: nowrap;
-  flex: 0 0 auto;
+  white-space: normal;
+  text-align: center;
+  flex: 0 1 auto;
   transition: all 0.14s ease;
 }
 .quick-start:hover {
@@ -3127,7 +3223,7 @@ dialog.modal-dialog::backdrop {
   #voice-button { width: 30px; height: 32px; }
   #send-button { width: 36px; height: 36px; }
   #send-button svg { width: 19px; height: 19px; }
-  #messages { padding: 14px 10px 8px; }
+  #messages { padding: 14px 10px 24px; }
   .message-body { min-width: 0; max-width: calc(100% - 30px); }
   .bubble { overflow-wrap: anywhere; }
   .browser-toolbar {
@@ -3143,25 +3239,27 @@ dialog.modal-dialog::backdrop {
   #browser-footer { flex-wrap: wrap; }
   #browser-footer p { flex-basis: 100%; }
   .header-pill-btn span.btn-label { display: none; }
-  .header-pill-btn.header-signin-btn span.btn-label { display: inline; }
+  .header-pill-btn.header-signin-btn { padding: 0 6px; }
+  #browser-profiles-btn { display: none; }
 }
 @media (max-width: 560px) {
   .template-grid, #workspace.has-browser .template-grid { grid-template-columns: minmax(0, 1fr); }
+  .header-engine-switch { display: none; }
 }
 @media (max-width: 430px) {
   .topbar-right {
     flex: 0 1 auto;
-    max-width: min(56vw, 200px);
+    max-width: none;
     overflow-x: auto;
     scrollbar-width: none;
     overscroll-behavior-x: contain;
     position: relative;
     z-index: 2;
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
   .topbar-right::-webkit-scrollbar { display: none; }
-  .topbar-right .header-pill-btn { flex: 0 0 30px; }
-  #agent-chip { flex: 1 1 0; min-width: 0; max-width: 42vw; padding-right: 2px; position: relative; z-index: 1; }
+  .topbar-right .header-pill-btn { flex: 0 0 auto; }
+  #agent-chip { flex: 1 1 0; min-width: 0; max-width: 46vw; padding-right: 2px; position: relative; z-index: 1; }
   #composer { gap: 2px; padding: 6px; }
   .composer-action { width: 30px; height: 30px; font-size: 13px; }
   .approval-action { width: 30px; min-width: 30px; max-width: 30px; height: 30px; }
@@ -3465,16 +3563,63 @@ dialog.modal-dialog::backdrop {
   #artifact-preview-download span { display: none; }
   #artifact-preview-download { width: 28px; padding: 0; }
 }
+
+/* Bot collection: compact hero, quiet cards, and a four-column desktop grid. */
+#welcome { justify-content: flex-start; padding: 28px 24px 24px; }
+.welcome-heading { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 0 0 22px; text-align: left; }
+#welcome .welcome-mark { width: 56px; height: 56px; margin: 0; border-radius: 0; }
+#welcome h1 { font-size: 23px; color: #101116; margin: 0 0 2px; }
+#welcome p { margin: 0; color: #34445f; }
+#welcome .catalog-controls { position: relative; width: min(100%, 1000px); max-width: none; min-height: 30px; margin: 0 0 20px; }
+.catalog-filters { flex-wrap: nowrap; gap: 0; padding: 2px; border: 1px solid #e6e5ed; border-radius: 999px; }
+.catalog-filter-btn { min-width: 80px; height: 25px; border: 0; background: transparent; color: #101116; }
+.catalog-filter-btn.active { color: #064aff; background: #e2eaff; border: 0; }
+.catalog-actions { position: absolute; right: 0; display: flex; align-items: center; gap: 8px; }
+.catalog-create-bot { display: flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border: 1px solid #16181d; border-radius: 7px; background: #16181d; color: #fff; font-size: 11px; cursor: pointer; }
+.catalog-create-bot:hover { background: #30343c; }
+.catalog-search-toggle { display: grid; place-items: center; width: 30px; height: 30px; padding: 5px; border: 0; border-radius: 7px; background: transparent; color: #34445f; cursor: pointer; }
+.catalog-search-toggle:hover, .catalog-search-toggle[aria-expanded="true"] { background: #eff2f7; }
+.catalog-search-toggle svg { width: 19px; height: 19px; }
+.catalog-search-toggle:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+#catalog-search-wrap { width: min(100%, 1000px); margin: -8px 0 16px; }
+#catalog-search-wrap .catalog-search { width: 100%; max-width: none; border-radius: 8px; height: 36px; }
+#welcome .template-grid { width: min(100%, 1000px); grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+#welcome .template-card { position: relative; flex-direction: column; align-items: center; justify-content: center; gap: 7px; min-height: 112px; padding: 12px 8px; border: 1px solid #dddde7; border-radius: 11px; background: transparent; text-align: center; opacity: 1; }
+#welcome .template-card:hover { background: #fff; border-color: #b9c9ed; box-shadow: 0 3px 12px #20335b08; }
+#welcome .template-card:focus-visible, .catalog-filter-btn:focus-visible, .catalog-create-bot:focus-visible, .catalog-favorite:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+#welcome .template-avatar { width: 48px; height: 48px; flex: 0 0 48px; margin: 0; border-radius: 50%; background: #f0eff1; color: #111318; }
+#welcome .template-avatar > svg { width: 27px; height: 27px; }
+#welcome .template-copy { flex: 0; align-items: center; gap: 3px; width: 100%; }
+#welcome .template-card strong { font-size: 13px; font-weight: 650; color: #101116; overflow-wrap: normal; }
+#welcome .template-copy > span:not(.template-status) { font-size: 11px; line-height: 1.3; color: #34445f; }
+#welcome .template-status, #welcome .create-custom-card { display: none; }
+#welcome .is-onboarded .template-copy > .template-status {
+  position: absolute; top: 8px; left: 8px; display: grid; place-items: center;
+  width: 18px; height: 18px; margin: 0; padding: 0; border-radius: 50%;
+  background: var(--blue); color: #fff;
+}
+#welcome .template-status svg { width: 14px; height: 14px; }
+.catalog-favorite { position: absolute; right: 7px; top: 4px; padding: 2px; color: #6582bd; font-size: 15px; opacity: 0; cursor: pointer; }
+.template-card:hover .catalog-favorite, .template-card:focus-within .catalog-favorite { opacity: 1; }
+#welcome #catalog-empty { margin: 24px 0; font-size: 13px; }
+#welcome.is-typing .catalog-controls, #welcome.is-typing #catalog-search-wrap, #welcome.is-typing #catalog-empty { display: none; }
+#workspace.has-browser #welcome .welcome-heading { gap: 8px; margin-bottom: 12px; }
+#workspace.has-browser #welcome .welcome-mark { width: 42px; height: 42px; margin: 0; }
+@media (max-width: 1100px) { #welcome h1 { font-size: 21px; } #welcome .catalog-controls { justify-content: space-between; } .catalog-actions { position: static; } }
+@media (max-width: 760px) { #welcome .template-grid, #workspace.has-browser #welcome .template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } #welcome { padding: 22px 14px; } .welcome-heading { gap: 10px; } #welcome h1 { font-size: 20px; } #welcome .welcome-mark { width: 48px; height: 48px; flex-shrink: 0; } .catalog-filter-btn { min-width: 65px; } }
+@media (hover: none) { .catalog-favorite { opacity: .65; } }
+@media (prefers-reduced-motion: reduce) { #welcome .template-card, #welcome .welcome-mark { transition: none; } }
+
 </style>
 </head>
 <body>
 <div id="app" class="sidebar-collapsed">
   <aside id="sidebar">
     <div class="sidebar-header">
-      <div class="brand-lockup" title="Pilo">
-        <span class="brand-mark"><img src="./pilo-icon.png?v=mascot-restored-3" alt="Pilo" /></span>
+      <button type="button" id="brand-home-btn" class="brand-lockup" title="Browse all specialist bots" aria-label="Browse all specialist bots" style="border:0;background:transparent;padding:0;cursor:pointer;">
+        <span class="brand-mark"><img src="./pilo-mascot.png" alt="Pilo" /></span>
         <span class="brand-name">Pilo</span>
-      </div>
+      </button>
       <div class="sidebar-tools">
         <button class="icon-button" id="sidebar-search-toggle" aria-label="Search bots" title="Search bots">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
@@ -3559,9 +3704,23 @@ dialog.modal-dialog::backdrop {
     <section id="workspace" class="empty">
       <section id="conversation">
         <div id="welcome">
-          <div id="welcome-avatar" class="agent-avatar welcome-mark" style="cursor:pointer;" title="Click to create a custom bot"><img src="./pilo-icon.png?v=mascot-restored-3" alt="Pilo" /></div>
-          <h1>What should your bot do?</h1>
-          <p>Pick a specialized bot, create a custom bot, or type any task below.</p>
+          <div class="welcome-heading">
+            <div id="welcome-avatar" class="agent-avatar welcome-mark" style="cursor:pointer;" title="Create a custom bot"><img src="./pilo-mascot.png" alt="Pilo" /></div>
+            <div class="welcome-heading-copy"><h1>Who would you like to work with?</h1><p>Choose a bot and start a conversation.</p></div>
+          </div>
+          <div class="catalog-controls" aria-label="Browse specialist bots">
+            <div class="catalog-filters" role="group" aria-label="Bot collection">
+              <button type="button" class="catalog-filter-btn" data-category="favorites" aria-pressed="false">Favorites</button>
+              <button type="button" class="catalog-filter-btn" data-category="recent" aria-pressed="false">Recent</button>
+              <button type="button" class="catalog-filter-btn active" data-category="all" aria-pressed="true">All bots</button>
+            </div>
+            <div class="catalog-actions">
+              <button type="button" id="catalog-search-toggle" class="catalog-search-toggle" aria-label="Search bots" aria-expanded="false" aria-controls="catalog-search-wrap" title="Search bots"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg></button>
+              <button type="button" id="catalog-create-bot" class="catalog-create-bot"><span aria-hidden="true">＋</span> Create bot</button>
+            </div>
+          </div>
+          <div id="catalog-search-wrap" hidden><input id="catalog-search" class="catalog-search" type="search" placeholder="Search bots by name or role…" aria-label="Search bots by name or role" /></div>
+          <p id="catalog-empty" hidden>No bots here yet. Explore All bots to find someone to work with.</p>
           <div class="template-grid">
             <button type="button" class="template-card" data-name="YouTube Concept & Code Learner" data-desc="Extract full transcripts, chapters, and concepts from any YouTube video headlessly (like Codex) and apply them to write code, tutorials, or notes." data-shape="circle" data-color="#ff2d3b">
               <div class="template-avatar" data-shape="circle" data-color="#ff2d3b"></div>
@@ -4170,11 +4329,6 @@ dialog.modal-dialog::backdrop {
       <p style="font-size:11px;color:var(--muted);margin:0 0 8px;">Voice sessions run up to 60 minutes. Reliable long sessions use your OpenAI key (Whisper) or optional Deepgram / ElevenLabs keys. Browser dictation is a live assist only and can drop on network blips.</p>
       </details>
       <div id="settings-status" style="font-size:12px;color:var(--green);min-height:18px;"></div>
-      <div class="modal-actions">
-        <button type="button" class="btn-secondary" data-close-modal="settings-modal">Close</button>
-        <button type="submit" class="btn-primary">Save Settings</button>
-      </div>
-    </form>
     <section class="form-field" aria-labelledby="conversation-reset-title" style="margin:14px 0;padding-top:14px;border-top:1px solid var(--border);">
       <strong id="conversation-reset-title">Reset conversations</strong>
       <p style="font-size:12px;color:var(--muted);">Start fresh with one bot or all bots. This clears messages, drafts and saved conversation context, and stops affected runs and queued requests. Bots, role instructions, approved playbooks, sign-ins, artifacts and schedules are kept.</p>
@@ -4234,6 +4388,21 @@ dialog.modal-dialog::backdrop {
     </div>
       </div>
     </details>
+    <div class="modal-actions settings-sticky-footer">
+      <button type="button" class="btn-secondary" data-close-modal="settings-modal">Close</button>
+      <button type="submit" class="btn-primary">Save Settings</button>
+    </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="code-preview-modal" closedby="any" aria-labelledby="code-preview-title">
+  <div class="modal-inner">
+    <div class="modal-header">
+      <h2 id="code-preview-title">HTML Preview</h2>
+      <button type="button" class="modal-close" data-close-modal="code-preview-modal" aria-label="Close">✕</button>
+    </div>
+    <div id="code-preview-body"></div>
   </div>
 </dialog>
 
@@ -4726,7 +4895,7 @@ dialog.modal-dialog::backdrop {
   };
   function defaultAvatarImage(name) {
     var key = String(name || "").trim().toLowerCase();
-    if (key === "primary bot") return "./pilo-icon.png?v=mascot-restored-3";
+    if (key === "primary bot") return "./pilo-mascot.png";
     if (key === "inspired by sabri suby") return "./avatars/sabri-suby.jpg?v=6746ddc34177";
     if (key === "inspired by alex hormozi" || key === "alex hormozi") return "./avatars/alex-hormozi.webp?v=cc0a5ae96df8";
     if (key === "inspired by addy osmani" || key === "addy osmani") return "./avatars/addy-osmani.jpg?v=29902bd27134";
@@ -4798,8 +4967,8 @@ dialog.modal-dialog::backdrop {
     var seedKey = (agent && (agent.id || agent.name)) || "new-bot";
     var avatarImage = defaultAvatarImage(agent && agent.name) || (agent && agent.avatarImage);
     var showExpression = Boolean(expressive);
-    el.classList.toggle("role-avatar", Boolean(avatarImage && (avatarImage.indexOf("/pilo-") >= 0 || avatarImage.indexOf("pilo-icon.png") >= 0)));
-    el.classList.toggle("mascot-avatar", Boolean(avatarImage && avatarImage.indexOf("pilo-icon.png") >= 0));
+    el.classList.toggle("role-avatar", Boolean(avatarImage && (avatarImage.indexOf("/pilo-") >= 0 || avatarImage.indexOf("pilo-icon.png") >= 0 || avatarImage.indexOf("pilo-mascot.png") >= 0)));
+    el.classList.toggle("mascot-avatar", Boolean(avatarImage && (avatarImage.indexOf("pilo-icon.png") >= 0 || avatarImage.indexOf("pilo-mascot.png") >= 0)));
     el.classList.toggle("is-expressive", showExpression);
     if (avatarImage) {
       el.classList.add("custom-bot");
@@ -4945,6 +5114,18 @@ dialog.modal-dialog::backdrop {
       var critica = specialist.profileId === "critica" || /Critica/.test(specialist.name);
       var possession = /Alex Hormozi|Addy Osmani|Andrej Karpathy|Mark Zuckerberg|Alexandr Wang|Alex Wang|Sundar Pichai|Inspired by Sabri Suby/.test(specialist.name);
       var kind = engineering || supercomputer ? "coding" : botCreator ? "bot-creator" : critica ? "critica" : operator ? "founder-ops" : cmo ? "cmo" : productMarketing ? "product-marketing" : websiteDesigner ? "website-designer" : supervisor ? "supervisor" : possession ? "personality" : "sales";
+      var blogWriter = specialist.profileId === "blog-writer" || /Blog Writer/i.test(specialist.name);
+      var seo = /SEO Specialist/i.test(specialist.name);
+      var ads = /Ads Specialist/i.test(specialist.name);
+      var funnel = /Funnel Specialist/i.test(specialist.name);
+      var ux = /UX Psychology/i.test(specialist.name);
+      var pm = /Product Manager/i.test(specialist.name);
+      var tpm = /Technical Program Manager/i.test(specialist.name);
+      var competitor = /Competitor Intelligence/i.test(specialist.name);
+      var resume = /Resume Bot/i.test(specialist.name);
+      var eb1a = /EB1A/i.test(specialist.name);
+      var socialGrowth = /Instagram|LinkedIn|Reddit|Influencer|X \/ Grok/i.test(specialist.name);
+      var gifAnimator = /GIF Animator/i.test(specialist.name);
       var suggestions = engineering
         ? ["Review my architecture", "Diagnose a performance bottleneck", "Design a measurable experiment"]
         : supercomputer
@@ -4953,6 +5134,30 @@ dialog.modal-dialog::backdrop {
           ? ["Design a bot for this purpose", "Draft AGENTS + soul for a specialist", "Create a bot and ask Jarvis to watch it"]
         : critica
           ? ["Critique this landing page", "Tear down this offer", "Stress-test this plan"]
+        : blogWriter
+          ? ["Outline a technical blog post", "Rewrite this draft to cut AI tells", "Pitch 5 sharp titles for my article"]
+        : seo
+          ? ["Audit this page for on-page SEO", "Build a keyword & content cluster plan", "Find quick-win technical SEO fixes"]
+        : ads
+          ? ["Plan a paid acquisition test budget", "Audit my ad copy and landing page fit", "Define CAC and ROAS guardrails"]
+        : funnel
+          ? ["Map a 3-step lead-capture funnel", "Audit drop-off points on my landing page", "Draft a 5-email onboarding sequence"]
+        : ux
+          ? ["Audit my landing page for conversion friction", "Simplify this onboarding flow", "Review hierarchy and CTA clarity"]
+        : pm
+          ? ["Write a concise PRD for this feature", "Prioritize this backlog with tradeoffs", "Define activation and retention metrics"]
+        : tpm
+          ? ["Draft a milestone & risk tracker", "Unblock cross-team dependencies", "Write an executive status update"]
+        : competitor
+          ? ["Compare our top 3 competitors", "Build a positioning & pricing matrix", "Spot feature gaps we can win on"]
+        : resume
+          ? ["Tailor my resume for this role", "Sharpen my impact bullets with metrics", "Review ATS keywords and gaps"]
+        : eb1a
+          ? ["Map my evidence to EB1A criteria", "Audit a critical-role letter draft", "Identify the strongest corroborating sources"]
+        : socialGrowth
+          ? ["Draft 3 high-signal posts for this week", "Build a value-first engagement plan", "Audit my profile bio and positioning"]
+        : gifAnimator
+          ? ["Storyboard a 5-second product demo GIF", "Animate this UI workflow", "Create a crisp looping explainer"]
         : operator
           ? ["Run this week's ops triage", "Draft a decision memo", "Brief the right specialist bots"]
           : cmo
@@ -4964,7 +5169,11 @@ dialog.modal-dialog::backdrop {
             : supervisor
               ? ["Review tonight's delivery misses", "Propose a nightly validation schedule", "Draft pending bot improvements"]
             : possession
-              ? ["Think this through in your voice", "Challenge my plan", "Ship a Hormozi landing page"]
+              ? /Mark Zuckerberg/i.test(specialist.name)
+                ? ["Critique my product velocity", "Design a 2-week ship-to-learn loop", "Challenge my platform roadmap"]
+                : /Alex Hormozi/i.test(specialist.name)
+                  ? ["Tear down my offer", "Check my acquisition unit economics", "Ship a Hormozi landing page"]
+                  : ["Think this through in your voice", "Challenge my plan", "Spot the highest-leverage next move"]
               : ["Review my offer", "Analyze acquisition economics", "Design a growth experiment"];
       return {
         kind: kind,
@@ -5493,6 +5702,43 @@ dialog.modal-dialog::backdrop {
   }
 
   messages.addEventListener("click", function(event) {
+    var previewBtn = event.target.closest(".preview-code");
+    if (previewBtn) {
+      var block = previewBtn.closest(".code-block");
+      var codeEl = block && block.querySelector("pre code");
+      var htmlCode = codeEl ? codeEl.textContent || "" : "";
+      var bubble = previewBtn.closest(".bubble");
+      var extraCss = "";
+      if (bubble && !/<style\b/i.test(htmlCode)) {
+        bubble.querySelectorAll(".code-block").forEach(function(other) {
+          if (other === block) return;
+          var lang = (other.querySelector(".code-lang") && other.querySelector(".code-lang").textContent || "").trim().toLowerCase();
+          if (lang === "css") {
+            var cssEl = other.querySelector("pre code");
+            if (cssEl) extraCss += "\n" + (cssEl.textContent || "");
+          }
+        });
+      }
+      var doc = /<!doctype|<html\b/i.test(htmlCode)
+        ? htmlCode
+        : '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:16px;color:#0f172a;background:#fff;}' + extraCss + '</style></head><body>' + htmlCode + '</body></html>';
+      var previewBody = document.getElementById("code-preview-body");
+      var modal = document.getElementById("code-preview-modal");
+      if (previewBody && modal) {
+        previewBody.innerHTML = "";
+        var frame = document.createElement("iframe");
+        frame.title = "HTML code preview";
+        frame.setAttribute("sandbox", "allow-scripts");
+        frame.srcdoc = doc;
+        previewBody.appendChild(frame);
+        if (!modal.dataset.cleanupBound) {
+          modal.dataset.cleanupBound = "1";
+          modal.addEventListener("close", function() { previewBody.innerHTML = ""; });
+        }
+        modal.showModal();
+      }
+      return;
+    }
     var button = event.target.closest(".copy-code");
     if (button) {
       var code = button.closest(".code-block").querySelector("pre code");
@@ -5665,6 +5911,10 @@ dialog.modal-dialog::backdrop {
     if (!a.description) a.summary = a.intent.summary;
     saveComposerDraft();
     activeAgentId = id;
+    var catalogRecent = readCatalogPreference("piloCatalogRecent", []).filter(function(name) { return name !== a.name; });
+    catalogRecent.unshift(a.name);
+    localStorage.setItem("piloCatalogRecent", JSON.stringify(catalogRecent.slice(0, 30)));
+    applyCatalogCollection();
     uiStore.setState({ selectedBotId: id });
     localStorage.setItem("openBotsSelectedBot", id);
     sessionStorage.removeItem("openBotsSelectedBot");
@@ -6149,6 +6399,62 @@ dialog.modal-dialog::backdrop {
     }
   }
 
+  var CATALOG_FEATURED = [
+    ["Andrej Karpathy", "AI & engineering"], ["Addy Osmani", "Software & UX"],
+    ["Mark Zuckerberg", "Product & strategy"], ["Alex Hormozi", "Offers & growth"],
+    ["Blog Writer", "Content & storytelling"], ["Ads Specialist (Google, Meta & more)", "Campaigns & conversion"],
+    ["Research Agent", "Research & insights"], ["Founder Operator", "Planning & execution"],
+    ["Alexandr Wang", "AI & data"], ["Inspired by Sabri Suby", "Sales & funnels"],
+    ["Bot Creator", "Build a custom bot"], ["Chief Marketing Officer", "Marketing strategy"],
+    ["Competitor Intelligence", "Market research"], ["Critica", "Review & feedback"],
+    ["EB1A Research Agent", "Research & evidence"], ["Funnel Specialist", "Customer journeys"],
+    ["GIF Animator", "Motion & animation"], ["Influencer", "Content strategy"],
+    ["Instagram Follower Growth", "Audience & engagement"], ["LinkedIn Growth", "Professional presence"]
+  ];
+  function readCatalogPreference(key, fallback) {
+    try { var value = JSON.parse(localStorage.getItem(key)); return Array.isArray(value) ? value.filter(function(name) { return typeof name === "string"; }) : fallback; }
+    catch (_) { return fallback; }
+  }
+  function catalogIcon(name) {
+    var paths = /instagram/i.test(name) ? '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>' :
+      /linkedin/i.test(name) ? '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 10v7M7 7h.01M11 17v-7m0 3c0-4 6-4 6 0v4"/>' :
+      /ads|marketing/i.test(name) ? '<path d="m4 10 12-5v14L4 14Zm0 0H2v4h2m3 1 1 6h3l-1-5m9-8 3-2m-3 6h3"/>' :
+      /funnel/i.test(name) ? '<path d="M3 4h18l-7 9v7l-4 2v-9Z"/>' :
+      /creator|engineer|devops|code/i.test(name) ? '<path d="m7 6-5 6 5 6m10-12 5 6-5 6M14 3l-4 18"/>' :
+      /research|competitor/i.test(name) ? '<circle cx="10" cy="10" r="7"/><path d="m15 15 7 7"/>' :
+      /critica/i.test(name) ? '<path d="M21 11a9 9 0 0 1-9 9H4l-3 2 2-7a9 9 0 1 1 18-4Z"/>' :
+      /founder/i.test(name) ? '<path d="m12 2 10 6-10 6L2 8Zm-9 11 9 5 9-5M3 18l9 5 9-5"/>' :
+      /gif/i.test(name) ? '<rect x="2" y="3" width="20" height="18" rx="1"/><path d="M7 3v18M17 3v18M2 8h5m-5 8h5M17 8h5m-5 8h5M7 12h10"/>' :
+      /influencer|wang/i.test(name) ? '<circle cx="9" cy="7" r="4"/><path d="M2 21v-3a7 7 0 0 1 14 0v3M17 3a4 4 0 0 1 0 8m2 4a6 6 0 0 1 3 6"/>' :
+      '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 7h8M8 11h8M8 15h6"/>';
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
+  }
+  var catalogCollection = "all";
+  function applyCatalogCollection() {
+    var favorites = readCatalogPreference("piloCatalogFavorites", CATALOG_FEATURED.map(function(item) { return item[0]; }));
+    var recent = readCatalogPreference("piloCatalogRecent", []);
+    var cards = Array.from(document.querySelectorAll("#welcome .template-card[data-name]"));
+    var search = document.getElementById("catalog-search");
+    var query = (search && search.value || "").trim().toLowerCase();
+    var visible = 0;
+    cards.forEach(function(card) {
+      var name = card.getAttribute("data-name");
+      var favorite = favorites.indexOf(name) >= 0;
+      var inCollection = catalogCollection === "favorites" ? favorite : catalogCollection === "recent" ? recent.indexOf(name) >= 0 : true;
+      var searchText = (name + " " + (card.getAttribute("data-desc") || "") + " " + card.textContent).toLowerCase();
+      card.hidden = !inCollection || Boolean(query && searchText.indexOf(query) < 0);
+      card.style.order = catalogCollection === "recent" ? (card.classList.contains("is-onboarded") ? 1000 : 0) + recent.indexOf(name) : "";
+      if (!card.hidden) visible++;
+      var star = card.querySelector(".catalog-favorite");
+      if (star) { star.setAttribute("aria-checked", String(favorite)); star.textContent = favorite ? "★" : "☆"; }
+    });
+    var empty = document.getElementById("catalog-empty");
+    if (empty) {
+      empty.hidden = visible > 0;
+      empty.textContent = query ? "No bots match your search. Try another name or role." : "No bots here yet. Explore All bots to find someone to work with.";
+    }
+  }
+
   function renderWelcomeBotCatalog() {
     var grid = document.querySelector(".template-grid");
     if (!grid) return;
@@ -6186,6 +6492,30 @@ dialog.modal-dialog::backdrop {
         card.appendChild(copy);
         cardsByName[key] = card;
       }
+      var featured = CATALOG_FEATURED.find(function(item) { return item[0] === preset.name; });
+      var summaryEl = card.querySelector(".template-copy > span:not(.template-status)");
+      if (summaryEl && featured) summaryEl.textContent = featured[1];
+      var titleEl = card.querySelector("strong");
+      if (titleEl && preset.name === "Ads Specialist (Google, Meta & more)") titleEl.textContent = "Ads Specialist";
+      if (titleEl && preset.name === "Inspired by Sabri Suby") titleEl.textContent = "Sabri Suby";
+      if (titleEl && preset.name === "Instagram Follower Growth") titleEl.textContent = "Instagram Growth";
+      if (!card.querySelector(".catalog-favorite")) {
+        var star = document.createElement("span");
+        star.className = "catalog-favorite";
+        star.setAttribute("role", "checkbox"); star.tabIndex = 0;
+        star.setAttribute("aria-label", "Favorite " + preset.name);
+        function toggleFavorite(event) {
+          event.preventDefault(); event.stopPropagation();
+          var names = readCatalogPreference("piloCatalogFavorites", CATALOG_FEATURED.map(function(item) { return item[0]; }));
+          var index = names.indexOf(preset.name);
+          if (index < 0) names.push(preset.name); else names.splice(index, 1);
+          localStorage.setItem("piloCatalogFavorites", JSON.stringify(names));
+          applyCatalogCollection();
+        }
+        star.onclick = toggleFavorite;
+        star.onkeydown = function(event) { if (event.key === " " || event.key === "Enter") toggleFavorite(event); };
+        card.appendChild(star);
+      }
       var isAdded = agents.some(function(bot) { return String(bot.name || "").trim().toLowerCase() === key; });
       card.classList.toggle("is-onboarded", isAdded);
       card.hidden = false;
@@ -6195,17 +6525,22 @@ dialog.modal-dialog::backdrop {
       if (copyEl) {
         var badge = copyEl.querySelector(".template-status");
         if (!badge) { badge = document.createElement("span"); badge.className = "template-status"; copyEl.appendChild(badge); }
-        badge.textContent = isAdded ? "Added · Open bot" : "Add bot";
+        badge.innerHTML = isAdded ? '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 8 2.5 2.5L12 5"/></svg>' : "";
+        badge.setAttribute("aria-label", isAdded ? "Already added" : "");
+        badge.title = isAdded ? "Already added" : "";
       }
       var avatarHolder = card.querySelector(".template-avatar");
-      if (avatarHolder && preset.avatar) {
+      if (avatarHolder && preset.avatar && !/\.svg(?:\?|$)/.test(preset.avatar)) {
         avatarHolder.innerHTML = '<img class="bot-portrait" src="' + esc(preset.avatar) + '" alt="" draggable="false">';
-      }
+      } else if (avatarHolder) { avatarHolder.innerHTML = catalogIcon(preset.name); }
     });
     var ordered = presets.map(function(preset) {
       return { card: cardsByName[preset.name.toLowerCase()], added: agents.some(function(bot) { return String(bot.name || "").trim().toLowerCase() === preset.name.toLowerCase(); }), name: preset.name };
     }).sort(function(a, b) {
       if (a.added !== b.added) return a.added ? 1 : -1;
+      var ai = CATALOG_FEATURED.findIndex(function(item) { return item[0] === a.name; });
+      var bi = CATALOG_FEATURED.findIndex(function(item) { return item[0] === b.name; });
+      if (ai !== bi) return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
       return a.name.localeCompare(b.name);
     });
     ordered.forEach(function(item) { if (item.card) grid.insertBefore(item.card, customCard || null); });
@@ -6213,6 +6548,7 @@ dialog.modal-dialog::backdrop {
       grid.appendChild(customCard);
       attachBotDescription(customCard, "Customize name, role instructions, Grok shape and color.");
     }
+    applyCatalogCollection();
   }
 
   function closeBotPresetList(restoreFocus) {
@@ -8067,13 +8403,46 @@ dialog.modal-dialog::backdrop {
     remoteInput({ type: "scroll", x: p.x, y: p.y, deltaX: e.deltaX, deltaY: e.deltaY });
   }, { passive: false });
 
+  var heldRemoteKeys = new Set();
+  var holdableKeys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "];
+  function normalizeHoldKey(key) { return key === " " ? "Space" : key; }
+  function releaseHeldRemoteKeys() {
+    heldRemoteKeys.forEach(function(key) {
+      remoteInput({ type: "keyup", key: key });
+    });
+    heldRemoteKeys.clear();
+  }
+
   keyboardCapture.addEventListener("keydown", function(e) {
-    var keys = ["Enter", "Tab", "Escape", "Backspace", "Delete", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+    if (holdableKeys.indexOf(e.key) !== -1) {
+      e.preventDefault();
+      var normalized = normalizeHoldKey(e.key);
+      if (!heldRemoteKeys.has(normalized)) {
+        heldRemoteKeys.add(normalized);
+        remoteInput({ type: "keydown", key: normalized });
+      }
+      return;
+    }
+    var keys = ["Enter", "Tab", "Escape", "Backspace", "Delete"];
     if (keys.indexOf(e.key) !== -1) {
       e.preventDefault();
       remoteInput({ type: "key", key: e.key });
     }
   });
+
+  keyboardCapture.addEventListener("keyup", function(e) {
+    if (holdableKeys.indexOf(e.key) !== -1) {
+      e.preventDefault();
+      var normalized = normalizeHoldKey(e.key);
+      if (heldRemoteKeys.has(normalized)) {
+        heldRemoteKeys.delete(normalized);
+        remoteInput({ type: "keyup", key: normalized });
+      }
+    }
+  });
+
+  keyboardCapture.addEventListener("blur", releaseHeldRemoteKeys);
+  window.addEventListener("blur", releaseHeldRemoteKeys);
 
   keyboardCapture.addEventListener("input", function(e) {
     if (e.data) remoteInput({ type: "type", text: e.data });
@@ -8819,9 +9188,15 @@ dialog.modal-dialog::backdrop {
       .then(function(data) {
         var costChip = document.getElementById("header-cost-chip");
         if (costChip) {
-          costChip.textContent = "~" + formatCost(data.totalEstimatedCostUsd);
+          var hasTokens = (data.totalTokens || 0) > 0;
+          var hasCost = (data.totalEstimatedCostUsd || 0) > 0;
+          costChip.textContent = hasCost
+            ? "~" + formatCost(data.totalEstimatedCostUsd)
+            : hasTokens
+              ? formatTokens(data.totalTokens) + " tok · rate unset"
+              : "~$0.00";
           costChip.title = "Approximate tracked model spend: " + formatCost(data.totalEstimatedCostUsd) + " across " + formatTokens(data.totalTokens) + " tokens. Actual provider billing may differ.";
-          costChip.setAttribute("aria-label", "Approximate model spend " + formatCost(data.totalEstimatedCostUsd));
+          costChip.setAttribute("aria-label", "Approximate model spend " + costChip.textContent);
         }
         summaryEl.innerHTML =
           "<strong>" + formatTokens(data.totalTokens) + "</strong> tokens total &middot; approx. " +
@@ -8969,11 +9344,12 @@ dialog.modal-dialog::backdrop {
       .then(readResponse)
       .then(function(s) {
         loadModelCatalog(s);
+        loadUsage();
         var el = document.getElementById("claude-cli-status");
         if (!el) return;
-        el.textContent = s.hasClaudeCli
-          ? "Claude CLI: available — pick “Claude CLI” in the model menu (uses your local `claude` login)."
-          : "Claude CLI: not detected — install Claude Code and ensure `claude` is on PATH (or set CLAUDE_CLI_PATH).";
+        el.innerHTML = s.hasClaudeCli
+          ? "Claude CLI: available — pick “Claude CLI” in the model menu (uses your local <code>claude</code> login)."
+          : "Claude CLI: not detected — install Claude Code and ensure <code>claude</code> is on PATH (or set <code>CLAUDE_CLI_PATH</code>).";
       })
       .catch(function() {});
   };
@@ -9197,6 +9573,53 @@ dialog.modal-dialog::backdrop {
   newAgentButton.onclick = function() {
     openCreateBotModal();
   };
+  var brandHomeBtn = document.getElementById("brand-home-btn");
+  if (brandHomeBtn) {
+    brandHomeBtn.onclick = function() {
+      activeAgentId = null;
+      localStorage.removeItem("openBotsSelectedBot");
+      messages.innerHTML = "";
+      if (welcome) {
+        welcome.hidden = false;
+        welcome.classList.remove("is-typing");
+      }
+      workspace.classList.add("empty");
+      if (typeof renderAgentHeader === "function") renderAgentHeader();
+      if (typeof renderAgents === "function") renderAgents();
+      if (typeof renderQuickSuggestions === "function") renderQuickSuggestions();
+    };
+  }
+  document.querySelectorAll(".catalog-filter-btn").forEach(function(btn) {
+    btn.onclick = function() {
+      catalogCollection = btn.getAttribute("data-category");
+      document.querySelectorAll(".catalog-filter-btn").forEach(function(tab) {
+        tab.classList.toggle("active", tab === btn);
+        tab.setAttribute("aria-pressed", String(tab === btn));
+      });
+      applyCatalogCollection();
+    };
+  });
+  var catalogSearchToggle = document.getElementById("catalog-search-toggle");
+  var catalogSearchInput = document.getElementById("catalog-search");
+  function closeCatalogSearch() {
+    document.getElementById("catalog-search-wrap").hidden = true;
+    catalogSearchToggle.setAttribute("aria-expanded", "false");
+    catalogSearchInput.value = "";
+    applyCatalogCollection();
+    catalogSearchToggle.focus();
+  }
+  catalogSearchToggle.onclick = function() {
+    var wrap = document.getElementById("catalog-search-wrap");
+    if (!wrap.hidden) { closeCatalogSearch(); return; }
+    wrap.hidden = false;
+    catalogSearchToggle.setAttribute("aria-expanded", "true");
+    catalogSearchInput.focus();
+  };
+  catalogSearchInput.addEventListener("input", applyCatalogCollection);
+  catalogSearchInput.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeCatalogSearch(); }
+  });
+  document.getElementById("catalog-create-bot").onclick = function() { openCreateBotModal(); };
   document.getElementById("sidebar-plus").onclick = function() {
     openCreateBotModal();
   };
@@ -9870,7 +10293,8 @@ dialog.modal-dialog::backdrop {
     });
   }
 
-  function setupGoogleIdentitySignIn() {
+  function setupGoogleIdentitySignIn(renderButtonNow) {
+    var shouldRenderButton = renderButtonNow !== false;
     var button = document.getElementById("google-signin-button");
     var desktopButton = document.getElementById("google-signin-desktop-button");
     fetch("/api/auth/google/config")
@@ -9889,6 +10313,7 @@ dialog.modal-dialog::backdrop {
               return;
             }
             setGoogleIdentitySession(null);
+            if (!shouldRenderButton) return;
             if (window.openBotsDesktop && window.openBotsDesktop.isDesktop && !googleSignInExternal) {
               button.hidden = true;
               desktopButton.hidden = false;
@@ -10062,7 +10487,7 @@ dialog.modal-dialog::backdrop {
     history.replaceState(null, "", location.pathname + location.hash);
     openConnectModal();
   } else {
-    setupGoogleIdentitySignIn();
+    setupGoogleIdentitySignIn(false);
   }
 
   var useEmbeddedBtn = document.getElementById("use-embedded-btn");
@@ -10183,7 +10608,7 @@ dialog.modal-dialog::backdrop {
   renderWelcomeBotCatalog();
   document.querySelectorAll(".template-card[data-name]").forEach(function(card, cardIndex) {
     var avatarHolder = card.querySelector(".template-avatar[data-shape]");
-    if (avatarHolder && !avatarHolder.querySelector("img")) {
+    if (avatarHolder && !avatarHolder.firstElementChild) {
       var s = avatarHolder.getAttribute("data-shape") || "circle";
       var c = avatarHolder.getAttribute("data-color") || "#ff2d3b";
       avatarHolder.innerHTML = renderBotIcon(s, c);

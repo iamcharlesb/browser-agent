@@ -19,6 +19,17 @@
       var safe = safeUrl(url);
       return hold('<a href="' + safe + '" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="' + safe + '" alt="Generated image"></a>');
     });
+    text = text.replace(/\bhttps?:\/\/[^\s<>"'`]+/gi, function(rawUrl) {
+      var trimmed = rawUrl, trail = "";
+      while (/[.,;:!?)]$/.test(trimmed)) {
+        if (trimmed.endsWith(")") && (trimmed.match(/\(/g) || []).length >= (trimmed.match(/\)/g) || []).length) break;
+        trail = trimmed.slice(-1) + trail;
+        trimmed = trimmed.slice(0, -1);
+      }
+      var safe = safeUrl(trimmed);
+      if (!safe) return rawUrl;
+      return hold('<a href="' + safe + '" target="_blank" rel="noopener noreferrer">' + safe + '</a>') + trail;
+    });
     text = escape(text).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/(^|\W)\*([^*\n]+)\*(?!\w)/g, "$1<em>$2</em>");
     return text.replace(/\u0001(\d+)\u0002/g, function(_, id) { return saved[Number(id)]; });
   }
@@ -53,7 +64,10 @@
         i++;
         while (i < lines.length && !(new RegExp("^\\s*" + marker + "{" + count + ",}\\s*$")).test(lines[i])) code.push(lines[i++]);
         if (i < lines.length) i++;
-        output.push('<div class="code-block"><div class="code-header"><span>' + escape(fence[2] || "Code") + '</span><button type="button" class="copy-code" aria-label="Copy code">Copy code</button></div><pre><code>' + escape(code.join("\n")) + '</code></pre></div>');
+        var lang = fence[2] || "Code";
+        var isHtmlLang = /^(?:html|htm)$/i.test(lang);
+        var previewBtn = isHtmlLang ? '<button type="button" class="preview-code" aria-label="Preview HTML">Preview</button>' : '';
+        output.push('<div class="code-block"><div class="code-header"><span class="code-lang">' + escape(lang) + '</span><div class="code-header-actions">' + previewBtn + '<button type="button" class="copy-code" aria-label="Copy code">Copy code</button></div></div><pre><code>' + escape(code.join("\n")) + '</code></pre></div>');
         continue;
       }
       var heading = /^\s*#{1,6}\s+(.+?)(?:\s+#+)?$/.exec(line);

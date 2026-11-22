@@ -2500,11 +2500,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  if (req.method === "GET" && ["/pilo-logo.png", "/pilo-icon.png", "/favicon.ico"].includes(url.pathname)) {
-    // Serve every current logo URL from the canonical Pilo app icon.
-    const filename = "pilo-icon.png";
+  if (req.method === "GET" && ["/pilo-logo.png", "/pilo-icon.png", "/pilo-mascot.png", "/favicon.ico"].includes(url.pathname)) {
+    // Serve lightweight 192px mascot for web UI; preserve canonical pilo-icon.png for desktop/direct requests.
+    const filename = url.pathname === "/pilo-mascot.png" ? "pilo-mascot.png" : "pilo-icon.png";
     const bytes = await readFile(join(STATIC_DIR, filename));
-    res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff" });
+    res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff" });
     res.end(bytes); return;
   }
 
@@ -3781,6 +3781,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           break;
         case "key":
           await controller.remoteKeyPress(String(body.key ?? ""));
+          break;
+        case "keydown":
+          await controller.remoteKeyDown(String(body.key ?? ""));
+          break;
+        case "keyup":
+          await controller.remoteKeyUp(String(body.key ?? ""));
           break;
         case "scroll":
           await controller.remoteScroll(

@@ -310,10 +310,12 @@ export function requiresInitialBrowserState(task: string, browserUrl: string, mo
   const request = (index >= 0 ? task.slice(index + marker.length) : task).trim();
   if (/^\$\s*[^\n]+$/.test(request) || extractArithmeticExpression(request) !== null) return false;
   if (/youtube\.com|youtu\.be|\byoutube\b/i.test(request) && !/\b(?:open|watch) in browser\b/i.test(request)) return false;
-  const pageReference = /\b(?:this|current|that|the open)\b[^.!?\n]{0,65}\b(?:page|screen|tab|editor|form|module|account)\b|\bon screen\b|\/admin\b/i.test(request);
+  const pageReference = /\b(?:this|current|that|the open)\b[^.!?\n]{0,65}\b(?:page|screen|tab|editor|form|module|account|preview)\b|\bon screen\b|\/admin\b/i.test(request);
   if (pageReference) return true;
   if (isInformationQuestion(request)) return false;
   const explicitAction = /\b(?:click|scroll|sign in|log in|login)\b/i.test(request) ||
+    /\b(?:check|chek|inspect|view|see|look at|open|test|verify|visually inspect|visually check)\b[^.!?\n]{0,50}\b(?:the |this |that |live |rendered )?preview\b/i.test(request) ||
+    /\b(?:take over|control|drive)\s+(?:the |my |this )?(?:screen|browser|page|game)\b|\bplay\s+(?:the\s+game|it\s+(?:yourself|by\s+yourself)|by\s+yourself)\b/i.test(request) ||
     /\b(?:open|visit|browse|go to|inspect)\b[^\n]{0,100}(?:https?:\/\/|[a-z0-9-]+\.(?:com|ai|io|org|net|app|dev)\b|\bbrowser\b|\bwebsite\b|\baccount\b)/i.test(request);
   if (explicitAction) return true;
   return Boolean(browserUrl && browserUrl !== "about:blank" &&
@@ -335,7 +337,12 @@ export function browserWorkRequested(task: string, browserUrl = "about:blank", m
   const marker = task.lastIndexOf("User request:");
   const request = (marker >= 0 ? task.slice(marker + "User request:".length) : task).trim();
   if (/\b(?:no browser|(?:don['’]t|do not|never)\s+(?:open|use|launch)\s+(?:the |your )?(?:browser|chrome))\b/i.test(request)) return false;
-  if (/^(?:yes(?: sir)?|ok(?:ay)?|continue|proceed|go ahead|do it)[.! ]*$/i.test(request) || /^namespace should be\b/i.test(request)) return browserOffered || (continuationAllowed && browserUrl !== "about:blank");
+  if (/^(?:yes(?: sir)?|yep|yeah|sure|please|ok(?:ay)?|continue|proceed|go ahead|do it|open it|check it|play it|take over)[.! ]*$/i.test(request) || /^namespace should be\b/i.test(request)) {
+    return browserOffered || (continuationAllowed && browserUrl !== "about:blank");
+  }
+  if (browserOffered && !/^(?:no|nope|nah|stop|cancel|skip|never mind)\b/i.test(request) && !isInformationQuestion(request)) {
+    if (/\b(?:go ahead|open|check|chek|inspect|play|take over|try|test|run|fix|show|see|look|screen|preview|game)\b/i.test(request)) return true;
+  }
   if (EXPLICIT_BROWSER_REQUEST.test(request) || requiresInitialBrowserState(request, browserUrl, mode)) return true;
   return !isInformationQuestion(request) &&
     /\b(?:publish|upload|submit|fill (?:in |out )?(?:the |this )?form)\b/i.test(request);

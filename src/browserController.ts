@@ -1132,6 +1132,16 @@ export class BrowserController {
     await this.requirePage().keyboard.press(normalizeBrowserKey(key));
   }
 
+  async remoteKeyDown(key: string): Promise<void> {
+    if (!key) return;
+    await this.requirePage().keyboard.down(normalizeBrowserKey(key));
+  }
+
+  async remoteKeyUp(key: string): Promise<void> {
+    if (!key) return;
+    await this.requirePage().keyboard.up(normalizeBrowserKey(key));
+  }
+
   async remoteScroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
     const page = this.requirePage();
     await page.mouse.move(x, y);

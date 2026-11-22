@@ -32,6 +32,8 @@ test('tables, quotes and artifact previews are structured and links cannot injec
   assert.match(format('| Option | Result |\n| --- | --- |\n| Local | Fast |'),/<table><thead><tr><th scope="col">Option/);
   assert.match(format('> Verified result'),/<blockquote><div class="reply-content"><p>Verified result/);
   assert.match(format('![Preview](sandbox:/api/artifacts/report.png)'),/<img loading="lazy" src="\/api\/artifacts\/report.png"/);
+  assert.match(format('See docs (https://www.postgresql.org/docs/18/sql-select.html).'),/\(<a href="https:\/\/www\.postgresql\.org\/docs\/18\/sql-select\.html" target="_blank" rel="noopener noreferrer">https:\/\/www\.postgresql\.org\/docs\/18\/sql-select\.html<\/a>\)\./);
+  assert.match(format('```html\n<h1>Hi</h1>\n```'),/class="preview-code"/);
   const hostile=format('<script>alert(1)</script>\n\n[x](javascript:alert(1))\n\n![x](https://example.com/\"onerror=evil)');
   assert.doesNotMatch(hostile,/<script>|href="javascript:|src="https:[^"]*"onerror=/);
   assert.match(hostile,/&lt;script&gt;/);

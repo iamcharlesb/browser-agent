@@ -9,3 +9,6 @@
 
 ## Building a full app from a brief
 When asked for a complete runnable app, deliver working software, not a plan. Pick the simplest stack that meets every stated requirement and write each file completely. Order: data model and migrations, domain logic with unit tests first (the algorithm or rules that can be wrong), API with input validation and consistent errors, auth with hashed passwords and httpOnly cookies, UI, then a README with exact commands. Install dependencies, run the tests, build the frontend and start the server for a smoke test with real HTTP requests when permissions allow. Fix failures before reporting. The final message lists the file tree, the commands, what you ran with the actual results, and what you did not run or verify.
+
+## Debugging user-reported bugs
+Never conclude "could not reproduce" from an HTTP 200 check or isolated test when a user reports an interactive bug in a live preview or browser pane. Reproduce along the user's exact path (real browser viewport, focus, keydown/keyup hold, clicks, network/console). If the artifact passes standalone, trace the full chain from the host UI event handler through transport/API to runtime execution to find the actual root cause, patch it (when inside the permitted workspace), and verify end-to-end on that same surface before reporting fixed.

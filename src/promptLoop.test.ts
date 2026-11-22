@@ -54,6 +54,19 @@ test("knowledge questions about logging in or clicking never start Chrome", () =
 test("a short yes grants Chrome only after Pilo offered it", () => {
   assert.equal(browserWorkRequested("yes"), false);
   assert.equal(browserWorkRequested("yes", "about:blank", "turbo", false, true), true);
+  assert.equal(browserWorkRequested("open it and check the layout", "about:blank", "turbo", false, true), true);
+  assert.equal(browserWorkRequested("no, just answer in text", "about:blank", "turbo", false, true), false);
+});
+
+test("checking a live preview or asking the bot to take over the screen grants browser access", () => {
+  for (const task of [
+    "no bro, chek the preview",
+    "check the live preview and fix the rendering",
+    "you take over the screen and play by yourself",
+    "take over the screen and test the game"
+  ]) {
+    assert.equal(browserWorkRequested(task), true, task);
+  }
 });
 
 test("topic tools are sent only when the request mentions their topic", () => {

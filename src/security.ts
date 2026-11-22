@@ -37,6 +37,21 @@ const NETWORK_CONNECT_PATTERN =
 const OUTREACH_CAMPAIGN_PATTERN =
   /\b(?:launch|start|activate|resume|unpause|enable|kick\s*off)\s+(?:the\s+|my\s+|a\s+|this\s+)?(?:\w+\s+){0,2}?(?:campaign|sequence|drip|cadence|outreach|sending)\b|\b(?:start|begin)\s+sending\b|\bsend\s+(?:the\s+|these\s+|those\s+|all\s+|my\s+)?(?:\d+\s+)?(?:cold\s+|outreach\s+|follow[\s-]?up\s+)?emails?\b|\b(?:add|upload|import|enroll|push)\s+(?:these\s+|the\s+|my\s+|all\s+|this\s+)?(?:\d+\s+)?(?:leads?|contacts?|prospects?|lead\s+list|email\s+list)\b[\s\S]{0,40}?\b(?:campaign|sequence|instantly|lemlist|apollo|smartlead|outreach)\b/i;
 
+// Strip the UI's persona wrapper ("Continue acting as X (Role & Purpose: ...). User request: ...")
+// before checking side-effect verbs so a bot's own safety reminder ("you approve publish",
+// "Approval before publish, spend, hire, or infra") never falsely gates a read-only user request.
+function extractUserRequestForApproval(task: string): string {
+  const marker = /\)\.\s*User request:\s*/i;
+  if (/^\s*Continue(?:\s+the\s+interrupted\s+task[\s\S]*?)?\s+acting\s+as\b/i.test(task)) {
+    const idx = task.search(marker);
+    if (idx !== -1) {
+      const m = task.slice(idx).match(marker);
+      if (m) return task.slice(idx + m[0].length);
+    }
+  }
+  return task;
+}
+
 export function assessTaskRisk(task: string): RiskAssessment {
   if (SECRET_PATTERNS.some((pattern) => pattern.test(task))) {
     return {
@@ -45,10 +60,11 @@ export function assessTaskRisk(task: string): RiskAssessment {
       approvalsRequired: []
     };
   }
+  const userText = extractUserRequestForApproval(task);
   const approvalsRequired: ApprovalCategory[] = [];
   // Inspect financial verbs in their clause so discussion of an article title or
   // a negated instruction does not turn the whole task into a purchase.
-  const financialClauses = task.replace(/[“"][^“”"]*[”"]/g, "").split(/[.!?;\n]/);
+  const financialClauses = userText.replace(/[“"][^“”"]*[”"]/g, "").split(/[.!?;\n]/);
   const financialAction = financialClauses.some(clause => {
     if (!MONEY_PATTERN.test(clause)) return false;
     if (/^\s*(?:please\s+)?plan\b/i.test(clause)) return false;
@@ -58,11 +74,11 @@ export function assessTaskRisk(task: string): RiskAssessment {
   });
   if (financialAction) approvalsRequired.push("financial_transaction");
   if (
-    EXTERNAL_SIDE_EFFECT_PATTERN.test(task) ||
-    SOCIAL_LIKE_PATTERN.test(task) ||
-    ACCOUNT_CHANGE_PATTERN.test(task) ||
-    NETWORK_CONNECT_PATTERN.test(task) ||
-    OUTREACH_CAMPAIGN_PATTERN.test(task)
+    EXTERNAL_SIDE_EFFECT_PATTERN.test(userText) ||
+    SOCIAL_LIKE_PATTERN.test(userText) ||
+    ACCOUNT_CHANGE_PATTERN.test(userText) ||
+    NETWORK_CONNECT_PATTERN.test(userText) ||
+    OUTREACH_CAMPAIGN_PATTERN.test(userText)
   ) {
     approvalsRequired.push("external_side_effect");
   }
