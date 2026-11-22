@@ -571,6 +571,22 @@
         "fine tuning"
       ],
       "events": []
+    },
+    {
+      "id": "wall-street-analyst",
+      "file": "wall-street-analyst.md",
+      "terms": [
+        "wall street analyst"
+      ],
+      "events": []
+    },
+    {
+      "id": "goldman-sachs-analyst",
+      "file": "goldman-sachs-analyst.md",
+      "terms": [
+        "goldman sachs analyst"
+      ],
+      "events": []
     }
   ]
 }

@@ -1,5 +1,7 @@
 # Pilo
 
+[Roadmap](ROADMAP.md) · [Features](FEATURES.md) · [What has changed](CHANGELOG.md)
+
 <img src="static/branding/pilo-social.png" alt="Pilo and its specialist bots" width="480" />
 
 **Your Personal Bot inspired by Grok Bots — Source-Available**
@@ -7,6 +9,12 @@
 [Project home](https://github.com/iamcharlesb/pilo) · [The story behind Pilo](https://medium.com/@iamcharlesb/meet-pilo-inspired-by-grok-bots-and-chatgpt-dots-13a17c6c5e41)
 
 Pilo is a source-available personal bot inspired by Grok Bots, built on the browser-agent runtime. It uses compact per-bot playbooks, a local pub/sub bus and optional MongoDB-backed event synchronization. Fireworks++ is not a dependency or prerequisite.
+
+## Independent AI assistants
+
+Named bots are AI assistants informed by public material. They are not the named people or employees of the named firms, and have no affiliation or endorsement from those people or firms, including Goldman Sachs, Google and Alphabet. Portraits identify public figures; they do not imply endorsement. Financial outputs are informational, not personalized financial advice. Verify sources, dates, assumptions and calculations before relying on them; returns are not guaranteed.
+
+## Get started
 
 New installation? Follow the [first-time setup and provider guide](docs/provider-setup.md): install Node 22.12+, clone with submodules, install dependencies, launch, then choose OpenAI, Qwen, or Kimi in Settings and paste an API key. Model and endpoint presets are editable. For file-based setup, copy [.env.example](.env.example) to `.env` and fill only the chosen provider's key. Google sign-in and MongoDB are optional.
 

@@ -38,5 +38,13 @@
     "imageSource": "https://lookaside.fbsbx.com/elementpath/media/?media_id=323764547398564&version=1785790967&transcode_extension=webp",
     "sha256": "d7f4f1ba7d56d734d1304b3b053c3994c16c1f19ca53ed32009a8bd9e480a397",
     "basis": "Official Download Headshot link on Meta's named Mark Zuckerberg leadership page; not identification from uploaded photos."
+  },
+  {
+    "botName": "Sundar Pichai",
+    "file": "sundar-pichai.webp",
+    "profileSource": "https://blog.google/authors/sundar-pichai/",
+    "imageSource": "https://storage.googleapis.com/gweb-uniblog-publish-prod/images/sundar-208x208.width-400.format-webp.webp",
+    "sha256": "bc41c1da4f52610ffac602a05c332a4bd67a3848d7940527fd97342be234035c",
+    "basis": "Portrait explicitly labeled Sundar Pichai on Google's official author page; no identity inferred from uploaded images."
   }
 ]

@@ -3601,8 +3601,11 @@ dialog.modal-dialog::backdrop {
 #welcome .template-status svg { width: 14px; height: 14px; }
 .catalog-favorite { position: absolute; right: 7px; top: 4px; padding: 2px; color: #6582bd; font-size: 15px; opacity: 0; cursor: pointer; }
 .template-card:hover .catalog-favorite, .template-card:focus-within .catalog-favorite { opacity: 1; }
+.catalog-disclaimer { width: min(100%, 1000px); margin: -8px 0 16px; text-align: left; color: var(--muted); font-size: 11px; }
+.catalog-disclaimer summary { cursor: pointer; }
+#welcome .catalog-disclaimer p { max-width: none; margin-top: 8px; font-size: 11px; line-height: 1.5; color: var(--muted); }
 #welcome #catalog-empty { margin: 24px 0; font-size: 13px; }
-#welcome.is-typing .catalog-controls, #welcome.is-typing #catalog-search-wrap, #welcome.is-typing #catalog-empty { display: none; }
+#welcome.is-typing .catalog-disclaimer, #welcome.is-typing .catalog-controls, #welcome.is-typing #catalog-search-wrap, #welcome.is-typing #catalog-empty { display: none; }
 #workspace.has-browser #welcome .welcome-heading { gap: 8px; margin-bottom: 12px; }
 #workspace.has-browser #welcome .welcome-mark { width: 42px; height: 42px; margin: 0; }
 @media (max-width: 1100px) { #welcome h1 { font-size: 21px; } #welcome .catalog-controls { justify-content: space-between; } .catalog-actions { position: static; } }
@@ -3720,6 +3723,10 @@ dialog.modal-dialog::backdrop {
             </div>
           </div>
           <div id="catalog-search-wrap" hidden><input id="catalog-search" class="catalog-search" type="search" placeholder="Search bots by name or role…" aria-label="Search bots by name or role" /></div>
+          <details class="catalog-disclaimer">
+            <summary>Independent AI bots · No affiliation or endorsement</summary>
+            <p>These AI assistants are not the named people or employees of the named firms, and are not affiliated with or endorsed by them. Portraits identify the public figures whose published work informs a bot. Financial analysis is informational, not personalized financial advice. Verify sources, dates, assumptions, and outputs before relying on them. Bots cannot guarantee investment returns.</p>
+          </details>
           <p id="catalog-empty" hidden>No bots here yet. Explore All bots to find someone to work with.</p>
           <div class="template-grid">
             <button type="button" class="template-card" data-name="YouTube Concept & Code Learner" data-desc="Extract full transcripts, chapters, and concepts from any YouTube video headlessly (like Codex) and apply them to write code, tutorials, or notes." data-shape="circle" data-color="#ff2d3b">
@@ -4795,6 +4802,8 @@ dialog.modal-dialog::backdrop {
   var editingBotId = null;
   var selectedBotPreset = null;
   var LATEST_BOT_PRESETS = [
+    { profileId: "wall-street-analyst", name: "Wall Street Analyst", description: "Independent AI equity-research assistant for public companies, sectors, earnings, valuation, and market scenarios. Cite dated public sources, separate facts from assumptions, and build bull/base/bear cases. Never invent prices or returns. Not affiliated with any financial institution; research is not personalized financial advice.", color: "#1e3a5f", summary: "Markets & equity research" },
+    { profileId: "goldman-sachs-analyst", name: "Goldman Sachs Analyst", description: "Independent AI assistant using public investment-banking analysis methods: company profiles, comparable companies, DCF, transaction analysis, and diligence. Source assumptions and reconcile valuation bridges. Not affiliated with or endorsed by Goldman Sachs; no proprietary research or personalized financial advice.", color: "#294b68", summary: "Valuation & deal analysis" },
     { profileId: "website-designer", name: "Website Designer", description: "Senior web designer who ships responsive, accessible HTML websites and landing pages with relevant real photography, clear copy, real proof, focused calls to action, and lead follow-up drafts. Verifies photo sources and usage terms; labels stock imagery, prototype forms and missing details honestly. Never invents proof or service promises. Publishing, live edits, outreach, and spend require explicit approval.", color: "#7c3aed", summary: "Responsive websites with real photography, landing pages, and lead follow-up drafts." },
     { profileId: "product-marketing", name: "Product Marketing", description: "Product marketing specialist for customer research, positioning, messaging, competitive differentiation, launch briefs, and sales enablement. Turns verified capabilities and customer evidence into clear pitches, launch copy, one-pagers, and battlecards. Coordinates channel and page-build handoffs with saved specialists. Never invents proof or metrics; publishing, outreach, pricing changes, and spend require explicit approval.", color: "#db2777", summary: "Customer insight, positioning, messaging, launches, and sales enablement." },
     { profileId: "eb1a-research", name: "EB1A Research Agent", description: "Research public evidence and prepare attorney-review EB1A RFE materials. Prioritize independent adoption with metrics, personal attribution, critical role and comparable remuneration. Cite verified sources, mark gaps honestly, and keep USCIS and counsel checklists separate. No invented claims, approval promises, filings or recurring jobs.", color: "#1d4ed8", summary: "Evidence research, RFE issue matrix, attribution checks and counsel-ready gaps." },
@@ -4900,6 +4909,7 @@ dialog.modal-dialog::backdrop {
     if (key === "inspired by alex hormozi" || key === "alex hormozi") return "./avatars/alex-hormozi.webp?v=cc0a5ae96df8";
     if (key === "inspired by addy osmani" || key === "addy osmani") return "./avatars/addy-osmani.jpg?v=29902bd27134";
     if (key === "inspired by andrej karpathy" || key === "andrej karpathy") return "./avatars/andrej-karpathy.jpg?v=2aaa21c78fa6";
+    if (key === "sundar pichai") return "./avatars/sundar-pichai.webp?v=bc41c1da4f52";
     if (key === "mark zuckerberg") return "./avatars/mark-zuckerberg.jpg?v=d7f4f1ba7d56";
     if (key === "blog writer") return "./avatars/blog-writer.svg?v=66c776dfe813";
     return "";
@@ -6416,7 +6426,7 @@ dialog.modal-dialog::backdrop {
     catch (_) { return fallback; }
   }
   function catalogIcon(name) {
-    var paths = /instagram/i.test(name) ? '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>' :
+    var paths = /wall street|goldman sachs/i.test(name) ? '<path d="M3 21h18M5 17v-5h3v5m3 0V8h3v9m3 0V3h3v14"/>' : /instagram/i.test(name) ? '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>' :
       /linkedin/i.test(name) ? '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 10v7M7 7h.01M11 17v-7m0 3c0-4 6-4 6 0v4"/>' :
       /ads|marketing/i.test(name) ? '<path d="m4 10 12-5v14L4 14Zm0 0H2v4h2m3 1 1 6h3l-1-5m9-8 3-2m-3 6h3"/>' :
       /funnel/i.test(name) ? '<path d="M3 4h18l-7 9v7l-4 2v-9Z"/>' :
@@ -7379,6 +7389,25 @@ dialog.modal-dialog::backdrop {
     if (control && document.activeElement === prompt) event.preventDefault();
   });
 
+  function runStepActivity(event) {
+    var tool = String(event.toolName || "");
+    var stepText = String(event.message || event.toolName || "").trim();
+    return tool === "web_search" ? "Searching the web"
+        : tool === "navigate" ? "Opening a page"
+        : tool === "extract_page_data" ? "Reading the page"
+        : tool === "run_terminal_command" ? "Working in the terminal"
+        : tool === "schedule_task" ? "Setting up your schedule"
+        : tool === "delegate_to_bot" ? "Checking with a specialist"
+        : tool === "understand_youtube_video" ? "Understanding the video"
+        : tool === "calculate" ? "Working through the numbers"
+        : tool === "create_document" ? "Preparing your document"
+        : tool === "generate_image" ? "Creating an image"
+        : tool === "code_project" ? (/^Read /.test(stepText) ? stepText : "Inspecting the codebase")
+        : tool === "workspace_file" ? (/^(Read|Patched|Wrote|Updated|Appended) /.test(stepText) ? stepText : "Working with project files")
+        : tool === "knowledge_base" ? "Reading workspace knowledge"
+        : (stepText && !/^(clicked|typed|waited|scrolled|navigated)\b/i.test(stepText) && !/^[{\[]/.test(stepText) ? stepText : "Thinking");
+  }
+
   function restoreSelectedRun(renderPending) {
     if (learnEvents) return;
     var record = runTracker.activeFor(activeAgentId);
@@ -7398,7 +7427,7 @@ dialog.modal-dialog::backdrop {
     status.textContent = record
       ? record.connectionError ? "Reconnecting to this bot…" : waitingForRunInput ? "This bot needs your approval or verification."
         : record.status === "following" ? "Preparing the next discussion step…"
-        : record.lastStep ? record.lastStep.message || "Working…" : "Thinking…"
+        : record.lastStep ? runStepActivity(record.lastStep) : "Thinking…"
       : queued ? "Queued for an available execution slot." : "";
     stepCounter.textContent = record && record.lastStep ? "Step " + record.lastStep.step : "";
     setRunPresence(record && !waitingForRunInput ? status.textContent : null);
@@ -7956,20 +7985,7 @@ dialog.modal-dialog::backdrop {
       }
       var tool = String(e.toolName || "");
       var stepText = e.message || e.toolName || "working";
-      var activity = tool === "web_search" ? "Searching the web"
-        : tool === "navigate" ? "Opening a page"
-        : tool === "extract_page_data" ? "Reading the page"
-        : tool === "run_terminal_command" ? "Working in the terminal"
-        : tool === "schedule_task" ? "Setting up your schedule"
-        : tool === "delegate_to_bot" ? "Checking with a specialist"
-        : tool === "understand_youtube_video" ? "Understanding the video"
-        : tool === "calculate" ? "Working through the numbers"
-        : tool === "create_document" ? "Preparing your document"
-        : tool === "generate_image" ? "Creating an image"
-        : tool === "code_project" ? (/^Read /.test(stepText) ? stepText : "Inspecting the codebase")
-        : tool === "workspace_file" ? (/^(Read|Patched|Wrote|Updated|Appended) /.test(stepText) ? stepText : "Working with project files")
-        : tool === "knowledge_base" ? "Reading workspace knowledge"
-        : (stepText && !/^(clicked|typed|waited|scrolled|navigated)\b/i.test(stepText) && stepText.charAt(0) !== "{" ? stepText : "Thinking");
+      var activity = runStepActivity(e);
       status.textContent = "Step " + e.step + ": " + activity;
       setRunPresence(activity);
       stepCounter.textContent = "Step " + e.step;
@@ -9575,20 +9591,9 @@ dialog.modal-dialog::backdrop {
   };
   var brandHomeBtn = document.getElementById("brand-home-btn");
   if (brandHomeBtn) {
-    brandHomeBtn.onclick = function() {
-      activeAgentId = null;
-      localStorage.removeItem("openBotsSelectedBot");
-      messages.innerHTML = "";
-      if (welcome) {
-        welcome.hidden = false;
-        welcome.classList.remove("is-typing");
-      }
-      workspace.classList.add("empty");
-      if (typeof renderAgentHeader === "function") renderAgentHeader();
-      if (typeof renderAgents === "function") renderAgents();
-      if (typeof renderQuickSuggestions === "function") renderQuickSuggestions();
-    };
+    brandHomeBtn.onclick = function() { resetNewAgent(); };
   }
+
   document.querySelectorAll(".catalog-filter-btn").forEach(function(btn) {
     btn.onclick = function() {
       catalogCollection = btn.getAttribute("data-category");

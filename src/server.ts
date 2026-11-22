@@ -2475,6 +2475,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       "addy-osmani.jpg": { file: "addy-osmani.jpg", mime: "image/jpeg" },
       "andrej-karpathy.jpg": { file: "andrej-karpathy.jpg", mime: "image/jpeg" },
       "mark-zuckerberg.jpg": { file: "mark-zuckerberg.jpg", mime: "image/jpeg" },
+      "sundar-pichai.webp": { file: "sundar-pichai.webp", mime: "image/webp" },
       "blog-writer.svg": { file: "blog-writer.svg", mime: "image/svg+xml" }
     };
     const legacy: Record<string, string> = {

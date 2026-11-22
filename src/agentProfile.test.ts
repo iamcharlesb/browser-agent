@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { loadAgentProfile } from "./agentProfile";
+import { loadAgentProfile, readPlaybookPage } from "./agentProfile";
 
 const root = join(__dirname, "..");
 test("generic bots load compact core and voice without every niche playbook", () => {
@@ -406,4 +406,24 @@ test("EB1A specialist keeps evidence safeguards and procedure after rename", () 
   assert.ok(profile.instructions.length <= 2400);
   assert.ok(profile.soul.length <= 900);
   assert.ok(profile.playbooks.length <= 3200);
+});
+
+test("analyst profiles retain independent identity, role playbooks and voice after renaming", () => {
+  for (const [name, profileId, habit] of [
+    ["Wall Street Analyst", "wall-street-analyst", /equity-research|thesis/i],
+    ["Goldman Sachs Analyst", "goldman-sachs-analyst", /banking|comparables/i]
+  ] as const) {
+    for (const botName of [name, "My Finance Partner"]) {
+      const profile = loadAgentProfile({ botName, profileId, task: "Help with my work", root });
+      assert.match(profile.instructions, /independent AI/i);
+      assert.match(profile.instructions, /not affiliated|no institutional affiliation/i);
+      assert.match(profile.instructions, /not.*personalized financial advice|no.*personalized financial advice/i);
+      assert.match(profile.soul, habit);
+      assert.ok(profile.selected.includes(profileId));
+      assert.ok(profile.instructions.length <= 2400);
+      assert.ok(profile.soul.length <= 900);
+    }
+    const page = readPlaybookPage(profileId, 0, root);
+    assert.match(page.text, /public|sources/i);
+  }
 });

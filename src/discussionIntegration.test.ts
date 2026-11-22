@@ -621,7 +621,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
     });
     await t.test("portraits stay inside the header and preview controls fit narrow browser panes", async () => {
       const before = modelCalls;
-      for (const filename of ["sabri-suby.jpg", "alex-hormozi.webp", "addy-osmani.jpg", "andrej-karpathy.jpg", "mark-zuckerberg.jpg"]) {
+      for (const filename of ["sabri-suby.jpg", "alex-hormozi.webp", "addy-osmani.jpg", "andrej-karpathy.jpg", "mark-zuckerberg.jpg", "sundar-pichai.webp"]) {
         const response = await fetch(base + "/avatars/" + filename);
         assert.equal(response.status, 200, filename);
         assert.match(response.headers.get("content-type") || "", /image\/(jpeg|webp)/);
@@ -634,12 +634,13 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.addInitScript(() => {
           localStorage.setItem("agentFireworksAgentsV2", JSON.stringify([
             { id: "header-addy", name: "Addy Osmani", transcript: [] },
-            { id: "header-mark", name: "Mark Zuckerberg", transcript: [] }
+            { id: "header-mark", name: "Mark Zuckerberg", transcript: [] },
+            { id: "header-sundar", name: "Sundar Pichai", transcript: [] }
           ]));
           localStorage.setItem("openBotsSelectedBot", "header-addy");
         });
         await page.goto(base);
-        for (const id of ["header-addy", "header-mark"]) {
+        for (const id of ["header-addy", "header-mark", "header-sundar"]) {
           await page.locator('.agent-row[data-agent-id="' + id + '"]').click();
           await page.waitForFunction(() => {
             const image = document.querySelector<HTMLImageElement>("#chip-avatar img");
@@ -734,6 +735,18 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await waitFor(async () => asyncStarted, value => value.includes("UI_A"));
         assert.equal(submitted[0].interactionMode, "turbo");
         assert.equal(submitted[0].autoApprove, false);
+        await page.locator("#prompt").fill("Keep this writer draft");
+        await page.locator("#brand-home-btn").click();
+        assert.equal(await page.locator("#welcome").isVisible(), true);
+        assert.match(await page.locator("#agent-chip").innerText(), /New Bot/);
+        assert.equal(await page.locator("#status").innerText(), "");
+        assert.equal(await page.locator("#step-counter").innerText(), "");
+        assert.equal(await page.locator("#composer-stop-button").isVisible(), false);
+        assert.equal(await page.locator("#prompt").inputValue(), "");
+        await page.locator('.agent-row[data-agent-id="writer"]').click();
+        assert.equal(await page.locator("#welcome").isVisible(), false);
+        assert.equal(await page.locator("#prompt").inputValue(), "Keep this writer draft");
+        assert.equal(await page.locator("#status-badge-text").innerText(), "Working");
         await page.locator('.agent-row[data-agent-id="researcher"]').click();
         await page.waitForTimeout(450);
         await page.locator('#auto-approve-toggle').click();
