@@ -15,4 +15,8 @@ test("getHelpCatalog returns all topics by default and filters by topic", () => 
   assert.equal(envOnly.items.length, 1);
   assert.equal(envOnly.items[0].id, "env");
   assert.match(envOnly.items[0].snippet || "", /BROWSER_AGENT_PROVIDER/);
+  const demos = getHelpCatalog("demos");
+  assert.equal(demos.items.length, 1);
+  assert.equal(demos.items[0].command, "/help demos");
+  assert.match(demos.items[0].steps?.join(" ") || "", /@Demo Director/);
 });

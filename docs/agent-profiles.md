@@ -15,6 +15,10 @@ Operating instructions (`AGENTS.md` plus optional role `AGENTS.md`) must fit `BR
 
 The measured generic Primary Bot prompt changed from 18,210 to 3,795 characters. This compares system-prompt text only, not a production cost or quality benchmark. Profile load events report the selected files' revision, selected playbook IDs, profile characters and complete system-prompt characters. Existing usage events retain actual provider token accounting. `/api/status` exposes aggregate profile loads, prompt characters, usage-reported model calls and administrative notification counts.
 
+## Demo Director skill
+
+Add **Demo Director** from the catalog for timed storyboards, narration, planned captions, recording checklists and downloadable production packs. Existing bots can load the same playbook when asked for a product demo storyboard or recording plan. Recording and video editing remain manual. See the [Demo Director guide](demo-director.md) for an example prompt and the current scope.
+
 ## Learning proposals and review
 
 `learning_kb(save)` persists a bounded reference note and creates a pending playbook proposal with its evidence reference. It publishes `agent.learning.proposed` with the bot ID and proposal reference. It does not edit Markdown files, publish a lesson to every bot, or promote itself into operational instructions.

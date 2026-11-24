@@ -2,6 +2,12 @@
   "version": 1,
   "playbooks": [
     {
+      "id": "demo-director",
+      "file": "demo-director.md",
+      "terms": ["demo director", "demo creator", "product demo", "demo video", "storyboard", "recording plan", "screen recording"],
+      "events": []
+    },
+    {
       "id": "coding-workflow",
       "file": "coding-workflow.md",
       "terms": [

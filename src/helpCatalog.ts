@@ -14,6 +14,18 @@ export interface HelpItem {
 
 const HELP_ITEMS: HelpItem[] = [
   {
+    id: "demos",
+    title: "Demo Director Skill",
+    summary: "Create product demo storyboards, narration, planned captions and recording-ready production packs.",
+    command: "/help demos",
+    steps: [
+      "Choose Demo Director from the bot catalog for a dedicated conversation.",
+      "Or type @Demo Director and select it in another bot's composer; send a message to request a consultation.",
+      "Try: Create a 60-second product demo production pack with a storyboard, voiceover and recording checklist.",
+      "Recording and video editing remain manual. Planning does not start capture, publishing or paid services."
+    ]
+  },
+  {
     id: "setup",
     title: "Quick Setup",
     summary: "Clone with submodules, install Node.js dependencies, and launch the desktop app.",

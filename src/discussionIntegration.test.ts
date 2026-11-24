@@ -1032,6 +1032,44 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }
     });
+    await t.test("Demo Director can be selected from the complete @ catalog and reopened as a bot without model work", async () => {
+      const before = modelCalls;
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage();
+        const errors: string[] = [];
+        page.on("pageerror", error => errors.push(error.message));
+        await page.addInitScript(() => {
+          localStorage.setItem("agentFireworksAgentsV2", JSON.stringify([
+            { id: "demo-owner", name: "Primary Bot", transcript: [] },
+            { id: "demo-huddle", name: "Demo Huddle", kind: "huddle", participantIds: [], transcript: [] }
+          ]));
+          localStorage.setItem("openBotsSelectedBot", "demo-owner");
+        });
+        await page.goto(base);
+        await page.locator('#prompt').fill("@Demo Director");
+        const option = page.locator('#bot-mention-menu [role="option"]', { hasText: "Demo Director" });
+        await option.click();
+        assert.deepEqual(errors, []);
+        assert.match(await page.locator('#tagged-bots').innerText(), /@Demo Director/);
+        const demo = await page.evaluate(() => JSON.parse(localStorage.getItem("agentFireworksAgentsV2") || "[]")
+          .find((bot: any) => bot.profileId === "demo-director"));
+        assert.equal(demo.name, "Demo Director");
+        assert.equal(await page.locator('#prompt').inputValue(), "");
+        await page.locator('#prompt').fill("@Demo Director");
+        assert.equal(await page.locator('#bot-mention-menu').isHidden(), true, "an already tagged bot is excluded");
+        await page.locator('#tagged-bots button').click();
+        await page.locator('#prompt').fill("@Demo");
+        await option.click();
+        const count = await page.evaluate(() => JSON.parse(localStorage.getItem("agentFireworksAgentsV2") || "[]")
+          .filter((bot: any) => bot.profileId === "demo-director").length);
+        assert.equal(count, 1, "selecting a saved specialist does not create duplicates");
+        await page.locator('#brand-home-btn').click();
+        await page.locator('.template-card[data-catalog-key="profile:demo-director"]').click();
+        await page.waitForFunction(id => document.querySelector('.agent-row[data-agent-id="' + id + '"]')?.classList.contains("active"), demo.id);
+        assert.equal(modelCalls, before, "tagging and opening a specialist start no models");
+      } finally { await browser.close(); }
+    });
     await t.test("Settings connects Qwen and Kimi, selects the saved model, and makes no provider calls", async () => {
       const before = modelCalls;
       const browser = await chromium.launch({ headless: true });

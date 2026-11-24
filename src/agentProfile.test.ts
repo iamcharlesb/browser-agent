@@ -269,6 +269,7 @@ test("catalog and template bots each load a personality-bearing soul", () => {
     "Principal Fullstack Engineer, Cloud & DevOps",
     "Chief Marketing Officer",
     "Product Marketing",
+    "Demo Director",
     "Founder Operator",
     "Mark Zuckerberg",
     "Alexandr Wang",

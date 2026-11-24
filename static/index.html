@@ -5257,6 +5257,7 @@ dialog.modal-dialog::backdrop {
     { profileId: "jim-cramer", name: "Jim Cramer", description: "Independent AI market-commentary assistant inspired by Jim Cramer's published plain-English investing style: earnings catalysts, thesis homework, sector rotation, and diversification. Cite dated public sources and separate facts from estimates. Not Jim Cramer, not affiliated with CNBC, and not personalized financial advice.", color: "#c2410c", avatar: "./avatars/jim-cramer.jpg?v=4fa5f4acf2dc", summary: "Market commentary & stock homework" },
     { profileId: "website-designer", name: "Website Designer", description: "Senior web designer who ships responsive, accessible HTML websites and landing pages with relevant real photography, clear copy, real proof, focused calls to action, and lead follow-up drafts. Verifies photo sources and usage terms; labels stock imagery, prototype forms and missing details honestly. Never invents proof or service promises. Publishing, live edits, outreach, and spend require explicit approval.", color: "#7c3aed", summary: "Responsive websites with real photography, landing pages, and lead follow-up drafts." },
     { profileId: "product-marketing", name: "Product Marketing", description: "Product marketing specialist for customer research, positioning, messaging, competitive differentiation, launch briefs, and sales enablement. Turns verified capabilities and customer evidence into clear pitches, launch copy, one-pagers, and battlecards. Coordinates channel and page-build handoffs with saved specialists. Never invents proof or metrics; publishing, outreach, pricing changes, and spend require explicit approval.", color: "#db2777", summary: "Customer insight, positioning, messaging, launches, and sales enablement." },
+    { profileId: "demo-director", name: "Demo Director", description: "Product demo planning skill: creates timed storyboards, voiceover scripts, planned captions, capture checklists, edit notes and downloadable production packs from verified capabilities. Recording and video editing remain manual until supporting tools are available. Never invent footage or results; publishing and paid services require separate authorization.", color: "#0891b2", summary: "Product demo storyboards, narration, captions and recording-ready production packs." },
     { profileId: "eb1a-research", name: "EB1A Research Agent", description: "Research public evidence and prepare attorney-review EB1A RFE materials. Prioritize independent adoption with metrics, personal attribution, critical role and comparable remuneration. Cite verified sources, mark gaps honestly, and keep USCIS and counsel checklists separate. No invented claims, approval promises, filings or recurring jobs.", color: "#1d4ed8", summary: "Evidence research, RFE issue matrix, attribution checks and counsel-ready gaps." },
     { profileId: "supervisor", name: "Supervisor Bot", description: "Workspace quality supervisor. Observes conversations for missed asks and role drift. After you approve a night schedule, validates bot behavior against public source materials with read-only research and drafts pending soul/playbook improvements—never auto-applies. Notifications alone never start paid jobs.", color: "#57534e", summary: "Observe conversations, nightly source checks, pending improvement proposals." },
     { profileId: "supercomputer", name: "Supercomputer", description: "Continuous technical builder for an assigned project folder. Channels Mark Zuckerberg's shipping urgency and Alexandr Wang's frontier systems ruthlessness toward Jarvis-grade capability: feature parity, papers, self-healing, architecture. Ranked options for approval; never silently rewrite, deploy, spend, or start paid recurring jobs. Brief Mark Zuckerberg / Alexandr Wang peers when useful. Also accepts Jarvis watch briefs from Bot Creator for new specialist bots.", color: "#0ea5e9", summary: "Jarvis-grade continuous codebase success; watches new bots when briefed." },
@@ -5574,13 +5575,14 @@ dialog.modal-dialog::backdrop {
       var operator = specialist.profileId === "founder-operator" || /Founder Operator/.test(specialist.name);
       var cmo = specialist.profileId === "chief-marketing-officer";
       var productMarketing = specialist.profileId === "product-marketing";
+      var demoDirector = specialist.profileId === "demo-director";
       var websiteDesigner = specialist.profileId === "website-designer";
       var supervisor = specialist.profileId === "supervisor" || /Supervisor Bot/.test(specialist.name);
       var supercomputer = specialist.profileId === "supercomputer" || /Supercomputer/.test(specialist.name);
       var botCreator = specialist.profileId === "bot-creator" || /Bot Creator/.test(specialist.name);
       var critica = specialist.profileId === "critica" || /Critica/.test(specialist.name);
       var possession = /Alex Hormozi|Addy Osmani|Andrej Karpathy|Mark Zuckerberg|Alexandr Wang|Alex Wang|Sundar Pichai|Jim Cramer|Inspired by Sabri Suby/.test(specialist.name);
-      var kind = engineering || supercomputer ? "coding" : botCreator ? "bot-creator" : critica ? "critica" : operator ? "founder-ops" : cmo ? "cmo" : productMarketing ? "product-marketing" : websiteDesigner ? "website-designer" : supervisor ? "supervisor" : possession ? "personality" : "sales";
+      var kind = engineering || supercomputer ? "coding" : botCreator ? "bot-creator" : critica ? "critica" : operator ? "founder-ops" : cmo ? "cmo" : productMarketing ? "product-marketing" : demoDirector ? "demo-director" : websiteDesigner ? "website-designer" : supervisor ? "supervisor" : possession ? "personality" : "sales";
       var blogWriter = specialist.profileId === "blog-writer" || /Blog Writer/i.test(specialist.name);
       var seo = /SEO Specialist/i.test(specialist.name);
       var ads = /Ads Specialist/i.test(specialist.name);
@@ -5631,6 +5633,8 @@ dialog.modal-dialog::backdrop {
             ? ["Build this week's content calendar", "Tighten brand voice on this draft", "Prepare the marketing weekly review"]
             : productMarketing
               ? ["Define positioning and message pillars for my product", "Draft a feature launch brief and announcement", "Create a competitive battlecard and sales one-pager"]
+            : demoDirector
+              ? ["Create a 60-second product demo production pack", "Turn this workflow into a timed storyboard and voiceover", "Plan a 20-second social demo with captions and edit notes"]
             : websiteDesigner
               ? ["Design a responsive website for my business", "Redesign this landing page", "Create a lead capture page and follow-up drafts"]
             : supervisor
@@ -7194,7 +7198,7 @@ dialog.modal-dialog::backdrop {
         var title = document.createElement("strong");
         title.textContent = preset.name;
         var summary = document.createElement("span");
-        summary.textContent = preset.summary || preset.description.slice(0, 112);
+        summary.textContent = preset.summary || (preset.description || "").slice(0, 112) || preset.name;
         copy.appendChild(title);
         copy.appendChild(summary);
         card.appendChild(avatar);
@@ -9356,9 +9360,10 @@ dialog.modal-dialog::backdrop {
   function mentionCandidates(query) {
     var current = activeAgent();
     var needle = String(query || "").trim().toLowerCase();
-    return agents.filter(function(bot) {
-      if (!bot || bot.deleted || (current && bot.id === current.id)) return false;
-      if (taggedDiscussionBots.some(function(item) { return item.id === bot.id; })) return false;
+    return getBotCatalog().filter(function(bot) {
+      var savedId = bot.savedId || bot.id;
+      if (!bot || bot.deleted || bot.kind === "huddle" || (current && savedId === current.id)) return false;
+      if (savedId && taggedDiscussionBots.some(function(item) { return item.id === savedId; })) return false;
       if (!needle) return true;
       return String(bot.name || "").toLowerCase().indexOf(needle) >= 0 ||
         String(bot.description || bot.summary || "").toLowerCase().indexOf(needle) >= 0;
@@ -9390,8 +9395,11 @@ dialog.modal-dialog::backdrop {
     menu.hidden = false;
   }
   function selectMentionBot(bot) {
-    if (!bot || taggedDiscussionBots.some(function(item) { return item.id === bot.id; })) return;
+    if (!bot) return;
+    bot = ensureCatalogBot(bot);
+    if (taggedDiscussionBots.some(function(item) { return item.id === bot.id; })) return;
     taggedDiscussionBots.push({ id: bot.id, name: bot.name });
+    renderSidebar();
     renderTaggedBots();
     var value = prompt.value;
     var cursor = prompt.selectionStart || value.length;

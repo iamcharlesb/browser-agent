@@ -33,6 +33,7 @@ export const SPECIALIST_PROFILES: Record<string, string> = {
   "engineering-craftsman": "The Engineering Craftsman", "neural-architect": "The Neural Architect",
   "systems-architect": "The Systems Architect", "chief-marketing-officer": "Chief Marketing Officer",
   "product-marketing": "Product Marketing",
+  "demo-director": "Demo Director",
   "website-designer": "Website Designer",
   "wall-street-analyst": "Wall Street Analyst", "goldman-sachs-analyst": "Goldman Sachs Analyst",
   "jim-cramer": "Jim Cramer",
