@@ -48,7 +48,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   await cp(resolve(__dirname, "..", "static", "avatars"), join(directory, "static", "avatars"), { recursive: true });
   await cp(resolve(__dirname, "..", "docs"), join(directory, "docs"), { recursive: true });
   await copyFile(resolve(__dirname, "..", "README.md"), join(directory, "README.md"));
-  for (const file of ["index.html", "webmDuration.js", "screenRecorder.js", "guidedDemo.js", "browserRuntime.js", "botCatalog.js", "uiState.js", "responseMarkdown.js", "runStream.js", "artifactPreview.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
+  for (const file of ["index.html", "webmDuration.js", "screenRecorder.js", "guidedDemo.js", "demoAudio.js", "browserRuntime.js", "botCatalog.js", "uiState.js", "responseMarkdown.js", "runStream.js", "artifactPreview.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
   let capturedPersonaPrompt = "";
   const cliPrompts: string[] = [];
   let cliToolCalls = 0;
@@ -1077,6 +1077,20 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.locator('#recording-close').click();
         await page.locator('#prompt').fill('Keep my existing draft');
         await page.locator('#screen-record-button').click();
+        // A short PCM tone stands in for local speech on CI. The real audio
+        // mixer and WebM encoder must retain it in the saved file.
+        const wav = Buffer.alloc(44 + 1600 * 2);
+        wav.write('RIFF'); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
+        wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+        wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+        wav.write('data', 36); wav.writeUInt32LE(wav.length - 44, 40);
+        for (let sample = 0; sample < 1600; sample++) wav.writeInt16LE(Math.round(Math.sin(sample * 2 * Math.PI * 440 / 16000) * 8000), 44 + sample * 2);
+        let speechRequests = 0;
+        await page.route('**/api/recordings/narration', async route => {
+          assert.ok([0, 1, 2, 3].includes(route.request().postDataJSON().scene)); speechRequests++;
+          await route.fulfill({ contentType: 'audio/wav', body: wav });
+        });
+        await page.locator('#recording-narration').check();
         await page.locator('#recording-seconds').fill('6');
         await page.locator('#recording-guided').check();
         await page.evaluate(() => {
@@ -1090,6 +1104,10 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.locator('#recording-start').click();
         await page.waitForFunction(() => document.querySelector('#recording-status')!.textContent!.includes('Recording saved.') && (window as any).__guidedClicks.includes('help'), null, { timeout: 20000 });
         assert.deepEqual(await page.evaluate(() => (window as any).__guidedClicks), ['profile:demo-director', 'pane-new-tab-btn', 'help']);
+        assert.equal(speechRequests, 4);
+        const narratedHref = await page.locator('#recording-download').getAttribute('href');
+        const narratedBytes = Buffer.from(await (await fetch(base + narratedHref)).arrayBuffer());
+        assert.ok(narratedBytes.includes(Buffer.from('A_OPUS')), 'the downloadable WebM contains encoded narration audio');
         assert.equal(await page.locator('#prompt').inputValue(), 'Keep my existing draft');
         assert.equal(await page.locator('#guided-demo-overlay').count(), 0);
         assert.equal(await page.locator('body').evaluate(el => el.classList.contains('pilo-guided-demo')), false);
@@ -1105,6 +1123,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.equal(await page.evaluate(() => (window as any).__interruptedTour.report().interrupted), true);
         assert.equal(await page.evaluate(() => (window as any).__guidedClicks.length === (window as any).__clicksBeforeInterruption), true);
         await page.locator('#screen-record-button').click();
+        await page.locator('#recording-narration').uncheck();
         await page.locator('#recording-guided').uncheck();
         const rejected = await fetch(base + '/api/recordings', { method: 'POST', headers: { origin: 'https://untrusted.example', 'Content-Type': 'application/json' }, body: '{"durationSeconds":1}' });
         assert.equal(rejected.status, 403);
@@ -1115,6 +1134,22 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.evaluate(() => Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { value: async () => { throw new DOMException('Capture denied', 'NotAllowedError'); } }));
         await page.locator('#recording-source').click();
         await page.waitForFunction(() => document.querySelector('#recording-status')!.textContent!.includes('Capture denied'));
+        await page.locator('#recording-close').click();
+        const stateBeforeDemo = await fetch(base + '/api/recordings').then(r => r.json());
+        await page.goto(base + '/demo');
+        await page.locator('#screen-recording-dialog').waitFor({ state: 'visible' });
+        await page.locator('#recording-narration').check();
+        await page.locator('#recording-seconds').fill('6');
+        await page.locator('#demo-play').click();
+        await page.waitForFunction(() => document.querySelector('#recording-status')!.textContent!.includes('Browser walkthrough finished.'), null, { timeout: 12000 });
+        assert.equal(speechRequests, 8);
+        assert.equal(await page.locator('#guided-demo-overlay').count(), 0);
+        const stateAfterDemo = await fetch(base + '/api/recordings').then(r => r.json());
+        assert.deepEqual(stateAfterDemo.recording, stateBeforeDemo.recording, 'browser playback never requests screen capture or changes recording state');
+        const deniedSpeech = await fetch(base + '/api/recordings/narration', { method: 'POST', headers: { origin: 'https://untrusted.example', 'Content-Type': 'application/json' }, body: '{"scene":0}' });
+        assert.equal(deniedSpeech.status, 403);
+        const invalidSpeech = await fetch(base + '/api/recordings/narration', { method: 'POST', headers: { origin: base, 'Content-Type': 'application/json' }, body: '{"scene":-1}' });
+        assert.equal(invalidSpeech.status, 400);
         assert.equal(modelCalls, before, 'capture and download do not invoke models');
       } finally {
         await browser.close();

@@ -19,7 +19,7 @@ const HELP_ITEMS: HelpItem[] = [
     summary: "Record actual screen demos with source preview, narration, timed capture, playback and video download.",
     command: "/help demos",
     steps: [
-      "Choose Demo Director from the bot catalog for a dedicated conversation.",
+      "For browser playback, open /demo and click Play walkthrough; enable Spoken guide for local narration. Choose Demo Director from the bot catalog for a dedicated conversation.",
       "Or type @Demo Director and select it in another bot's composer; send a message to request a consultation.",
       "Type /record 10 or click Record screen beside the microphone to open the real recorder without a model call.",
       "Preview the source, click Start recording, use the guided local walkthrough or perform your workflow, then play or download the WebM video. Nothing is published."

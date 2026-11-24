@@ -2524,14 +2524,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     res.end(bytes); return;
   }
 
-  if (req.method === "GET" && ["/webmDuration.js", "/screenRecorder.js", "/guidedDemo.js", "/browserRuntime.js", "/botCatalog.js", "/uiState.js", "/artifactPreview.js", "/projectScanner.js", "/responseMarkdown.js", "/runStream.js"].includes(url.pathname)) {
+  if (req.method === "GET" && ["/webmDuration.js", "/screenRecorder.js", "/guidedDemo.js", "/demoAudio.js", "/browserRuntime.js", "/botCatalog.js", "/uiState.js", "/artifactPreview.js", "/projectScanner.js", "/responseMarkdown.js", "/runStream.js"].includes(url.pathname)) {
     const script = await readFile(join(STATIC_DIR, url.pathname.slice(1)), "utf8");
     res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
     res.end(script);
     return;
   }
 
-  if (req.method === "GET" && url.pathname === "/") {
+  if (req.method === "GET" && ["/", "/demo"].includes(url.pathname)) {
     try {
       const html = await readFile(join(STATIC_DIR, "index.html"), "utf8");
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });

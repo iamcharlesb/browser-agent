@@ -1,3 +1,4 @@
+import { renderDemoNarration } from "./demoNarration";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -83,6 +84,11 @@ export async function handleRecordingRequest(req: IncomingMessage, res: ServerRe
     let raw = "";
     for await (const chunk of req) { raw += chunk; if (raw.length > 2048) throw new Error("Request too large."); }
     const body = JSON.parse(raw || "{}");
+    if (url.pathname === "/api/recordings/narration") {
+      const audio = await renderDemoNarration(body.scene);
+      res.writeHead(200, { "Content-Type": "audio/wav", "Cache-Control": "no-store" });
+      res.end(audio); return true;
+    }
     if (url.pathname === "/api/recordings") send(200, { recording: screenRecordings.request(body.durationSeconds ?? 10) });
     else {
       const match = /^\/api\/recordings\/([^/]+)\/(start|fail)$/.exec(url.pathname);

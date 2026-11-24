@@ -21,3 +21,11 @@ Choose Demo Director from the catalog or tag **@Demo Director**. Ask “Record a
 macOS may require Pilo to be enabled under System Settings → Privacy & Security → Screen & System Audio Recording, followed by restarting the app. Microphone narration needs its own permission. A denied request produces no video. Closing the recorder before capture cancels it. Starting capture is not permission to publish or run a paid model workflow.
 
 BROWSER_AGENT_RECORDING_MAX_SECONDS, BROWSER_AGENT_RECORDING_MAX_BYTES, BROWSER_AGENT_RECORDING_BITRATE, BROWSER_AGENT_RECORDING_FPS and BROWSER_AGENT_RECORDING_POLL_MS configure limits and the zero-model pending-request check. Defaults are 120 seconds, 100 MB, 8 Mbps, 30 fps and 2000 ms. Video stays in local artifacts; the feature does not publish it externally.
+
+## Browser playback and spoken guide
+
+Open **http://127.0.0.1:8766/demo** in your browser while Pilo is running. Click **Play walkthrough** to run the real local UI demo without screen-sharing permissions or creating a recording. This is the Pilo interface served by your local app, not a publicly hosted demo. Clicking or typing stops the guided actions; Stop ends playback.
+
+Enable **Spoken guide** for scene narration. It is synthesized locally on the Pilo host using macOS speech, or eSpeak on Linux, and played through the browser. The control selects a 20-second take to leave room for natural speech. The length automatically increases when the selected local voice needs more time. If that exceeds the configured recording limit, disable narration or increase the limit. On unsupported hosts, disable speech to run silently. No cloud voice API or API key is used.
+
+When recording, speech is mixed directly into the WebM audio track, alongside an optional microphone. No system-audio sharing is needed. BROWSER_AGENT_DEMO_VOICE selects an installed local voice, BROWSER_AGENT_DEMO_SPEECH_RATE sets words per minute (default 180), and BROWSER_AGENT_DEMO_SPEECH_TIMEOUT_MS bounds each synthesis (default 15000). Only the four built-in scene lines can be synthesized through this endpoint. A narrator failure is shown before playback/capture starts.
