@@ -4318,6 +4318,11 @@ dialog.modal-dialog::backdrop {
                   <span class="launcher-item-label">Plugins</span>
                   <span class="launcher-item-meta" aria-hidden="true">›</span>
                 </button>
+                <button type="button" class="launcher-item" data-launch="help">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg>
+                  <span class="launcher-item-label">Help (/help)</span>
+                  <span class="launcher-item-meta">Setup &amp; .env</span>
+                </button>
               </div>
               <div class="launcher-section-head"><span>Subagents</span><span id="launcher-subagents-count" class="launcher-count-pill">0</span></div>
               <div id="launcher-subagents-list" class="launcher-list"></div>
@@ -4367,6 +4372,16 @@ dialog.modal-dialog::backdrop {
                 <button type="button" id="plugins-refresh-btn" class="utility-btn">Refresh</button>
               </div>
               <div id="plugins-content" class="launcher-list"></div>
+            </div>
+          </div>
+          <div id="pane-help-view" class="utility-tabpanel" role="tabpanel" aria-label="Pilo Help" hidden>
+            <div class="utility-panel-inner">
+              <div class="utility-subhead">
+                <h3>Pilo Help (/help)</h3>
+                <span class="utility-badge ok">Local · 0 tokens</span>
+              </div>
+              <div id="help-topic-pills" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+              <div id="help-items-list" style="display:flex;flex-direction:column;gap:14px;"></div>
             </div>
           </div>
         </div>
@@ -9396,6 +9411,17 @@ dialog.modal-dialog::backdrop {
     if (attachmentUploads) { status.textContent = "Attachments are still preparing. Please send once they appear."; return; }
     var value = prompt.value.trim() || (attachments.length ? "Use the attached evidence for the current task." : "");
     if (!value && !taggedDiscussionBots.length) return;
+    var helpMatch = /^\/help(?:\s+([a-z0-9_-]+))?$/i.exec(value);
+    if (helpMatch) {
+      prompt.value = "";
+      saveComposerDraft();
+      prompt.style.height = "auto";
+      if (typeof window.__piloOpenHelp === "function") {
+        window.__piloOpenHelp(helpMatch[1] || "");
+      }
+      status.textContent = "Opened Pilo Help (" + (helpMatch[1] ? "/help " + helpMatch[1] : "/help") + "). No model request sent.";
+      return;
+    }
     if (!value) value = "Discuss this with the tagged bots and return a concise synthesis.";
     var huddle = activeAgent();
     if (huddle && huddle.kind === "huddle") {
@@ -11810,7 +11836,8 @@ dialog.modal-dialog::backdrop {
     review: "pane-review-view",
     file: "pane-file-view",
     "side-question": "pane-side-question-view",
-    plugins: "pane-plugins-view"
+    plugins: "pane-plugins-view",
+    help: "pane-help-view"
   };
 
   function ensurePaneOpen() {
@@ -11870,6 +11897,8 @@ dialog.modal-dialog::backdrop {
       loadWorkspaceFiles();
     } else if (mode === "plugins") {
       loadPlugins();
+    } else if (mode === "help") {
+      loadHelp("");
     } else if (mode === "side-question") {
       var sqInput = document.getElementById("side-q-input");
       if (sqInput) sqInput.focus();
@@ -12073,6 +12102,60 @@ dialog.modal-dialog::backdrop {
     });
   }
 
+  function loadHelp(topic) {
+    var pills = document.getElementById("help-topic-pills");
+    var list = document.getElementById("help-items-list");
+    if (!list) return;
+    var url = "/api/help" + (topic ? "?topic=" + encodeURIComponent(topic) : "");
+    fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+      if (pills) {
+        pills.textContent = "";
+        var allBtn = makeEl("button", "utility-btn", "All");
+        allBtn.type = "button";
+        allBtn.addEventListener("click", function() { loadHelp(""); });
+        pills.appendChild(allBtn);
+        (data.topics || []).forEach(function(t) {
+          var b = makeEl("button", "utility-btn", t.title);
+          b.type = "button";
+          b.addEventListener("click", function() { loadHelp(t.id); });
+          pills.appendChild(b);
+        });
+      }
+      list.textContent = "";
+      (data.items || []).forEach(function(item) {
+        var card = makeEl("div", "side-q-msg assistant");
+        var head = makeEl("div", "utility-subhead");
+        head.appendChild(makeEl("h3", "", item.title));
+        head.appendChild(makeEl("span", "utility-badge", item.command));
+        card.appendChild(head);
+        card.appendChild(makeEl("p", "launcher-item-meta", item.summary));
+        if (Array.isArray(item.steps) && item.steps.length) {
+          var ul = document.createElement("ul");
+          ul.style.margin = "8px 0 0 18px";
+          ul.style.padding = "0";
+          item.steps.forEach(function(step) {
+            var li = document.createElement("li");
+            li.style.marginBottom = "4px";
+            li.textContent = step;
+            ul.appendChild(li);
+          });
+          card.appendChild(ul);
+        }
+        if (item.snippet) {
+          var pre = makeEl("pre", "utility-code-box", item.snippet);
+          pre.style.marginTop = "8px";
+          card.appendChild(pre);
+        }
+        list.appendChild(card);
+      });
+    });
+  }
+
+  window.__piloOpenHelp = function(topic) {
+    openUtilityMode("help");
+    loadHelp(topic || "");
+  };
+
   tablist.addEventListener("click", function(e) {
     var tab = e.target && e.target.closest ? e.target.closest('[role="tab"]') : null;
     if (!tab) return;
@@ -12109,6 +12192,11 @@ dialog.modal-dialog::backdrop {
       e.preventDefault();
       var value = (launcherSearchInput && launcherSearchInput.value || "").trim();
       if (!value) return;
+      var helpCmd = /^\/help(?:\s+([a-z0-9_-]+))?$/i.exec(value);
+      if (helpCmd) {
+        window.__piloOpenHelp(helpCmd[1] || "");
+        return;
+      }
       if (/^https?:\/\//i.test(value) || /^localhost(?::\d+)?/i.test(value) || /^[a-z0-9-]+\.[a-z]{2,}/i.test(value)) {
         var targetUrl = /^https?:\/\//i.test(value) ? value : "https://" + value;
         openUtilityMode("browser");

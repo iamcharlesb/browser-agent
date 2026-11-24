@@ -100,6 +100,7 @@ import {
 import { createDefaultVerifier } from "./selfFix";
 import { parseTrigger, probeTrigger, ScheduleTrigger, TriggerState } from "./watchers";
 import { getWorkspacePluginsSummary, getWorkspaceReview } from "./workspaceReview";
+import { getHelpCatalog } from "./helpCatalog";
 import { createPatchProposer } from "./patchProposer";
 import { FixApprovalGate } from "./fixApproval";
 import {
@@ -3146,6 +3147,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   if (req.method === "GET" && url.pathname === "/api/workspace/plugins") {
     sendJson(res, 200, getWorkspacePluginsSummary());
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/help") {
+    const topic = url.searchParams.get("topic") || undefined;
+    sendJson(res, 200, getHelpCatalog(topic));
     return;
   }
 
