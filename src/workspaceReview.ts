@@ -162,12 +162,15 @@ export async function getWorkspaceReview(
  * Deliberately exposes only connection status and capability metadata, never credentials.
  */
 export function getWorkspacePluginsSummary() {
+  const providers = providerCatalog();
+  const ollama = providers.find((p) => p.id === "ollama");
+  const ollamaStatus = ollama && ollama.model ? "configured" : "unconfigured";
   return {
-    providers: providerCatalog(),
+    providers,
     protocols: [
-      { id: "mcp", name: "MCP Federation", status: "enabled", description: "Namespaced tool, resource, and prompt federation with RBAC filtering." },
-      { id: "a2a", name: "A2A Agent Routing", status: "enabled", description: "Agent Cards (/.well-known/agent.json) and cancellable task routing." },
-      { id: "ollama", name: "Local Ollama", status: "enabled", description: "Native tool calling, structured outputs, /api/tags discovery, and cloud failover." }
+      { id: "mcp", name: "MCP Federation", status: "supported", description: "Namespaced tool, resource, and prompt federation with RBAC filtering (available via PiloAgentGateway)." },
+      { id: "a2a", name: "A2A Agent Routing", status: "supported", description: "Agent Cards (/.well-known/agent.json) and cancellable task routing (available via PiloAgentGateway)." },
+      { id: "ollama", name: "Local Ollama", status: ollamaStatus, description: "Native tool calling, structured outputs, /api/tags discovery, and cloud failover." }
     ],
     tools: [
       { id: "code_project", name: "Code Index & Search", category: "Workspace", description: "Git-aware cached code index, map, search, and live line reads." },

@@ -3162,10 +3162,17 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const body = await readJsonBody(req) as Record<string, unknown>;
       const question = typeof body.question === "string" ? body.question.trim() : "";
       if (!question) throw new Error("Enter a question.");
-      const providerId = (typeof body.provider === "string" && body.provider.trim()) || process.env.BROWSER_AGENT_PROVIDER?.trim() || "openai";
+      const rawModel = typeof body.model === "string" ? body.model.trim() : "";
+      const inferredProvider = rawModel.startsWith("ollama:") ? "ollama" : "";
+      const providerId =
+        (typeof body.provider === "string" && body.provider.trim()) ||
+        inferredProvider ||
+        process.env.BROWSER_AGENT_PROVIDER?.trim() ||
+        "openai";
       const def = providerDefinition(providerId) || providerDefinition("openai");
       if (!def) throw new Error("No model provider is configured.");
-      const model = (typeof body.model === "string" && body.model.trim()) || providerModel(def);
+      const cleanedModel = rawModel.replace(/^ollama:/, "");
+      const model = cleanedModel || providerModel(def);
       const baseURL = (providerURL(def) || "").replace(/\/+$/, "");
       const apiKey = providerKey(def) || (def.id === "ollama" ? "local-ollama" : "");
       const apiMode = providerApi(def);

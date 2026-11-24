@@ -6633,6 +6633,18 @@ dialog.modal-dialog::backdrop {
     var active = typeof activeAgent === "function" ? activeAgent() : null;
     return active && active.name ? active.name : "";
   };
+  window.__piloGetSelectedModel = function() {
+    var sel = document.getElementById("composer-model-select") || document.getElementById("model-select");
+    var modelId = sel && sel.value ? sel.value : "";
+    var provider = "";
+    if (modelId.indexOf("ollama:") === 0) {
+      provider = "ollama";
+    } else if (typeof state === "object" && state && Array.isArray(state.models)) {
+      var found = state.models.find(function(m) { return m && m.id === modelId; });
+      if (found && found.provider) provider = found.provider;
+    }
+    return { model: modelId, provider: provider };
+  };
 
   function syncLiveBrowserChrome() {
     scheduleBrowserViewportResize();
@@ -12078,10 +12090,10 @@ dialog.modal-dialog::backdrop {
     if (!container) return;
     fetch("/api/workspace/plugins").then(function(r) { return r.json(); }).then(function(data) {
       container.textContent = "";
-      container.appendChild(makeEl("div", "launcher-section-head", "Agent Gateway Protocols"));
+      container.appendChild(makeEl("div", "launcher-section-head", "Supported Gateway Capabilities"));
       (data.protocols || []).forEach(function(p) {
         var row = makeEl("div", "launcher-item");
-        row.appendChild(makeEl("span", "utility-badge ok", p.status));
+        row.appendChild(makeEl("span", "utility-badge" + (p.status === "configured" ? " ok" : ""), p.status));
         row.appendChild(makeEl("span", "launcher-item-label", p.name + " — " + p.description));
         container.appendChild(row);
       });
@@ -12239,10 +12251,15 @@ dialog.modal-dialog::backdrop {
       sideQThread.appendChild(makeEl("div", "side-q-msg user", q));
       var pending = makeEl("div", "side-q-msg assistant", "Thinking…");
       sideQThread.appendChild(pending);
+      var selected = typeof window.__piloGetSelectedModel === "function" ? window.__piloGetSelectedModel() : { model: "", provider: "" };
       fetch("/api/side-question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q })
+        body: JSON.stringify({
+          question: q,
+          ...(selected.provider ? { provider: selected.provider } : {}),
+          ...(selected.model ? { model: selected.model } : {})
+        })
       })
         .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
         .then(function(res) {
