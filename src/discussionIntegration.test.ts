@@ -48,7 +48,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   await cp(resolve(__dirname, "..", "static", "avatars"), join(directory, "static", "avatars"), { recursive: true });
   await cp(resolve(__dirname, "..", "docs"), join(directory, "docs"), { recursive: true });
   await copyFile(resolve(__dirname, "..", "README.md"), join(directory, "README.md"));
-  for (const file of ["index.html", "webmDuration.js", "screenRecorder.js", "guidedDemo.js", "demoAudio.js", "browserRuntime.js", "botCatalog.js", "uiState.js", "responseMarkdown.js", "runStream.js", "artifactPreview.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
+  for (const file of ["index.html", "botCharacterArtwork.js", "botCharacters.js", "botCharacters.css", "webmDuration.js", "screenRecorder.js", "guidedDemo.js", "demoAudio.js", "browserRuntime.js", "botCatalog.js", "uiState.js", "responseMarkdown.js", "runStream.js", "artifactPreview.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
   let capturedPersonaPrompt = "";
   const cliPrompts: string[] = [];
   let cliToolCalls = 0;
@@ -556,12 +556,21 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.addInitScript(() => {
           localStorage.setItem("agentFireworksAgentsV2", JSON.stringify([
             { id: "ui-coordinator", name: "Marketing Coordinator", description: "Coordinate an organic growth team", transcript: [] },
-            ...["SEO Specialist", "Blog Writer", "Reddit Community Growth", "Instagram Follower Growth"].map((name, index) => ({ id: "ui-specialist-" + index, name,
+            ...["SEO Specialist", "Blog Writer", "Reddit Community Growth", "Instagram Follower Growth"].map((name, index) => ({ id: "ui-specialist-" + index, name, shape: name === "Blog Writer" ? "circle" : "character-marketing", shapeCustomized: name !== "Blog Writer",
               description: "UI_SAVED_ROLE_" + index, transcript: [{ role: "user", html: "Existing user goal " + index }] }))
           ]));
           localStorage.setItem("openBotsInteractionMode", "chat"); localStorage.setItem("openBotsAgentEngine", "cheap");
         });
         await page.goto(base, { waitUntil: "domcontentloaded" });
+        const roleIcons = await page.locator('.agent-row[data-agent-id^="ui-specialist-"] .agent-avatar').evaluateAll(avatars => avatars.map(avatar => {
+          const box = avatar.getBoundingClientRect();
+          const row = avatar.closest('.agent-row')!.getBoundingClientRect();
+          return { width: box.width, height: box.height, character: avatar.querySelector('.pilo-character')?.getAttribute('data-character'), fits: box.left >= row.left && box.right <= row.right };
+        }));
+        assert.deepEqual(roleIcons.map(icon => icon.character), ["yellow", "blogger", "blob", "heart"], "saved repeated icons become distinct preview characters");
+        assert.ok(roleIcons.every(icon => icon.width === 40 && icon.height === 40 && icon.fits), "larger icons fit the collapsed sidebar");
+        await page.locator('#toggle-sidebar-btn').click();
+        await page.locator('#sidebar').screenshot({ path: join(tmpdir(), "pilo-larger-role-icons.png") });
         await page.locator('#agent-list .agent-row[data-agent-id="ui-coordinator"]').click();
         await page.waitForFunction(() => Boolean(document.querySelector('#composer-model-select option[value="integration-model"]')));
         await page.selectOption("#composer-model-select", "integration-model");
@@ -895,6 +904,12 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         const avatars = page.locator('.template-card[data-name] .template-avatar');
         assert.ok(await avatars.count() > 0);
         assert.equal(await avatars.locator(':scope > *').count(), await avatars.count(), "every catalog bot has a rendered icon");
+        await page.locator("#new-agent-button").click();
+        assert.equal(await page.locator('#bot-shape-grid [data-shape^="character-"]').count(), 15);
+        await page.locator('#bot-shape-grid [data-shape="character-designer"]').click();
+        await page.waitForFunction(() => document.querySelector('#bot-modal-preview .pilo-character')?.getAttribute('viewBox') === '-90 -90 180 185');
+        await page.screenshot({ path: join(tmpdir(), "pilo-character-picker.png") });
+        await page.locator('#create-bot-modal .modal-close').click();
         await page.waitForFunction(() => Boolean(document.querySelector('#model-select option[value="integration-model"]')));
         await page.selectOption("#model-select", "integration-model", { force: true });
         await page.locator('.agent-row[data-agent-id="writer"]').click();
@@ -905,7 +920,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.equal(submitted[0].autoApprove, false);
         const currentAvatar = page.locator('.agent-row[data-agent-id="writer"] .agent-avatar');
         assert.equal(await currentAvatar.evaluate(el => el.classList.contains("is-expressive")), false);
-        assert.equal(await currentAvatar.locator(".bot").evaluate(el => getComputedStyle(el).animationName), "none");
+        assert.equal(await currentAvatar.locator(".pilo-character .motion").evaluate(el => getComputedStyle(el).animationName), "none");
         await page.locator("#prompt").fill("Keep this writer draft");
         await page.locator("#brand-home-btn").click();
         assert.equal(await page.locator("#welcome").isVisible(), true);
@@ -916,9 +931,9 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.equal(await page.locator("#prompt").inputValue(), "");
         const backgroundAvatar = page.locator('.agent-row[data-agent-id="writer"] .agent-avatar');
         assert.equal(await backgroundAvatar.evaluate(el => el.classList.contains("is-expressive")), true);
-        assert.notEqual(await backgroundAvatar.locator(".bot").evaluate(el => getComputedStyle(el).animationName), "none");
+        assert.notEqual(await backgroundAvatar.locator(".pilo-character .motion").evaluate(el => getComputedStyle(el).animationName), "none");
         const idleAvatar = page.locator('.agent-row[data-agent-id="researcher"] .agent-avatar');
-        assert.equal(await idleAvatar.locator(".bot").evaluate(el => getComputedStyle(el).animationName), "none");
+        assert.equal(await idleAvatar.locator(".pilo-character .motion").evaluate(el => getComputedStyle(el).animationName), "none");
         await page.locator('.agent-row[data-agent-id="writer"]').click();
         assert.equal(await page.locator("#welcome").isVisible(), false);
         assert.equal(await page.locator("#prompt").inputValue(), "Keep this writer draft");

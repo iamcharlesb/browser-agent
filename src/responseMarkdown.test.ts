@@ -62,7 +62,8 @@ test('response layout keeps code and tables inside the reading column, supports 
       const url=new URL(route.request().url());
       if(url.hostname!=='response.test')return route.abort();
       if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:html});
-      if(['/responseMarkdown.js','/runStream.js','/botCatalog.js'].includes(url.pathname))return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static',url.pathname.slice(1)))});
+      if(['/botCharacterArtwork.js','/botCharacters.js','/responseMarkdown.js','/runStream.js','/botCatalog.js'].includes(url.pathname))return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static',url.pathname.slice(1)))});
+      if(url.pathname==='/botCharacters.css')return route.fulfill({contentType:'text/css',body:readFileSync(join(__dirname,'..','static','botCharacters.css'))});
       if(url.pathname==='/browserRuntime.js')return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static','browserRuntime.js'))});
       if(url.pathname==='/uiState.js')return route.fulfill({contentType:'text/javascript',body:readFileSync(join(__dirname,'..','static','uiState.js'))});
       if(url.pathname.startsWith('/api/'))return route.fulfill({contentType:'application/json',body:JSON.stringify({isRunning:false,models:[],jobs:[],events:[],workflows:[],suggestions:[],schedules:[]})});

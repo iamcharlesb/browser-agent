@@ -2524,7 +2524,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     res.end(bytes); return;
   }
 
-  if (req.method === "GET" && ["/webmDuration.js", "/screenRecorder.js", "/guidedDemo.js", "/demoAudio.js", "/browserRuntime.js", "/botCatalog.js", "/uiState.js", "/artifactPreview.js", "/projectScanner.js", "/responseMarkdown.js", "/runStream.js"].includes(url.pathname)) {
+  if (req.method === "GET" && url.pathname === "/botCharacters.css") {
+    const css = await readFile(join(STATIC_DIR, "botCharacters.css"), "utf8");
+    res.writeHead(200, { "Content-Type": "text/css; charset=utf-8", "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff" });
+    res.end(css);
+    return;
+  }
+
+  if (req.method === "GET" && ["/botCharacterArtwork.js", "/botCharacters.js", "/webmDuration.js", "/screenRecorder.js", "/guidedDemo.js", "/demoAudio.js", "/browserRuntime.js", "/botCatalog.js", "/uiState.js", "/artifactPreview.js", "/projectScanner.js", "/responseMarkdown.js", "/runStream.js"].includes(url.pathname)) {
     const script = await readFile(join(STATIC_DIR, url.pathname.slice(1)), "utf8");
     res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
     res.end(script);
