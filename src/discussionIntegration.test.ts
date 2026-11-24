@@ -48,7 +48,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   await cp(resolve(__dirname, "..", "static", "avatars"), join(directory, "static", "avatars"), { recursive: true });
   await cp(resolve(__dirname, "..", "docs"), join(directory, "docs"), { recursive: true });
   await copyFile(resolve(__dirname, "..", "README.md"), join(directory, "README.md"));
-  for (const file of ["index.html", "webmDuration.js", "screenRecorder.js", "browserRuntime.js", "botCatalog.js", "uiState.js", "responseMarkdown.js", "runStream.js", "artifactPreview.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
+  for (const file of ["index.html", "webmDuration.js", "screenRecorder.js", "guidedDemo.js", "browserRuntime.js", "botCatalog.js", "uiState.js", "responseMarkdown.js", "runStream.js", "artifactPreview.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
   let capturedPersonaPrompt = "";
   const cliPrompts: string[] = [];
   let cliToolCalls = 0;
@@ -1053,6 +1053,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.locator('#prompt').fill('/record 1');
         await page.locator('#prompt').press('Enter');
         await page.locator('#screen-recording-dialog').waitFor({ state: 'visible' });
+        await page.locator('#recording-guided').uncheck();
         await page.locator('#recording-source').click();
         await page.locator('#recording-start').click();
         await page.locator('#screen-recording-dialog').waitFor({ state: 'hidden' });
@@ -1071,6 +1072,40 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.deepEqual(dimensions, [1920, 1080]);
         const duration = await page.locator('#recording-preview').evaluate((video: HTMLVideoElement) => video.duration);
         assert.ok(Number.isFinite(duration) && duration > 0.5 && duration < 4, 'saved video has a real duration and usable timeline');
+        // Guided capture must execute real local UI handlers, preserve drafts and
+        // cancel every scheduled click when the operator takes over.
+        await page.locator('#recording-close').click();
+        await page.locator('#prompt').fill('Keep my existing draft');
+        await page.locator('#screen-record-button').click();
+        await page.locator('#recording-seconds').fill('6');
+        await page.locator('#recording-guided').check();
+        await page.evaluate(() => {
+          (window as any).__guidedClicks = [];
+          document.addEventListener('click', event => {
+            const target = (event.target as Element).closest('.template-card, #pane-new-tab-btn, [data-launch="help"]');
+            if (target) (window as any).__guidedClicks.push(target.getAttribute('data-catalog-key') || target.id || target.getAttribute('data-launch'));
+          });
+        });
+        await page.locator('#recording-source').click();
+        await page.locator('#recording-start').click();
+        await page.waitForFunction(() => document.querySelector('#recording-status')!.textContent!.includes('Recording saved.') && (window as any).__guidedClicks.includes('help'), null, { timeout: 20000 });
+        assert.deepEqual(await page.evaluate(() => (window as any).__guidedClicks), ['profile:demo-director', 'pane-new-tab-btn', 'help']);
+        assert.equal(await page.locator('#prompt').inputValue(), 'Keep my existing draft');
+        assert.equal(await page.locator('#guided-demo-overlay').count(), 0);
+        assert.equal(await page.locator('body').evaluate(el => el.classList.contains('pilo-guided-demo')), false);
+        await page.locator('#recording-close').click();
+        await page.evaluate(() => {
+          const tour = (window as any).PiloGuidedDemo.prepare();
+          tour.start(1);
+          (window as any).__interruptedTour = tour;
+          (window as any).__clicksBeforeInterruption = (window as any).__guidedClicks.length;
+        });
+        await page.keyboard.press('ArrowLeft');
+        await page.waitForTimeout(1200);
+        assert.equal(await page.evaluate(() => (window as any).__interruptedTour.report().interrupted), true);
+        assert.equal(await page.evaluate(() => (window as any).__guidedClicks.length === (window as any).__clicksBeforeInterruption), true);
+        await page.locator('#screen-record-button').click();
+        await page.locator('#recording-guided').uncheck();
         const rejected = await fetch(base + '/api/recordings', { method: 'POST', headers: { origin: 'https://untrusted.example', 'Content-Type': 'application/json' }, body: '{"durationSeconds":1}' });
         assert.equal(rejected.status, 403);
         await page.locator('#recording-source').click();

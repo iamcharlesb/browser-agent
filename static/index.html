@@ -4872,6 +4872,7 @@ dialog.modal-dialog::backdrop {
 <script src="./botCatalog.js"></script>
 <script src="./artifactPreview.js"></script>
 <script src="./webmDuration.js"></script>
+<script src="./guidedDemo.js"></script>
 <script src="./screenRecorder.js"></script>
 <script src="./projectScanner.js"></script>
 <script id="response-markdown-runtime" src="./responseMarkdown.js"></script>
@@ -6640,6 +6641,11 @@ dialog.modal-dialog::backdrop {
   }
   window.__piloSetPanelMode = setPanelMode;
   window.__piloSyncLiveBrowserChrome = syncLiveBrowserChrome;
+  window.__piloDemoSelection = function() {
+    var id = activeAgentId;
+    return function() { if (id) selectAgent(id); else resetNewAgent(); };
+  };
+
   window.__piloGetActiveBotName = function() {
     var active = typeof activeAgent === "function" ? activeAgent() : null;
     return active && active.name ? active.name : "";

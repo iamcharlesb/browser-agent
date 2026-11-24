@@ -1,13 +1,14 @@
 (function(root) {
   "use strict";
   var stream, microphone, recorder, frame, timer, chunks = [], request, config, previewUrl;
-  var busy = false, seenRequest, ready = false, countdownToken = 0;
+  var busy = false, seenRequest, ready = false, countdownToken = 0, tour;
   var dialog = document.createElement("dialog");
   dialog.id = "screen-recording-dialog";
   dialog.setAttribute("aria-labelledby", "screen-recording-title");
   dialog.innerHTML = '<header><div><strong id="screen-recording-title">Record a real screen demo</strong><p>Capture your app, preview the take, download the video.</p></div><button type="button" id="recording-close" aria-label="Close recorder">×</button></header>' +
     '<video id="recording-preview" muted playsinline></video><p id="recording-status" role="status">Select a clean window. Exclude credentials and private conversations before recording.</p>' +
     '<div class="recording-options"><label id="recording-source-choice" hidden>Source <select id="recording-source-mode"><option value="interface">Pilo interface (no embedded browser)</option><option value="window">Entire Pilo window (macOS permission)</option></select></label><label>Length <input id="recording-seconds" type="number" min="1" value="10"> seconds</label><label><input id="recording-mic" type="checkbox"> Microphone narration</label></div>' +
+    '<p><label><input id="recording-guided" type="checkbox" checked> Run guided Pilo walkthrough</label><br><small>Clicks through the bot catalog, selects/adds Demo Director, and opens Help. No messages sent. Use Pilo as the capture source; uncheck to operate manually.</small></p>' +
     '<footer><button type="button" id="recording-source">Choose screen / window</button><button type="button" id="recording-start" disabled>Start recording</button><a id="recording-download" hidden download>Download video</a></footer>';
   document.body.appendChild(dialog);
   var style = document.createElement("style");
@@ -33,6 +34,7 @@
     var result = await response.json(); config = result.config; seconds.max = config.maxSeconds; return result;
   }
   function release() {
+    if (tour) { tour.stop(false); tour = null; }
     if (frame) cancelAnimationFrame(frame); clearTimeout(timer); frame = null;
     [stream, microphone].forEach(function(media) { if (media) media.getTracks().forEach(function(track) { track.stop(); }); });
     stream = microphone = null; ready = false; startButton.disabled = true;
@@ -74,6 +76,7 @@
     try {
       var duration = Number(seconds.value);
       if (!Number.isInteger(duration) || duration < 1 || duration > config.maxSeconds) throw new Error("Choose a valid recording length.");
+      if (dialog.querySelector("#recording-guided").checked && duration < 6) throw new Error("Choose at least 6 seconds for guided actions, or uncheck the guided walkthrough.");
       if (mic.checked) microphone = await navigator.mediaDevices.getUserMedia({ audio: true });
       request = await api("", { durationSeconds: duration }); seenRequest = request.id;
       if (request.durationSeconds !== duration) { message("An existing request is active. Recording its requested " + request.durationSeconds + " seconds."); duration = request.durationSeconds; }
@@ -82,6 +85,7 @@
       // Remove the source preview before the countdown so self-capture cannot
       // record a hall-of-mirrors frame from its own preview dialog.
       dialog.close(); indicator.hidden = false;
+      if (dialog.querySelector("#recording-guided").checked && root.PiloGuidedDemo) tour = root.PiloGuidedDemo.prepare();
       var token = ++countdownToken;
       for (var n = 3; n > 0; n--) { indicator.querySelector("span").textContent = "Starting in " + n + "…"; await new Promise(function(resolve) { setTimeout(resolve, 1000); }); if (token !== countdownToken) return; }
       // Frame the actual selected source; no generated UI or simulated workflow.
@@ -106,6 +110,8 @@
       var startedAt;
       recorder.onstop = async function() {
         cancelAnimationFrame(frame); clearTimeout(timer); indicator.hidden = true;
+        var guidedResult = tour ? tour.report() : null;
+        if (tour) { tour.stop(false); tour = null; }
         var blob = new Blob(chunks, { type: "video/webm" });
         if (root.PiloWebM) blob = new Blob([root.PiloWebM.setDuration(new Uint8Array(await blob.arrayBuffer()), performance.now() - startedAt)], { type: "video/webm" });
         output.getTracks().forEach(function(track) { track.stop(); });
@@ -120,10 +126,11 @@
           var result = await response.json(); if (!response.ok) throw new Error(result.detail || "Could not save recording.");
           if (!result.recording || result.recording.state !== "completed" || !result.recording.artifactUrl) throw new Error("Recording was canceled before it could be saved.");
           request = result.recording; download.href = request.artifactUrl + "?download=1";
-          message("Recording saved. Play the actual take below or download the WebM video. Nothing was published.");
+          message("Recording saved. " + (guidedResult ? (guidedResult.failure ? "Walkthrough stopped: " + guidedResult.failure + " " : guidedResult.interrupted ? "You took over the walkthrough. " : "Guided walkthrough performed " + guidedResult.actions.length + " local actions. ") : "") + "Play the actual take below or download the WebM video. Nothing was published.");
         } catch (error) { await api("/" + request.id + "/fail").catch(function() {}); message(error.message + " Your local video is still available through Download video."); }
       };
       dialog.close(); indicator.hidden = false; startedAt = performance.now(); recorder.start(1000);
+      if (tour) tour.start(duration);
       indicator.querySelector("span").textContent = "● Recording · " + duration + " seconds";
       timer = setTimeout(function() { if (recorder.state !== "inactive") recorder.stop(); }, duration * 1000);
       captured.getVideoTracks()[0].addEventListener("ended", stop, { once: true });

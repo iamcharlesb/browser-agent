@@ -22,7 +22,7 @@ const HELP_ITEMS: HelpItem[] = [
       "Choose Demo Director from the bot catalog for a dedicated conversation.",
       "Or type @Demo Director and select it in another bot's composer; send a message to request a consultation.",
       "Type /record 10 or click Record screen beside the microphone to open the real recorder without a model call.",
-      "Preview the source, click Start recording, perform your workflow, then play or download the WebM video. Nothing is published."
+      "Preview the source, click Start recording, use the guided local walkthrough or perform your workflow, then play or download the WebM video. Nothing is published."
     ]
   },
   {

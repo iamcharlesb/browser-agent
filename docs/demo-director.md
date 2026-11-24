@@ -5,7 +5,9 @@ Pilo includes a real screen recorder. Type **/record 10** in the composer or cli
 1. Choose the capture source. In Pilo Desktop, choose Pilo interface (the app UI without the embedded browser) or Entire Pilo window (includes the embedded browser and needs OS permission). In a browser, use the system picker.
 2. Review the live preview. Remove private information and credentials from the source window. Optionally enable microphone narration.
 3. Choose the length and click **Start recording**. A three-second countdown gives you time to prepare.
-4. Perform the real workflow. Capture stops after the chosen duration, or use **Stop** to finish early.
+4. Leave **Run guided Pilo walkthrough** checked to click through the real bot catalog, select/add Demo Director, open workspace tools, and read Help. The pointer and captions explain each action. Existing conversation text and draft text are hidden during the tour. Keyboard or mouse input immediately stops automation; recording continues for manual operation. Uncheck it to perform your own workflow. Capture stops after the chosen duration, or use **Stop** to finish early.
+
+The guided tour uses local UI controls and never submits a prompt or calls a model. Choose the Pilo interface/window as the source; an unrelated selected window will not show the actions. Existing drafts are preserved and the original bot is restored after an uninterrupted tour.
 5. Play the actual take in the recorder and download the **WebM video**. Recordings are saved locally as video artifacts and can be reopened in Pilo.
 
 The output is a 1920×1080 presentation frame containing the actual selected source at its original aspect ratio. Lower resolution sources are scaled; this does not add source detail. Automatic zoom, trimming, caption generation and MP4 conversion are not included.
