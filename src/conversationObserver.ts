@@ -14,6 +14,8 @@ export interface ObserverSuggestion {
   createdAt: string; reviewedAt?: string;
 }
 const CORRECTION = /\b(?:correction|i meant|i mean|you misunderstood|that's not what i asked|that is not what i asked|please (?:always|never|stop)|from now on|remember to|don't (?:repeat|do that)|do not (?:repeat|do that)|keep (?:the|your) (?:tone|voice|style)|use (?:a|the|my) (?:tone|voice|style))\b/i;
+/** User signals the bot missed a concrete deliverable or ignored a simple ask. */
+const DELIVERY_MISS = /\b(?:think again|try again|that(?:'| i)?s not (?:what|it)|my question is simple|just (?:create|make|build|do)|man just|i (?:said|asked|need) (?:a |one )?(?:landing|funnel|page)|need a (?:landing|funnel) page|thats all|that'?s all)\b/i;
 const VOICE = /\b(?:tone|voice|style|format|wording|concise|friendly|formal|bullets|no dashes)\b/i;
 
 export class ConversationObserver {
@@ -39,18 +41,24 @@ export class ConversationObserver {
   async observeTurn(input: { botName: string; userText: string; outcomeRef: string }): Promise<ObserverSuggestion | null> {
     await this.ready;
     const instruction = redactSecrets(input.userText).replace(/\s+/g, " ").trim().slice(0, 600);
-    if (!instruction || !CORRECTION.test(instruction)) return null;
+    if (!instruction) return null;
+    const isCorrection = CORRECTION.test(instruction);
+    const isMiss = DELIVERY_MISS.test(instruction);
+    if (!isCorrection && !isMiss) return null;
     const botName = input.botName.trim().slice(0, 120) || "default";
     const botId = botIdFromName(botName);
-    const kind: ObserverSuggestionKind = VOICE.test(instruction) ? "voice" : "playbook";
-    const existing = this.records.find(item => item.status === "pending" && item.botId === botId && item.instruction.toLowerCase() === instruction.toLowerCase());
+    const kind: ObserverSuggestionKind = isCorrection && VOICE.test(instruction) ? "voice" : "playbook";
+    const normalized = isMiss && !isCorrection
+      ? `Delivery miss: honor concrete asks immediately (landing/funnel pages, artifacts). User said: ${instruction}`
+      : instruction;
+    const existing = this.records.find(item => item.status === "pending" && item.botId === botId && item.instruction.toLowerCase() === normalized.toLowerCase());
     if (existing) {
       if (!existing.evidence.includes(input.outcomeRef)) existing.evidence.push(input.outcomeRef);
       await this.save();
       return existing;
     }
     const suggestion: ObserverSuggestion = {
-      id: randomUUID(), botId, botName, kind, instruction,
+      id: randomUUID(), botId, botName, kind, instruction: normalized,
       evidence: [redactSecrets(input.outcomeRef).slice(0, 180)], status: "pending", createdAt: new Date().toISOString()
     };
     this.records.push(suggestion);

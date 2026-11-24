@@ -1,4 +1,5 @@
 import "./environment";
+import { screenRecordings } from "./screenRecording";
 /** OpenAI function-calling tool schemas for the browser agent, plus local dispatch. */
 
 import { spawn } from "node:child_process";
@@ -10,23 +11,32 @@ import { BrowserActionError, BrowserController } from "./browserController";
 import { googlePropertyGuide, redditSearch } from "./siteAdapters";
 import { redactSecrets } from "./security";
 import { workspaceCode, guardedCodePatch } from "./workspaceCode";
+import { resolveWorkspacePath } from "./workspacePaths";
+import { fetchUrlText, hostedSearchConfig, hostedWebSearch } from "./webResearch";
+import { prepareHtmlArtifact, qualityReport } from "./htmlArtifact";
+import {
+  browserSearchBlockedMessage,
+  isBareSearchQuery,
+  isSearchEngineResultsUrl,
+  isSearchEngineSiteUrl,
+  searchQueryFromNavigateTarget
+} from "./searchRouting";
 
-export const ARTIFACTS_DIR = join(__dirname, "..", "artifacts");
+import { DATA_ROOT } from "./runtimePaths";
+export const ARTIFACTS_DIR = join(DATA_ROOT, "artifacts");
 // Default to the application repository, not an ancestor that can contain unrelated projects.
 // A user-selected writable workspace can be configured explicitly for local coding tasks.
 export const WORKSPACE_ROOT = resolve(process.env.BROWSER_AGENT_WORKSPACE_ROOT || resolve(__dirname, ".."));
 
-function safeResolveWorkspacePath(filePath: string): string {
-  const cleaned = filePath.trim();
-  const resolved = isAbsolute(cleaned) ? resolve(cleaned) : resolve(WORKSPACE_ROOT, cleaned);
-  const rel = relative(WORKSPACE_ROOT, resolved);
-  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-    throw new Error(`Path "${filePath}" is outside the project workspace (${WORKSPACE_ROOT}).`);
-  }
-  return resolved;
-}
-
 export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  { type: "function", function: { name: "record_screen", description: "Request an actual screen recording of Pilo. Opens the built-in recorder for the user to select/preview the capture source and click Start. Returns a pending request, NOT a completed video. Use action status to retrieve the actual saved WebM artifact after capture. Never substitute an HTML animation for a requested screen recording. Available without browser automation.", parameters: { type: "object", properties: { action: { type: "string", enum: ["request", "status"] }, durationSeconds: { type: "integer", description: "Requested recording length in seconds, default 10; bounded by deployment configuration." } }, required: ["action"] } } },
+
+  { type: "function", function: { name: "plan_workflow", description: "Save a dependency-aware team workflow draft, or read/list actual workflow progress and outputs. Use for requests to prepare work across saved bots, rather than merely listing proposed owners. Every task needs a concrete deliverable and acceptance criteria. Draft creation starts no models or jobs. The user starts execution in Workflows; this tool cannot grant approvals or launch work.", parameters: {
+    type: "object", properties: { action: { type: "string", enum: ["create", "read", "list"] }, id: { type: "string" }, tasks: { type: "array", items: { type: "object", properties: {
+      id: { type: "string" }, botName: { type: "string" }, task: { type: "string" }, dependsOn: { type: "array", items: { type: "string" } },
+      executionMode: { type: "string", enum: ["text", "browser"], description: "Use text for drafting, local artifact generation and analysis. Use browser only for live account inspection or interactive page work." }, expectedOutput: { type: "string", enum: ["text", "artifact"] }, acceptanceCriteria: { type: "string" }
+    }, required: ["id", "botName", "task", "executionMode", "expectedOutput", "acceptanceCriteria"] } } }, required: ["action"]
+  } } },
 
   { type:"function", function:{name:"list_tabs",description:"List the actual open browser tabs with indices, titles, URLs and the active tab. Use before assuming the current tab is the requested application.",parameters:{type:"object",properties:{}}}},
   { type:"function", function:{name:"switch_tab",description:"Switch to an existing tab by its observed index. Refresh marks after switching; old marks belong to the previous tab.",parameters:{type:"object",properties:{index:{type:"integer"}},required:["index"]}}},
@@ -35,11 +45,12 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "navigate",
-      description: "Open a URL or search query in the browser.",
+      description: "Open a specific http(s) page URL in the active tab (or newTab). Do not pass search queries or Google/Bing/DuckDuckGo results URLs — use web_search for public research and fetch_url to read a specific page. Navigate only when the user asked for browser work or the page needs sign-in or interaction.",
       parameters: {
         type: "object",
         properties: {
-          url: { type: "string", description: "URL or search query." }
+          url: { type: "string", description: "Absolute http(s) URL of a specific page (not a search query)." },
+          newTab: { type: "boolean", description: "False/default: reuse the active tab. True: open and select a separate new tab." }
         },
         required: ["url"]
       }
@@ -209,13 +220,27 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "web_search",
-      description: "Fast background lookup (Wikipedia + DuckDuckGo Instant Answers) without leaving the current tab.",
+      description: "Default public lookup for facts, news, research, shopping, prices and shipping. Returns cited findings without opening the browser. Run several focused queries in one turn when the question has several parts.",
       parameters: {
         type: "object",
         properties: {
           query: { type: "string" }
         },
         required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "fetch_url",
+      description: "Read a public http(s) page as text with image candidate URLs, or check a direct image response. Use it to verify sources, photo pages, prices, specs and docs. Image responses report type and bytes, not visual quality or reuse rights. Use the browser for visual review, requested page interaction or sign-in.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string" }
+        },
+        required: ["url"]
       }
     }
   },
@@ -274,7 +299,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "create_document",
-      description: "Save a downloadable report or file (md, csv, json, html, svg, txt). For a chart or bar graph, create a self-contained SVG with clear labels, units, legend, accessible title/description, readable colors, and the supplied data only; SVG files are previewable in the app and downloadable as artifacts. You may also save the underlying data as CSV.",
+      description: "Save a downloadable report or file (md, csv, json, html, svg, txt). For a chart or bar graph, create a self-contained SVG with clear labels, units, legend, accessible title/description, readable colors, and the supplied data only; SVG files are previewable in the app and downloadable as artifacts. You may also save the underlying data as CSV. For html, remote images are fetched and embedded and the result lists QA issues (broken images, low contrast, missing tags): fix every listed issue and save again with the same filename.",
       parameters: {
         type: "object",
         properties: {
@@ -430,13 +455,13 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "delegate_to_bot",
       description:
-        "Consult an existing specialist from OPEN BOTS WORKSPACE ROSTER for one bounded question whose answer changes the recommendation. State the expected result and pass the relevant evidence. Specialists are text-only: repeating a browser observation to another bot cannot acquire missing live data. Do not consult yourself, repeat a resolved check, seek agreement for its own sake, or delegate when the user asks you to answer directly. The coordinator owns the final answer; consultations have shared limits.",
+        "Consult an existing specialist from PILO WORKSPACE ROSTER for one bounded question whose answer changes the recommendation. State the expected result and pass the relevant evidence. Specialists are text-only: repeating a browser observation to another bot cannot acquire missing live data. Do not consult yourself, repeat a resolved check, seek agreement for its own sake, or delegate when the user asks you to answer directly. The coordinator owns the final answer; consultations have shared limits.",
       parameters: {
         type: "object",
         properties: {
           targetBotName: {
             type: "string",
-            description: "Exact name of an existing peer bot from OPEN BOTS WORKSPACE ROSTER."
+            description: "Exact name of an existing peer bot from PILO WORKSPACE ROSTER."
           },
           task: {
             type: "string",
@@ -456,12 +481,24 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "schedule_task",
       description:
-        "Create a one-time or recurring daily task in the app's persistent local scheduler. Use only for safe read-only research, monitoring, or preparation. Scheduled tasks must not post, like, follow, send messages, purchase, or otherwise cause external side effects. For a recurrence, first ask the user to approve possible recurring model-token charges; only then set costApproved=true.",
+        "Create a one-time, daily or interval task in the app's persistent local scheduler. To watch for a change (new feed item, page text, price or JSON value), use scheduleType=interval with a trigger: the app checks it without a model and runs the task only when it changed. Scheduled tasks are read-only unless the user grants permissions for that schedule in the app. For a recurrence, first ask the user to approve possible recurring model-token charges; only then set costApproved=true.",
       parameters: {
         type: "object",
         properties: {
-          task: { type: "string", description: "A concrete read-only task to run unattended." },
-          scheduleType: { type: "string", enum: ["once", "daily"] },
+          task: { type: "string", description: "A concrete task to run unattended, written for when it wakes up." },
+          scheduleType: { type: "string", enum: ["once", "daily", "interval"] },
+          recurrenceMinutes: { type: "number", description: "Interval schedules: minutes between checks, at least 5." },
+          trigger: {
+            type: "object",
+            description: "Optional change trigger checked in code before waking the model.",
+            properties: {
+              kind: { type: "string", enum: ["page", "feed", "json"] },
+              url: { type: "string" },
+              contains: { type: "string", description: "page: wake only when this phrase is present." },
+              path: { type: "string", description: "json: dot path of the watched value." }
+            },
+            required: ["kind", "url"]
+          },
           runAt: { type: "string", description: "ISO timestamp for a one-time run, including timezone offset." },
           localTime: { type: "string", description: "Local 24-hour time HH:mm for a daily schedule." },
           timeZone: { type: "string", description: "IANA timezone, e.g. America/Los_Angeles." },
@@ -515,35 +552,16 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
-      name: "run_action_script",
-      description:
-        "Code-as-action: run a short async JavaScript snippet in a sandboxed worker to compose multiple tool calls, loop over items, filter/compute data, or fill multi-field forms in a single model turn. Every allowed tool is available as `await <toolName>({ ... })` returning `{ ok, message, data }`. Use `state.<key>` to persist data across steps, `console.log(...)` to record observations, and optionally `final_answer(summary)` when the user's goal is completely finished and verified.",
-      parameters: {
-        type: "object",
-        properties: {
-          code: {
-            type: "string",
-            description:
-              "Async JavaScript body (e.g. `const res = await web_search({ query: '...' }); state.last = res.data; return res.message;`)."
-          }
-        },
-        required: ["code"]
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
       name: "finish_task",
       description:
-        "Complete the task and text the user back like a close, sharp friend — casual, warm, direct, and human (1–3 short conversational paragraphs separated by blank lines; avoid robotic preambles or textbook bullet-point essays).",
+        "Complete the task only after the multi-step work is done or a concrete blocker is verified. Do not finish after a single inspection or raw tool dump. Text the user like a close, sharp friend — casual, warm, direct. Use the ACTIVE FINISH FORMAT from the system prompt (shopping cards, comparison table, numbered steps, roster bullets, metrics table, or direct answer).",
       parameters: {
         type: "object",
         properties: {
           summary: {
             type: "string",
             description:
-              "Your conversational reply to the user, written like a smart friend texting back (short, natural paragraphs; no corporate filler)."
+              "Final reply in the format required for this task (see ACTIVE FINISH FORMAT). Warm, concise; structure matches the job (table, steps, product cards, or short prose)."
           }
         },
         required: ["summary"]
@@ -639,7 +657,7 @@ export async function runTerminalCommand(
   if (BLOCKED_TERMINAL_PATTERNS.some((pattern) => pattern.test(trimmed))) {
     throw new Error("Command blocked by local terminal safety policy.");
   }
-  const resolvedCwd = cwdInput && cwdInput.trim() ? safeResolveWorkspacePath(cwdInput) : WORKSPACE_ROOT;
+  const resolvedCwd = await resolveWorkspacePath(WORKSPACE_ROOT, cwdInput || ".");
   const clampedTimeout = Math.min(Math.max(Number(timeoutMs) || 15_000, 1_000), 60_000);
   const startedAt = Date.now();
 
@@ -698,7 +716,20 @@ export async function runTerminalCommand(
   return entry;
 }
 
-async function runWebSearch(query: string): Promise<string> {
+async function runWebSearch(query: string, signal?: AbortSignal): Promise<string> {
+  const hosted = hostedSearchConfig();
+  if (hosted) {
+    try {
+      return await hostedWebSearch(query, hosted, signal);
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      // Hosted search is optional; a provider outage falls back to the keyless scrape below.
+    }
+  }
+  return scrapeWebSearch(query);
+}
+
+async function scrapeWebSearch(query: string): Promise<string> {
   const results: string[] = [];
   const q = query.trim();
 
@@ -1088,6 +1119,19 @@ async function understandYouTubeVideo(urlOrQuery: string): Promise<string> {
   return sections.join("\n");
 }
 
+async function withAbortSignal<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return work;
+  signal.throwIfAborted();
+  return await new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(Object.assign(new Error("Stopped by user."), { name: "AbortError" }));
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(
+      (value) => { signal.removeEventListener("abort", onAbort); resolve(value); },
+      (error) => { signal.removeEventListener("abort", onAbort); reject(error); }
+    );
+  });
+}
+
 export async function executeTool(
   name: string,
   toolInput: Record<string, unknown>,
@@ -1096,7 +1140,12 @@ export async function executeTool(
 ): Promise<ToolExecutionResult> {
   try {
     signal?.throwIfAborted();
+    return await withAbortSignal((async (): Promise<ToolExecutionResult> => {
     switch (name) {
+      case "record_screen": {
+        const recording = toolInput.action === "status" ? screenRecordings.get() : screenRecordings.request(toolInput.durationSeconds ?? 10);
+        return { ok: true, message: JSON.stringify({ recording, next: recording?.state === "completed" ? "Actual recording saved." : "Use the Record screen button in Pilo to preview the source and start capture. No video exists until recording completes." }), ...(recording?.artifactUrl ? { artifactUrl: recording.artifactUrl } : {}) };
+      }
       case "list_tabs": {
         return {ok:true,message:JSON.stringify(await controller.getTabs())};
       }
@@ -1112,8 +1161,15 @@ export async function executeTool(
       }
       case "navigate": {
         const url = String(toolInput.url ?? "");
-        await controller.navigate(url);
-        return { ok: true, message: `Navigated to ${controller.currentUrl()}.` };
+        if (toolInput.newTab !== undefined && typeof toolInput.newTab !== "boolean") {
+          return { ok: false, message: "newTab must be a boolean: false reuses the active tab; true opens a separate tab." };
+        }
+        if (isBareSearchQuery(url) || isSearchEngineResultsUrl(url) || isSearchEngineSiteUrl(url)) {
+          return { ok: false, message: browserSearchBlockedMessage(searchQueryFromNavigateTarget(url) || url) };
+        }
+        if (toolInput.newTab === true) await controller.newTab(url);
+        else await controller.navigate(url);
+        return { ok: true, message: `${toolInput.newTab === true ? "Opened a new tab" : "Navigated the current tab"}: ${controller.currentUrl()}.` };
       }
       case "click_mark": {
         const markId = Math.trunc(Number(toolInput.markId));
@@ -1150,6 +1206,9 @@ export async function executeTool(
         if (Number.isNaN(markId)) {
           return { ok: false, message: "Invalid markId: must be an integer." };
         }
+        if (isSearchEngineResultsUrl(controller.currentUrl())) {
+          return { ok: false, message: browserSearchBlockedMessage(text) };
+        }
         const el = await controller.typeMark(markId, text, clear, pressEnter);
         return {
           ok: true,
@@ -1180,6 +1239,9 @@ export async function executeTool(
         if (Number.isNaN(x) || Number.isNaN(y)) {
           return { ok: false, message: `Invalid arguments for tool '${name}': x and y must be numbers` };
         }
+        if (isSearchEngineResultsUrl(controller.currentUrl())) {
+          return { ok: false, message: browserSearchBlockedMessage(text) };
+        }
         await controller.typeText(x, y, text, clear, pressEnter);
         return {
           ok: true,
@@ -1205,11 +1267,18 @@ export async function executeTool(
       }
       case "web_search": {
         const query = String(toolInput.query ?? "");
-        const searchOutput = await runWebSearch(query);
+        const searchOutput = await runWebSearch(query, signal);
         return {
           ok: true,
           message: `Web search results for "${query}":\n${searchOutput}`
         };
+      }
+      case "fetch_url": {
+        const url = String(toolInput.url ?? "");
+        if (isSearchEngineResultsUrl(url) || isSearchEngineSiteUrl(url)) {
+          return { ok: false, message: browserSearchBlockedMessage(searchQueryFromNavigateTarget(url)) };
+        }
+        return { ok: true, message: await fetchUrlText(url, signal) };
       }
       case "reddit_search": {
         const query = String(toolInput.query ?? "");
@@ -1256,12 +1325,20 @@ export async function executeTool(
         } else if (format === "html" && !/<html/i.test(content)) {
           formatted = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:system-ui,sans-serif;max-width:820px;margin:2rem auto;padding:0 1rem;line-height:1.6}</style></head><body><h1>${title}</h1><div>${content.replace(/\n/g, "<br>")}</div></body></html>`;
         }
+        // HTML pages get a deterministic QA pass: remote images are fetched and embedded (or reported
+        // broken) and lint findings come back to the model so it repairs the page before finishing.
+        let qualityNote = "";
+        if (format === "html") {
+          const prepared = await prepareHtmlArtifact(formatted);
+          formatted = prepared.html;
+          qualityNote = `\n${qualityReport(prepared)}`;
+        }
         await writeFile(fullPath, formatted, "utf8");
         const artifactUrl = artifactUrlFor(safeFilename);
         return {
           ok: true,
           artifactUrl,
-          message: `Created document "${safeFilename}" (Download: ${artifactUrl}).`
+          message: `Created document "${safeFilename}" (Download: ${artifactUrl}).${qualityNote}`
         };
       }
       case "generate_image": {
@@ -1315,12 +1392,12 @@ export async function executeTool(
         };
       }
       case "code_project": {
-        return { ok: true, contextClass: "code", message: JSON.stringify(await workspaceCode(toolInput, WORKSPACE_ROOT, process.env.BROWSER_AGENT_CODE_INDEX_DIR || join(__dirname, "..", ".browser-agent-code-index"))) };
+        return { ok: true, contextClass: "code", message: JSON.stringify(await workspaceCode(toolInput, WORKSPACE_ROOT, process.env.BROWSER_AGENT_CODE_INDEX_DIR || join(DATA_ROOT, ".browser-agent-code-index"))) };
       }
       case "workspace_file": {
         const action = String(toolInput.action ?? "read");
         const targetPath = String(toolInput.path ?? ".");
-        const resolved = safeResolveWorkspacePath(targetPath);
+        const resolved = await resolveWorkspacePath(WORKSPACE_ROOT, targetPath, action === "write" || action === "append");
         if (action === "patch") {
           if (typeof toolInput.oldText !== "string" || typeof toolInput.newText !== "string") throw new Error("Provide exact oldText and newText strings.");
           return { ok: true, message: JSON.stringify(await guardedCodePatch(WORKSPACE_ROOT, targetPath, String(toolInput.expectedHash || ""), toolInput.oldText, toolInput.newText)) };
@@ -1401,7 +1478,9 @@ export async function executeTool(
       default:
         return { ok: false, message: `Unknown tool '${name}'.` };
     }
+    })(), signal);
   } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") throw err;
     if (err instanceof BrowserActionError) {
       return { ok: false, message: err.message };
     }

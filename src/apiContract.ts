@@ -43,6 +43,7 @@ export function isImageArtifactUrl(url: string): boolean {
 }
 
 export function artifactContentType(filename: string): Pick<ArtifactMeta, "contentType" | "inline"> {
+  if (/\.webm$/i.test(filename)) return { contentType: "video/webm", inline: true };
   const lower = filename.toLowerCase();
   if (lower.endsWith(".png")) return { contentType: "image/png", inline: true };
   if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return { contentType: "image/jpeg", inline: true };
@@ -60,6 +61,16 @@ export function artifactContentType(filename: string): Pick<ArtifactMeta, "conte
 
 export function artifactUrlFor(filename: string): string {
   return `/api/artifacts/${encodeURIComponent(filename)}`;
+}
+
+export function artifactPreviewKind(filename: string): "markdown" | "text" | "image" | "html" | "pdf" | "video" | "download" {
+  if (/\.webm$/i.test(filename)) return "video";
+  if (/\.(?:png|jpe?g|webp|gif|svg)$/i.test(filename)) return "image";
+  if (/\.md$/i.test(filename)) return "markdown";
+  if (/\.html?$/i.test(filename)) return "html";
+  if (/\.pdf$/i.test(filename)) return "pdf";
+  if (/\.(?:txt|csv|tsv|json|log|js|ts|css|py|yaml|yml|xml)$/i.test(filename)) return "text";
+  return "download";
 }
 
 /**

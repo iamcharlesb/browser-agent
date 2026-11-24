@@ -1,4 +1,4 @@
-export interface RunResource { botName?: string; interactionMode?: string }
+export interface RunResource { botName?: string; interactionMode?: string; /** Explicit browser ownership; overrides the interaction-mode default. */ browser?: boolean }
 export interface RunSlot { id: string; bot: string; browser: boolean }
 
 /** A bot owns its memory serially; the shared browser has one owner across all bots. */
@@ -6,7 +6,7 @@ export class RunSlots {
   private readonly slots = new Map<string, RunSlot>();
   constructor(readonly limit: number) {}
   resource(input: RunResource): Omit<RunSlot, "id"> {
-    return { bot: (input.botName || "default").trim().toLowerCase(), browser: input.interactionMode !== "chat" };
+    return { bot: (input.botName || "default").trim().toLowerCase(), browser: input.browser ?? input.interactionMode !== "chat" };
   }
   canStart(input: RunResource): boolean {
     const target = this.resource(input);

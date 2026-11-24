@@ -24,7 +24,7 @@ export interface Consultation {
   bot: string;
   task: string;
   suppliedContext: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: "pending" | "queued" | "running" | "completed" | "failed";
   summary?: string;
   outcomeRef?: string;
 }
@@ -89,15 +89,15 @@ export class DiscussionController {
     return { allowed: true, consultation };
   }
 
-  record(id: string, result: { success: boolean; summary: string; outcomeRef?: string; delegated?: boolean }): boolean {
+  record(id: string, result: { success: boolean; summary: string; outcomeRef?: string; delegated?: boolean }, continueAfterFailure = false): boolean {
     const item = this.consultations.find(entry => entry.id === id);
-    if (!item || !["pending", "running"].includes(item.status) || ["completed", "failed", "cancelled"].includes(this.phase)) return false;
+    if (!item || !["pending", "queued", "running"].includes(item.status) || ["completed", "failed", "cancelled"].includes(this.phase)) return false;
     item.summary = result.summary;
     item.outcomeRef = result.outcomeRef;
     const invalid = result.delegated || !result.summary.trim() || isRoutingEcho(result.summary);
     item.status = result.success && !invalid ? "completed" : "failed";
-    if (invalid) this.stop("The specialist returned routing text or an empty answer instead of a result.");
-    else if (!result.success) this.stop("The specialist could not complete its consultation.");
+    if (invalid && !continueAfterFailure) this.stop("The specialist returned routing text or an empty answer instead of a result.");
+    else if (!result.success && !continueAfterFailure) this.stop("The specialist could not complete its consultation.");
     else if (this.consultations.some(previous => previous !== item && previous.status === "completed" &&
       botKey(previous.bot) === botKey(item.bot) && replySimilarity(previous.summary || "", result.summary) >= this.limits.repeatSimilarity)) {
       this.stop("The specialist repeated an earlier answer; further consultation is unlikely to add useful information.");
@@ -108,7 +108,7 @@ export class DiscussionController {
 
   claim(id: string): boolean {
     const item = this.consultations.find(entry => entry.id === id);
-    if (!item || item.status !== "pending" || this.phase !== "consulting") return false;
+    if (!item || !["pending", "queued"].includes(item.status) || this.phase !== "consulting") return false;
     item.status = "running";
     return true;
   }

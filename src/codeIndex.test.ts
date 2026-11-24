@@ -98,6 +98,32 @@ test('non-Git folders use bounded fallback enumeration without downloaded or pri
   } finally { await rm(base,{recursive:true,force:true}); }
 });
 
+for (const gitAware of [false, true]) test(`cross-language dependency trees stay out of ${gitAware ? 'Git' : 'fallback'} workspace indexes`, async () => {
+  const base = await mkdtemp(join(tmpdir(), 'code-ecosystems-'));
+  const root = join(base, 'repo'), cache = join(base, 'cache');
+  await mkdir(root);
+  try {
+    if (gitAware) execFileSync('git', ['init', '-q'], {cwd: root});
+    const excluded = ['node_modules','vendor','.venv','site-packages','target','Pods','.gradle','.m2','.dart_tool','.pub-cache','deps','_build','.build','obj','.nuget'];
+    for (const directory of excluded) {
+      await mkdir(join(root, directory));
+      await writeFile(join(root, directory, 'dependency.ts'), 'EXCLUDED_DEPENDENCY_SENTINEL');
+    }
+    await mkdir(join(root, 'packages/app'), {recursive: true});
+    await writeFile(join(root, 'packages/app/main.ts'), 'export const firstParty = true;');
+    // Even mistakenly tracked dependency content must remain excluded.
+    if (gitAware) execFileSync('git', ['add', '-f', '.'], {cwd: root});
+    const result = await workspaceCode({action: 'index'}, root, cache) as any;
+    assert.equal(result.gitAware, gitAware);
+    assert.equal(result.totalFiles, 1);
+    const map = await workspaceCode({action: 'map'}, root, cache) as any;
+    assert.equal(map.files[0].path, 'packages/app/main.ts');
+    for (const directory of excluded) await assert.rejects(workspaceCode({action: 'read', path: directory+'/dependency.ts'}, root, cache), /excluded/);
+    const entries = await (await import('node:fs/promises')).readdir(cache);
+    assert.doesNotMatch(await readFile(join(cache, entries[0]), 'utf8'), /EXCLUDED_DEPENDENCY_SENTINEL/);
+  } finally { await rm(base, {recursive: true, force: true}); }
+});
+
 for (const agentEngine of ['cheap','openai-sdk'] as const) {
   test(`${agentEngine} enforces existing approval gates on guarded patches`, async () => {
     const { AgentOrchestrator } = await import('./promptLoop');
@@ -151,8 +177,9 @@ for (const agentEngine of ['cheap','openai-sdk'] as const) {
       }});
     assert.equal((await agent.run()).success,true);
     assert.match(JSON.stringify(requests[0].tools),/code_project/);
-    assert.doesNotMatch(JSON.stringify(requests[0].input),/fireworks-plus-plus/);
-    assert.match(JSON.stringify(requests[1].input),/fireworks-plus-plus/);
+    assert.doesNotMatch(JSON.stringify(requests[0].input),/browser-agent|fireworks-plus-plus/);
+    assert.match(JSON.stringify(requests[1].input),/pilo/);
+    assert.doesNotMatch(JSON.stringify(requests[1].input),/fireworks-plus-plus/);
     assert.match(JSON.stringify(requests[1].input),/live/);
   });
 }

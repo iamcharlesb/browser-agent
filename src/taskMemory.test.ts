@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { emptyTaskMemory, loadTaskMemory, parseConversationMemory, rememberEvent, rememberTurn, saveTaskMemory, taskMemoryContext } from "./taskMemory";
+import { emptyTaskMemory, loadTaskMemory, mergeConversationTurns, parseConversationMemory, recentConversationContext, rememberEvent, rememberTurn, saveTaskMemory, taskMemoryContext } from "./taskMemory";
 import { applyRunOutcome, applyUserTurnInput, appendLearning, defaultLearningKb, distillLearningKb } from "./learningStore";
 
 test("an upload follow-up retains the draft, artifact and workflow guidance after side questions, step churn and restart", async () => {
@@ -67,5 +67,61 @@ test("a side question does not overwrite the compact work objective",()=>{
  memory=rememberTurn(memory,'user','now resume with the goal bro');
  assert.equal(memory.objective,'Research GSC performance queries for magicsite.ai');
  assert.match(taskMemoryContext(memory),/Current work objective.*GSC/);
- assert.ok(taskMemoryContext(memory).length<=3000);
+ assert.ok(taskMemoryContext(memory).length<=4200);
+});
+
+test("short shopping follow-ups keep the plant objective and ZIP", () => {
+  const plant = "Can you find some hibiscus plants online that can be shipped to 95119? It should be above 4ft";
+  let memory = rememberTurn(emptyTaskMemory(), "user", plant);
+  assert.match(memory.objective || "", /hibiscus.*95119/i);
+  memory = rememberTurn(memory, "user", "Continue the conversation. User request: find from google and search the list");
+  assert.match(memory.objective || "", /hibiscus.*95119/i);
+  assert.match(taskMemoryContext(memory), /95119/);
+  memory = rememberTurn(memory, "user", "I never mentioned flight buddy, we were talking about the plants");
+  assert.match(memory.objective || "", /hibiscus/i);
+});
+
+test("short clarifying answers append shopping constraints to the objective", () => {
+  const plant =
+    "Can you find flower shrubs or trees at 4 to 5ft shipped to 95119?";
+  let memory = rememberTurn(emptyTaskMemory(), "user", plant);
+  assert.match(memory.objective || "", /95119/i);
+  memory = rememberTurn(memory, "user", "Continue the conversation. User request: shrubs and small trees both fine, flowering preferred");
+  assert.match(memory.objective || "", /95119/i);
+  assert.match(memory.objective || "", /flowering preferred/i);
+});
+
+test("client transcript merge and recent chat keep prior asks across follow-ups", () => {
+  let memory = rememberTurn(emptyTaskMemory(), "user", "Find evening SFO to TIJ flights");
+  memory = rememberEvent(memory, { type: "terminal", summary: "Saved a flight reference." });
+  const client = parseConversationMemory({
+    conversationTurns: [
+      { role: "user", text: "Find evening SFO to TIJ flights" },
+      { role: "agent", text: "Saved a flight reference." },
+      { role: "user", text: "Can you find some hibiscus plants online that can be shipped to 95119? It should be above 4ft" },
+      { role: "agent", text: "Stopped by user." }
+    ]
+  }).conversationTurns;
+  memory = mergeConversationTurns(memory, client);
+  assert.ok(memory.turns.some(turn => /hibiscus.*95119/i.test(turn.text)));
+  assert.match(recentConversationContext(client), /95119/);
+  memory = rememberTurn(memory, "user", "Continue the conversation. User request: find from google and search the list");
+  assert.match(memory.objective || "", /hibiscus|SFO to TIJ/i);
+});
+
+test("a zero-spend correction survives long dialogue, restart and later budget changes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "budget-continuity-"));
+  try {
+    let memory = rememberTurn(emptyTaskMemory(), "user", "Plan Google Ads for landscapers");
+    memory = rememberTurn(memory, "user", "we are not going to spend a penny, list me all the marketing plans you have");
+    for (let i = 0; i < 40; i++) memory = rememberTurn(memory, "user", `Review draft section ${i}`);
+    memory = rememberTurn(memory, "agent", "Use a budget $500 for ads");
+    await saveTaskMemory(dir, "mark", memory);
+    memory = await loadTaskMemory(dir, "mark");
+    assert.match(taskMemoryContext(memory), /Latest explicit user spending constraint.*not going to spend a penny/);
+    assert.match(taskMemoryContext(memory), /not permission to spend/);
+    memory = rememberTurn(memory, "user", "Change the test budget to $20; draft only");
+    assert.equal(memory.spendingConstraint, "Change the test budget to $20; draft only");
+    assert.doesNotMatch(taskMemoryContext(memory), /Latest explicit user spending constraint.*not going to spend a penny/);
+  } finally { await rm(dir, { recursive: true }); }
 });

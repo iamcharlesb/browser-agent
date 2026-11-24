@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+const { desktopExecutable } = require("./desktopExecutable");
 /**
- * Opens Open Bots in Electron against the PRODUCTION copy.
+ * Opens Pilo in Electron against the PRODUCTION copy.
  *
  *   yarn desktop:built     compile into build/, then open Electron on it
  *   yarn desktop:attach    skip the build and attach to a server that is already running
@@ -62,11 +63,18 @@ if (attach) {
   console.log(`[desktop] Starting Electron on the production build (port ${env.BROWSER_AGENT_UI_PORT})...`);
 }
 
-const child = spawn(electronBin, ["."], { cwd: projectRoot, stdio: "inherit", env });
-child.on("exit", (code, signal) => process.exit(signal ? 1 : code ?? 0));
+// Launch the binary directly: Electron's CLI reports normal Ctrl+C as a failure.
+const child = spawn(desktopExecutable(), ["."], { cwd: projectRoot, stdio: "inherit", env });
+let shuttingDown = false;
+child.on("error", (error) => {
+  console.error(`[desktop] Could not start Electron: ${error.message}`);
+  process.exit(1);
+});
+child.on("exit", (code, signal) => process.exit(shuttingDown ? 0 : signal ? 1 : code ?? 0));
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
+    shuttingDown = true;
     child.kill(signal);
   });
 }

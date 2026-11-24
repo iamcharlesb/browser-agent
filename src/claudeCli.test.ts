@@ -59,7 +59,7 @@ test("flattenMessagesForClaudeCli skips system and keeps tool results", () => {
   assert.doesNotMatch(text, /ignore me/);
 });
 
-test("toolsCatalogForClaudeCli lists Open Bots tools", () => {
+test("toolsCatalogForClaudeCli lists Pilo tools", () => {
   const catalog = toolsCatalogForClaudeCli(TOOLS);
   assert.match(catalog, /navigate/);
   assert.match(catalog, /finish_task|web_search/);

@@ -1,5 +1,5 @@
 /**
- * Preload bridge for the Open Bots desktop shell.
+ * Preload bridge for the Pilo desktop shell.
  * Exposes a small IPC API so the renderer can dock the Live Browser WebContentsView.
  */
 const { contextBridge, ipcRenderer } = require("electron");
@@ -7,6 +7,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("openBotsDesktop", {
   isDesktop: true,
   platform: process.platform,
+  prepareScreenCapture(mode) {
+    return ipcRenderer.invoke("recording:source", mode);
+  },
   startGoogleSignIn(nonce, handoffVerifier) {
     return ipcRenderer.invoke("auth:google-sign-in", { nonce, handoffVerifier });
   },

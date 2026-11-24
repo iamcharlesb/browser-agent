@@ -1,0 +1,56 @@
+# Pilo Attribution License 1.0
+
+Copyright (c) 2026 Charles Barathidass (@iamcharlesb)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, including for personal, noncommercial, commercial, and
+enterprise purposes, subject to the following conditions:
+
+## Required persistent attribution
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+In addition, every public use, redistribution, SaaS offering, product UI,
+marketing site, README, About screen, or documentation set that includes
+the Software or a substantial portion of it MUST retain a clear, persistent
+credit to the author that is no less prominent than other comparable credits,
+and that includes all of the following:
+
+1. Text credit: **Pilo — created by Charles Barathidass (@iamcharlesb)**
+2. LinkedIn: https://www.linkedin.com/in/iamcharlesb/
+3. X (Twitter): https://x.com/iamcharlesb
+
+This credit must remain visible for as long as the Software (or a derivative
+based on it) is offered or distributed. Removing, obscuring, or making the
+credit transient (for example, a one-time splash that never reappears) does
+not satisfy this condition.
+
+The Required Notice lines in NOTICE are part of this attribution obligation.
+
+## No trademark license
+
+This license does not grant permission to use the trade names, trademarks,
+service marks, or product names of the licensor, except as required for
+reasonable and customary attribution describing the origin of the Software.
+
+## Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+## Relationship to MIT
+
+This license grants MIT-style commercial and enterprise permissions, but it
+is **not** the OSI MIT License because of the persistent LinkedIn/X attribution
+requirement above. Do not describe redistributions of this Software as
+"MIT-licensed."

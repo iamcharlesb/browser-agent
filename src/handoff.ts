@@ -42,7 +42,7 @@ export function decideHandoff(request: AgentHandoffRequest, maxDepth = MAX_HANDO
   if (risk.blocked) {
     return { allowed: false, reason: risk.reason ?? "blocked by the credential-exposure rule" };
   }
-  if (risk.approvalsRequired.length > 0) {
+  if (risk.approvalsRequired.some(category => category === "financial_transaction" || !request.discussionId)) {
     return {
       allowed: false,
       reason: `the delegated task needs your approval first (${risk.approvalsRequired.join(", ")}); ask ${request.toBot} directly`

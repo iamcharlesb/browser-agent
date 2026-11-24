@@ -1,15 +1,23 @@
 # Event-driven agent orchestration
 
-Open Bots uses application code for routing and task state. Models handle the requested work; incoming notifications do not wake a model or perform a browser action by themselves.
+Pilo uses application code for routing and task state. Models handle the requested work; incoming notifications do not wake a model or perform a browser action by themselves.
 
 ## Runtime layers
 
-- **Context compiler:** `loadAgentProfile` combines shared instructions, the bot voice (`soul.md`), a bot-owned playbook, reviewed lessons, and at most two relevant playbooks. Task terms and an optional known `eventName` select playbooks. Character budgets are configured through `BROWSER_AGENT_CORE_PROFILE_CHARS`, `BROWSER_AGENT_PLAYBOOK_CHARS`, and `BROWSER_AGENT_MAX_PLAYBOOKS`. A task that does not need judgment can use deterministic paths such as arithmetic and local tool calls.
+- **Context compiler:** `loadAgentProfile` combines shared instructions, the bot voice (`soul.md`), a bot-owned playbook, reviewed lessons, and at most two relevant playbooks. Task terms and an optional known `eventName` select playbooks. Character budgets are configured through `BROWSER_AGENT_CORE_PROFILE_CHARS` (operating instructions), `BROWSER_AGENT_SOUL_CHARS` (personality/voice), `BROWSER_AGENT_PLAYBOOK_CHARS`, and `BROWSER_AGENT_MAX_PLAYBOOKS`. Souls must carry an explicit speaking personality. A task that does not need judgment can use deterministic paths such as arithmetic and local tool calls.
 - **Event relay:** `DurableEventStream` mirrors an allowlist of small semantic application events into MongoDB `agent_events`. One Change Stream per server process fans safe event types into that process's local bus and an SSE endpoint at `/api/agent/events`. Run-step telemetry and page contents are not mirrored. Payloads are redacted, capped at 64 KB, and expire after `BROWSER_AGENT_EVENT_RETENTION_DAYS`.
 - **Workflow control plane:** workflows are DAGs with validated task IDs and dependencies. Save a draft with `POST /api/workflows`, inspect it, and explicitly start it with `POST /api/workflows/:id/start`. Ready tasks enter the single-browser queue; dependencies become ready only after successful completion. Workflow state uses MongoDB when a shared workspace is configured and local atomic files otherwise.
 - **Iterative bot discussions:** the coordinator can consult specialists, compare replies, and return to a bot with a focused follow-up while material questions remain. It should give a clear conclusion as soon as the evidence is sufficient. The discussion is capped at 24 specialist replies; at that limit the coordinator is instructed to stop delegating and report its best supported outcome, remaining uncertainty, and next steps.
 - **Queue and recovery:** queued jobs are persisted locally. Queued tasks resume after restart. A task interrupted while running is marked failed for review; it is never retried automatically. Retrying a failed workflow step requires an explicit confirmation and fresh policy approvals.
 - **Conversation observer:** completed turns are checked locally for explicit correction or persistent preference language. Matching instructions become pending voice or playbook suggestions. The Observer header panel lets the operator approve or dismiss each suggestion. Voice changes write to `agents/<bot-id>/soul.md` only after approval; playbook changes go through the reviewed revision store. The observer never makes a model call.
+
+## Schedules, watchers and saved permissions
+
+A schedule can carry a `trigger` (`page`, `feed` or `json` with a `url`, plus optional `contains` or `path`). Each time the schedule fires, application code fetches the source and compares it with the stored fingerprint or seen feed items. Nothing changed means no model call; the schedule simply moves to its next occurrence. The first check only records a baseline. When a change is found, the run receives the change and the previous run's result as context, not a replay of earlier runs. Watcher fetches use the same public-address guard as `fetch_url`.
+
+Scheduled runs are read-only by default. The operator can save a grant for one schedule with `PUT /api/schedules/:id/grant` (`{ "browser": true, "outward": true, "maxOutwardActions": 3 }`) or the checkboxes in the schedule list. A grant is never accepted from a model tool call. Outward actions are approved up to the per-run cap; irreversible actions and payments are always declined. A granted schedule interrupted by a restart moves to its next occurrence instead of re-running immediately.
+
+Attended approvals that nobody answers are declined after `BROWSER_AGENT_APPROVAL_TIMEOUT_SECONDS`, so the run finishes the safe part of its work.
 
 ## Enable shared events and workflow state
 

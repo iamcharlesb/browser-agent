@@ -1,0 +1,53 @@
+/* Shared Pilo character artwork. Only active/run avatars move. */
+.agent-avatar.character-avatar{background:transparent!important;border-radius:0;overflow:visible;box-shadow:none}
+.pilo-character{display:block;width:100%;height:100%;overflow:visible;--speed:1}
+.pilo-character .motion,.pilo-character .arm,.pilo-character .eye,.pilo-character .rays,.pilo-character .pencil,.pilo-character .thought-dot,.pilo-character .tear,.pilo-character .code-cursor,.pilo-character .code-line{transform-box:fill-box;transform-origin:center}
+.pilo-character .expression-face,.pilo-character .expression,.pilo-character .writing-prop{display:none}
+.pilo-character:not([data-expression="idle"]) .base-face,.pilo-character:not([data-expression="idle"]) .eye{visibility:hidden}
+.pilo-character:not([data-expression="idle"]) .expression-face{display:inline}
+.pilo-character[data-expression="thinking"] .expression-thinking,.pilo-character[data-expression="writing"] .expression-writing,.pilo-character[data-expression="writing"] .writing-prop,.pilo-character[data-expression="happy"] .expression-happy,.pilo-character[data-expression="sad"] .expression-sad{display:inline}
+.pilo-character[data-expression="sad"] .arm{transform:rotate(22deg)}
+.pilo-character[data-expression="thinking"] .arm{transform:rotate(-35deg)}
+.agent-avatar .pilo-character{width:100%;height:100%}
+#welcome .template-avatar:has(.pilo-character){background:transparent}
+#welcome .template-avatar>.pilo-character{width:48px;height:48px}
+#bot-modal-preview>.pilo-character{width:90px;height:90px;margin:auto}
+.brand-mark>.pilo-character{width:100%;height:100%}
+#welcome-avatar>.pilo-character{width:100%;height:100%}
+@media(prefers-reduced-motion:no-preference){
+ .is-expressive .pilo-character .motion{animation:pilo-idle 4s ease-in-out infinite}
+ .is-expressive .pilo-character[data-expression="thinking"] .motion{animation:pilo-ponder 3s ease-in-out infinite}
+ .is-expressive .pilo-character[data-expression="writing"] .motion{animation:pilo-nod 1.6s ease-in-out infinite}
+ .is-expressive .pilo-character[data-expression="happy"] .motion{animation:pilo-happy 1.8s ease-in-out infinite}
+ .is-expressive .pilo-character[data-expression="sad"] .motion{animation:pilo-sigh 4s ease-in-out infinite}
+ .is-expressive .pilo-character .pencil,.is-expressive .pilo-character .quill,.is-expressive .pilo-character .paintbrush{transform-box:fill-box;transform-origin:20% 90%;animation:pilo-scribble .5s ease-in-out infinite}
+ .is-expressive .pilo-character .thought-dot{animation:pilo-dot 1.5s ease-in-out infinite}
+ .is-expressive .pilo-character .thought-dot:nth-child(2){animation-delay:.2s}
+ .is-expressive .pilo-character .thought-dot:nth-child(3){animation-delay:.4s}
+ .is-expressive .pilo-character .tear{animation:pilo-tear 3s ease-in infinite}
+ .is-expressive .pilo-character .code-cursor{animation:pilo-cursor 1s steps(2,jump-none) infinite}
+ .is-expressive .pilo-character .code-line{stroke-dasharray:40;animation:pilo-code 3s ease-in-out infinite}
+ .is-expressive .pilo-character .code-line:nth-child(2){animation-delay:.3s}
+ .is-expressive .pilo-character .code-line:nth-child(3){animation-delay:.6s}
+}
+@keyframes pilo-idle{50%{transform:translateY(-4px)}}
+@keyframes pilo-ponder{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg) translateY(-3px)}}
+@keyframes pilo-nod{50%{transform:rotate(-1deg) translateY(2px)}}
+@keyframes pilo-happy{50%{transform:translateY(-7px) rotate(2deg)}}
+@keyframes pilo-sigh{50%{transform:translateY(4px) scaleY(.98)}}
+@keyframes pilo-scribble{50%{transform:translate(4px,1px) rotate(7deg)}}
+@keyframes pilo-dot{0%,65%,100%{opacity:.25}30%{opacity:1}}
+@keyframes pilo-tear{0%,15%{opacity:0;transform:translateY(0)}30%{opacity:1}90%,100%{opacity:0;transform:translateY(28px)}}
+@keyframes pilo-cursor{to{opacity:0}}
+@keyframes pilo-code{0%,10%{stroke-dashoffset:40}65%,100%{stroke-dashoffset:0}}
+@media(prefers-reduced-motion:reduce){.pilo-character,.pilo-character *{animation:none!important;transition:none!important}}
+
+.bot-shape-btn>.pilo-character{width:36px;height:36px;margin:auto}
+
+/* Larger sidebar identities; header and composer controls keep their compact sizing. */
+#sidebar .agent-row .agent-avatar{width:38px;height:38px;flex:0 0 38px}
+#sidebar .agent-row .agent-avatar .bot{--size:38px}
+#sidebar .agent-row .agent-avatar :is(.bot--capsule,.bot--cloud){--size:33px}
+#sidebar .agent-row .agent-avatar svg.bot-char-svg{width:38px;height:38px}
+#sidebar .agent-row{min-height:56px;gap:12px}
+#app.sidebar-collapsed #sidebar .agent-row{width:52px;min-height:56px;padding:6px}

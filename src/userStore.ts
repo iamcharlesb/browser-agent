@@ -37,7 +37,11 @@ export function preserveBotDeletions(existing: BotRosterEntry[], incoming: BotRo
   for (const bot of [...existing, ...incoming]) {
     if (bot.deleted === true && typeof bot.id === "string") deleted.set(bot.id, { id: bot.id, deleted: true });
   }
-  return [...incoming.filter(bot => !deleted.has(String(bot.id))), ...deleted.values()];
+  return [...incoming.filter(bot => !deleted.has(String(bot.id))).map(bot => {
+    const previous = existing.find(item => item.id === bot.id);
+    return previous && Number(previous.conversationResetAt || 0) > Number(bot.conversationResetAt || 0)
+      ? { ...bot, transcript: previous.transcript || [], conversationResetAt: previous.conversationResetAt } : bot;
+  }), ...deleted.values()];
 }
 
 export type BotRosterEntry = Record<string, unknown>;

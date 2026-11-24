@@ -66,8 +66,50 @@ export function botIdFromName(name: string): string {
   const specialistAliases: Record<string, string> = {
     "inspired by sabri suby": "The_Revenue_Architect",
     "inspired by alex hormozi": "The_Value_Architect",
+    "alex hormozi": "The_Value_Architect",
     "inspired by addy osmani": "The_Engineering_Craftsman",
-    "inspired by andrej karpathy": "The_Neural_Architect"
+    "addy osmani": "The_Engineering_Craftsman",
+    "inspired by andrej karpathy": "The_Neural_Architect",
+    "andrej karpathy": "The_Neural_Architect",
+    "the systems architect": "The_Systems_Architect",
+    "principal fullstack engineer, cloud & devops": "The_Systems_Architect",
+    "principal fullstack engineer, cloud and devops": "The_Systems_Architect",
+    "principal or expert fullstack engineer, cloud and devops": "The_Systems_Architect",
+    "expert fullstack engineer, cloud and devops": "The_Systems_Architect",
+    "ads specialist (google, meta & more)": "Paid_Media_Performance_Marketing_Specialist",
+    "ads specialist": "Paid_Media_Performance_Marketing_Specialist",
+    "paid media & performance marketing specialist": "Paid_Media_Performance_Marketing_Specialist",
+    "founder operator": "Founder_Operator",
+    "operator bot": "Founder_Operator",
+    "chief of staff": "Founder_Operator",
+    "gif animator": "GIF_Animator",
+    "funnel specialist": "Funnel_Specialist",
+    "website designer": "Website_Designer",
+    "web designer": "Website_Designer",
+    "linkedin growth": "LinkedIn_Growth",
+    "linkedin bot": "LinkedIn_Growth",
+    "resume bot": "Resume_Bot",
+    "resume / cv bot": "Resume_Bot",
+    "mark zuckerberg": "Mark_Zuckerberg",
+    "alex wang": "Alex_Wang",
+    "alexandr wang": "Alex_Wang",
+    "alexander wang": "Alex_Wang",
+    "sundar pichai": "Sundar_Pichai",
+    "influencer": "Influencer",
+    "blog writer": "Blog_Writer",
+    "blogger": "Blog_Writer",
+    "technical program manager": "Technical_Program_Manager",
+    "tpm": "Technical_Program_Manager",
+    "product manager": "Product_Manager",
+    "ux psychology & conversion expert": "UX_Psychology_Conversion_Expert",
+    "ux specialist": "UX_Psychology_Conversion_Expert",
+    "supervisor bot": "Supervisor_Bot",
+    "supervisor": "Supervisor_Bot",
+    "supercomputer": "Supercomputer",
+    "super computer": "Supercomputer",
+    "bot creator": "Bot_Creator",
+    "bot-creator": "Bot_Creator",
+    "critica": "Critica"
   };
   if (specialistAliases[raw.toLowerCase()]) return specialistAliases[raw.toLowerCase()];
   const slug = raw
@@ -249,6 +291,9 @@ export async function saveLearningKb(baseDir: string, state: LearningKbState): P
  * microseconds apart), so the pair has to be serialized, not just the write.
  */
 const learningWriteChains = new Map<string, Promise<unknown>>();
+export async function waitForLearningWrites(): Promise<void> {
+  await Promise.all([...learningWriteChains.values()]);
+}
 
 export async function updateLearningKb(
   baseDir: string,
@@ -407,7 +452,7 @@ export function distillLearningKb(state: LearningKbState, maxChars = MAX_DISTILL
 }
 
 const CORRECTION_PATTERN =
-  /\b(don'?t|do not|didn'?t|didnt|stop|wrong|instead|never\b|not that|why\s+(?:didn'?t|didnt|you\s+didn'?t|you\s+didnt|haven'?t|havent)|you\s+(?:forgot|missed|broke|skipped|ignored|failed)|still\s+not|i\s+(?:said|meant|told you|want|asked)|should\s+(?:have|be)|supposed\s+to|correct(?:ion)?|mistake|avoid|no more|you (?:have|need) to|you have (?:edit|upload|open)|(?:edit|upload|open|find|use) (?:it |the [a-z ]{0,30})?(?:from|through|via)|(?:it |was |is )?not (?:uploaded|saved|attached|published))\b/i;
+  /\b(don'?t|do not|didn'?t|didnt|stop|wrong|instead|never\b|not that|why\s+(?:didn'?t|didnt|you\s+didn'?t|you\s+didnt|haven'?t|havent)|you\s+(?:forgot|missed|broke|skipped|ignored|failed)|still\s+not|i\s+(?:said|meant|told you|want|asked)|should\s+have|supposed\s+to|correct(?:ion)?|mistake|avoid|no more|you (?:have|need) to|you have (?:edit|upload|open)|(?:edit|upload|open|find|use) (?:it |the [a-z ]{0,30})?(?:from|through|via)|(?:it |was |is )?not (?:uploaded|saved|attached|published))\b/i;
 const PREFERENCE_RULE_PATTERN =
   /\b(always\b|from now on|make sure|remember\s+(?:to|that)|prefer\b|whenever\b|every\s+time|keep\s+in\s+mind|must\s+always)\b/i;
 const NICHE_PATTERN =

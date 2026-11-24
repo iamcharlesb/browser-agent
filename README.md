@@ -1,8 +1,50 @@
-# OpenBuddy
+# Pilo
 
-OpenBuddy is the desktop product built on the existing browser-agent runtime. It uses compact per-bot playbooks, a local pub/sub bus and optional MongoDB-backed event synchronization. Fireworks++ is not a dependency or prerequisite.
+[Roadmap](ROADMAP.md) · [Features](FEATURES.md) · [What has changed](CHANGELOG.md)
+
+<img src="static/branding/pilo-social.png" alt="Pilo and its specialist bots" width="480" />
+
+**Your Personal Bot inspired by Grok Bots — Source-Available**
+
+[Project home](https://github.com/iamcharlesb/pilo) · [The story behind Pilo](https://medium.com/@iamcharlesb/meet-pilo-inspired-by-grok-bots-and-chatgpt-dots-13a17c6c5e41)
+
+Pilo is a source-available personal bot inspired by Grok Bots, built on the browser-agent runtime. It uses compact per-bot playbooks, a local pub/sub bus and optional MongoDB-backed event synchronization. Fireworks++ is not a dependency or prerequisite.
+
+## Independent AI assistants
+
+Named bots are AI assistants informed by public material. They are not the named people or employees of the named firms, and have no affiliation or endorsement from those people or firms, including Goldman Sachs, Google and Alphabet. Portraits identify public figures; they do not imply endorsement. Financial outputs are informational, not personalized financial advice. Verify sources, dates, assumptions and calculations before relying on them; returns are not guaranteed.
+
+## Get started
+
+New installation? Follow the [first-time setup and provider guide](docs/provider-setup.md): install Node 22.12+, clone with submodules, install dependencies, launch, then choose OpenAI, Qwen, or Kimi in Settings and paste an API key. Model and endpoint presets are editable. For file-based setup, copy [.env.example](.env.example) to `.env` and fill only the chosen provider's key. Google sign-in and MongoDB are optional.
 
 See [production-readiness and operating boundaries](docs/buddy-bot-production.md) before deployment.
+
+For terminal chat and a standalone server without Electron, see the [Pilo CLI preview](docs/cli.md).
+
+Open `/docs` on the running local server for setup, conversation reset, orchestration,
+coding, CLI installation, validation and known limitations. Settings includes a
+Reset conversations control for one bot or all bots.
+
+## Huddles
+
+Use **New Huddle** in the sidebar to create a named session. Search the complete bot catalog, select participants, then choose **Create huddle**. The same catalog powers the main bot selector and includes built-in and custom bots. Selected bots are saved automatically when needed; you do not have to add them beforehand.
+
+Ask a question in the huddle to gather each selected bot's perspective, show attributed replies, and produce a shared synthesis. Follow-up questions use the session's conversation history. Sessions remain in the sidebar and reopen without starting model work. Use **Edit huddle** to change the name or participants once its work finishes or is stopped.
+
+Creating a huddle starts no model request. Sending a question may incur provider charges. Discussions and specialist research are read-only; the session does not authorize publication, transactions, or recurring jobs. The server's configured participant and time limits apply; failures and missing replies are reported explicitly. A configured conversational model is required.
+
+## Action scripts and local API access
+
+Arbitrary JavaScript action scripts are disabled until OS-enforced isolation is
+available. Pilo continues multi-step work using individual tools and their normal
+approval gates. Older requests for `run_action_script` fail without executing code.
+
+The local API validates Host and requires a matching Origin for state-changing
+requests. The Pilo CLI supplies this header. Custom local clients must send an
+Origin matching the server URL. Google sign-in callbacks retain their separate
+nonce, CSRF and token verification. This remains a local, single-operator service;
+Origin checks do not authenticate other processes on the same computer.
 
 ## Approvals and conversation flow
 
@@ -70,21 +112,19 @@ access for that task; the two grants are tracked separately.
 The task-text patterns in `src/security.ts` still run, but only as an up-front
 heads-up when a run starts. Enforcement happens at the click.
 
-## Agent modes (Chat / Browse / Act)
+## Execution and the approval shield
 
-Above the composer:
+The desktop composer always uses Turbo execution; there is no separate Chat/Browse/Act selector. The shield is the single automatic-approval control. Turning it off restores approval prompts for actions that need them. Payments, irreversible actions and human verification retain their gates.
 
-| Mode | What it can do | Token profile |
-| --- | --- | --- |
-| **Chat** | Text tools only (`web_search`, `reddit_search`, docs, shell read-only path) — no browser navigate/click | Cheapest |
-| **Browse** | Navigate, scroll, extract — no click/type | Low (text-first observations) |
-| **Act** | Full browser with effect-based approval gates | Same as before; still text-first by default |
+Internal API and workflow runs still support text-only (`chat`) and browser-capable execution. Workflow tasks declare `executionMode: "text"` for drafting/local tools or `"browser"` for live page work; text tasks can run alongside the shared browser owner. Execution mode does not grant approvals.
 
 Observations default to **text-first** (marks + page text). Vision screenshots are sent only for CAPTCHA/access walls, icon-only UIs, or after consecutive click failures.
 
 ## Auth modes (Google vs Guest)
 
-OpenBuddy supports two identity modes for open-source / local use:
+For separate website logins, use the toolbar's [browser profiles](docs/browser-profiles.md) switcher. Named profiles keep independent Chrome sessions while preserving the existing Default profile. Pilo sign-in and bot conversations remain shared.
+
+Pilo supports two identity modes for noncommercial / local use:
 
 | Mode | How | Where bots & prefs live |
 | --- | --- | --- |
@@ -117,13 +157,13 @@ Do not commit `.env` or real client secrets. `.env.example` documents the keys o
 
 ### Model and budget configuration
 
-The server and CLI load `.env` before deriving defaults; shell environment values take precedence. Set `BROWSER_AGENT_MODEL` for the selected default and provider versions through `OPENAI_MODEL`, `ANTHROPIC_MODEL`, `XAI_MODEL`, and `OLLAMA_MODEL`. `OPENAI_IMAGE_MODEL` enables image generation. With no configured model the default is the explicit Local Engine.
+The server and CLI load `.env` before deriving defaults. Precedence is inherited shell variables, then `node/browser_agent/.env`, then the parent repository `.env` when running this submodule checkout. Set `BROWSER_AGENT_ENV_FILE` to load only a specific file. Settings saves connection changes to the app file (or that explicit file), with private file permissions. Set `BROWSER_AGENT_MODEL` for the selected default and provider versions through `OPENAI_MODEL`, `QWEN_MODEL`, `KIMI_MODEL`, `ANTHROPIC_MODEL`, `XAI_MODEL`, and `OLLAMA_MODEL`. `BROWSER_AGENT_PROVIDER` selects a provider default when `BROWSER_AGENT_MODEL` is empty. `OPENAI_IMAGE_MODEL` enables image generation. With no configured model the default is the explicit Local Engine.
 
-`BROWSER_AGENT_MODELS_JSON` adds models as `{ "id": "deployment-id", "label": "Optional name", "provider": "openai", "api": "responses" }`. Supported providers are `openai`, `anthropic`, `xai`, `ollama`, `claude-cli`, and `local`; API modes are `responses` or `chat`. Explicit registry metadata wins over legacy model-name inference. `OPENAI_API_MODE` controls unregistered OpenAI models. The settings/composer menus are populated from the server catalog, with saved custom selections preserved.
+`BROWSER_AGENT_MODELS_JSON` adds models as `{ "id": "deployment-id", "label": "Optional name", "provider": "openai", "api": "responses" }`. Supported providers are `openai`, `qwen`, `kimi`, `compatible`, `anthropic`, `xai`, `ollama`, `claude-cli`, and `local`; API modes are `responses` or `chat`. Explicit registry metadata wins over legacy model-name inference. `OPENAI_API_MODE` controls unregistered OpenAI models. The settings/composer menus are populated from the server catalog, with saved custom selections preserved.
 
 `.env.example` also documents step/output/context limits and reasoning effort. The custom loop removes complete old rounds above the text budget, preserves the task and recent observations, and starts a new Responses chain after compaction. Images have a separate retention limit. Oversized pinned context produces an explicit error. The SDK checks the shared tool step/time budget, but its internal history is not compacted by the custom-loop policy.
 
-Optional `MODEL_PRICING_JSON` contains input/output prices per million tokens. Models without configured prices show no estimate. Provider keys stay server-side; Anthropic and xAI do not borrow the OpenAI key. Key inputs are cleared after saving session settings. Local `.env` remains ignored; never copy it into an artifact or commit.
+Optional `MODEL_PRICING_JSON` contains input/output prices per million tokens. Models without configured prices show no estimate. Provider keys stay server-side; Anthropic and xAI do not borrow the OpenAI key. Key inputs are cleared after saving persistent local settings. Local `.env` remains ignored; never copy it into an artifact or commit.
 
 ### MongoDB (optional cloud persistence)
 
@@ -154,16 +194,16 @@ advanced option with app-owned cookies (`persist:open-bots`). Playwright attache
 debugging port (default `9333`, override with `OPEN_BOTS_ELECTRON_CDP_PORT`).
 
 This does **not** open or focus your personal Chrome. Sign in to sites inside the
-Live Browser panel. The OpenBuddy UI window itself is never the automation target.
+Live Browser panel. The Pilo UI window itself is never the automation target.
 
 Plain `npm run built` / `yarn built` in a normal browser (no Electron) falls back
-to OpenBuddy Chrome / guest as before.
+to Pilo Chrome / guest as before.
 
 **Honest limit:** Google OAuth and some bot walls still fail inside embedded
 Chromium. That is expected — use Connected Chrome below, or `reddit_search` /
 `google_property` for research without scraping.
 
-### External OpenBuddy Chrome (legacy / non-desktop)
+### External Pilo Chrome (legacy / non-desktop)
 
 **Connect Apps → Open Chrome to sign in** launches a dedicated Chrome window with
 profile `~/.buddy-bot-chrome-profile` (not your personal Chrome). Useful when you
@@ -177,7 +217,7 @@ Optional external window when the in-app browser is blocked:
 1. Open **Connect Apps → Connect my Chrome**.
 2. Copy and run the launch command (starts Chrome with remote debugging on a
    dedicated profile `~/.buddy-bot-chrome-cdp`, not your daily Chrome profile).
-3. Click **Connect my Chrome** again so OpenBuddy attaches via CDP (port `9222`).
+3. Click **Connect my Chrome** again so Pilo attaches via CDP (port `9222`).
 4. Sign in to Reddit/Google in that Chrome window, then run the task.
 
 Optional: set `BROWSER_AGENT_CDP_ENDPOINT` (default `http://127.0.0.1:9222`).
@@ -365,7 +405,7 @@ The chat UI renders image `artifactUrl` values inline; non-image artifacts remai
 
 ## Interactive browser architecture
 
-Independent **Chat** agents can work in parallel while one **Browse**, **Act**, or **Turbo** task owns the shared browser. The default is four total execution slots and one task per bot; configure `BROWSER_AGENT_MAX_CONCURRENT_RUNS` and `BROWSER_AGENT_MAX_PENDING_RUNS` in the environment. Browser tasks queue with a visible reason. Switching chats preserves each run's event stream and sends its results to its original chat. Stop and Steer affect the selected bot's work. Use Chat for drafting or analysis that should continue alongside another bot's browser task.
+Independent **Chat** agents can work in parallel while one **Browse**, **Act**, or **Turbo** task owns the shared browser. The default is four total execution slots and one task per bot; configure `BROWSER_AGENT_MAX_CONCURRENT_RUNS` and `BROWSER_AGENT_MAX_PENDING_RUNS` in the environment. Browser tasks queue with a visible reason. Switching chats preserves each run's event stream and sends its results to its original chat. Stop and Steer affect the selected bot's work. Use text execution for workflow drafting or analysis that should continue alongside another bot's browser task.
 
 The browser and Electron share the same workspace and agent server. Run
 `npm run desktop` from either the repository root or this directory for the
@@ -427,7 +467,7 @@ Runtime behavior now loads `AGENTS.md`, `soul.md`, relevant role playbooks, and 
 
 ### Event-driven orchestration
 
-The app supports shared MongoDB event delivery, resumable workflows with dependencies, restart recovery, bounded event-selected playbooks, and a correction observer with human-reviewed voice/playbook drafts. See [event-driven orchestration](docs/event-driven-orchestration.md) for configuration, API usage, and delivery guarantees.
+The app supports shared MongoDB event delivery, resumable workflows with dependencies, restart recovery, bounded event-selected playbooks, and a correction observer with human-reviewed voice/playbook drafts. See [team delivery](docs/team-delivery.md) for conversation-created workflow drafts, output contracts and result handoffs, and [event-driven orchestration](docs/event-driven-orchestration.md) for configuration, API usage, and delivery guarantees.
 
 ### Reopening your session
 
@@ -438,3 +478,21 @@ This device-local state uses browser storage; a different browser profile or ori
 ### Reusable coding workspace
 
 Use **+ → Index local coding workspace** to build or refresh a private offline source index, then ask a bot to inspect, implement and test a change. Both agent engines can retrieve ranked code excerpts, inspect file/symbol maps and live source, and make stale-checked exact patches through the existing approval controls. Dependencies and generated/private files are excluded. Selected project-folder snapshots also retain an index for reuse across turns and restarts. See [coding capability](docs/coding-capability.md) for scope, configuration, and examples.
+
+## License
+
+Pilo is licensed under the [Pilo Attribution License 1.0](LICENSE): free for
+personal, noncommercial, commercial, and enterprise use, with **required
+persistent credit** to Charles Barathidass including LinkedIn and X links.
+
+Redistributed copies, product UIs, About screens, and documentation must keep
+the Required Notice lines in [NOTICE](NOTICE) and the credit:
+
+**Pilo — created by Charles Barathidass (@iamcharlesb)** ·
+[LinkedIn](https://www.linkedin.com/in/iamcharlesb/) ·
+[X](https://x.com/iamcharlesb)
+
+This is MIT-style in permissions but **not** the OSI MIT License, because of
+the persistent attribution requirement. Earlier Apache-2.0 releases retain
+their original permissions; see [LICENSE-APACHE-2.0](LICENSE-APACHE-2.0).
+Third-party components retain their own licenses.

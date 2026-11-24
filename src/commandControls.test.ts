@@ -115,12 +115,21 @@ test("background updates keep the composer focused while deliberate inputs remai
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
-    await page.setContent("<textarea id='prompt'></textarea><button id='send-button'>Send</button><input id='other'><div id='browser-viewport'><input id='browser-input'></div><dialog id='modal'><input></dialog>");
+    await page.setContent("<textarea id='prompt'></textarea><button id='send-button'>Send</button><button id='auto-approve-toggle' class='composer-action'>Shield</button><button data-agent-engine='cheap'>Economy</button><input id='other'><div id='browser-viewport'><input id='browser-input'></div><dialog id='modal'><input></dialog>");
     await page.addScriptTag({ content: readFileSync(join(__dirname, "../static/browserRuntime.js"), "utf8") });
     await page.addScriptTag({ content: `var prompt=document.getElementById('prompt'),browserViewport=document.getElementById('browser-viewport');${source("focusComposer", "\n  function startRun")}` });
     await page.locator("#prompt").focus();
     await page.getByRole("button", { name: "Send", exact: true }).click();
     assert.equal(await page.locator("#prompt").evaluate(element => element === document.activeElement), true);
+    await page.locator("#prompt").fill("Keep this draft");
+    for (const label of ["Shield", "Economy"]) {
+      await page.getByRole("button", { name: label, exact: true }).click();
+      assert.equal(await page.locator("#prompt").evaluate(element => element === document.activeElement), true);
+      await page.getByRole("button", { name: label, exact: true }).focus();
+      await page.evaluate(() => (window as any).focusComposer());
+      assert.equal(await page.locator("#prompt").evaluate(element => element === document.activeElement), true);
+    }
+    assert.equal(await page.locator("#prompt").inputValue(), "Keep this draft");
     await page.locator("#other").focus();
     await page.evaluate(() => (window as any).focusComposer());
     assert.equal(await page.locator("#other").evaluate(element => element === document.activeElement), true);
@@ -130,5 +139,34 @@ test("background updates keep the composer focused while deliberate inputs remai
     await page.evaluate(() => (document.getElementById('modal') as HTMLDialogElement).showModal());
     await page.evaluate(() => (window as any).focusComposer());
     assert.equal(await page.locator("#modal input").evaluate(element => element === document.activeElement), true);
+  } finally { await browser.close(); }
+});
+
+
+test("one composer action switches between stop and follow-up send without losing drafts", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent("<textarea id='prompt'></textarea><button id='stop-run-btn' hidden>Header stop</button><button id='composer-stop-button' hidden>Stop</button><button id='send-button'>Send</button>");
+    await page.addScriptTag({ content: `
+      var prompt=document.getElementById('prompt'), stopRunBtn=document.getElementById('stop-run-btn'), sendButton=document.getElementById('send-button');
+      var attachments=[], taggedDiscussionBots=[];
+      ${source("syncComposerAction", "\n  function setStatusState")}
+      prompt.addEventListener('input',syncComposerAction);
+      syncComposerAction();
+    ` });
+    assert.equal(await page.locator("#send-button").isVisible(), true);
+    await page.evaluate(() => { (document.getElementById("stop-run-btn") as HTMLElement).hidden = false; (window as any).syncComposerAction(); });
+    assert.equal(await page.locator("#composer-stop-button").isVisible(), true);
+    assert.equal(await page.locator("#send-button").isVisible(), false);
+    await page.locator("#prompt").fill("Change direction");
+    assert.equal(await page.locator("#composer-stop-button").isVisible(), false);
+    assert.equal(await page.getByRole("button", {name: "Send follow-up message"}).isVisible(), true);
+    await page.evaluate(() => { (document.getElementById("stop-run-btn") as HTMLElement).hidden = true; (window as any).syncComposerAction(); });
+    assert.equal(await page.locator("#prompt").inputValue(), "Change direction");
+    assert.equal(await page.getByRole("button", {name: "Send message"}).isVisible(), true);
+    await page.locator("#prompt").fill("");
+    assert.equal(await page.locator("#composer-stop-button").isVisible(), false);
+    assert.equal(await page.locator("#send-button").isVisible(), true);
   } finally { await browser.close(); }
 });

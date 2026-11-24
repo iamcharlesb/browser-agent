@@ -40,10 +40,20 @@ class BrowserWorkspace {
       activeTabId: this.activeId,
       tabs: this.tabs.map((tab, index) => ({
         id: tab.id, targetId: tab.view.webContents.getOrCreateDevToolsTargetId(), index, url: tab.view.webContents.getURL() || "about:blank",
-        title: tab.view.webContents.getTitle() || "New Tab", active: tab.id === this.activeId,
+        title: this.tabTitle(tab), active: tab.id === this.activeId,
         loading: tab.view.webContents.isLoading()
       }))
     };
+  }
+
+  tabTitle(tab) {
+    const title = tab.view.webContents.getTitle();
+    const url = tab.view.webContents.getURL();
+    if (title && !["about:blank", "New Tab"].includes(title)) return title;
+    if (url && url !== "about:blank") {
+      try { return new URL(url).hostname || url; } catch { return url; }
+    }
+    return "New Tab";
   }
 
   changed() { this.onChange(this.snapshot()); }
@@ -75,7 +85,11 @@ class BrowserWorkspace {
     view.webContents.on("destroyed", () => {
       if (this.tabs.includes(tab)) this.removeTab(tab);
     });
-    if (!popupOptions) void view.webContents.loadURL(target).catch(() => this.changed());
+    if (!popupOptions) {
+      tab.navigation = view.webContents.loadURL(target);
+      // Startup/popup callers may not await; still handle load failures.
+      void tab.navigation.catch(() => this.changed());
+    }
     if (popupOptions) {
       // Return the new webContents before asking Chromium for its DevTools target ID.
       // The opener is waiting synchronously for createWindow to return.
@@ -113,7 +127,8 @@ class BrowserWorkspace {
     const type = input?.type;
     let tab = this.active();
     if (type === "new_tab") {
-      this.newTab(input.url);
+      const opened = this.newTab(input.url);
+      await opened.navigation;
     } else if (type === "switch_tab" || type === "close_tab") {
       const target = this.tabs[Number(input.index)];
       if (!target) throw new Error("Browser tab no longer exists.");

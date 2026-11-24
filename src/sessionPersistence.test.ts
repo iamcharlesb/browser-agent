@@ -17,13 +17,13 @@ test("closing and reopening restores the selected conversation and separate draf
         if (route.request().method() === "POST" && /\/api\/(run|learn|workflow|schedules)/.test(url.pathname)) submissions++;
         return route.fulfill({ contentType: "application/json", body: JSON.stringify({ isRunning: false, models: [], schedules: [], events: [], jobs: [], workflows: [], suggestions: [], user: null }) });
       }
-      if (url.pathname !== "/" && url.pathname !== "/browserRuntime.js") return route.abort();
-      const filename = url.pathname === "/" ? "index.html" : "browserRuntime.js";
-      return route.fulfill({ contentType: filename.endsWith(".js") ? "text/javascript" : "text/html", body: await readFile(join(__dirname, "..", "static", filename)) });
+      if (!["/", "/botCharacterArtwork.js", "/botCharacters.js", "/botCharacters.css", "/browserRuntime.js", "/botCatalog.js", "/uiState.js", "/responseMarkdown.js", "/runStream.js"].includes(url.pathname)) return route.abort();
+      const filename = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
+      return route.fulfill({ contentType: filename.endsWith(".js") ? "text/javascript" : filename.endsWith(".css") ? "text/css" : "text/html", body: await readFile(join(__dirname, "..", "static", filename)) });
     });
     const page = context.pages()[0] || await context.newPage();
     await page.goto("http://session.test/", { waitUntil: "domcontentloaded" });
-    await page.waitForSelector(".template-card[data-name='Inspired by Andrej Karpathy']", { state: "attached" });
+    await page.waitForSelector(".template-card[data-name='Andrej Karpathy']", { state: "attached" });
     return { context, page };
   }
   let current: Awaited<ReturnType<typeof open>> | undefined;

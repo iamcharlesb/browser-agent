@@ -1,5 +1,5 @@
 /**
- * Shared, at-least-once event relay for separately running Open Bots installations.
+ * Shared, at-least-once event relay for separately running Pilo installations.
  * MongoDB is the durable log and one Change Stream per server process fans updates
  * into that process's local bus. It transports facts only: a remote event is never
  * sufficient authorization to start a model, browser action, or paid schedule.

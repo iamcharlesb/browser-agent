@@ -56,6 +56,7 @@ const READ_ONLY_TOOLS = new Set([
   "wait",
   "go_back",
   "web_search",
+  "fetch_url",
   "calculate",
   "understand_youtube_video",
   "learning_kb"
@@ -322,18 +323,9 @@ export function classifyBrowserAction(context: BrowserActionContext): EffectDeci
       : "element has no readable label (icon-only)";
   }
 
-  // A known label stands on its own; the baseline is only for elements we could not read. The
-  // declaration is then layered on top, and can only push the level up - except when the button
-  // label is an explicit CMS draft-entry or draft-save noun phrase ("Create New Post", "Save Draft")
-  // where models routinely over-declare "outward" because of the word "Post".
+  // Labels provide a floor. Context supplied by the model may raise it, never lower it.
   const floor: ActionEffect = observed ?? "reversible";
-  const isKnownDraftEntry = !isTyping && isLocalVerbLabel(context.label);
-  const effect =
-    isKnownDraftEntry && floor !== "irreversible" && declared === "outward"
-      ? "reversible"
-      : declared
-        ? maxEffect(declared, floor)
-        : floor;
+  const effect = declared ? maxEffect(declared, floor) : floor;
   return { effect, declared, observed, reason };
 }
 

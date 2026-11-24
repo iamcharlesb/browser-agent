@@ -3,7 +3,14 @@ import { buildCodeIndex, queryCodeIndex, CodeIndex } from './codeIndex';
 import { envInteger } from './runtimeConfig';
 import { redactSecrets } from './security';
 export interface ProjectSourceFile { path: string; text: string; size: number }
-export const PROJECT_IGNORED_DIRS = ['.git', 'node_modules', 'vendor', '.venv', 'venv', '__pycache__', '.next', '.nuxt', 'dist', 'build', 'coverage', '.cache', '.idea', '.vscode', '.ssh', '.aws', '.kube', '.gnupg'];
+// Lowercase names shared with the browser picker and live workspace scanner.
+// Keep generic first-party directories such as packages/ and bin/ available.
+export const PROJECT_IGNORED_DIRS = ['.git', '.hg', '.svn', 'node_modules', 'bower_components', '.yarn', '.pnpm-store',
+  'vendor', '.bundle', '.venv', 'venv', 'site-packages', '__pycache__', '.tox', '.nox', '.pytest_cache', '.mypy_cache', '.ruff_cache',
+  'target', '.gradle', '.m2', '.sbt', '.bloop', '.metals', 'pods', '.build', '.swiftpm', 'deriveddata',
+  '.dart_tool', '.pub-cache', 'deps', '_build', '_opam', '.nuget', 'obj', '.terraform',
+  '.next', '.nuxt', '.turbo', '.svelte-kit', '.parcel-cache', '.test-dist', 'dist', 'build', 'coverage', '.cache',
+  '.idea', '.vscode', '.ssh', '.aws', '.kube', '.gnupg'];
 export const PROJECT_SOURCE_EXTENSIONS = ['txt','md','mdx','json','jsonc','csv','ts','tsx','js','jsx','mjs','cjs','py','html','htm','css','scss','sass','less','yaml','yml','toml','xml','sql','sh','bash','zsh','go','rs','java','kt','kts','swift','c','h','cpp','hpp','cs','php','rb','vue','svelte','graphql','gql','proto','ini','cfg','conf','lock','ipynb'];
 export function projectImportConfig() {
   return {
@@ -22,7 +29,7 @@ export function normalizeProjectPath(raw: unknown): string {
 export function projectPathAllowed(path: string): boolean {
   const parts = path.split('/');
   const basename = parts.at(-1)!.toLowerCase();
-  if (parts.slice(0, -1).some(part => PROJECT_IGNORED_DIRS.includes(part.toLowerCase()))) return false;
+  if (parts.slice(0, -1).some(part => PROJECT_IGNORED_DIRS.includes(part.toLowerCase()) || part.startsWith('.browser-agent-'))) return false;
   if (/^(?:\.env(?:\.|$)|\.npmrc$|\.pypirc$|credentials?(?:\.|$)|service[-_]account(?:\.|$)|secrets?(?:\.|$)|id_(?:rsa|ed25519)(?:\.|$))/.test(basename)) return false;
   if (/\.(?:pem|key|p12|pfx|keystore)$/.test(basename)) return false;
   return ['dockerfile','makefile','license','licence','.gitignore','.dockerignore','.editorconfig'].includes(basename) || PROJECT_SOURCE_EXTENSIONS.includes(basename.split('.').at(-1)!);

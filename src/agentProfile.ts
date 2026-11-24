@@ -31,7 +31,17 @@ function wholeParagraphs(text: string, limit: number): string {
 export const SPECIALIST_PROFILES: Record<string, string> = {
   "revenue-architect": "The Revenue Architect", "value-architect": "The Value Architect",
   "engineering-craftsman": "The Engineering Craftsman", "neural-architect": "The Neural Architect",
-  "systems-architect": "The Systems Architect", "chief-marketing-officer": "Chief Marketing Officer"
+  "systems-architect": "The Systems Architect", "chief-marketing-officer": "Chief Marketing Officer",
+  "product-marketing": "Product Marketing",
+  "demo-director": "Demo Director",
+  "website-designer": "Website Designer",
+  "wall-street-analyst": "Wall Street Analyst", "goldman-sachs-analyst": "Goldman Sachs Analyst",
+  "jim-cramer": "Jim Cramer",
+  "founder-operator": "Founder Operator",
+  "mark-zuckerberg": "Mark Zuckerberg", "alex-wang": "Alexandr Wang", "sundar-pichai": "Sundar Pichai",
+  "supervisor": "Supervisor Bot", "supercomputer": "Supercomputer",
+  "bot-creator": "Bot Creator", "critica": "Critica",
+  "blog-writer": "Blog Writer", "eb1a-research": "EB1A Research Agent"
 };
 
 export function loadAgentProfile(input: { profileId?: string; botInstructions?: string; botName: string; expertise?: string; task: string; event?: string; root?: string; approvedPlaybook?: string }): LoadedProfile {
@@ -43,8 +53,14 @@ export function loadAgentProfile(input: { profileId?: string; botInstructions?: 
   const soulFile = `${botDirectory}/soul.md`;
   let instructions = [readInside(root, "AGENTS.md"), existsSync(resolve(root, roleFile)) ? readInside(root, roleFile) : ""].filter(Boolean).join("\n\n");
   const soul = readInside(root, existsSync(resolve(root, soulFile)) ? soulFile : "soul.md");
+  // Operating rules and voice are separate budgets so personality is not squeezed out of soul.md.
   const coreBudget = envInteger("BROWSER_AGENT_CORE_PROFILE_CHARS", 2400);
-  if (instructions.length + soul.length > coreBudget) throw new Error("AGENTS.md and soul.md exceed BROWSER_AGENT_CORE_PROFILE_CHARS; shorten them or adjust the budget.");
+  const soulBudget = envInteger("BROWSER_AGENT_SOUL_CHARS", 900, 200, 4000);
+  if (instructions.length > coreBudget) throw new Error("AGENTS.md exceeds BROWSER_AGENT_CORE_PROFILE_CHARS; shorten role instructions or adjust the budget.");
+  if (soul.length > soulBudget) throw new Error("soul.md exceeds BROWSER_AGENT_SOUL_CHARS; keep voice compact or adjust the budget.");
+  if (!/\b(voice|tone|speak|blunt|warm|curious|pragmatic|hungry|candid|empathetic|analytical|certain|direct)\b/i.test(soul)) {
+    throw new Error("soul.md must carry an explicit speaking personality (voice/tone), not only methods.");
+  }
   const owner = redactSecrets((input.botInstructions || "").trim());
   if (owner.length > envInteger("BROWSER_AGENT_OWNER_PROFILE_CHARS", 12000)) throw new Error("Bot instructions exceed BROWSER_AGENT_OWNER_PROFILE_CHARS; shorten the profile or move references into a playbook.");
   if (owner) instructions += `\n\nOWNER BOT PROFILE (persistent preferences; subject to runtime permissions):\nApply this knowledge, perspective, priorities and tone throughout the work. Do not merely repeat or summarize it.\n${owner}`;

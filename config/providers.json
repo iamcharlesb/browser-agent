@@ -1,0 +1,9 @@
+[
+  {"id":"openai","label":"OpenAI","keyVariable":"OPENAI_API_KEY","modelVariable":"OPENAI_MODEL","urlVariable":"OPENAI_BASE_URL","apiVariable":"OPENAI_API_MODE","defaultModel":"gpt-5-mini","baseURL":"https://api.openai.com/v1","api":"responses"},
+  {"id":"qwen","label":"Qwen (Alibaba Cloud)","keyVariable":"QWEN_API_KEY","keyAliases":["DASHSCOPE_API_KEY"],"modelVariable":"QWEN_MODEL","urlVariable":"QWEN_BASE_URL","apiVariable":"QWEN_API_MODE","defaultModel":"qwen3.5-plus","baseURL":"https://dashscope-intl.aliyuncs.com/compatible-mode/v1","api":"chat"},
+  {"id":"kimi","label":"Kimi (Moonshot AI)","keyVariable":"KIMI_API_KEY","keyAliases":["MOONSHOT_API_KEY"],"modelVariable":"KIMI_MODEL","urlVariable":"KIMI_BASE_URL","apiVariable":"KIMI_API_MODE","defaultModel":"kimi-k3.1-pro","baseURL":"https://api.moonshot.ai/v1","api":"responses"},
+  {"id":"anthropic","label":"Anthropic","keyVariable":"ANTHROPIC_API_KEY","modelVariable":"ANTHROPIC_MODEL","urlVariable":"ANTHROPIC_BASE_URL","apiVariable":"ANTHROPIC_API_MODE","baseURL":"https://api.anthropic.com/v1/","api":"chat","headers":{"anthropic-version":"2023-06-01"}},
+  {"id":"xai","label":"xAI","keyVariable":"XAI_API_KEY","modelVariable":"XAI_MODEL","urlVariable":"XAI_BASE_URL","apiVariable":"XAI_API_MODE","baseURL":"https://api.x.ai/v1","api":"chat"},
+  {"id":"ollama","label":"Ollama (local)","modelVariable":"OLLAMA_MODEL","urlVariable":"OLLAMA_BASE_URL","apiVariable":"OLLAMA_API_MODE","baseURL":"http://127.0.0.1:11434/v1","api":"chat"},
+  {"id":"compatible","label":"Other OpenAI-compatible API","keyVariable":"COMPATIBLE_API_KEY","modelVariable":"COMPATIBLE_MODEL","urlVariable":"COMPATIBLE_BASE_URL","apiVariable":"COMPATIBLE_API_MODE","api":"chat"}
+]

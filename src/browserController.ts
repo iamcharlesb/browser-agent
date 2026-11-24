@@ -5,6 +5,7 @@ import { isCssSelector } from "./actionEffect";
 import { browserViewportSize } from "./apiContract";
 import { ensureManagedChrome, managedChromeEnabled } from "./managedChrome";
 import { desktopBrowserAvailable, desktopBrowserRequest } from "./desktopBrowser";
+import { connectCdp } from "./cdpConnection";
 import { createHash } from "node:crypto";
 import { mkdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
@@ -369,6 +370,7 @@ export interface BrowserConfig {
   userDataDir: string;
   /** When true, launches an isolated ephemeral Guest browser context without saving cookies/sessions to disk. */
   guestMode?: boolean;
+  managedChrome?: boolean;
   /**
    * When set, attach to an already-running Chrome (or Electron) via CDP instead of launching
    * Playwright's Chrome. Used by Connected Chrome and the in-app embedded browser.
@@ -376,7 +378,7 @@ export interface BrowserConfig {
   cdpEndpoint?: string;
   /** When true, CDP target is Electron's docked Live Browser — never focus-steal. */
   embeddedMode?: boolean;
-  /** Open Bots UI origin (e.g. http://127.0.0.1:8765) so embedded attach can skip the app chrome. */
+  /** Pilo UI origin (e.g. http://127.0.0.1:8765) so embedded attach can skip the app chrome. */
   uiOrigin?: string;
 }
 
@@ -559,7 +561,7 @@ export function accessDeniedRecoveryHint(sessionMode: SessionMode, url: string, 
   );
 }
 
-/** Pick Electron's Live Browser page — never the Open Bots UI webContents. */
+/** Pick Electron's Live Browser page — never the Pilo UI webContents. */
 async function pickEmbeddedLivePage(
   browser: Browser,
   uiOrigin?: string
@@ -801,15 +803,15 @@ export class BrowserController {
   }
 
   async newTab(url = "https://www.google.com/"): Promise<void> {
+    url = this.resolveNavigateUrl(url);
+    this.lastElements = [];
     if (this.config.embeddedMode && desktopBrowserAvailable()) {
       await desktopBrowserRequest({ type: "new_tab", url });
       await this.syncEmbeddedPage();
       return;
     }
-    // Compatibility for an older desktop without the workspace broker.
     if (this.config.embeddedMode) {
-      await this.navigate(url || "about:blank");
-      return;
+      throw new BrowserActionError("Opening a separate tab requires the desktop browser workspace. The current tab was preserved.");
     }
     if (!this.context) await this.start();
     if (!this.context) {
@@ -873,7 +875,7 @@ export class BrowserController {
       const identity = this.config.userAgent ? { userAgent: this.config.userAgent } : {};
       if (this.config.cdpEndpoint) {
         const endpoint = this.config.cdpEndpoint;
-        if (!this.config.embeddedMode && managedChromeEnabled()) {
+        if (!this.config.embeddedMode && (this.config.managedChrome || managedChromeEnabled())) {
           await ensureManagedChrome(endpoint, this.config.userDataDir, probeCdpEndpoint);
         }
         const reachable = await probeCdpEndpoint(endpoint);
@@ -897,7 +899,7 @@ export class BrowserController {
             await desktopBrowserRequest({ type: "new_tab", url: "about:blank" });
           }
         }
-        const browser = await chromium.connectOverCDP(endpoint);
+        const browser = await connectCdp(endpoint, (target, options) => chromium.connectOverCDP(target, options));
         this.attachedBrowser = browser;
         if (this.config.embeddedMode) {
           if (desktopBrowserAvailable()) {
@@ -998,9 +1000,8 @@ export class BrowserController {
             `Could not attach to the in-app browser at ${this.config.cdpEndpoint}. ${cleanMessage}`
           );
         }
-        const { command } = chromeCdpLaunchCommand(this.config.cdpEndpoint, this.config.userDataDir);
         throw new BrowserActionError(
-          `Could not attach to Connected Chrome at ${this.config.cdpEndpoint}. ${cleanMessage}\nStart Chrome with:\n${command}`
+          `Chrome's automation connection at ${this.config.cdpEndpoint} failed after bounded attachment attempts: ${cleanMessage.split("\n")[0]}. No browser actions were executed by this connection. Keep non-browser preparation moving; live account work is unavailable until the connection recovers.`
         );
       }
       if (this.config.channel === "chrome") {
@@ -1131,6 +1132,16 @@ export class BrowserController {
     await this.requirePage().keyboard.press(normalizeBrowserKey(key));
   }
 
+  async remoteKeyDown(key: string): Promise<void> {
+    if (!key) return;
+    await this.requirePage().keyboard.down(normalizeBrowserKey(key));
+  }
+
+  async remoteKeyUp(key: string): Promise<void> {
+    if (!key) return;
+    await this.requirePage().keyboard.up(normalizeBrowserKey(key));
+  }
+
   async remoteScroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
     const page = this.requirePage();
     await page.mouse.move(x, y);
@@ -1250,7 +1261,10 @@ export class BrowserController {
     if (target.includes(".") && !target.includes(" ")) {
       return `https://${target}`;
     }
-    return `https://www.google.com/search?q=${encodeURIComponent(target)}`;
+    // Free-text queries must use the web_search tool — do not open a browser SERP.
+    throw new BrowserActionError(
+      `"${target.slice(0, 120)}" is not a page URL. Use web_search for queries, then navigate to a specific product or retailer URL if verification is needed.`
+    );
   }
 
   private async gotoOnPage(page: Page, resolvedUrl: string): Promise<void> {

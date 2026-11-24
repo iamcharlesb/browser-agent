@@ -154,3 +154,17 @@ test("redaction preserves JSON argument syntax for replayed tool calls", () => {
   assert.equal(safe.apiKey, "[REDACTED]");
   assert.equal(safe.target, "report");
 });
+
+test("bot persona safety reminders do not falsely gate read-only user requests", () => {
+  const blogDraft =
+    "Continue acting as Blog Writer (Role & Purpose: Professional human blogger. Outline → draft → you approve publish.). User request: Write a crisp 400-word technical blog article about local-first AI agents.";
+  assert.deepEqual(assessTaskRisk(blogDraft).approvalsRequired, []);
+
+  const founderTriage =
+    "Continue acting as Founder Operator (Role & Purpose: Chief-of-staff / COO. Approval before publish, spend, hire, or infra.). User request: Walk through a 14-day churn triage exercise for $18k MRR and 4 months runway.";
+  assert.deepEqual(assessTaskRisk(founderTriage).approvalsRequired, []);
+
+  const realPublish =
+    "Continue acting as Blog Writer (Role & Purpose: Outline → draft → you approve publish.). User request: Publish this article to Medium right now.";
+  assert.deepEqual(assessTaskRisk(realPublish).approvalsRequired, [approval]);
+});

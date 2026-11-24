@@ -20,6 +20,18 @@ test("observer drafts explicit corrections and coalesces repeated evidence witho
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
+test("observer records delivery misses for overnight supervisor review without a model", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "conversation-observer-miss-"));
+  try {
+    const observer = new ConversationObserver(directory);
+    const miss = await observer.observeTurn({ botName: "Alex Hormozi", userText: "man just create one landing page for a landscape funnel", outcomeRef: "outcome-miss" });
+    assert.equal(miss?.kind, "playbook");
+    assert.match(miss?.instruction || "", /Delivery miss|landing/i);
+    assert.equal(miss?.botId, "The_Value_Architect");
+    assert.equal((await observer.pending()).length, 1);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
 test("voice changes are written only after the operator approves a pending suggestion", async () => {
   const directory = await mkdtemp(join(tmpdir(), "conversation-observer-voice-"));
   try {

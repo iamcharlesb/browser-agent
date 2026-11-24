@@ -19,5 +19,5 @@
     }
     return Object.freeze({ getState: getState, setState: setState, subscribe: subscribe });
   }
-  root.OpenBuddyUI = Object.freeze({ createStore: createStore });
+  root.PiloUI = Object.freeze({ createStore: createStore });
 })(typeof window !== "undefined" ? window : globalThis);

@@ -1,9 +1,9 @@
 /**
- * OpenBuddy desktop shell — starts the local agent server and shows it in Electron.
+ * Pilo desktop shell — starts the local agent server and shows it in Electron.
  * Default browsing surface: docked WebContentsView (in-app), driven via Electron CDP.
  * Optional escape hatch: external Connected Chrome on port 9222 (handled by the agent server).
  */
-const { app, BrowserWindow, WebContentsView, session, shell, Menu, ipcMain, nativeImage } = require("electron");
+const { app, BrowserWindow, WebContentsView, session, shell, Menu, ipcMain, nativeImage, desktopCapturer } = require("electron");
 const { spawn } = require("node:child_process");
 const http = require("node:http");
 const net = require("node:net");
@@ -12,6 +12,10 @@ const { BrowserWorkspace, startBrowserBroker } = require("./browserWorkspace");
 const { getExternalGoogleSignInAppUrl, buildDesktopGoogleSignInUrl } = require("./googleSignIn");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
+// Product naming must not move the existing browser sessions or desktop state.
+const existingUserDataPath = app.getPath("userData");
+app.setName("Pilo");
+app.setPath("userData", existingUserDataPath);
 // Defaults to the dev output (dist/). `yarn desktop:built` points this at build/ so the desktop
 // shell can run the production copy instead.
 const SERVER_ENTRY = path.resolve(
@@ -80,7 +84,7 @@ function waitForServer(port, timeoutMs = 30000) {
       });
       req.on("error", () => {
         if (Date.now() - started > timeoutMs) {
-          reject(new Error("OpenBuddy server did not become ready in time."));
+          reject(new Error("Pilo server did not become ready in time."));
           return;
         }
         setTimeout(tryOnce, 250);
@@ -163,15 +167,30 @@ function isWorkspaceSender(event) {
   return Boolean(mainWindow && event.sender === mainWindow.webContents &&
     event.senderFrame === mainWindow.webContents.mainFrame);
 }
+let recordingSource = "interface";
+ipcMain.handle("recording:source", (event, mode) => {
+  if (!isWorkspaceSender(event)) throw new Error("Untrusted recording sender.");
+  if (!["interface", "window"].includes(mode)) throw new Error("Unknown recording source.");
+  recordingSource = mode;
+});
 
 function createWindow(port) {
+  session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+    if (!mainWindow || request.frame !== mainWindow.webContents.mainFrame || request.securityOrigin.replace(/\/$/, "") !== `http://127.0.0.1:${port}`) { callback(null); return; }
+    if (recordingSource === "interface") { callback({ video: request.frame }); return; }
+    try {
+      const sources = await desktopCapturer.getSources({ types: ["window"] });
+      const source = sources.find(item => item.id === mainWindow.getMediaSourceId());
+      callback(source ? { video: source } : null);
+    } catch { callback(null); }
+  });
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
     minWidth: 960,
     minHeight: 640,
-    title: "OpenBuddy",
-    icon: path.join(PROJECT_ROOT, "static", "open-bots-icon.png"),
+    title: "Pilo",
+    icon: path.join(PROJECT_ROOT, "static", "pilo-icon.png"),
     show: false,
     ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 14, y: 16 } } : {}),
     backgroundColor: "#f8f9fb",
@@ -219,13 +238,13 @@ function buildMenu() {
     ...(isMac
       ? [
           {
-            label: app.name,
+            label: "Pilo",
             submenu: [
-              { role: "about" },
+              { role: "about", label: "About Pilo" },
               { type: "separator" },
               { role: "services" },
               { type: "separator" },
-              { role: "hide" },
+              { role: "hide", label: "Hide Pilo" },
               { role: "hideOthers" },
               { role: "unhide" },
               { type: "separator" },
@@ -300,7 +319,7 @@ ipcMain.handle("auth:google-sign-in", async (event, handoff) => {
 
 async function boot() {
   if (process.platform === "darwin" && app.dock) {
-    const icon = nativeImage.createFromPath(path.join(PROJECT_ROOT, "static", "open-bots-icon.png"));
+    const icon = nativeImage.createFromPath(path.join(PROJECT_ROOT, "static", "pilo-dock-icon.png"));
     if (!icon.isEmpty()) app.dock.setIcon(icon);
   }
   buildMenu();

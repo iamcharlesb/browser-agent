@@ -2,6 +2,12 @@
   "version": 1,
   "playbooks": [
     {
+      "id": "demo-director",
+      "file": "demo-director.md",
+      "terms": ["demo director", "demo creator", "product demo", "demo video", "storyboard", "recording plan", "screen recording"],
+      "events": []
+    },
+    {
       "id": "coding-workflow",
       "file": "coding-workflow.md",
       "terms": [
@@ -57,9 +63,12 @@
       "file": "linkedin.md",
       "terms": [
         "linkedin",
+        "linkedin growth",
         "prospects",
         "icp",
-        "b2b"
+        "b2b",
+        "connection note",
+        "inmail"
       ],
       "events": []
     },
@@ -98,15 +107,37 @@
       ]
     },
     {
+      "id": "blog-writer",
+      "file": "blog-writer.md",
+      "terms": [
+        "blog writer",
+        "blog",
+        "article",
+        "essay",
+        "long-form",
+        "editorial",
+        "thought leadership",
+        "newsletter",
+        "amazon book",
+        "further reading",
+        "draft post"
+      ],
+      "events": [
+        "blog.draft.requested",
+        "blog.draft.completed",
+        "content.calendar.updated"
+      ]
+    },
+    {
       "id": "browser-writing",
       "file": "browser-writing.md",
       "terms": [
-        "blog",
-        "article",
-        "draft",
         "hero image",
         "upload",
-        "editor"
+        "editor",
+        "cms",
+        "magicsite editor",
+        "paste draft"
       ],
       "events": []
     },
@@ -153,7 +184,8 @@
         "acquisition cost",
         "lead generation",
         "offer design",
-        "business growth"
+        "business growth",
+        "inspired by alex hormozi"
       ],
       "events": [
         "marketing.strategy.updated",
@@ -177,6 +209,10 @@
         "distributed systems",
         "cloud architecture",
         "full stack",
+        "fullstack",
+        "devops",
+        "principal fullstack",
+        "cloud and devops",
         "microservices",
         "database architecture",
         "scalability",
@@ -210,7 +246,8 @@
         "code review",
         "developer experience",
         "ai-generated code",
-        "ai-assisted engineering"
+        "ai-assisted engineering",
+        "inspired by addy osmani"
       ],
       "events": [
         "architecture.design.proposed",
@@ -239,7 +276,8 @@
         "nanogpt",
         "llm evaluation",
         "agent orchestration",
-        "inference optimization"
+        "inference optimization",
+        "inspired by andrej karpathy"
       ],
       "events": [
         "ai.architecture.review.requested",
@@ -253,6 +291,21 @@
       ]
     },
     {
+      "id": "product-marketing",
+      "file": "product-marketing.md",
+      "terms": [
+        "product marketing",
+        "positioning",
+        "messaging",
+        "go-to-market",
+        "launch brief",
+        "sales enablement",
+        "battlecard",
+        "competitive differentiation"
+      ],
+      "events": []
+    },
+    {
       "id": "cmo",
       "file": "cmo.md",
       "terms": [
@@ -261,7 +314,9 @@
         "content strategy",
         "editorial calendar",
         "creator research",
-        "social growth"
+        "social growth",
+        "brand voice",
+        "channel mix"
       ],
       "events": [
         "content.calendar.requested",
@@ -270,6 +325,283 @@
         "marketing.report.requested",
         "creator.analysis.requested"
       ]
+    },
+    {
+      "id": "gif-animator",
+      "file": "gif-animator.md",
+      "terms": [
+        "gif",
+        "gif animator",
+        "animated gif",
+        "motion loop",
+        "storyboard",
+        "micro-animation",
+        "sticker"
+      ],
+      "events": []
+    },
+    {
+      "id": "funnel",
+      "file": "funnel.md",
+      "terms": [
+        "funnel",
+        "funnel specialist",
+        "conversion rate",
+        "drop-off",
+        "landing page",
+        "visitor to lead",
+        "lead to customer"
+      ],
+      "events": [
+        "funnel.design.proposed",
+        "funnel.conversion.updated",
+        "conversion.friction.detected"
+      ]
+    },
+    {
+      "id": "website-designer",
+      "file": "website-designer.md",
+      "terms": [
+        "website designer",
+        "web designer",
+        "website design",
+        "web design",
+        "landing page design",
+        "homepage",
+        "redesign",
+        "website",
+        "web page",
+        "lead capture",
+        "leads to customers",
+        "mockup"
+      ],
+      "events": [
+        "landing.page.created"
+      ]
+    },
+    {
+      "id": "founder-operator",
+      "file": "founder-operator.md",
+      "terms": [
+        "founder operator",
+        "chief of staff",
+        "operating cadence",
+        "okr",
+        "decision memo",
+        "weekly ops"
+      ],
+      "events": []
+    },
+    {
+      "id": "resume",
+      "file": "resume.md",
+      "terms": [
+        "resume",
+        "cv",
+        "resume bot",
+        "ats",
+        "linkedin about",
+        "quantified bullets"
+      ],
+      "events": []
+    },
+    {
+      "id": "mark-zuckerberg",
+      "file": "mark-zuckerberg.md",
+      "terms": [
+        "mark zuckerberg",
+        "product velocity",
+        "ship to learn",
+        "platform bet",
+        "social product"
+      ],
+      "events": []
+    },
+    {
+      "id": "alex-wang",
+      "file": "alex-wang.md",
+      "terms": [
+        "alex wang",
+        "alexandr wang",
+        "alexander wang",
+        "scale ai",
+        "data quality",
+        "evaluation infrastructure",
+        "frontier ai"
+      ],
+      "events": []
+    },
+    {
+      "id": "sundar-pichai",
+      "file": "sundar-pichai.md",
+      "terms": [
+        "sundar pichai",
+        "user-first",
+        "platform leadership",
+        "helpful ai",
+        "product priority"
+      ],
+      "events": []
+    },
+    {
+      "id": "influencer",
+      "file": "influencer.md",
+      "terms": [
+        "influencer",
+        "personal brand",
+        "content pillars",
+        "creator strategy",
+        "collaboration brief"
+      ],
+      "events": []
+    },
+    {
+      "id": "tpm",
+      "file": "tpm.md",
+      "terms": [
+        "tpm",
+        "technical program manager",
+        "program management",
+        "milestone",
+        "dependency",
+        "raid",
+        "launch readiness"
+      ],
+      "events": []
+    },
+    {
+      "id": "product-manager",
+      "file": "product-manager.md",
+      "terms": [
+        "product manager",
+        "prd",
+        "roadmap",
+        "job to be done",
+        "north star metric",
+        "product discovery",
+        "prioritization"
+      ],
+      "events": []
+    },
+    {
+      "id": "supervisor",
+      "file": "supervisor.md",
+      "terms": [
+        "supervisor",
+        "supervisor bot",
+        "overnight review",
+        "bot improvement",
+        "observer suggestion",
+        "delivery miss"
+      ],
+      "events": [
+        "observer.suggestion.proposed",
+        "observer.suggestion.reviewed"
+      ]
+    },
+    {
+      "id": "supercomputer",
+      "file": "supercomputer.md",
+      "terms": [
+        "supercomputer",
+        "project folder",
+        "self healing",
+        "self-healing",
+        "feature parity",
+        "research papers",
+        "jarvis",
+        "continuous improvement"
+      ],
+      "events": []
+    },
+    {
+      "id": "bot-creator",
+      "file": "bot-creator.md",
+      "terms": [
+        "bot creator",
+        "create a bot",
+        "spawn bot",
+        "new specialist",
+        "bot package",
+        "soul and agents"
+      ],
+      "events": []
+    },
+    {
+      "id": "critica",
+      "file": "critica.md",
+      "terms": [
+        "critica",
+        "critique",
+        "critical review",
+        "stress-test",
+        "roast",
+        "tear down"
+      ],
+      "events": []
+    },
+    {
+      "id": "team-collaboration",
+      "file": "team-collaboration.md",
+      "terms": [
+        "team collaboration",
+        "which bots",
+        "bot responsibilities",
+        "roles and responsibilities",
+        "multi-bot plan",
+        "how the funnel",
+        "funnels are going",
+        "complete plan",
+        "coordinate the bots",
+        "workspace roster"
+      ],
+      "events": []
+    },
+    {
+      "id": "ai-engineer",
+      "file": "ai-engineer.md",
+      "terms": [
+        "ai engineer",
+        "ai engineering",
+        "llm application",
+        "llm app",
+        "rag",
+        "retrieval augmented",
+        "eval harness",
+        "evals",
+        "prompt engineering",
+        "vector database",
+        "embeddings",
+        "function calling",
+        "fine-tuning",
+        "fine tuning"
+      ],
+      "events": []
+    },
+    {
+      "id": "wall-street-analyst",
+      "file": "wall-street-analyst.md",
+      "terms": [
+        "wall street analyst"
+      ],
+      "events": []
+    },
+    {
+      "id": "goldman-sachs-analyst",
+      "file": "goldman-sachs-analyst.md",
+      "terms": [
+        "goldman sachs analyst"
+      ],
+      "events": []
+    },
+    {
+      "id": "jim-cramer",
+      "file": "jim-cramer.md",
+      "terms": [
+        "jim cramer",
+        "mad money"
+      ],
+      "events": []
     }
   ]
 }

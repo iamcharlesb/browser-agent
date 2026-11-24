@@ -1,6 +1,7 @@
 node_modules/
 dist/
 build/
+release/
 *.log
 .env
 .env.*
@@ -13,6 +14,7 @@ artifacts/
 .browser-agent-learn/
 # Google-signed-in user profiles when Mongo is not configured.
 .browser-agent-users/
+.browser-agent-profiles/
 
 # Durable per-bot task continuity (private local runtime data).
 .browser-agent-task-memory/
@@ -23,6 +25,7 @@ artifacts/
 .browser-agent-workflows/
 .browser-agent-event-offsets/
 .browser-agent-queue.json
+.browser-agent-coordination.json
 
 # Isolate regression builds from the running dev watcher.
 .test-dist/
@@ -33,3 +36,10 @@ artifacts/
 
 # Local reusable source index (private code excerpts, never committed).
 .browser-agent-code-index/
+.browser-agent-updates/
+
+# Native VoiceNote build artifacts
+voice-note-macos/.build/
+
+# Generated named Electron shell; rebuilt from npm dependencies.
+.desktop/
