@@ -3408,6 +3408,33 @@ dialog.modal-dialog::backdrop {
   font-weight: 600;
   cursor: pointer;
 }
+#browser-profiles-modal .modal-inner {
+  display: grid;
+  gap: 18px;
+}
+#browser-profiles-modal .modal-header,
+#browser-profiles-modal .form-field,
+#browser-profiles-modal .modal-actions { margin: 0; }
+#browser-profiles-modal p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+#browser-profiles-modal .form-field select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 8px 11px;
+  background: #fff;
+  color: var(--text);
+  font-size: 13.5px;
+}
+#browser-profile-create { display: grid; gap: 14px; }
+#browser-profile-status { padding-top: 14px; border-top: 1px solid var(--border); }
 .schedule-list {
   margin-top: 14px;
   border-top: 1px solid var(--border);
@@ -3987,8 +4014,8 @@ dialog.modal-dialog::backdrop {
       </div>
       <div class="topbar-right">
         <div class="header-engine-switch" role="group" aria-label="Agent execution engine">
-          <button type="button" class="header-engine-btn active" data-agent-engine="openai-sdk" title="OpenAI Agents SDK (@openai/agents Runner) — default">OpenAI</button>
-          <button type="button" class="header-engine-btn" data-agent-engine="cheap" title="Cheap mode — token-lean local loop">Cheap</button>
+          <button type="button" class="header-engine-btn active" data-agent-engine="openai-sdk" title="Pilo native Node.js runner — default">Native</button>
+          <button type="button" class="header-engine-btn" data-agent-engine="cheap" title="Economy mode — token-lean local loop">Economy</button>
         </div>
         <button id="stop-run-btn" class="header-pill-btn danger" hidden title="Stop current bot run" aria-label="Stop current bot run">
           <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
@@ -4545,8 +4572,11 @@ dialog.modal-dialog::backdrop {
   <div class="modal-inner">
     <div class="modal-header"><h2 id="browser-profiles-title">Browser profiles</h2><button type="button" class="modal-close" data-close-modal="browser-profiles-modal" aria-label="Close">✕</button></div>
     <p>Keep separate website logins, cookies and sessions. Your bots and Pilo account stay the same.</p>
-    <label class="form-field">Active profile<select id="browser-profile-select" aria-label="Active browser profile"></select></label>
-    <form id="browser-profile-create"><label class="form-field">New profile name<input id="browser-profile-name" maxlength="60" required placeholder="Work, Personal, Client…" /></label><button type="submit" class="btn-secondary">Create profile</button></form>
+    <div class="form-field"><label for="browser-profile-select">Active profile</label><select id="browser-profile-select" aria-label="Active browser profile"></select></div>
+    <form id="browser-profile-create">
+      <div class="form-field"><label for="browser-profile-name">New profile name</label><input id="browser-profile-name" maxlength="60" required placeholder="Work, Personal, Client…" /></div>
+      <div class="modal-actions"><button type="submit" class="btn-secondary">Create profile</button></div>
+    </form>
     <p id="browser-profile-status" role="status">New profiles start signed out. Switch only when work is idle.</p>
   </div>
 </dialog>
@@ -11338,8 +11368,8 @@ dialog.modal-dialog::backdrop {
       renderInteractionModeUI();
       status.textContent =
         currentAgentEngine === "cheap"
-          ? "Cheap mode active: using token-lean custom loop."
-          : "OpenAI Agents SDK active (@openai/agents Runner).";
+          ? "Economy mode active: using token-lean custom loop."
+          : "Pilo native Node.js runner active.";
       focusComposer();
     });
   });
