@@ -1,7 +1,7 @@
 import { isSameOriginRequest, requestRejection } from "./requestSecurity";
 import { handleTerminalRequest } from "./terminalRoutes";
 import { envInteger, defaultModel } from "./runtimeConfig";
-import { providerCatalog, providerKey, providerDefinitions } from "./providerRegistry";
+import { providerApi, providerCatalog, providerDefinition, providerDefinitions, providerKey, providerModel, providerURL } from "./providerRegistry";
 import { readPlaybookPage } from "./agentProfile";
 import { AsyncAgentQueue } from "./asyncAgentQueue";
 import { DurableEventStream } from "./durableEventStream";
@@ -99,6 +99,7 @@ import {
 } from "./learnMode";
 import { createDefaultVerifier } from "./selfFix";
 import { parseTrigger, probeTrigger, ScheduleTrigger, TriggerState } from "./watchers";
+import { getWorkspacePluginsSummary, getWorkspaceReview } from "./workspaceReview";
 import { createPatchProposer } from "./patchProposer";
 import { FixApprovalGate } from "./fixApproval";
 import {
@@ -3109,6 +3110,112 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const body = await readJsonBody(req) as Record<string, unknown>;
       const result = await workspaceCode({ action: "index", root: typeof body.root === "string" ? body.root : "." }, WORKSPACE_ROOT, process.env.BROWSER_AGENT_CODE_INDEX_DIR || join(DATA_ROOT, ".browser-agent-code-index"));
       sendJson(res, 200, result);
+    } catch (error) { sendJson(res, 400, { detail: (error as Error).message }); }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/workspace/review") {
+    try {
+      const file = url.searchParams.get("file") || undefined;
+      const result = await getWorkspaceReview(WORKSPACE_ROOT, file);
+      sendJson(res, 200, result);
+    } catch (error) { sendJson(res, 400, { detail: (error as Error).message }); }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/workspace/files") {
+    try {
+      const cacheDir = process.env.BROWSER_AGENT_CODE_INDEX_DIR || join(DATA_ROOT, ".browser-agent-code-index");
+      const filePath = url.searchParams.get("path")?.trim();
+      const query = url.searchParams.get("query")?.trim();
+      const offset = Number(url.searchParams.get("offset") || "0") || 0;
+      if (filePath) {
+        const line = Number(url.searchParams.get("line") || "1") || 1;
+        const result = await workspaceCode({ action: "read", root: ".", path: filePath, line }, WORKSPACE_ROOT, cacheDir);
+        sendJson(res, 200, result);
+      } else if (query) {
+        const result = await workspaceCode({ action: "search", root: ".", query }, WORKSPACE_ROOT, cacheDir);
+        sendJson(res, 200, result);
+      } else {
+        const result = await workspaceCode({ action: "map", root: ".", offset }, WORKSPACE_ROOT, cacheDir);
+        sendJson(res, 200, result);
+      }
+    } catch (error) { sendJson(res, 400, { detail: (error as Error).message }); }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/workspace/plugins") {
+    sendJson(res, 200, getWorkspacePluginsSummary());
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/side-question") {
+    if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Side questions must come from this app." }); return; }
+    try {
+      const body = await readJsonBody(req) as Record<string, unknown>;
+      const question = typeof body.question === "string" ? body.question.trim() : "";
+      if (!question) throw new Error("Enter a question.");
+      const providerId = (typeof body.provider === "string" && body.provider.trim()) || process.env.BROWSER_AGENT_PROVIDER?.trim() || "openai";
+      const def = providerDefinition(providerId) || providerDefinition("openai");
+      if (!def) throw new Error("No model provider is configured.");
+      const model = (typeof body.model === "string" && body.model.trim()) || providerModel(def);
+      const baseURL = (providerURL(def) || "").replace(/\/+$/, "");
+      const apiKey = providerKey(def) || (def.id === "ollama" ? "local-ollama" : "");
+      const apiMode = providerApi(def);
+      if (!model || !baseURL) throw new Error(`Configure a model and endpoint for ${def.label} in Settings.`);
+      if (def.keyVariable && !apiKey) throw new Error(`Add your ${def.label} API key in Settings to ask side questions.`);
+
+      const systemText = "You are a concise side-question assistant inside Pilo. Answer directly without running tools or modifying files.";
+      const headers = {
+        "Content-Type": "application/json",
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        ...(def.headers ?? {})
+      };
+
+      let answer = "";
+      if (apiMode === "responses") {
+        const response = await fetch(`${baseURL}/responses`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model,
+            instructions: systemText,
+            input: question.slice(0, 6000)
+          })
+        });
+        if (!response.ok) throw new Error(`Provider returned HTTP ${response.status}.`);
+        const data = await response.json() as {
+          output_text?: string;
+          output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>;
+        };
+        const extracted =
+          typeof data.output_text === "string" && data.output_text.trim()
+            ? data.output_text.trim()
+            : (data.output ?? [])
+                .filter((item) => item?.type === "message" && Array.isArray(item.content))
+                .flatMap((item) => item.content ?? [])
+                .filter((block) => (block?.type === "output_text" || block?.type === "text") && typeof block.text === "string")
+                .map((block) => block.text!)
+                .join("\n")
+                .trim();
+        answer = redactSecrets(extracted || "No response returned.");
+      } else {
+        const response = await fetch(`${baseURL}/chat/completions`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: systemText },
+              { role: "user", content: question.slice(0, 6000) }
+            ]
+          })
+        });
+        if (!response.ok) throw new Error(`Provider returned HTTP ${response.status}.`);
+        const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+        answer = redactSecrets((data.choices?.[0]?.message?.content || "").trim() || "No response returned.");
+      }
+      sendJson(res, 200, { answer, model, provider: def.id, api: apiMode });
     } catch (error) { sendJson(res, 400, { detail: (error as Error).message }); }
     return;
   }

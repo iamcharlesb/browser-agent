@@ -2663,6 +2663,209 @@ dialog::backdrop {
 #browser-panel.artifact-mode #artifact-preview {
   display: flex;
 }
+#browser-panel.utility-mode #browser-viewport,
+#browser-panel.utility-mode #browser-tabs,
+#browser-panel.utility-mode .browser-toolbar,
+#browser-panel.utility-mode #browser-footer,
+#browser-panel.utility-mode #terminal-view,
+#browser-panel.utility-mode #artifact-preview {
+  display: none !important;
+}
+.workspace-pane-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+  flex: 0 0 auto;
+}
+.pane-tablist {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.pane-tablist::-webkit-scrollbar { display: none; }
+.pane-tab {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pane-tab:hover { color: #0f172a; }
+.pane-tab[aria-selected="true"] {
+  color: #0f172a;
+}
+.pane-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 6px 0;
+  border-block-end: 2px solid #2563eb;
+}
+.pane-tab svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.pane-bar-btn {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.pane-bar-btn:hover { background: #f1f5f9; color: #0f172a; }
+.pane-bar-btn.plus-btn { background: #f1f5f9; }
+.pane-bar-btn.plus-btn:hover { background: #e2e8f0; }
+.pane-bar-spacer { flex: 1 1 auto; }
+#workspace-utility-views {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  background: #fff;
+  color: #0f172a;
+  overflow: hidden;
+}
+#browser-panel.utility-mode #workspace-utility-views { display: flex; }
+.utility-tabpanel { flex: 1; min-height: 0; overflow-y: auto; }
+.utility-tabpanel[hidden] { display: none !important; }
+.utility-panel-inner { padding: 18px 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+.launcher-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1.5px solid #93c5fd;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+.launcher-search-wrap svg { width: 16px; height: 16px; color: #64748b; flex: 0 0 auto; }
+.launcher-search-input {
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: #0f172a;
+}
+.launcher-list { display: flex; flex-direction: column; gap: 2px; }
+.launcher-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #1e293b;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.launcher-item:hover, .launcher-item:focus-visible { background: #f8fafc; outline: none; }
+.launcher-item svg { width: 16px; height: 16px; color: #475569; flex: 0 0 auto; }
+.launcher-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.launcher-item-meta { font-size: 12px; color: #64748b; }
+.launcher-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+.launcher-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+}
+.launcher-see-all {
+  align-self: flex-start;
+  margin-left: 10px;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.launcher-see-all:hover { color: #0f172a; text-decoration: underline; }
+.utility-subhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.utility-subhead h3 { margin: 0; font-size: 14px; font-weight: 600; color: #0f172a; }
+.utility-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.utility-btn:hover { background: #f8fafc; }
+.utility-code-box {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+.utility-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+}
+.utility-badge.ok { background: #dcfce7; color: #166534; }
+.side-q-thread { display: flex; flex-direction: column; gap: 10px; }
+.side-q-msg { padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+.side-q-msg.user { background: #f1f5f9; align-self: flex-end; max-width: 90%; }
+.side-q-msg.assistant { background: #fff; border: 1px solid var(--border); }
+.side-q-form { display: flex; gap: 8px; }
+.side-q-form input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 13px; }
 .artifact-preview-bar {
   min-width: 0;
   min-height: 40px;
@@ -4056,6 +4259,117 @@ dialog.modal-dialog::backdrop {
 
       <section id="browser-panel" aria-label="Local Browser and Terminal">
         <div id="workspace-resizer" class="panel-resizer" role="separator" aria-orientation="vertical" aria-label="Drag to resize chat and browser/terminal panels (double-click to reset)" title="Drag to adjust panel width (double-click to reset 50/50)"></div>
+        <div id="workspace-pane-bar" class="workspace-pane-bar">
+          <div id="pane-tablist" class="pane-tablist" role="tablist" aria-label="Workspace utility tabs">
+            <button type="button" class="pane-tab" role="tab" id="pane-tab-review" data-pane="review" aria-selected="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M12 18v-6M9 15h6"/></svg>
+              <span>Review</span>
+            </button>
+            <button type="button" class="pane-tab" role="tab" id="pane-tab-browser" data-pane="browser" aria-selected="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17M12 3c2.2 2.4 3.2 5.4 3.2 9s-1 6.6-3.2 9c-2.2-2.4-3.2-5.4-3.2-9S9.8 5.4 12 3Z"/></svg>
+              <span>Browser</span>
+            </button>
+            <button type="button" class="pane-tab" role="tab" id="pane-tab-terminal" data-pane="terminal" aria-selected="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 10 3 2.5L7 15M12 15h5"/></svg>
+              <span>Terminal</span>
+            </button>
+          </div>
+          <button type="button" id="pane-new-tab-btn" class="pane-bar-btn plus-btn" title="Open workspace launcher" aria-label="Open workspace launcher">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <span class="pane-bar-spacer"></span>
+          <button type="button" id="pane-expand-btn" class="pane-bar-btn" title="Toggle fullscreen pane" aria-label="Toggle fullscreen pane">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+          </button>
+          <button type="button" id="pane-collapse-btn" class="pane-bar-btn" title="Toggle side pane" aria-label="Toggle side pane">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>
+          </button>
+        </div>
+        <div id="workspace-utility-views">
+          <div id="pane-launcher-view" class="utility-tabpanel" role="tabpanel" aria-label="Workspace launcher" hidden>
+            <div class="utility-panel-inner">
+              <form id="launcher-search-form" class="launcher-search-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input id="launcher-search-input" class="launcher-search-input" type="search" placeholder="Search or enter a URL" aria-label="Search tools or enter a URL" autocomplete="off" />
+              </form>
+              <div id="launcher-actions-list" class="launcher-list">
+                <button type="button" class="launcher-item" data-launch="review">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M12 18v-6M9 15h6"/></svg>
+                  <span class="launcher-item-label">Review</span>
+                </button>
+                <button type="button" class="launcher-item" data-launch="file">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+                  <span class="launcher-item-label">Open File</span>
+                </button>
+                <button type="button" class="launcher-item" data-launch="terminal">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 10 3 2.5L7 15M12 15h5"/></svg>
+                  <span class="launcher-item-label">Terminal</span>
+                </button>
+                <button type="button" class="launcher-item" data-launch="browser">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17M12 3c2.2 2.4 3.2 5.4 3.2 9s-1 6.6-3.2 9c-2.2-2.4-3.2-5.4-3.2-9S9.8 5.4 12 3Z"/></svg>
+                  <span class="launcher-item-label">Browser</span>
+                </button>
+                <button type="button" class="launcher-item" data-launch="side-question">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7M18 15v6M15 18h6"/></svg>
+                  <span class="launcher-item-label">Side Question</span>
+                </button>
+                <button type="button" class="launcher-item" data-launch="plugins">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
+                  <span class="launcher-item-label">Plugins</span>
+                  <span class="launcher-item-meta" aria-hidden="true">›</span>
+                </button>
+              </div>
+              <div class="launcher-section-head"><span>Subagents</span><span id="launcher-subagents-count" class="launcher-count-pill">0</span></div>
+              <div id="launcher-subagents-list" class="launcher-list"></div>
+              <div class="launcher-section-head"><span>Background Tasks</span><span id="launcher-tasks-count" class="launcher-count-pill">0</span></div>
+              <div id="launcher-tasks-list" class="launcher-list"></div>
+              <button type="button" id="launcher-tasks-see-all" class="launcher-see-all" hidden>See all</button>
+            </div>
+          </div>
+          <div id="pane-review-view" class="utility-tabpanel" role="tabpanel" aria-labelledby="pane-tab-review" hidden>
+            <div class="utility-panel-inner">
+              <div class="utility-subhead">
+                <h3 id="review-branch-title">Workspace Review</h3>
+                <button type="button" id="review-refresh-btn" class="utility-btn">Refresh</button>
+              </div>
+              <div id="review-files-list" class="launcher-list"></div>
+              <pre id="review-diff-box" class="utility-code-box">Click Refresh to inspect git changes in the workspace.</pre>
+            </div>
+          </div>
+          <div id="pane-file-view" class="utility-tabpanel" role="tabpanel" aria-label="Open workspace file" hidden>
+            <div class="utility-panel-inner">
+              <div class="utility-subhead">
+                <h3>Open File</h3>
+                <button type="button" id="file-refresh-btn" class="utility-btn">Refresh</button>
+              </div>
+              <input id="file-filter-input" class="launcher-search-input" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;" type="search" placeholder="Filter workspace files…" aria-label="Filter workspace files" autocomplete="off" />
+              <div id="file-picker-list" class="launcher-list"></div>
+              <pre id="file-content-box" class="utility-code-box" hidden></pre>
+            </div>
+          </div>
+          <div id="pane-side-question-view" class="utility-tabpanel" role="tabpanel" aria-label="Side Question" hidden>
+            <div class="utility-panel-inner">
+              <div class="utility-subhead">
+                <h3>Side Question</h3>
+                <span class="utility-badge">Isolated · No tools</span>
+              </div>
+              <div id="side-q-thread" class="side-q-thread"></div>
+              <form id="side-q-form" class="side-q-form">
+                <input id="side-q-input" type="text" placeholder="Ask a quick question without interrupting the active bot…" autocomplete="off" />
+                <button type="submit" class="utility-btn">Ask</button>
+              </form>
+            </div>
+          </div>
+          <div id="pane-plugins-view" class="utility-tabpanel" role="tabpanel" aria-label="Plugins and Gateway" hidden>
+            <div class="utility-panel-inner">
+              <div class="utility-subhead">
+                <h3>Plugins, Providers &amp; Agent Gateway</h3>
+                <button type="button" id="plugins-refresh-btn" class="utility-btn">Refresh</button>
+              </div>
+              <div id="plugins-content" class="launcher-list"></div>
+            </div>
+          </div>
+        </div>
         <button id="browser-restore-chrome" type="button" title="Show browser URL bar">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>
           <span>URL Bar</span>
@@ -6281,13 +6595,15 @@ dialog.modal-dialog::backdrop {
 
   function setPanelMode(mode) {
     var isTerm = mode === "terminal";
-    if (isTerm || mode === "browser") {
+    var isUtility = mode === "utility";
+    if (isTerm || mode === "browser" || isUtility) {
       // Keep artifact mode when showBrowser() is only preparing the right pane for a preview open.
-      if (isTerm || !browserPanelEl.classList.contains("artifact-opening")) closeArtifactPreview();
+      if (isTerm || isUtility || !browserPanelEl.classList.contains("artifact-opening")) closeArtifactPreview();
     }
     browserPanelEl.classList.toggle("terminal-mode", isTerm);
+    browserPanelEl.classList.toggle("utility-mode", isUtility);
     if (toggleTerminalBtn) toggleTerminalBtn.classList.toggle("active", isTerm && workspace.classList.contains("has-browser"));
-    toggleBrowserBtn.classList.toggle("active", !isTerm && workspace.classList.contains("has-browser"));
+    toggleBrowserBtn.classList.toggle("active", !isTerm && !isUtility && workspace.classList.contains("has-browser"));
     if (isTerm) {
       setTimeout(function() {
         var inp = document.getElementById("terminal-input");
@@ -6296,10 +6612,16 @@ dialog.modal-dialog::backdrop {
     }
     syncLiveBrowserChrome();
   }
+  window.__piloSetPanelMode = setPanelMode;
+  window.__piloSyncLiveBrowserChrome = syncLiveBrowserChrome;
+  window.__piloGetActiveBotName = function() {
+    var active = typeof activeAgent === "function" ? activeAgent() : null;
+    return active && active.name ? active.name : "";
+  };
 
   function syncLiveBrowserChrome() {
     scheduleBrowserViewportResize();
-    var panelVisible = workspace.classList.contains("has-browser") && !browserPanelEl.classList.contains("terminal-mode") && !browserPanelEl.classList.contains("artifact-mode") && !document.querySelector("dialog[open]");
+    var panelVisible = workspace.classList.contains("has-browser") && !browserPanelEl.classList.contains("terminal-mode") && !browserPanelEl.classList.contains("artifact-mode") && !browserPanelEl.classList.contains("utility-mode") && !document.querySelector("dialog[open]");
     var useEmbeddedView = Boolean(desktopApi) && embeddedAvailable && currentSessionMode === "embedded" && panelVisible;
     browserPanelEl.classList.toggle("embedded-live", useEmbeddedView);
     if (!workspace.classList.contains("has-browser") || !workspace.classList.contains("chat-collapsed")) appEl.classList.remove("browser-focus");
@@ -11461,6 +11783,388 @@ dialog.modal-dialog::backdrop {
     reconcileOwnerRunFromStatus(activeAgentId);
     scheduleQueuedRun();
   });
+})();
+</script>
+<script>
+(function() {
+  var panel = document.getElementById("browser-panel");
+  var workspace = document.getElementById("workspace");
+  var tablist = document.getElementById("pane-tablist");
+  var newTabBtn = document.getElementById("pane-new-tab-btn");
+  var expandBtn = document.getElementById("pane-expand-btn");
+  var collapseBtn = document.getElementById("pane-collapse-btn");
+  var launcherSearchForm = document.getElementById("launcher-search-form");
+  var launcherSearchInput = document.getElementById("launcher-search-input");
+  var subagentsList = document.getElementById("launcher-subagents-list");
+  var subagentsCount = document.getElementById("launcher-subagents-count");
+  var tasksList = document.getElementById("launcher-tasks-list");
+  var tasksCount = document.getElementById("launcher-tasks-count");
+  var tasksSeeAllBtn = document.getElementById("launcher-tasks-see-all");
+  var showAllTasks = false;
+  var cachedFiles = [];
+
+  if (!panel || !tablist) return;
+
+  var viewIds = {
+    launcher: "pane-launcher-view",
+    review: "pane-review-view",
+    file: "pane-file-view",
+    "side-question": "pane-side-question-view",
+    plugins: "pane-plugins-view"
+  };
+
+  function ensurePaneOpen() {
+    if (workspace && !workspace.classList.contains("has-browser")) {
+      workspace.classList.add("has-browser");
+    }
+  }
+
+  function setSelectedTab(mode) {
+    var tabs = Array.prototype.slice.call(tablist.querySelectorAll('[role="tab"]'));
+    tabs.forEach(function(tab) {
+      var active = tab.getAttribute("data-pane") === mode;
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+      if (active && typeof tab.scrollIntoView === "function") {
+        tab.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
+    });
+  }
+
+  function openUtilityMode(mode) {
+    ensurePaneOpen();
+    if (mode === "browser") {
+      if (typeof window.__piloSetPanelMode === "function") window.__piloSetPanelMode("browser");
+      else panel.classList.remove("utility-mode", "terminal-mode", "artifact-mode");
+      setSelectedTab("browser");
+      return;
+    }
+    if (mode === "terminal") {
+      if (typeof window.__piloSetPanelMode === "function") window.__piloSetPanelMode("terminal");
+      else {
+        panel.classList.remove("utility-mode", "artifact-mode");
+        panel.classList.add("terminal-mode");
+      }
+      setSelectedTab("terminal");
+      var termInput = document.getElementById("terminal-input");
+      if (termInput) termInput.focus();
+      return;
+    }
+
+    if (typeof window.__piloSetPanelMode === "function") window.__piloSetPanelMode("utility");
+    else {
+      panel.classList.remove("terminal-mode", "artifact-mode");
+      panel.classList.add("utility-mode");
+    }
+    setSelectedTab(mode);
+    Object.keys(viewIds).forEach(function(key) {
+      var el = document.getElementById(viewIds[key]);
+      if (el) el.hidden = key !== mode;
+    });
+
+    if (mode === "launcher") {
+      refreshLauncherData();
+      if (launcherSearchInput) launcherSearchInput.focus();
+    } else if (mode === "review") {
+      loadReview();
+    } else if (mode === "file") {
+      loadWorkspaceFiles();
+    } else if (mode === "plugins") {
+      loadPlugins();
+    } else if (mode === "side-question") {
+      var sqInput = document.getElementById("side-q-input");
+      if (sqInput) sqInput.focus();
+    }
+  }
+
+  function makeEl(tag, className, text) {
+    var el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  function refreshLauncherData() {
+    var activeBot = typeof window.__piloGetActiveBotName === "function" ? window.__piloGetActiveBotName() : "";
+    var coordUrl = "/api/coordination" + (activeBot ? "?bot=" + encodeURIComponent(activeBot) : "");
+    Promise.all([
+      fetch(coordUrl).then(function(r) { return r.ok ? r.json() : {}; }).catch(function() { return {}; }),
+      fetch("/api/run/jobs").then(function(r) { return r.ok ? r.json() : {}; }).catch(function() { return {}; }),
+      fetch("/api/workflows").then(function(r) { return r.ok ? r.json() : {}; }).catch(function() { return {}; })
+    ]).then(function(results) {
+      var coord = results[0] || {};
+      var jobsData = results[1] || {};
+      var wfData = results[2] || {};
+      var subagents = Array.isArray(coord.consultations) ? coord.consultations : [];
+      var jobs = Array.isArray(jobsData.jobs) ? jobsData.jobs : [];
+      var wfTasks = [];
+      (Array.isArray(wfData.workflows) ? wfData.workflows : []).forEach(function(wf) {
+        (Array.isArray(wf.tasks) ? wf.tasks : []).forEach(function(t) {
+          wfTasks.push({ label: t.task || t.botName || t.id, status: t.status || "queued" });
+        });
+      });
+      var allTasks = jobs.map(function(j) {
+        return { label: j.task || j.botName || j.jobId || "Background run", status: j.status || "running" };
+      }).concat(wfTasks);
+
+      subagentsCount.textContent = String(subagents.length);
+      subagentsList.textContent = "";
+      if (!subagents.length) {
+        subagentsList.appendChild(makeEl("div", "launcher-item-meta", "No active subagents yet."));
+      } else {
+        subagents.slice(0, 8).forEach(function(item) {
+          var btn = makeEl("button", "launcher-item");
+          btn.type = "button";
+          var statusIcon = makeEl("span", "utility-badge" + (item.status === "completed" ? " ok" : ""), item.status === "completed" ? "✓" : "●");
+          btn.appendChild(statusIcon);
+          btn.appendChild(makeEl("span", "launcher-item-label", item.toBot || item.fromBot || "Specialist"));
+          btn.appendChild(makeEl("span", "launcher-item-meta", item.status || ""));
+          subagentsList.appendChild(btn);
+        });
+      }
+
+      tasksCount.textContent = String(allTasks.length);
+      tasksList.textContent = "";
+      var visibleTasks = showAllTasks ? allTasks : allTasks.slice(0, 4);
+      if (!visibleTasks.length) {
+        tasksList.appendChild(makeEl("div", "launcher-item-meta", "No background tasks running."));
+      } else {
+        visibleTasks.forEach(function(task) {
+          var btn = makeEl("button", "launcher-item");
+          btn.type = "button";
+          btn.appendChild(makeEl("span", "utility-badge" + (task.status === "completed" ? " ok" : ""), task.status === "completed" ? "✓" : "▸"));
+          btn.appendChild(makeEl("span", "launcher-item-label", task.label));
+          btn.appendChild(makeEl("span", "launcher-item-meta", task.status));
+          tasksList.appendChild(btn);
+        });
+      }
+      if (tasksSeeAllBtn) {
+        tasksSeeAllBtn.hidden = allTasks.length <= 4;
+        tasksSeeAllBtn.textContent = showAllTasks ? "Show less" : "See all";
+      }
+      applyLauncherFilter();
+    });
+  }
+
+  function applyLauncherFilter() {
+    var q = (launcherSearchInput && launcherSearchInput.value || "").trim().toLowerCase();
+    var items = document.querySelectorAll("#pane-launcher-view .launcher-item");
+    Array.prototype.forEach.call(items, function(item) {
+      var text = (item.textContent || "").toLowerCase();
+      item.hidden = Boolean(q) && text.indexOf(q) === -1;
+    });
+  }
+
+  function loadReview(file) {
+    var title = document.getElementById("review-branch-title");
+    var list = document.getElementById("review-files-list");
+    var diffBox = document.getElementById("review-diff-box");
+    var url = "/api/workspace/review" + (file ? "?file=" + encodeURIComponent(file) : "");
+    fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+      if (title) title.textContent = data.branch ? "Review · " + data.branch : "Workspace Review";
+      if (list) {
+        list.textContent = "";
+        var files = Array.isArray(data.files) ? data.files : [];
+        if (!files.length) {
+          list.appendChild(makeEl("div", "launcher-item-meta", data.gitAvailable === false ? "Workspace is not a Git repository." : "Working tree clean."));
+        } else {
+          files.forEach(function(f) {
+            var btn = makeEl("button", "launcher-item");
+            btn.type = "button";
+            btn.appendChild(makeEl("span", "utility-badge", f.status));
+            btn.appendChild(makeEl("span", "launcher-item-label", f.path));
+            btn.addEventListener("click", function() { loadReview(f.path); });
+            list.appendChild(btn);
+          });
+        }
+      }
+      if (diffBox) {
+        diffBox.textContent = data.diff || data.diffStat || "No unstaged diff to display.";
+      }
+    }).catch(function(err) {
+      if (diffBox) diffBox.textContent = "Review error: " + (err && err.message ? err.message : String(err));
+    });
+  }
+
+  function loadWorkspaceFiles() {
+    var list = document.getElementById("file-picker-list");
+    var contentBox = document.getElementById("file-content-box");
+    var filterInput = document.getElementById("file-filter-input");
+    var collected = [];
+    var pageCount = 0;
+
+    function fetchPage(offset) {
+      return fetch("/api/workspace/files?offset=" + encodeURIComponent(String(offset)))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var pageFiles = Array.isArray(data.files)
+            ? data.files.map(function(f) { return typeof f === "string" ? f : f.path; })
+            : [];
+          collected = collected.concat(pageFiles);
+          pageCount += 1;
+          if (typeof data.nextOffset === "number" && data.nextOffset > offset && pageCount < 25) {
+            return fetchPage(data.nextOffset);
+          }
+          cachedFiles = collected;
+          renderFileList(filterInput ? filterInput.value : "");
+        });
+    }
+
+    fetchPage(0).catch(function(err) {
+      if (list) { list.textContent = ""; list.appendChild(makeEl("div", "launcher-item-meta", String(err))); }
+      if (contentBox) contentBox.hidden = true;
+    });
+  }
+
+  function renderFileList(query) {
+    var list = document.getElementById("file-picker-list");
+    var contentBox = document.getElementById("file-content-box");
+    if (!list) return;
+    var q = (query || "").trim().toLowerCase();
+    var matches = cachedFiles.filter(function(p) { return !q || p.toLowerCase().indexOf(q) !== -1; }).slice(0, 40);
+    list.textContent = "";
+    if (!matches.length) {
+      list.appendChild(makeEl("div", "launcher-item-meta", "No matching workspace files."));
+      return;
+    }
+    matches.forEach(function(filePath) {
+      var btn = makeEl("button", "launcher-item");
+      btn.type = "button";
+      btn.appendChild(makeEl("span", "launcher-item-label", filePath));
+      btn.addEventListener("click", function() {
+        fetch("/api/workspace/files?path=" + encodeURIComponent(filePath))
+          .then(function(r) { return r.json(); })
+          .then(function(doc) {
+            if (contentBox) {
+              contentBox.hidden = false;
+              contentBox.textContent = doc.text || doc.detail || "";
+            }
+          });
+      });
+      list.appendChild(btn);
+    });
+  }
+
+  function loadPlugins() {
+    var container = document.getElementById("plugins-content");
+    if (!container) return;
+    fetch("/api/workspace/plugins").then(function(r) { return r.json(); }).then(function(data) {
+      container.textContent = "";
+      container.appendChild(makeEl("div", "launcher-section-head", "Agent Gateway Protocols"));
+      (data.protocols || []).forEach(function(p) {
+        var row = makeEl("div", "launcher-item");
+        row.appendChild(makeEl("span", "utility-badge ok", p.status));
+        row.appendChild(makeEl("span", "launcher-item-label", p.name + " — " + p.description));
+        container.appendChild(row);
+      });
+      container.appendChild(makeEl("div", "launcher-section-head", "Configured Model Providers"));
+      (data.providers || []).forEach(function(p) {
+        var row = makeEl("div", "launcher-item");
+        row.appendChild(makeEl("span", "utility-badge" + (p.configured ? " ok" : ""), p.configured ? "ready" : "unset"));
+        row.appendChild(makeEl("span", "launcher-item-label", p.label + (p.model ? " (" + p.model + ")" : "")));
+        container.appendChild(row);
+      });
+      container.appendChild(makeEl("div", "launcher-section-head", "Built-in Workspace Tools"));
+      (data.tools || []).forEach(function(t) {
+        var row = makeEl("div", "launcher-item");
+        row.appendChild(makeEl("span", "utility-badge", t.category));
+        row.appendChild(makeEl("span", "launcher-item-label", t.name + " — " + t.description));
+        container.appendChild(row);
+      });
+    });
+  }
+
+  tablist.addEventListener("click", function(e) {
+    var tab = e.target && e.target.closest ? e.target.closest('[role="tab"]') : null;
+    if (!tab) return;
+    openUtilityMode(tab.getAttribute("data-pane") || "browser");
+  });
+
+  if (newTabBtn) {
+    newTabBtn.addEventListener("click", function() { openUtilityMode("launcher"); });
+  }
+  if (expandBtn) {
+    expandBtn.addEventListener("click", function() {
+      var orig = document.getElementById("browser-expand-btn");
+      if (orig) orig.click();
+    });
+  }
+  if (collapseBtn) {
+    collapseBtn.addEventListener("click", function() {
+      var orig = document.getElementById("browser-collapse-btn");
+      if (orig) orig.click();
+    });
+  }
+
+  document.querySelectorAll("[data-launch]").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      openUtilityMode(btn.getAttribute("data-launch") || "launcher");
+    });
+  });
+
+  if (launcherSearchInput) {
+    launcherSearchInput.addEventListener("input", applyLauncherFilter);
+  }
+  if (launcherSearchForm) {
+    launcherSearchForm.addEventListener("submit", function(e) {
+      e.preventDefault();
+      var value = (launcherSearchInput && launcherSearchInput.value || "").trim();
+      if (!value) return;
+      if (/^https?:\/\//i.test(value) || /^localhost(?::\d+)?/i.test(value) || /^[a-z0-9-]+\.[a-z]{2,}/i.test(value)) {
+        var targetUrl = /^https?:\/\//i.test(value) ? value : "https://" + value;
+        openUtilityMode("browser");
+        var addr = document.getElementById("browser-address");
+        var go = document.getElementById("browser-go");
+        if (addr) addr.value = targetUrl;
+        if (go) go.click();
+        return;
+      }
+      var firstVisible = document.querySelector("#launcher-actions-list .launcher-item:not([hidden])");
+      if (firstVisible) firstVisible.click();
+    });
+  }
+
+  if (tasksSeeAllBtn) {
+    tasksSeeAllBtn.addEventListener("click", function() {
+      showAllTasks = !showAllTasks;
+      refreshLauncherData();
+    });
+  }
+
+  var reviewRefreshBtn = document.getElementById("review-refresh-btn");
+  if (reviewRefreshBtn) reviewRefreshBtn.addEventListener("click", function() { loadReview(); });
+  var fileRefreshBtn = document.getElementById("file-refresh-btn");
+  if (fileRefreshBtn) fileRefreshBtn.addEventListener("click", loadWorkspaceFiles);
+  var fileFilterInput = document.getElementById("file-filter-input");
+  if (fileFilterInput) fileFilterInput.addEventListener("input", function() { renderFileList(fileFilterInput.value); });
+  var pluginsRefreshBtn = document.getElementById("plugins-refresh-btn");
+  if (pluginsRefreshBtn) pluginsRefreshBtn.addEventListener("click", loadPlugins);
+
+  var sideQForm = document.getElementById("side-q-form");
+  var sideQInput = document.getElementById("side-q-input");
+  var sideQThread = document.getElementById("side-q-thread");
+  if (sideQForm && sideQInput && sideQThread) {
+    sideQForm.addEventListener("submit", function(e) {
+      e.preventDefault();
+      var q = sideQInput.value.trim();
+      if (!q) return;
+      sideQInput.value = "";
+      sideQThread.appendChild(makeEl("div", "side-q-msg user", q));
+      var pending = makeEl("div", "side-q-msg assistant", "Thinking…");
+      sideQThread.appendChild(pending);
+      fetch("/api/side-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q })
+      })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+          pending.textContent = res.ok ? (res.data.answer || "No response.") : (res.data.detail || "Unable to answer.");
+        })
+        .catch(function(err) {
+          pending.textContent = "Error: " + (err && err.message ? err.message : String(err));
+        });
+    });
+  }
 })();
 </script>
 <script>
