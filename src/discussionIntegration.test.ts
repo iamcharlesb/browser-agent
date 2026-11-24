@@ -568,7 +568,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
           return { width: box.width, height: box.height, character: avatar.querySelector('.pilo-character')?.getAttribute('data-character'), fits: box.left >= row.left && box.right <= row.right };
         }));
         assert.deepEqual(roleIcons.map(icon => icon.character), ["yellow", "blogger", "blob", "heart"], "saved repeated icons become distinct preview characters");
-        assert.ok(roleIcons.every(icon => icon.width === 40 && icon.height === 40 && icon.fits), "larger icons fit the collapsed sidebar");
+        assert.ok(roleIcons.every(icon => icon.width === 38 && icon.height === 38 && icon.fits), "larger icons fit the collapsed sidebar");
         await page.locator('#toggle-sidebar-btn').click();
         await page.locator('#sidebar').screenshot({ path: join(tmpdir(), "pilo-larger-role-icons.png") });
         await page.locator('#agent-list .agent-row[data-agent-id="ui-coordinator"]').click();
@@ -904,6 +904,11 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         const avatars = page.locator('.template-card[data-name] .template-avatar');
         assert.ok(await avatars.count() > 0);
         assert.equal(await avatars.locator(':scope > *').count(), await avatars.count(), "every catalog bot has a rendered icon");
+        assert.deepEqual(await page.locator('#agent-engine-select option').allTextContents(), ['Open AI', 'Pilo Agent']);
+        await page.selectOption('#agent-engine-select', 'openai-sdk');
+        assert.equal(await page.evaluate(() => localStorage.getItem('openBotsAgentEngine')), 'openai-sdk');
+        await page.selectOption('#agent-engine-select', 'cheap');
+        assert.equal(await page.evaluate(() => localStorage.getItem('openBotsAgentEngine')), 'cheap');
         await page.locator("#new-agent-button").click();
         assert.equal(await page.locator('#bot-shape-grid [data-shape^="character-"]').count(), 15);
         await page.locator('#bot-shape-grid [data-shape="character-designer"]').click();

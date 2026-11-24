@@ -1153,36 +1153,8 @@ dialog::backdrop {
 }
 #app.sidebar-collapsed #sidebar-collapse-btn { display: none; }
 
-.header-engine-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 7px;
-  background: #f1f5f9;
-  border: 1px solid var(--border);
-  margin-right: 4px;
-}
-.header-engine-btn {
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 5px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
-}
-.header-engine-btn:hover {
-  color: var(--text);
-}
-.header-engine-btn.active {
-  background: #fff;
-  color: var(--text);
-  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.1);
-}
+.header-engine-switch { display:inline-flex; align-items:center; margin-right:4px; }
+.header-engine-select { border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text); font:600 12px var(--font-ui); padding:7px 28px 7px 10px; min-width:116px; cursor:pointer; }
 
 /* Workspace Split & Draggable Panel Resizers */
 #workspace {
@@ -4019,9 +3991,11 @@ dialog.modal-dialog::backdrop {
         </div>
       </div>
       <div class="topbar-right">
-        <div class="header-engine-switch" role="group" aria-label="Agent execution engine">
-          <button type="button" class="header-engine-btn active" data-agent-engine="openai-sdk" title="Pilo native Node.js runner — default">Native</button>
-          <button type="button" class="header-engine-btn" data-agent-engine="cheap" title="Economy mode — token-lean local loop">Economy</button>
+        <div class="header-engine-switch">
+          <select id="agent-engine-select" class="header-engine-select" aria-label="Agent execution engine">
+            <option value="openai-sdk">Open AI</option>
+            <option value="cheap">Pilo Agent</option>
+          </select>
         </div>
         <button id="stop-run-btn" class="header-pill-btn danger" hidden title="Stop current bot run" aria-label="Stop current bot run">
           <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
@@ -10978,9 +10952,7 @@ dialog.modal-dialog::backdrop {
   }
 
   function renderInteractionModeUI() {
-    document.querySelectorAll("[data-agent-engine]").forEach(function(btn) {
-      btn.classList.toggle("active", btn.getAttribute("data-agent-engine") === currentAgentEngine);
-    });
+    document.getElementById("agent-engine-select").value = currentAgentEngine || "openai-sdk";
   }
 
   function setGoogleSignInStatus(message, isError) {
@@ -11387,17 +11359,11 @@ dialog.modal-dialog::backdrop {
   };
 
   var currentAgentEngine = localStorage.getItem("openBotsAgentEngine") === "cheap" ? "cheap" : "openai-sdk";
-  document.querySelectorAll("[data-agent-engine]").forEach(function(btn) {
-    btn.addEventListener("click", function() {
-      currentAgentEngine = btn.getAttribute("data-agent-engine") === "cheap" ? "cheap" : "openai-sdk";
-      localStorage.setItem("openBotsAgentEngine", currentAgentEngine);
-      renderInteractionModeUI();
-      status.textContent =
-        currentAgentEngine === "cheap"
-          ? "Economy mode active: using token-lean custom loop."
-          : "Pilo native Node.js runner active.";
-      focusComposer();
-    });
+  document.getElementById("agent-engine-select").addEventListener("change", function() {
+    currentAgentEngine = this.value === "cheap" ? "cheap" : "openai-sdk";
+    localStorage.setItem("openBotsAgentEngine", currentAgentEngine);
+    renderInteractionModeUI();
+    status.textContent = currentAgentEngine === "cheap" ? "Pilo Agent selected." : "Open AI selected.";
   });
 
   renderInteractionModeUI();

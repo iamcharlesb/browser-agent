@@ -45,9 +45,9 @@
 .bot-shape-btn>.pilo-character{width:36px;height:36px;margin:auto}
 
 /* Larger sidebar identities; header and composer controls keep their compact sizing. */
-#sidebar .agent-row .agent-avatar{width:40px;height:40px;flex:0 0 40px}
-#sidebar .agent-row .agent-avatar .bot{--size:40px}
-#sidebar .agent-row .agent-avatar :is(.bot--capsule,.bot--cloud){--size:35px}
-#sidebar .agent-row .agent-avatar svg.bot-char-svg{width:40px;height:40px}
+#sidebar .agent-row .agent-avatar{width:38px;height:38px;flex:0 0 38px}
+#sidebar .agent-row .agent-avatar .bot{--size:38px}
+#sidebar .agent-row .agent-avatar :is(.bot--capsule,.bot--cloud){--size:33px}
+#sidebar .agent-row .agent-avatar svg.bot-char-svg{width:38px;height:38px}
 #sidebar .agent-row{min-height:56px;gap:12px}
 #app.sidebar-collapsed #sidebar .agent-row{width:52px;min-height:56px;padding:6px}
