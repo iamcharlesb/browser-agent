@@ -46,5 +46,13 @@
     "imageSource": "https://storage.googleapis.com/gweb-uniblog-publish-prod/images/sundar-208x208.width-400.format-webp.webp",
     "sha256": "bc41c1da4f52610ffac602a05c332a4bd67a3848d7940527fd97342be234035c",
     "basis": "Portrait explicitly labeled Sundar Pichai on Google's official author page; no identity inferred from uploaded images."
+  },
+  {
+    "botName": "Jim Cramer",
+    "file": "jim-cramer.jpg",
+    "profileSource": "https://en.wikipedia.org/wiki/Jim_Cramer",
+    "imageSource": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3b/Andrew_Aziz_Cramer_%28cropped%29.jpg/330px-Andrew_Aziz_Cramer_%28cropped%29.jpg",
+    "sha256": "4fa5f4acf2dc565d8709542ee3ee2f44831a45fa7d07a3e0dae180680ad17057",
+    "basis": "Wikimedia Commons portrait explicitly used for Jim Cramer on his Wikipedia article; no identity inferred from uploaded images."
   }
 ]

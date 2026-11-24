@@ -587,6 +587,15 @@
         "goldman sachs analyst"
       ],
       "events": []
+    },
+    {
+      "id": "jim-cramer",
+      "file": "jim-cramer.md",
+      "terms": [
+        "jim cramer",
+        "mad money"
+      ],
+      "events": []
     }
   ]
 }

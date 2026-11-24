@@ -35,6 +35,7 @@ export const SPECIALIST_PROFILES: Record<string, string> = {
   "product-marketing": "Product Marketing",
   "website-designer": "Website Designer",
   "wall-street-analyst": "Wall Street Analyst", "goldman-sachs-analyst": "Goldman Sachs Analyst",
+  "jim-cramer": "Jim Cramer",
   "founder-operator": "Founder Operator",
   "mark-zuckerberg": "Mark Zuckerberg", "alex-wang": "Alexandr Wang", "sundar-pichai": "Sundar Pichai",
   "supervisor": "Supervisor Bot", "supercomputer": "Supercomputer",

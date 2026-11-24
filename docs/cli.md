@@ -96,8 +96,8 @@ runtime behavior; they do not measure live model quality or certify hosted use.
 
 ## License and attribution
 
-This preview is source-available for noncommercial use under the bundled
-PolyForm Noncommercial License 1.0.0. Preserve the Required Notice credits to
-Charles Barathidass in NOTICE when redistributing. Commercial use needs
-separate written permission. You are welcome to connect at
-https://www.linkedin.com/in/iamcharlesb/ (optional).
+This preview uses the bundled Pilo Attribution License 1.0, which permits
+personal, noncommercial, commercial, and enterprise use subject to its conditions.
+Redistributions and public uses must preserve the persistent author credit and
+LinkedIn/X links specified in LICENSE and NOTICE. This is a custom license;
+do not describe it as MIT-licensed or OSI-approved open source.

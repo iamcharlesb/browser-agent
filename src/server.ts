@@ -2486,6 +2486,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       "andrej-karpathy.jpg": { file: "andrej-karpathy.jpg", mime: "image/jpeg" },
       "mark-zuckerberg.jpg": { file: "mark-zuckerberg.jpg", mime: "image/jpeg" },
       "sundar-pichai.webp": { file: "sundar-pichai.webp", mime: "image/webp" },
+      "jim-cramer.jpg": { file: "jim-cramer.jpg", mime: "image/jpeg" },
       "blog-writer.svg": { file: "blog-writer.svg", mime: "image/svg+xml" }
     };
     const legacy: Record<string, string> = {
@@ -3867,7 +3868,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       res.writeHead(200, {
         "Content-Type": contentType,
         "Content-Disposition": `${disposition}; filename="${filename}"`,
-        ...(filename.toLowerCase().endsWith(".svg") ? { "Content-Security-Policy": "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'" } : {}),
+        ...(/\.(?:html?|svg)$/i.test(filename) ? { "Content-Security-Policy": "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'" } : {}),
+        "X-Content-Type-Options": "nosniff",
         "Cache-Control": "private, max-age=3600"
       });
       res.end(data);

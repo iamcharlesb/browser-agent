@@ -4,20 +4,20 @@
 
 Install Git and Node.js **22.12 or newer** (with npm). Confirm `node --version`, `npm --version`, and `git --version` work. The desktop Electron dependency requires Node 22.12 or later.
 
-You need access to both the public [Pilo repository](https://github.com/iamcharlesb/pilo) and its private [browser-agent submodule](https://github.com/iamcharlesb/browser-agent). A ZIP of the public repository is not a complete installation.
+Both the [Pilo repository](https://github.com/iamcharlesb/pilo) and its [browser-agent submodule](https://github.com/iamcharlesb/browser-agent) are public. No private-repository access is required. A ZIP of the parent repository omits the submodule; clone recursively instead.
 
 ```sh
 git clone --recurse-submodules https://github.com/iamcharlesb/pilo.git
 cd pilo
 npm ci
-npm --prefix node/browser_agent ci
+npm --prefix node/browser_agent ci --legacy-peer-deps
 cd node/browser_agent
 npx playwright install chromium
 cd ../..
 npm run desktop
 ```
 
-Keep the launch terminal open. The desktop app uses `http://127.0.0.1:8766`. Google sign-in, MongoDB, voice services, and scheduled jobs are optional; none is required for your first chat.
+The runtime currently needs `--legacy-peer-deps` for its OpenAI SDK/Zod peer dependency conflict. Keep the launch terminal open. The desktop app uses `http://127.0.0.1:8766`. Google sign-in, MongoDB, voice services, and scheduled jobs are optional; none is required for your first chat.
 
 ## 2. Connect through Settings (easiest)
 
@@ -99,7 +99,7 @@ Start with a read-only task. A task notification never starts a model request or
 
 | Symptom | Check |
 | --- | --- |
-| Repository not found | GitHub sign-in and permission to access the private browser-agent repository. |
+| Repository not found | Check the public repository URL and GitHub connectivity, then retry `git submodule update --init --recursive`. |
 | Empty `node/browser_agent` | Run `git submodule update --init --recursive`. |
 | Electron cannot install | Use Node 22.12+; rerun the app dependency installation. |
 | Model is not connected / 401 | Correct provider key, account access, API balance, and endpoint region. No other provider's key is used as a fallback. |

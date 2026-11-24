@@ -23,6 +23,9 @@ async function freePort() {
   fs.cpSync(path.join(projectRoot, 'dist'), userData + '/runtime/dist', {recursive:true});
   fs.symlinkSync(path.join(projectRoot, 'node_modules'), userData + '/runtime/node_modules');
   fs.symlinkSync(path.join(projectRoot, 'static'), userData + '/runtime/static');
+  for (const entry of ['config', 'agents', 'playbooks', 'docs', 'AGENTS.md', 'soul.md', 'README.md']) {
+    fs.cpSync(path.join(projectRoot, entry), path.join(userData, 'runtime', entry), {recursive:true});
+  }
   const main = path.join(projectRoot, 'electron/main.js');
   const harness = userData + '/main.cjs';
   fs.writeFileSync(harness, `require('electron').app.setPath('userData', ${JSON.stringify(userData)}); require(${JSON.stringify(main)});`);
@@ -32,7 +35,7 @@ async function freePort() {
   let app;
   let cdp;
   try {
-    const env = {...process.env, BROWSER_AGENT_UI_PORT:String(uiPort), OPEN_BOTS_ELECTRON_CDP_PORT:String(cdpPort), BROWSER_AGENT_LEARN_MODE:'0', BROWSER_AGENT_MANAGED_CHROME:'0', BROWSER_AGENT_SERVER_ENTRY:userData + '/runtime/dist/server.js', BROWSER_AGENT_LIVE_RELOAD:'1'};
+    const env = {...process.env, BROWSER_AGENT_ENV_FILE:userData + '/empty.env', BROWSER_AGENT_DATA_DIR:userData + '/operator-data', BROWSER_AGENT_UI_PORT:String(uiPort), OPEN_BOTS_ELECTRON_CDP_PORT:String(cdpPort), BROWSER_AGENT_LEARN_MODE:'0', BROWSER_AGENT_MANAGED_CHROME:'0', BROWSER_AGENT_SERVER_ENTRY:userData + '/runtime/dist/server.js', BROWSER_AGENT_LIVE_RELOAD:'1'};
     delete env.ELECTRON_RUN_AS_NODE;
     delete env.BROWSER_AGENT_ATTACH_EXISTING;
     app = await _electron.launch({ executablePath: require(path.join(projectRoot, 'node_modules/electron')), args: [harness], cwd: projectRoot, env, timeout:30000 });
@@ -105,12 +108,12 @@ async function freePort() {
     assert.equal(await target.locator('#draft').inputValue(), 'keep this unsaved text');
     // Agent attaches to the selected native tab without replacing it.
     console.log('Attaching agent.');
-    const response = await ui.request.post(origin + '/api/login', {data:{url:'about:blank',mode:'embedded'}});
+    const response = await ui.request.post(origin + '/api/login', {headers:{origin}, data:{url:'about:blank',mode:'embedded'}});
     const login = await response.json();
     assert.equal(response.status(), 200, JSON.stringify(login));
     assert.equal(login.url, url + '/');
     assert.equal(login.tabs.length, 2);
-    const resized = await ui.request.post(origin + '/api/login/input', {data:{type:'resize',width:980,height:1240}});
+    const resized = await ui.request.post(origin + '/api/login/input', {headers:{origin}, data:{type:'resize',width:980,height:1240}});
     assert.equal(resized.status(), 200, await resized.text());
     assert.deepEqual(await target.evaluate(() => ({width:innerWidth,height:innerHeight})), {width:980,height:1240});
     assert.equal(await target.locator('#draft').inputValue(), 'keep this unsaved text');
@@ -133,7 +136,7 @@ async function freePort() {
     assert.equal(await target.locator('section p').innerText(), 'An unpublished article body.');
     console.log('Checking switching.');
     // Agent tab switch uses the desktop-owned tab model, not arbitrary CDP pages.
-    const switched = await ui.request.post(origin + '/api/login/input', {data:{type:'switch_tab',index:0}});
+    const switched = await ui.request.post(origin + '/api/login/input', {headers:{origin}, data:{type:'switch_tab',index:0}});
     assert.equal(switched.status(), 200, await switched.text());
     state = await ui.evaluate(() => window.openBotsDesktop.getBrowserState());
     assert.equal(state.tabs[0].active, true);
@@ -152,14 +155,15 @@ async function freePort() {
     await ui.evaluate(() => window.openBotsDesktop.browserCommand({type:'switch_tab',index:1}));
     console.log('Checking backend restart.');
     // Restart only the watched server using an isolated copy of the built modules.
-    fs.appendFileSync(userData + '/runtime/dist/desktopBrowser.js', '\n// smoke restart\n');
+    const restartMarker = path.join(userData, 'server-restarted');
+    fs.appendFileSync(userData + '/runtime/dist/desktopBrowser.js', '\nrequire("node:fs").writeFileSync(' + JSON.stringify(restartMarker) + ', String(process.pid));\n');
     let restarted = false;
     for (let attempt = 0; attempt < 100; attempt++) {
       await new Promise(resolve => setTimeout(resolve, 100));
       try {
         const response = await fetch(origin + '/api/status');
         const status = await response.json();
-        if (!status.hasBrowserSession) { restarted = true; break; }
+        if (fs.existsSync(restartMarker) && status.ok && !status.hasBrowserSession) { restarted = true; break; }
       } catch {}
     }
     assert.equal(restarted, true, 'Watched agent server restarted independently');
@@ -172,12 +176,12 @@ async function freePort() {
     await ui.waitForTimeout(400);
     console.log('Checking chat owner.');
     // A delayed result must stay with its requesting bot after the user switches chats.
-    await ui.route('**/api/run', route => { console.log('Mock run requested.'); return route.fulfill({json:{status:'started'}}); });
+    await ui.route('**/api/run', route => { console.log('Mock run requested.'); return route.fulfill({json:{status:'started',runId:'desktop-smoke-run'}}); });
     let finishMockRun;
     const resultGate = new Promise(resolve => { finishMockRun = resolve; });
     await ui.route('**/api/events?*', async route => {
       await resultGate;
-      await route.fulfill({contentType:'text/event-stream', body:'id: 999\ndata: ' + JSON.stringify({type:'terminal',success:true,summary:'Writer draft result stays here.',reason:'direct_reply'}) + '\n\n'});
+      await route.fulfill({contentType:'text/event-stream', body:'id: 999\ndata: ' + JSON.stringify({type:'terminal',runId:'desktop-smoke-run',success:true,summary:'Writer draft result stays here.',terminationReason:'direct_reply'}) + '\n\n'});
     });
     const createBot = async name => {
       await ui.locator('#header-new-btn').click();
@@ -192,7 +196,11 @@ async function freePort() {
     await ui.waitForFunction(() => document.querySelector('#stop-run-btn') && !document.querySelector('#stop-run-btn').hidden);
     await createBot('Community regression');
     finishMockRun();
-    await ui.waitForFunction(() => document.querySelector('#status').textContent === 'Answered directly');
+    await ui.waitForFunction(() => {
+      const bots = JSON.parse(localStorage.getItem('agentFireworksAgentsV2') || '[]');
+      const writer = bots.find(bot => bot.name === 'Writer regression');
+      return writer && writer.transcript && writer.transcript.some(message => message.html.includes('Writer draft result stays here.'));
+    });
     assert.equal(await ui.locator('#messages').innerText().then(text => text.includes('Writer draft result stays here.')), false);
     await ui.locator('.agent-row').filter({hasText:'Writer regression'}).click();
     assert.ok((await ui.locator('#messages').innerText()).includes('Writer draft result stays here.'));

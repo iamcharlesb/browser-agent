@@ -173,6 +173,30 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   const base = `http://127.0.0.1:${uiPort}`;
   try {
     await waitFor(() => fetch(base + "/api/status").then(r => r.json()), value => Boolean(value)).catch(error => { throw new Error(error.message + "\nIsolated server log:\n" + logs); });
+    await t.test("direct HTML and SVG artifacts cannot execute scripts or access the app API", async () => {
+      const { writeFile } = await import("node:fs/promises");
+      await mkdir(join(dataRoot, "artifacts"), { recursive: true });
+      const content = '<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src * \'unsafe-inline\'"><h1>Safe document</h1><script>document.title="SCRIPT_EXECUTED";fetch("/api/status")</script>';
+      for (const filename of ["review.html", "review.htm", "review.svg"]) {
+        await writeFile(join(dataRoot, "artifacts", filename), content);
+        for (const suffix of ["", "?download=1"]) {
+          const response = await fetch(base + "/api/artifacts/" + filename + suffix);
+          assert.equal(response.status, 200);
+          assert.match(response.headers.get("content-security-policy") || "", /^sandbox; default-src 'none'/);
+          assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+        }
+      }
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage();
+        let apiRequests = 0;
+        page.on("request", request => { if (request.url() === base + "/api/status") apiRequests++; });
+        await page.goto(base + "/api/artifacts/review.html");
+        assert.equal(await page.locator("h1").innerText(), "Safe document");
+        assert.notEqual(await page.title(), "SCRIPT_EXECUTED");
+        assert.equal(apiRequests, 0);
+      } finally { await browser.close(); }
+    });
     await t.test("HTTP boundary blocks cross-origin commands and approvals before any work", async () => {
       const before = modelCalls;
       for (const endpoint of ["/api/terminal", "/api/run", "/api/approval", "/api/schedules", "/api/learn"]) {
@@ -660,6 +684,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         const catalogNames = await page.locator(".template-card[data-name]").evaluateAll(cards => cards.map(card=>card.getAttribute("data-name")!).sort());
         assert.ok(catalogNames.includes("Wall Street Analyst"));
         assert.ok(catalogNames.includes("Goldman Sachs Analyst"));
+        assert.ok(catalogNames.includes("Jim Cramer"));
         assert.ok(catalogNames.includes("My Custom Reviewer"));
         assert.ok(catalogNames.includes("My Platform Advisor"));
         assert.equal(catalogNames.includes("Sundar Pichai"),false,"a renamed saved profile is not duplicated");
@@ -764,7 +789,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
     });
     await t.test("portraits stay inside the header and preview controls fit narrow browser panes", async () => {
       const before = modelCalls;
-      for (const filename of ["sabri-suby.jpg", "alex-hormozi.webp", "addy-osmani.jpg", "andrej-karpathy.jpg", "mark-zuckerberg.jpg", "sundar-pichai.webp"]) {
+      for (const filename of ["sabri-suby.jpg", "alex-hormozi.webp", "addy-osmani.jpg", "andrej-karpathy.jpg", "mark-zuckerberg.jpg", "sundar-pichai.webp", "jim-cramer.jpg"]) {
         const response = await fetch(base + "/avatars/" + filename);
         assert.equal(response.status, 200, filename);
         assert.match(response.headers.get("content-type") || "", /image\/(jpeg|webp)/);

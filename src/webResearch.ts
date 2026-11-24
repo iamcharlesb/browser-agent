@@ -9,7 +9,6 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
-import { Agent, OpenAIProvider, Runner, webSearchTool } from "@openai/agents";
 import { envInteger } from "./runtimeConfig";
 import { providerDefinition, providerKey, providerModel, providerURL } from "./providerRegistry";
 
@@ -52,21 +51,41 @@ export async function hostedWebSearch(query: string, config: HostedSearchConfig,
   const q = query.trim();
   const hit = cached(q);
   if (hit) return hit;
-  const agent = new Agent({
-    name: "Web Researcher",
-    instructions: SEARCH_INSTRUCTIONS,
-    model: config.model,
-    tools: [webSearchTool({ searchContextSize: "low" })]
+  const base = (config.baseURL || "https://api.openai.com/v1").replace(/\/+$/, "");
+  const response = await fetch(`${base}/responses`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.apiKey}`
+    },
+    body: JSON.stringify({
+      model: config.model,
+      instructions: SEARCH_INSTRUCTIONS,
+      input: q,
+      tools: [{ type: "web_search_preview", search_context_size: "low" }]
+    }),
+    signal
   });
-  const runner = new Runner({
-    modelProvider: new OpenAIProvider({ apiKey: config.apiKey, ...(config.baseURL ? { baseURL: config.baseURL } : {}), useResponses: true }),
-    tracingDisabled: true
-  });
-  const result = await runner.run(agent, q, { maxTurns: envInteger("BROWSER_AGENT_SEARCH_MAX_TURNS", 3, 1, 10), signal });
-  const text = typeof result.finalOutput === "string" ? result.finalOutput.trim() : "";
-  if (!text) throw new Error("Hosted web search returned no findings.");
-  remember(q, text);
-  return text;
+  if (!response.ok) {
+    throw new Error(`Hosted web search failed with HTTP ${response.status}.`);
+  }
+  const payload = (await response.json()) as {
+    output_text?: string;
+    output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>;
+  };
+  const extracted =
+    typeof payload.output_text === "string" && payload.output_text.trim()
+      ? payload.output_text.trim()
+      : (payload.output ?? [])
+          .filter((item) => item?.type === "message" && Array.isArray(item.content))
+          .flatMap((item) => item.content ?? [])
+          .filter((block) => (block?.type === "output_text" || block?.type === "text") && typeof block.text === "string")
+          .map((block) => block.text!)
+          .join("\n")
+          .trim();
+  if (!extracted) throw new Error("Hosted web search returned no findings.");
+  remember(q, extracted);
+  return extracted;
 }
 
 function isPrivateAddress(address: string): boolean {

@@ -4925,6 +4925,7 @@ dialog.modal-dialog::backdrop {
   var LATEST_BOT_PRESETS = [
     { profileId: "wall-street-analyst", name: "Wall Street Analyst", description: "Independent AI equity-research assistant for public companies, sectors, earnings, valuation, and market scenarios. Cite dated public sources, separate facts from assumptions, and build bull/base/bear cases. Never invent prices or returns. Not affiliated with any financial institution; research is not personalized financial advice.", color: "#1e3a5f", summary: "Markets & equity research" },
     { profileId: "goldman-sachs-analyst", name: "Goldman Sachs Analyst", description: "Independent AI assistant using public investment-banking analysis methods: company profiles, comparable companies, DCF, transaction analysis, and diligence. Source assumptions and reconcile valuation bridges. Not affiliated with or endorsed by Goldman Sachs; no proprietary research or personalized financial advice.", color: "#294b68", summary: "Valuation & deal analysis" },
+    { profileId: "jim-cramer", name: "Jim Cramer", description: "Independent AI market-commentary assistant inspired by Jim Cramer's published plain-English investing style: earnings catalysts, thesis homework, sector rotation, and diversification. Cite dated public sources and separate facts from estimates. Not Jim Cramer, not affiliated with CNBC, and not personalized financial advice.", color: "#c2410c", avatar: "./avatars/jim-cramer.jpg?v=4fa5f4acf2dc", summary: "Market commentary & stock homework" },
     { profileId: "website-designer", name: "Website Designer", description: "Senior web designer who ships responsive, accessible HTML websites and landing pages with relevant real photography, clear copy, real proof, focused calls to action, and lead follow-up drafts. Verifies photo sources and usage terms; labels stock imagery, prototype forms and missing details honestly. Never invents proof or service promises. Publishing, live edits, outreach, and spend require explicit approval.", color: "#7c3aed", summary: "Responsive websites with real photography, landing pages, and lead follow-up drafts." },
     { profileId: "product-marketing", name: "Product Marketing", description: "Product marketing specialist for customer research, positioning, messaging, competitive differentiation, launch briefs, and sales enablement. Turns verified capabilities and customer evidence into clear pitches, launch copy, one-pagers, and battlecards. Coordinates channel and page-build handoffs with saved specialists. Never invents proof or metrics; publishing, outreach, pricing changes, and spend require explicit approval.", color: "#db2777", summary: "Customer insight, positioning, messaging, launches, and sales enablement." },
     { profileId: "eb1a-research", name: "EB1A Research Agent", description: "Research public evidence and prepare attorney-review EB1A RFE materials. Prioritize independent adoption with metrics, personal attribution, critical role and comparable remuneration. Cite verified sources, mark gaps honestly, and keep USCIS and counsel checklists separate. No invented claims, approval promises, filings or recurring jobs.", color: "#1d4ed8", summary: "Evidence research, RFE issue matrix, attribution checks and counsel-ready gaps." },
@@ -5032,6 +5033,7 @@ dialog.modal-dialog::backdrop {
     if (key === "inspired by andrej karpathy" || key === "andrej karpathy") return "./avatars/andrej-karpathy.jpg?v=2aaa21c78fa6";
     if (key === "sundar pichai") return "./avatars/sundar-pichai.webp?v=bc41c1da4f52";
     if (key === "mark zuckerberg") return "./avatars/mark-zuckerberg.jpg?v=d7f4f1ba7d56";
+    if (key === "jim cramer") return "./avatars/jim-cramer.jpg?v=4fa5f4acf2dc";
     if (key === "blog writer") return "./avatars/blog-writer.svg?v=66c776dfe813";
     return "";
   }
@@ -5248,7 +5250,7 @@ dialog.modal-dialog::backdrop {
       var supercomputer = specialist.profileId === "supercomputer" || /Supercomputer/.test(specialist.name);
       var botCreator = specialist.profileId === "bot-creator" || /Bot Creator/.test(specialist.name);
       var critica = specialist.profileId === "critica" || /Critica/.test(specialist.name);
-      var possession = /Alex Hormozi|Addy Osmani|Andrej Karpathy|Mark Zuckerberg|Alexandr Wang|Alex Wang|Sundar Pichai|Inspired by Sabri Suby/.test(specialist.name);
+      var possession = /Alex Hormozi|Addy Osmani|Andrej Karpathy|Mark Zuckerberg|Alexandr Wang|Alex Wang|Sundar Pichai|Jim Cramer|Inspired by Sabri Suby/.test(specialist.name);
       var kind = engineering || supercomputer ? "coding" : botCreator ? "bot-creator" : critica ? "critica" : operator ? "founder-ops" : cmo ? "cmo" : productMarketing ? "product-marketing" : websiteDesigner ? "website-designer" : supervisor ? "supervisor" : possession ? "personality" : "sales";
       var blogWriter = specialist.profileId === "blog-writer" || /Blog Writer/i.test(specialist.name);
       var seo = /SEO Specialist/i.test(specialist.name);
@@ -5309,7 +5311,9 @@ dialog.modal-dialog::backdrop {
                 ? ["Critique my product velocity", "Design a 2-week ship-to-learn loop", "Challenge my platform roadmap"]
                 : /Alex Hormozi/i.test(specialist.name)
                   ? ["Tear down my offer", "Check my acquisition unit economics", "Ship a Hormozi landing page"]
-                  : ["Think this through in your voice", "Challenge my plan", "Spot the highest-leverage next move"]
+                  : /Jim Cramer/i.test(specialist.name)
+                    ? ["Run a stock homework and thesis check", "Break down the latest earnings and catalysts", "Compare bull case, bear case, and red flags"]
+                    : ["Think this through in your voice", "Challenge my plan", "Spot the highest-leverage next move"]
               : ["Review my offer", "Analyze acquisition economics", "Design a growth experiment"];
       return {
         kind: kind,
@@ -6770,7 +6774,7 @@ dialog.modal-dialog::backdrop {
     catch (_) { return fallback; }
   }
   function catalogIcon(name) {
-    var paths = /wall street|goldman sachs/i.test(name) ? '<path d="M3 21h18M5 17v-5h3v5m3 0V8h3v9m3 0V3h3v14"/>' : /instagram/i.test(name) ? '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>' :
+    var paths = /wall street|goldman sachs|jim cramer/i.test(name) ? '<path d="M3 21h18M5 17v-5h3v5m3 0V8h3v9m3 0V3h3v14"/>' : /instagram/i.test(name) ? '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>' :
       /linkedin/i.test(name) ? '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 10v7M7 7h.01M11 17v-7m0 3c0-4 6-4 6 0v4"/>' :
       /ads|marketing/i.test(name) ? '<path d="m4 10 12-5v14L4 14Zm0 0H2v4h2m3 1 1 6h3l-1-5m9-8 3-2m-3 6h3"/>' :
       /funnel/i.test(name) ? '<path d="M3 4h18l-7 9v7l-4 2v-9Z"/>' :

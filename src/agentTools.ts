@@ -10,6 +10,7 @@ import { BrowserActionError, BrowserController } from "./browserController";
 import { googlePropertyGuide, redditSearch } from "./siteAdapters";
 import { redactSecrets } from "./security";
 import { workspaceCode, guardedCodePatch } from "./workspaceCode";
+import { resolveWorkspacePath } from "./workspacePaths";
 import { fetchUrlText, hostedSearchConfig, hostedWebSearch } from "./webResearch";
 import { prepareHtmlArtifact, qualityReport } from "./htmlArtifact";
 import {
@@ -25,16 +26,6 @@ export const ARTIFACTS_DIR = join(DATA_ROOT, "artifacts");
 // Default to the application repository, not an ancestor that can contain unrelated projects.
 // A user-selected writable workspace can be configured explicitly for local coding tasks.
 export const WORKSPACE_ROOT = resolve(process.env.BROWSER_AGENT_WORKSPACE_ROOT || resolve(__dirname, ".."));
-
-function safeResolveWorkspacePath(filePath: string): string {
-  const cleaned = filePath.trim();
-  const resolved = isAbsolute(cleaned) ? resolve(cleaned) : resolve(WORKSPACE_ROOT, cleaned);
-  const rel = relative(WORKSPACE_ROOT, resolved);
-  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-    throw new Error(`Path "${filePath}" is outside the project workspace (${WORKSPACE_ROOT}).`);
-  }
-  return resolved;
-}
 
 export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 
@@ -664,7 +655,7 @@ export async function runTerminalCommand(
   if (BLOCKED_TERMINAL_PATTERNS.some((pattern) => pattern.test(trimmed))) {
     throw new Error("Command blocked by local terminal safety policy.");
   }
-  const resolvedCwd = cwdInput && cwdInput.trim() ? safeResolveWorkspacePath(cwdInput) : WORKSPACE_ROOT;
+  const resolvedCwd = await resolveWorkspacePath(WORKSPACE_ROOT, cwdInput || ".");
   const clampedTimeout = Math.min(Math.max(Number(timeoutMs) || 15_000, 1_000), 60_000);
   const startedAt = Date.now();
 
@@ -1400,7 +1391,7 @@ export async function executeTool(
       case "workspace_file": {
         const action = String(toolInput.action ?? "read");
         const targetPath = String(toolInput.path ?? ".");
-        const resolved = safeResolveWorkspacePath(targetPath);
+        const resolved = await resolveWorkspacePath(WORKSPACE_ROOT, targetPath, action === "write" || action === "append");
         if (action === "patch") {
           if (typeof toolInput.oldText !== "string" || typeof toolInput.newText !== "string") throw new Error("Provide exact oldText and newText strings.");
           return { ok: true, message: JSON.stringify(await guardedCodePatch(WORKSPACE_ROOT, targetPath, String(toolInput.expectedHash || ""), toolInput.oldText, toolInput.newText)) };

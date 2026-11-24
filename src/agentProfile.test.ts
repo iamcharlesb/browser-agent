@@ -411,7 +411,8 @@ test("EB1A specialist keeps evidence safeguards and procedure after rename", () 
 test("analyst profiles retain independent identity, role playbooks and voice after renaming", () => {
   for (const [name, profileId, habit] of [
     ["Wall Street Analyst", "wall-street-analyst", /equity-research|thesis/i],
-    ["Goldman Sachs Analyst", "goldman-sachs-analyst", /banking|comparables/i]
+    ["Goldman Sachs Analyst", "goldman-sachs-analyst", /banking|comparables/i],
+    ["Jim Cramer", "jim-cramer", /Cramer|homework|bull-versus-bear/i]
   ] as const) {
     for (const botName of [name, "My Finance Partner"]) {
       const profile = loadAgentProfile({ botName, profileId, task: "Help with my work", root });
