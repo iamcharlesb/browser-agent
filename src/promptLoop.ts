@@ -58,7 +58,7 @@ const ZERO_DELTA_WARNING =
   "Warning: Last action produced zero visual or DOM changes. Choose an alternate element or approach.";
 const MAX_API_RETRIES_DEFAULT = envInteger("BROWSER_AGENT_API_ATTEMPTS", 3, 1, 10);
 /** Local mutation and paid-generation tools excluded from scheduled/unattended runs. */
-const PRIVILEGED_TOOL_NAMES = new Set(["run_terminal_command", "workspace_file", "create_document", "generate_image", "upload_file"]);
+const PRIVILEGED_TOOL_NAMES = new Set(["run_terminal_command", "workspace_file", "create_document", "generate_image", "upload_file", "record_screen"]);
 const INTERACTIVE_BROWSER_TOOL_NAMES = new Set(["upload_file", "click_mark", "type_mark", "click_element", "click_coords", "type_text", "key_press"]);
 /** All tools that drive Playwright (excluded in Chat mode). */
 const BROWSER_TOOL_NAMES = new Set([
@@ -79,6 +79,7 @@ const BROWSER_TOOL_NAMES = new Set([
 /** Consulted specialists may research and compute but never act: no browser, files, terminal or paid tools. */
 const CONSULTATION_TOOL_NAMES = new Set(["knowledge_base", "finish_task", "fail_task", "web_search", "fetch_url", "calculate"]);
 const HEADLESS_RESEARCH_TOOL_NAMES = new Set([
+  "record_screen",
   "web_search",
   "fetch_url",
   "reddit_search",
@@ -96,6 +97,7 @@ const HEADLESS_RESEARCH_TOOL_NAMES = new Set([
  */
 const CODE_TOPIC = /^\s*\$|\b(?:code|coding|repo\w*|bugs?|fix|tests?|build|files?|folders?|director(?:y|ies)|terminal|commands?|shell|npm|git|functions?|class|deploy\w*|scripts?|compile|refactor|project|typescript|python|javascript|api|endpoint|server|install)\b/i;
 const TOPIC_TOOLS: Record<string, RegExp> = {
+  record_screen: /\b(?:demo|record\w*|screen|capture|walkthrough)\b/i,
   understand_youtube_video: /youtu/i,
   reddit_search: /\breddit\b|\bsubreddits?\b|\br\/\w/i,
   google_property: /\b(?:analytics|ga4|gtm|tag manager|search console|google ads|ads manager)\b/i,

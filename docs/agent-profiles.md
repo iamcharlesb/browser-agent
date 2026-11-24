@@ -17,7 +17,7 @@ The measured generic Primary Bot prompt changed from 18,210 to 3,795 characters.
 
 ## Demo Director skill
 
-Add **Demo Director** from the catalog for timed storyboards, narration, planned captions, recording checklists and downloadable production packs. Existing bots can load the same playbook when asked for a product demo storyboard or recording plan. Recording and video editing remain manual. See the [Demo Director guide](demo-director.md) for an example prompt and the current scope.
+Add **Demo Director** from the catalog for actual screen recording through the built-in recorder. Type **/record 10** or use **Record screen** to preview the source, capture and download a WebM video. Existing bots can load the same playbook on demand; scripts are produced when requested. See the [Demo Director guide](demo-director.md) for an example prompt and the current scope.
 
 ## Learning proposals and review
 

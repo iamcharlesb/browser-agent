@@ -3,7 +3,7 @@
  * Default browsing surface: docked WebContentsView (in-app), driven via Electron CDP.
  * Optional escape hatch: external Connected Chrome on port 9222 (handled by the agent server).
  */
-const { app, BrowserWindow, WebContentsView, session, shell, Menu, ipcMain, nativeImage } = require("electron");
+const { app, BrowserWindow, WebContentsView, session, shell, Menu, ipcMain, nativeImage, desktopCapturer } = require("electron");
 const { spawn } = require("node:child_process");
 const http = require("node:http");
 const net = require("node:net");
@@ -167,8 +167,23 @@ function isWorkspaceSender(event) {
   return Boolean(mainWindow && event.sender === mainWindow.webContents &&
     event.senderFrame === mainWindow.webContents.mainFrame);
 }
+let recordingSource = "interface";
+ipcMain.handle("recording:source", (event, mode) => {
+  if (!isWorkspaceSender(event)) throw new Error("Untrusted recording sender.");
+  if (!["interface", "window"].includes(mode)) throw new Error("Unknown recording source.");
+  recordingSource = mode;
+});
 
 function createWindow(port) {
+  session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+    if (!mainWindow || request.frame !== mainWindow.webContents.mainFrame || request.securityOrigin.replace(/\/$/, "") !== `http://127.0.0.1:${port}`) { callback(null); return; }
+    if (recordingSource === "interface") { callback({ video: request.frame }); return; }
+    try {
+      const sources = await desktopCapturer.getSources({ types: ["window"] });
+      const source = sources.find(item => item.id === mainWindow.getMediaSourceId());
+      callback(source ? { video: source } : null);
+    } catch { callback(null); }
+  });
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,

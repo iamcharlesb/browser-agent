@@ -1,4 +1,5 @@
 import "./environment";
+import { screenRecordings } from "./screenRecording";
 /** OpenAI function-calling tool schemas for the browser agent, plus local dispatch. */
 
 import { spawn } from "node:child_process";
@@ -28,6 +29,7 @@ export const ARTIFACTS_DIR = join(DATA_ROOT, "artifacts");
 export const WORKSPACE_ROOT = resolve(process.env.BROWSER_AGENT_WORKSPACE_ROOT || resolve(__dirname, ".."));
 
 export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  { type: "function", function: { name: "record_screen", description: "Request an actual screen recording of Pilo. Opens the built-in recorder for the user to select/preview the capture source and click Start. Returns a pending request, NOT a completed video. Use action status to retrieve the actual saved WebM artifact after capture. Never substitute an HTML animation for a requested screen recording. Available without browser automation.", parameters: { type: "object", properties: { action: { type: "string", enum: ["request", "status"] }, durationSeconds: { type: "integer", description: "Requested recording length in seconds, default 10; bounded by deployment configuration." } }, required: ["action"] } } },
 
   { type: "function", function: { name: "plan_workflow", description: "Save a dependency-aware team workflow draft, or read/list actual workflow progress and outputs. Use for requests to prepare work across saved bots, rather than merely listing proposed owners. Every task needs a concrete deliverable and acceptance criteria. Draft creation starts no models or jobs. The user starts execution in Workflows; this tool cannot grant approvals or launch work.", parameters: {
     type: "object", properties: { action: { type: "string", enum: ["create", "read", "list"] }, id: { type: "string" }, tasks: { type: "array", items: { type: "object", properties: {
@@ -1140,6 +1142,10 @@ export async function executeTool(
     signal?.throwIfAborted();
     return await withAbortSignal((async (): Promise<ToolExecutionResult> => {
     switch (name) {
+      case "record_screen": {
+        const recording = toolInput.action === "status" ? screenRecordings.get() : screenRecordings.request(toolInput.durationSeconds ?? 10);
+        return { ok: true, message: JSON.stringify({ recording, next: recording?.state === "completed" ? "Actual recording saved." : "Use the Record screen button in Pilo to preview the source and start capture. No video exists until recording completes." }), ...(recording?.artifactUrl ? { artifactUrl: recording.artifactUrl } : {}) };
+      }
       case "list_tabs": {
         return {ok:true,message:JSON.stringify(await controller.getTabs())};
       }

@@ -1,22 +1,21 @@
-# Demo Director
+# Demo Director and screen recording
 
-Demo Director is Pilo's reusable product-demo planning skill. Add **Demo Director** from the bot catalog and send a request. You can also type **@Demo Director** in another bot's composer and select the suggestion; this saves the specialist if needed and tags it for consultation when you send your message. Selecting a suggestion alone starts no model work. Or ask an existing bot for a product demo storyboard to load the relevant playbook on demand. Renaming the specialist preserves its role through the `demo-director` profile ID.
+Pilo includes a real screen recorder. Type **/record 10** in the composer or click **Record screen** beside the microphone. This opens the recorder without a model request.
 
-## Try it
+1. Choose the capture source. In Pilo Desktop, choose Pilo interface (the app UI without the embedded browser) or Entire Pilo window (includes the embedded browser and needs OS permission). In a browser, use the system picker.
+2. Review the live preview. Remove private information and credentials from the source window. Optionally enable microphone narration.
+3. Choose the length and click **Start recording**. A three-second countdown gives you time to prepare.
+4. Perform the real workflow. Capture stops after the chosen duration, or use **Stop** to finish early.
+5. Play the actual take in the recorder and download the **WebM video**. Recordings are saved locally as video artifacts and can be reopened in Pilo.
 
-> Create a 60-second product demo of Pilo for developers using Ollama. Show one verified workflow and its finished result. Prepare the timed storyboard, voiceover, captions, recording checklist, edit notes, and a 20-second social cut plan. Save a downloadable production pack. Mark scenes that still need rehearsal.
+The output is a 1920×1080 presentation frame containing the actual selected source at its original aspect ratio. Lower resolution sources are scaled; this does not add source detail. Automatic zoom, trimming, caption generation and MP4 conversion are not included.
 
-Include your audience, target channel, desired duration, workflow and any existing screenshots or footage. If details are missing, the bot states assumptions and prepares a draft rather than inventing results.
+## Demo Director bot
 
-## Deliverables
+Choose Demo Director from the catalog or tag **@Demo Director**. Ask “Record a 10-second screen demo of Pilo.” The record_screen tool opens a pending capture request; the user still previews the source and starts capture. In restricted consultations the bot points to **/record 10** or the Record screen button. Scripts and storyboards are produced only when requested.
 
-- A brief and timed storyboard with screen actions, narration, captions and evidence gaps.
-- A full voiceover script, planned caption cues and a capture checklist.
-- Edit notes, a short social cut script and a silent-version caption plan.
-- A downloadable Markdown production pack through the existing document tool, or the full text in chat if that tool is unavailable.
+## Permissions and storage
 
-## Recording and export
+macOS may require Pilo to be enabled under System Settings → Privacy & Security → Screen & System Audio Recording, followed by restarting the app. Microphone narration needs its own permission. A denied request produces no video. Closing the recorder before capture cancels it. Starting capture is not permission to publish or run a paid model workflow.
 
-This version prepares the production pack. It does not add screen recording, video editing, speech generation, transcription or video export tools. Record and edit manually in your chosen application using the pack. Planned caption cues need alignment against the recorded audio. Future capture/export tools can use the same playbook, but the bot must verify their availability and results before claiming a recording or finished video exists.
-
-Choose a clean recording window, exclude credentials and personal data, disable notifications and rehearse the workflow. Capture starts only when explicitly requested. Planning does not authorize publishing, uploading, paid services or recurring jobs. Model requests can still incur provider charges.
+BROWSER_AGENT_RECORDING_MAX_SECONDS, BROWSER_AGENT_RECORDING_MAX_BYTES, BROWSER_AGENT_RECORDING_BITRATE, BROWSER_AGENT_RECORDING_FPS and BROWSER_AGENT_RECORDING_POLL_MS configure limits and the zero-model pending-request check. Defaults are 120 seconds, 100 MB, 8 Mbps, 30 fps and 2000 ms. Video stays in local artifacts; the feature does not publish it externally.

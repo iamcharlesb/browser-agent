@@ -39,6 +39,8 @@
           element = document.createElement("pre"); element.textContent = data.text;
         } else if (data.kind === "image") {
           element = document.createElement("img"); element.src = data.url; element.alt = data.filename;
+        } else if (data.kind === "video") {
+          element = document.createElement("video"); element.src = data.url; element.controls = true; element.preload = "metadata"; element.style.width = "100%";
         } else if (data.kind === "html" || data.kind === "pdf") {
           element = document.createElement("iframe"); element.title = data.filename;
           element.setAttribute("sandbox", "");

@@ -48,7 +48,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   await cp(resolve(__dirname, "..", "static", "avatars"), join(directory, "static", "avatars"), { recursive: true });
   await cp(resolve(__dirname, "..", "docs"), join(directory, "docs"), { recursive: true });
   await copyFile(resolve(__dirname, "..", "README.md"), join(directory, "README.md"));
-  for (const file of ["index.html", "browserRuntime.js", "botCatalog.js", "uiState.js", "responseMarkdown.js", "runStream.js", "artifactPreview.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
+  for (const file of ["index.html", "webmDuration.js", "screenRecorder.js", "browserRuntime.js", "botCatalog.js", "uiState.js", "responseMarkdown.js", "runStream.js", "artifactPreview.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
   let capturedPersonaPrompt = "";
   const cliPrompts: string[] = [];
   let cliToolCalls = 0;
@@ -1032,6 +1032,63 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }
     });
+    await t.test("the real recorder encodes video, saves playback artifacts and handles capture denial without model work", async () => {
+      const before = modelCalls;
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage();
+        await page.addInitScript(() => {
+          localStorage.setItem("agentFireworksAgentsV2", JSON.stringify([{ id: "recording-owner", name: "Primary Bot", description: "Recording test", transcript: [] }]));
+          localStorage.setItem("openBotsSelectedBot", "recording-owner");
+          // Deterministic moving source tests the actual MediaRecorder/Canvas pipeline;
+          // it deliberately does not bypass or claim to verify OS capture permission.
+          Object.defineProperty(navigator.mediaDevices, "getDisplayMedia", { configurable: true, value: async () => {
+            const canvas = document.createElement("canvas"); canvas.width = 640; canvas.height = 360;
+            const ctx = canvas.getContext("2d")!; let tick = 0;
+            setInterval(() => { ctx.fillStyle = tick++ % 2 ? "#2563eb" : "#10b981"; ctx.fillRect(0, 0, 640, 360); ctx.fillStyle = "white"; ctx.fillText("Captured test source " + tick, 20, 30); }, 40);
+            return canvas.captureStream(24);
+          } });
+        });
+        await page.goto(base);
+        await page.locator('#prompt').fill('/record 1');
+        await page.locator('#prompt').press('Enter');
+        await page.locator('#screen-recording-dialog').waitFor({ state: 'visible' });
+        await page.locator('#recording-source').click();
+        await page.locator('#recording-start').click();
+        await page.locator('#screen-recording-dialog').waitFor({ state: 'hidden' });
+        assert.equal(await page.locator('#screen-recording-dialog').isVisible(), false, 'source preview is hidden before countdown to avoid recording itself');
+        assert.equal(await page.locator('#recording-indicator').isVisible(), true);
+        await page.waitForFunction(() => document.querySelector('#recording-status')!.textContent!.includes('Recording saved.'), { timeout: 15000 });
+        const href = await page.locator('#recording-download').getAttribute('href');
+        assert.match(href || '', /\/api\/artifacts\/pilo-recording-.*\.webm\?download=1/);
+        const response = await fetch(base + href);
+        assert.equal(response.headers.get('content-type'), 'video/webm');
+        const bytes = Buffer.from(await response.arrayBuffer());
+        assert.ok(bytes.length > 1000, 'an encoded video exists, not an HTML stand-in');
+        assert.deepEqual([...bytes.subarray(0, 4)], [0x1a, 0x45, 0xdf, 0xa3]);
+        await page.waitForFunction(() => (document.querySelector('#recording-preview') as HTMLVideoElement).videoWidth === 1920);
+        const dimensions = await page.locator('#recording-preview').evaluate((video: HTMLVideoElement) => [video.videoWidth, video.videoHeight]);
+        assert.deepEqual(dimensions, [1920, 1080]);
+        const duration = await page.locator('#recording-preview').evaluate((video: HTMLVideoElement) => video.duration);
+        assert.ok(Number.isFinite(duration) && duration > 0.5 && duration < 4, 'saved video has a real duration and usable timeline');
+        const rejected = await fetch(base + '/api/recordings', { method: 'POST', headers: { origin: 'https://untrusted.example', 'Content-Type': 'application/json' }, body: '{"durationSeconds":1}' });
+        assert.equal(rejected.status, 403);
+        await page.locator('#recording-source').click();
+        await page.locator('#recording-start').click();
+        await page.locator('#recording-indicator button').click();
+        await page.waitForFunction(() => document.querySelector('#recording-status')!.textContent!.includes('canceled during countdown'));
+        await page.evaluate(() => Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { value: async () => { throw new DOMException('Capture denied', 'NotAllowedError'); } }));
+        await page.locator('#recording-source').click();
+        await page.waitForFunction(() => document.querySelector('#recording-status')!.textContent!.includes('Capture denied'));
+        assert.equal(modelCalls, before, 'capture and download do not invoke models');
+      } finally {
+        await browser.close();
+        const pending = await fetch(base + '/api/recordings').then(r => r.json());
+        if (pending.recording && ['pending', 'recording'].includes(pending.recording.state)) {
+          await fetch(base + '/api/recordings/' + pending.recording.id + '/fail', { method: 'POST', headers: { origin: base, 'Content-Type': 'application/json' }, body: '{}' });
+        }
+      }
+    });
     await t.test("Demo Director can be selected from the complete @ catalog and reopened as a bot without model work", async () => {
       const before = modelCalls;
       const browser = await chromium.launch({ headless: true });
@@ -1047,6 +1104,35 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
           localStorage.setItem("openBotsSelectedBot", "demo-owner");
         });
         await page.goto(base);
+        for (const width of [1280, 360]) {
+          await page.setViewportSize({ width, height: 900 });
+          await page.locator('#prompt').fill("@Demo Director");
+          await page.waitForFunction(() => {
+            const menu = document.querySelector<HTMLElement>('#bot-mention-menu')!;
+            return !menu.hidden && menu.style.top !== "";
+          });
+          const placement = await page.evaluate(() => {
+            const popup = document.querySelector('#bot-mention-menu')!.getBoundingClientRect();
+            const input = document.querySelector('#prompt')!.getBoundingClientRect();
+            const composer = document.querySelector('#composer')!.getBoundingClientRect();
+            const option = document.querySelector('#bot-mention-menu [role="option"]')!;
+            const avatar = option.querySelector('.agent-avatar')!.getBoundingClientRect();
+            const label = option.lastElementChild!.getBoundingClientRect();
+            return { width: popup.width, gap: input.top - popup.bottom,
+              inside: popup.left >= composer.left && popup.right <= composer.right,
+              avatarFits: avatar.right <= label.left && avatar.width === 24 && avatar.height === 24 };
+          });
+          assert.ok(placement.width <= 302, "mention suggestions stay compact");
+          assert.ok(placement.gap >= -2 && placement.gap <= 24, "suggestions stay beside the typed mention");
+          assert.equal(placement.inside, true, "popup fits the composer on narrow screens");
+          assert.equal(placement.avatarFits, true, "avatar does not overlap the label");
+        }
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.locator('#prompt').fill("@Demo Director");
+        const initialLeft = (await page.locator('#bot-mention-menu').boundingBox())!.x;
+        await page.locator('#prompt').fill("Please ask @Demo Director");
+        assert.ok((await page.locator('#bot-mention-menu').boundingBox())!.x > initialLeft + 30,
+          "popup follows the @ position rather than the page edge");
         await page.locator('#prompt').fill("@Demo Director");
         const option = page.locator('#bot-mention-menu [role="option"]', { hasText: "Demo Director" });
         await option.click();
@@ -1064,6 +1150,11 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         const count = await page.evaluate(() => JSON.parse(localStorage.getItem("agentFireworksAgentsV2") || "[]")
           .filter((bot: any) => bot.profileId === "demo-director").length);
         assert.equal(count, 1, "selecting a saved specialist does not create duplicates");
+        await page.locator('#prompt').fill('Record a 10-second screen demo of this app');
+        await page.locator('#prompt').press('Enter');
+        await page.locator('#screen-recording-dialog').waitFor({ state: 'visible' });
+        assert.equal(await page.locator('#recording-seconds').inputValue(), '10');
+        await page.locator('#recording-close').click();
         await page.locator('#brand-home-btn').click();
         await page.locator('.template-card[data-catalog-key="profile:demo-director"]').click();
         await page.waitForFunction(id => document.querySelector('.agent-row[data-agent-id="' + id + '"]')?.classList.contains("active"), demo.id);

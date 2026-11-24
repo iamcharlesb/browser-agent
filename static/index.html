@@ -724,11 +724,15 @@ dialog::backdrop {
 #tagged-bots:empty { display:none; }
 .tagged-bot-chip { display:inline-flex; align-items:center; gap:6px; max-width:100%; padding:4px 8px; border-radius:999px; background:var(--blue-soft); color:var(--blue); font-size:12px; font-weight:600; }
 .tagged-bot-chip button { border:0; background:transparent; color:inherit; cursor:pointer; font-size:14px; line-height:1; padding:0; }
-#bot-mention-menu { position:absolute; left:12px; right:12px; bottom:calc(100% - 8px); z-index:40; max-height:220px; overflow:auto; padding:6px; border:1px solid var(--border); border-radius:12px; background:#fff; box-shadow:var(--shadow-lg); }
+#bot-mention-menu { position:absolute; left:0; top:0; z-index:40; width:300px; max-width:calc(100% - 20px); max-height:220px; overflow:auto; padding:6px; border:1px solid var(--border); border-radius:12px; background:#fff; box-shadow:0 6px 24px rgba(16,24,40,.12); }
 #bot-mention-menu[hidden] { display:none !important; }
 .bot-mention-option { width:100%; display:flex; align-items:center; gap:8px; padding:8px 10px; border:0; border-radius:8px; background:#fff; text-align:left; cursor:pointer; font:inherit; font-size:13px; }
 .bot-mention-option:hover, .bot-mention-option[aria-selected="true"] { background:var(--blue-soft); }
-.bot-mention-option .agent-avatar { width:24px; height:24px; flex:0 0 24px; }
+.bot-mention-option .agent-avatar { width:24px; height:24px; flex:0 0 24px; overflow:hidden; }
+.bot-mention-option .agent-avatar .bot { --size:22px; }
+.bot-mention-option .agent-avatar .bot--capsule,
+.bot-mention-option .agent-avatar .bot--cloud { --size:17px; }
+.bot-mention-option > span:last-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .bot-modal-inputs input, .bot-modal-inputs textarea {
   width: 100%;
   height: 40px;
@@ -2130,6 +2134,7 @@ dialog::backdrop {
   margin: 0;
 }
 #composer {
+  position: relative;
   width: min(100%, var(--message-column-max-width));
   min-width: 0;
   margin: 0 auto;
@@ -4866,6 +4871,8 @@ dialog.modal-dialog::backdrop {
 <script src="./uiState.js"></script>
 <script src="./botCatalog.js"></script>
 <script src="./artifactPreview.js"></script>
+<script src="./webmDuration.js"></script>
+<script src="./screenRecorder.js"></script>
 <script src="./projectScanner.js"></script>
 <script id="response-markdown-runtime" src="./responseMarkdown.js"></script>
 
@@ -5257,7 +5264,7 @@ dialog.modal-dialog::backdrop {
     { profileId: "jim-cramer", name: "Jim Cramer", description: "Independent AI market-commentary assistant inspired by Jim Cramer's published plain-English investing style: earnings catalysts, thesis homework, sector rotation, and diversification. Cite dated public sources and separate facts from estimates. Not Jim Cramer, not affiliated with CNBC, and not personalized financial advice.", color: "#c2410c", avatar: "./avatars/jim-cramer.jpg?v=4fa5f4acf2dc", summary: "Market commentary & stock homework" },
     { profileId: "website-designer", name: "Website Designer", description: "Senior web designer who ships responsive, accessible HTML websites and landing pages with relevant real photography, clear copy, real proof, focused calls to action, and lead follow-up drafts. Verifies photo sources and usage terms; labels stock imagery, prototype forms and missing details honestly. Never invents proof or service promises. Publishing, live edits, outreach, and spend require explicit approval.", color: "#7c3aed", summary: "Responsive websites with real photography, landing pages, and lead follow-up drafts." },
     { profileId: "product-marketing", name: "Product Marketing", description: "Product marketing specialist for customer research, positioning, messaging, competitive differentiation, launch briefs, and sales enablement. Turns verified capabilities and customer evidence into clear pitches, launch copy, one-pagers, and battlecards. Coordinates channel and page-build handoffs with saved specialists. Never invents proof or metrics; publishing, outreach, pricing changes, and spend require explicit approval.", color: "#db2777", summary: "Customer insight, positioning, messaging, launches, and sales enablement." },
-    { profileId: "demo-director", name: "Demo Director", description: "Product demo planning skill: creates timed storyboards, voiceover scripts, planned captions, capture checklists, edit notes and downloadable production packs from verified capabilities. Recording and video editing remain manual until supporting tools are available. Never invent footage or results; publishing and paid services require separate authorization.", color: "#0891b2", summary: "Product demo storyboards, narration, captions and recording-ready production packs." },
+    { profileId: "demo-director", name: "Demo Director", description: "Records real screen demos through Pilo’s built-in recorder: source preview, optional microphone narration, countdown, timed capture, playback and downloadable WebM. Use record_screen or /record 10; the user selects the source and starts capture. Never substitute HTML mockups for footage. Scripts and storyboards on request; publishing requires separate authorization.", color: "#0891b2", summary: "Real screen recordings, playback, video downloads and demo scripts." },
     { profileId: "eb1a-research", name: "EB1A Research Agent", description: "Research public evidence and prepare attorney-review EB1A RFE materials. Prioritize independent adoption with metrics, personal attribution, critical role and comparable remuneration. Cite verified sources, mark gaps honestly, and keep USCIS and counsel checklists separate. No invented claims, approval promises, filings or recurring jobs.", color: "#1d4ed8", summary: "Evidence research, RFE issue matrix, attribution checks and counsel-ready gaps." },
     { profileId: "supervisor", name: "Supervisor Bot", description: "Workspace quality supervisor. Observes conversations for missed asks and role drift. After you approve a night schedule, validates bot behavior against public source materials with read-only research and drafts pending soul/playbook improvements—never auto-applies. Notifications alone never start paid jobs.", color: "#57534e", summary: "Observe conversations, nightly source checks, pending improvement proposals." },
     { profileId: "supercomputer", name: "Supercomputer", description: "Continuous technical builder for an assigned project folder. Channels Mark Zuckerberg's shipping urgency and Alexandr Wang's frontier systems ruthlessness toward Jarvis-grade capability: feature parity, papers, self-healing, architecture. Ranked options for approval; never silently rewrite, deploy, spend, or start paid recurring jobs. Brief Mark Zuckerberg / Alexandr Wang peers when useful. Also accepts Jarvis watch briefs from Bot Creator for new specialist bots.", color: "#0ea5e9", summary: "Jarvis-grade continuous codebase success; watches new bots when briefed." },
@@ -5634,7 +5641,7 @@ dialog.modal-dialog::backdrop {
             : productMarketing
               ? ["Define positioning and message pillars for my product", "Draft a feature launch brief and announcement", "Create a competitive battlecard and sales one-pager"]
             : demoDirector
-              ? ["Create a 60-second product demo production pack", "Turn this workflow into a timed storyboard and voiceover", "Plan a 20-second social demo with captions and edit notes"]
+              ? ["Record a 10-second screen demo of Pilo", "Turn this workflow into a timed storyboard and voiceover", "Plan a 20-second social demo with captions and edit notes"]
             : websiteDesigner
               ? ["Design a responsive website for my business", "Redesign this landing page", "Create a lead capture page and follow-up drafts"]
             : supervisor
@@ -9369,6 +9376,43 @@ dialog.modal-dialog::backdrop {
         String(bot.description || bot.summary || "").toLowerCase().indexOf(needle) >= 0;
     }).slice(0, 8);
   }
+  function positionBotMentionMenu() {
+    var menu = document.getElementById("bot-mention-menu");
+    var composer = document.getElementById("composer");
+    if (!menu || menu.hidden || !composer) return;
+    var cursor = prompt.selectionStart === null ? prompt.value.length : prompt.selectionStart;
+    var index = prompt.value.slice(0, cursor).lastIndexOf("@");
+    if (index < 0) { hideBotMentionMenu(); return; }
+    // Mirror the textarea's typography and wrapping to locate the typed @.
+    var mirror = document.createElement("div");
+    var style = getComputedStyle(prompt);
+    ["boxSizing", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "wordSpacing", "textIndent", "textTransform", "tabSize", "direction", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"].forEach(function(key) {
+      mirror.style[key] = style[key];
+    });
+    mirror.style.cssText += ";position:fixed;visibility:hidden;pointer-events:none;white-space:pre-wrap;overflow-wrap:break-word;top:0;left:0;";
+    mirror.style.width = prompt.offsetWidth + "px";
+    mirror.setAttribute("aria-hidden", "true");
+    mirror.textContent = prompt.value.slice(0, index);
+    var marker = document.createElement("span");
+    marker.textContent = "@";
+    mirror.appendChild(marker);
+    document.body.appendChild(mirror);
+    var markerBox = marker.getBoundingClientRect();
+    var mirrorBox = mirror.getBoundingClientRect();
+    var inputBox = prompt.getBoundingClientRect();
+    var composerBox = composer.getBoundingClientRect();
+    var anchorX = inputBox.left + markerBox.left - mirrorBox.left - prompt.scrollLeft;
+    var anchorY = inputBox.top + markerBox.top - mirrorBox.top - prompt.scrollTop;
+    mirror.remove();
+    var width = menu.offsetWidth;
+    var height = menu.offsetHeight;
+    var left = Math.max(composerBox.left + 8, Math.min(anchorX, composerBox.right - width - 8));
+    var top = anchorY - height - 8;
+    if (top < 8) top = anchorY + (parseFloat(style.lineHeight) || 20) + 8;
+    top = Math.max(8, Math.min(top, window.innerHeight - height - 8));
+    menu.style.left = (left - composerBox.left) + "px";
+    menu.style.top = (top - composerBox.top) + "px";
+  }
   function renderBotMentionMenu(query) {
     var menu = document.getElementById("bot-mention-menu");
     if (!menu) return;
@@ -9393,6 +9437,7 @@ dialog.modal-dialog::backdrop {
       menu.appendChild(option);
     });
     menu.hidden = false;
+    positionBotMentionMenu();
   }
   function selectMentionBot(bot) {
     if (!bot) return;
@@ -9431,6 +9476,22 @@ dialog.modal-dialog::backdrop {
     if (attachmentUploads) { status.textContent = "Attachments are still preparing. Please send once they appear."; return; }
     var value = prompt.value.trim() || (attachments.length ? "Use the attached evidence for the current task." : "");
     if (!value && !taggedDiscussionBots.length) return;
+    var recordingMatch = /^\/record(?:\s+(\d+))?$/i.exec(value);
+    var directorSelected = (activeAgent() || {}).profileId === "demo-director" || taggedDiscussionBots.some(function(tag) {
+      return agents.some(function(bot) { return bot.id === tag.id && bot.profileId === "demo-director"; });
+    });
+    var recordingWords = /\b(?:record(?:ing)?|screen demo|screen walkthrough|\d+\s*seconds?)\b/i.test(value);
+    var recordingAction = (directorSelected && recordingWords) || /^(?:please\s+)?(?:record|capture)\b.*\b(?:screen|demo|app|window)\b/i.test(value);
+    if (/\b(?:storyboard|script|plan|explain|how (?:do|does|to)|don't record|do not record)\b/i.test(value)) recordingAction = false;
+    if ((recordingMatch || recordingAction) && window.PiloScreenRecorder) {
+      var recordingDuration = recordingMatch && recordingMatch[1] || (value.match(/(\d+)[\s-]*(?:seconds?|secs?|s)\b/i) || [])[1] || "10";
+      prompt.value = ""; saveComposerDraft(); resizePrompt();
+      taggedDiscussionBots = []; renderTaggedBots(); hideBotMentionMenu();
+      window.PiloScreenRecorder.open();
+      document.getElementById("recording-seconds").value = recordingDuration;
+      status.textContent = "Screen recorder opened. Choose the source and start your real recording.";
+      return;
+    }
     var helpMatch = /^\/help(?:\s+([a-z0-9_-]+))?$/i.exec(value);
     if (helpMatch) {
       prompt.value = "";
@@ -10315,6 +10376,13 @@ dialog.modal-dialog::backdrop {
     syncRecommendationsVisibility();
     syncBotMentionMenuFromPrompt();
   });
+  prompt.addEventListener("scroll", positionBotMentionMenu);
+  prompt.addEventListener("click", syncBotMentionMenuFromPrompt);
+  prompt.addEventListener("keyup", function(event) {
+    if (["ArrowLeft", "ArrowRight", "Home", "End"].indexOf(event.key) >= 0) syncBotMentionMenuFromPrompt();
+  });
+  window.addEventListener("resize", positionBotMentionMenu);
+  new ResizeObserver(positionBotMentionMenu).observe(document.getElementById("composer"));
   document.addEventListener("pointerdown", function(event) {
     if (!event.target.closest("#bot-mention-menu") && !event.target.closest("#prompt")) hideBotMentionMenu();
   });

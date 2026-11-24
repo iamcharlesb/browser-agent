@@ -13,7 +13,7 @@ test("Demo Director retains its skill and bounded operating context after renami
   const renamed = loadAgentProfile({ botName: "My Video Partner", profileId: "demo-director", task: "Help with my work", root });
   assert.equal(renamed.revision, named.revision);
   assert.deepEqual(renamed.selected, ["demo-director"]);
-  assert.match(renamed.instructions, /Never claim to record, edit or export video without a supporting tool/);
+  assert.match(renamed.instructions, /use record_screen/);
   assert.match(renamed.soul, /calm, precise product demo director/);
   assert.match(renamed.playbooks, /Timed storyboard table/);
   assert.match(renamed.playbooks, /needs rehearsal/);
@@ -37,7 +37,8 @@ test("demo requests load the skill on demand and its complete tool handoff remai
   }
   assert.equal(text, readFileSync(join(root, "playbooks/demo-director.md"), "utf8").trim());
   assert.match(text, /create_document with format md/);
-  assert.match(text, /video capture\/export remains manual/);
+  assert.match(text, /Never substitute an HTML animation/);
+  assert.match(text, /record_screen\(action="status"\)/);
 });
 
 test("the shipped catalog routes Demo Director and renamed saved profiles to demo starter prompts", () => {
@@ -60,12 +61,12 @@ test("the shipped catalog routes Demo Director and renamed saved profiles to dem
     assert.equal(intent.needsBrowserOnInit, false);
     assert.equal(intent.suggestions.length, 3);
     assert.match(intent.suggestions.join(" "), /storyboard|voiceover/);
-    assert.match(intent.task, /Recording and video editing remain manual/);
+    assert.match(intent.task, /built-in recorder/);
   }
 });
 
 test("Demo Director guide is available in the in-app documentation", async () => {
   const html = await renderDocumentation(root, "demos");
   assert.match(html, /Demo Director skill · Pilo Docs/);
-  assert.match(html, /recording, video editing/);
+  assert.match(html, /WebM video/);
 });

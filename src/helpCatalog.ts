@@ -16,13 +16,13 @@ const HELP_ITEMS: HelpItem[] = [
   {
     id: "demos",
     title: "Demo Director Skill",
-    summary: "Create product demo storyboards, narration, planned captions and recording-ready production packs.",
+    summary: "Record actual screen demos with source preview, narration, timed capture, playback and video download.",
     command: "/help demos",
     steps: [
       "Choose Demo Director from the bot catalog for a dedicated conversation.",
       "Or type @Demo Director and select it in another bot's composer; send a message to request a consultation.",
-      "Try: Create a 60-second product demo production pack with a storyboard, voiceover and recording checklist.",
-      "Recording and video editing remain manual. Planning does not start capture, publishing or paid services."
+      "Type /record 10 or click Record screen beside the microphone to open the real recorder without a model call.",
+      "Preview the source, click Start recording, perform your workflow, then play or download the WebM video. Nothing is published."
     ]
   },
   {
@@ -95,6 +95,7 @@ const HELP_ITEMS: HelpItem[] = [
     command: "/help commands",
     steps: [
       "/help [topic] — Open Help index or jump to setup, env, ollama, gateway, or commands.",
+      "/record 10 — Open the real screen recorder for a 10-second take; preview the source, then Start.",
       "Click + in the right pane — Open Workspace Launcher (Search or enter a URL).",
       "Review — Inspect staged, unstaged, and untracked Git changes.",
       "Open File — Browse and read workspace files safely inside the repo.",

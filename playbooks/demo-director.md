@@ -1,19 +1,16 @@
 # Demo Director
 
-## Scope and evidence
-Produce a demo production pack using WORKSPACE PRODUCT and verified evidence. This skill supplies direction and documents, not a video recorder or editor. Inspect available tools before offering capture, transcription, rendering or export. Never label a storyboard, simulation or screenshot sequence as recorded footage. Never invent successful runs, elapsed time, savings, customers or performance. Keep unverified scenes marked "needs rehearsal". Recording starts only on explicit user instruction and source selection; publishing and paid services require separate authorization. Notifications start no work.
+## Real screen recordings first
+When asked to record a screen demo, capture the real app. Use record_screen(action="request", durationSeconds=10), adapting the duration to the request and configured limits. This opens the built-in recorder. It is available in Chat mode without browser automation. Never substitute an HTML animation, fake application, slideshow, concept prototype or production pack for a requested screen recording. Do not create extra documents unless asked.
 
-## Brief and defaults
-Identify the audience, one useful workflow, product, target length, channel, desired action and available footage. Use known context; ask only for missing facts that block the work. Otherwise state assumptions and draft. Default to a 60-second landscape walkthrough for developers, a 20-second social cut plan and a silent captioned version plan. These are editorial defaults, not runtime limits. Choose a reproducible workflow and show its result early. Distinguish local execution from hosted inference.
+## User capture controls
+The user clicks Choose screen / window, previews the selected source, optionally enables microphone narration, then clicks Start recording. Electron offers Pilo interface capture (excludes the embedded browser) and Entire Pilo window capture (includes it and requires OS permission); browser mode uses the system source picker. A three-second countdown precedes capture. The real source is framed in a 1920×1080 canvas, preserving its aspect ratio. The visible Stop control ends a take early; the requested duration stops it automatically. Clean the window of personal information and credentials before starting. Source permission denial is an error, not evidence of a recording.
 
-## Deliver the production pack
-Deliver actual draft content, not just instructions to write it. Include:
-- Brief: audience, outcome, channel, duration, assumptions and evidence gaps.
-- Timed storyboard table: start/end, screen/action, narration, on-screen caption, evidence/status. Scene times must sum to the target duration. Allocate words that can be spoken naturally within each scene; shorten copy rather than promise a speaking speed.
-- Full voiceover script and concise on-screen captions. Caption cues are planned scene timings until aligned against real audio; never call them synchronized subtitles.
-- Capture checklist: clean demo data, hide notifications, readable text, selected window, permission check, microphone test, exact prompt, success criteria and rehearsal. Secrets must be excluded before capture; automatic redaction is not guaranteed.
-- Edit decision list: desired trims, zoom focus, holds, transitions, title/end cards and target aspect ratios. Label accelerated footage with its speed and retain measured elapsed time. Preserve failures that materially affect the claim.
-- A 20-second cutdown script and silent-version caption plan, clearly labeled as plans until rendered.
+## Verify the result
+A request is pending until the user starts it. Do not claim recording started or a video exists from a pending response. Use record_screen(action="status") when the user asks for the result; completed status includes the real artifactUrl. Return that exact video link. Failed or interrupted capture must be reported accurately. The recorder provides playback and a downloadable WebM; it does not promise MP4 conversion, automatic captions, professional editing, safe automatic redaction, or autonomous app interaction. Capture alone does not run the demonstrated workflow: the operator performs it while recording.
 
-## Tools and handoff
-Use create_document with format md for a downloadable production pack; report only the artifact URL actually returned. If unavailable, deliver the full pack in chat. Use read-only research or workspace inspection when needed to substantiate a claim. Use existing screenshot tools only for requested stills. Do not run terminal capture commands, launch paid generators, upload footage or publish as a side effect of planning. If capture/export tools are absent, give concrete manual recording steps for the user's chosen recorder and say video capture/export remains manual. Final handoff states what was created, what was verified, missing footage and the next recording action. A saved pack proves document creation, not successful video production.
+## When consultation tools are restricted
+If record_screen is not supplied, tell the user to type /record 10 in the composer or click Record screen beside the microphone. These open the real recorder without model work. Do not tell them to use an external recorder or generate a mockup instead. Recording requires the source preview and Start action. Publishing, uploads to external services, paid generation and recurring jobs require separate authorization. Notifications start no capture or models.
+
+## Scripts when requested
+For explicit planning or narration requests, deliver a brief and Timed storyboard table with actual screen actions, narration and evidence. Keep unverified scenes marked "needs rehearsal". Use create_document with format md if a downloadable production pack is requested. Planned caption cues are not audio-synchronized subtitles. Label sped-up footage and measured elapsed time honestly. Never invent performance, success, users or results.
