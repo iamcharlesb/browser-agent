@@ -18,7 +18,9 @@ export function recordingConfig() {
   return {
     maxSeconds: envInteger("BROWSER_AGENT_RECORDING_MAX_SECONDS", 120, 1, 3600),
     maxBytes: envInteger("BROWSER_AGENT_RECORDING_MAX_BYTES", 100_000_000, 1024, 1_000_000_000),
-    bitrate: envInteger("BROWSER_AGENT_RECORDING_BITRATE", 8_000_000, 100_000, 50_000_000),
+    bitrate: envInteger("BROWSER_AGENT_RECORDING_BITRATE", 24_000_000, 100_000, 50_000_000),
+    captureWidth: envInteger("BROWSER_AGENT_RECORDING_CAPTURE_WIDTH", 3840, 640, 7680),
+    captureHeight: envInteger("BROWSER_AGENT_RECORDING_CAPTURE_HEIGHT", 2160, 360, 4320),
     fps: envInteger("BROWSER_AGENT_RECORDING_FPS", 30, 1, 60),
     pollMs: envInteger("BROWSER_AGENT_RECORDING_POLL_MS", 2000, 500, 30000)
   };

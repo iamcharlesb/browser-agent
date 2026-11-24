@@ -1040,25 +1040,45 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.addInitScript(() => {
           localStorage.setItem("agentFireworksAgentsV2", JSON.stringify([{ id: "recording-owner", name: "Primary Bot", description: "Recording test", transcript: [] }]));
           localStorage.setItem("openBotsSelectedBot", "recording-owner");
-          // Deterministic moving source tests the actual MediaRecorder/Canvas pipeline;
+          // Deterministic moving source tests the actual MediaRecorder pipeline;
           // it deliberately does not bypass or claim to verify OS capture permission.
           Object.defineProperty(navigator.mediaDevices, "getDisplayMedia", { configurable: true, value: async () => {
             const canvas = document.createElement("canvas"); canvas.width = 640; canvas.height = 360;
             const ctx = canvas.getContext("2d")!; let tick = 0;
-            setInterval(() => { ctx.fillStyle = tick++ % 2 ? "#2563eb" : "#10b981"; ctx.fillRect(0, 0, 640, 360); ctx.fillStyle = "white"; ctx.fillText("Captured test source " + tick, 20, 30); }, 40);
-            return canvas.captureStream(24);
+            setInterval(() => { ctx.fillStyle = tick++ % 2 ? "#2563eb" : "#10b981"; ctx.fillRect(0, 0, 640, 360); ctx.fillStyle = "white"; ctx.fillText("Captured test source " + tick, 20, 30);
+              ctx.fillStyle = "black"; ctx.fillRect(400, 40, 128, 128);
+              ctx.fillStyle = "white"; for (let x = 1; x < 128; x += 2) ctx.fillRect(400 + x, 40, 1, 128);
+            }, 40);
+            const source = canvas.captureStream(24); (window as any).__recordingTestSource = source; return source;
           } });
         });
         await page.goto(base);
-        await page.locator('#prompt').fill('/record 1');
+        await page.locator('#prompt').fill('/record 2');
         await page.locator('#prompt').press('Enter');
         await page.locator('#screen-recording-dialog').waitFor({ state: 'visible' });
         await page.locator('#recording-guided').uncheck();
+        assert.equal(await page.locator('#recording-start').isVisible(), false, 'starting is not offered before a source is previewed');
+        assert.equal(await page.locator('.recording-primary:visible').count(), 1);
+        assert.equal(await page.locator('#recording-source').innerText(), 'Choose tab or window');
+        for (const width of [1280, 360]) {
+          await page.setViewportSize({ width, height: 900 });
+          const fits = await page.locator('#screen-recording-dialog').evaluate(dialog => dialog.scrollWidth <= dialog.clientWidth);
+          assert.equal(fits, true, 'recording controls fit without horizontal scrolling');
+        }
+        await page.setViewportSize({ width: 1280, height: 900 });
         await page.locator('#recording-source').click();
+        await page.waitForFunction(() => (document.querySelector('#screen-recording-dialog') as HTMLElement).dataset.stage === 'ready');
+        assert.equal(await page.locator('.recording-primary:visible').count(), 1);
+        assert.equal(await page.locator('#recording-start').isVisible(), true);
+        assert.equal(await page.locator('#recording-source').innerText(), 'Change source');
+        assert.match(await page.locator('#recording-quality').innerText(), /640 × 360/);
         await page.locator('#recording-start').click();
         await page.locator('#screen-recording-dialog').waitFor({ state: 'hidden' });
         assert.equal(await page.locator('#screen-recording-dialog').isVisible(), false, 'source preview is hidden before countdown to avoid recording itself');
         assert.equal(await page.locator('#recording-indicator').isVisible(), true);
+        await page.waitForFunction(() => document.querySelector('#recording-indicator span')!.textContent!.includes('● Recording'));
+        await page.waitForTimeout(750);
+        await page.evaluate(() => (window as any).__recordingTestSource.getVideoTracks()[0].dispatchEvent(new Event('ended')));
         await page.waitForFunction(() => document.querySelector('#recording-status')!.textContent!.includes('Recording saved.'), { timeout: 15000 });
         const href = await page.locator('#recording-download').getAttribute('href');
         assert.match(href || '', /\/api\/artifacts\/pilo-recording-.*\.webm\?download=1/);
@@ -1067,9 +1087,18 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         const bytes = Buffer.from(await response.arrayBuffer());
         assert.ok(bytes.length > 1000, 'an encoded video exists, not an HTML stand-in');
         assert.deepEqual([...bytes.subarray(0, 4)], [0x1a, 0x45, 0xdf, 0xa3]);
-        await page.waitForFunction(() => (document.querySelector('#recording-preview') as HTMLVideoElement).videoWidth === 1920);
+        await page.waitForFunction(() => (document.querySelector('#recording-preview') as HTMLVideoElement).videoWidth === 640);
         const dimensions = await page.locator('#recording-preview').evaluate((video: HTMLVideoElement) => [video.videoWidth, video.videoHeight]);
-        assert.deepEqual(dimensions, [1920, 1080]);
+        assert.deepEqual(dimensions, [640, 360], 'capture keeps source dimensions without artificial 1080p resizing');
+        const stripeContrast = await page.locator('#recording-preview').evaluate(async (video: HTMLVideoElement) => {
+          video.currentTime = 0.5; await new Promise(resolve => video.addEventListener('seeked', resolve, { once: true }));
+          const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+          const ctx = canvas.getContext('2d')!; ctx.drawImage(video, 0, 0);
+          const pixels = ctx.getImageData(400, 60, 128, 1).data;
+          let contrast = 0; for (let x = 0; x < 128; x += 2) contrast += pixels[(x + 1) * 4] - pixels[x * 4];
+          return contrast / 64;
+        });
+        assert.ok(stripeContrast > 200, 'one-pixel text-like detail survives video encoding sharply');
         const duration = await page.locator('#recording-preview').evaluate((video: HTMLVideoElement) => video.duration);
         assert.ok(Number.isFinite(duration) && duration > 0.5 && duration < 4, 'saved video has a real duration and usable timeline');
         // Guided capture must execute real local UI handlers, preserve drafts and
@@ -1134,7 +1163,15 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.evaluate(() => Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { value: async () => { throw new DOMException('Capture denied', 'NotAllowedError'); } }));
         await page.locator('#recording-source').click();
         await page.waitForFunction(() => document.querySelector('#recording-status')!.textContent!.includes('Capture denied'));
+        await page.evaluate(() => Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { value: () => new Promise(resolve => { (window as any).__lateSource = resolve; }) }));
+        await page.locator('#recording-source').click();
         await page.locator('#recording-close').click();
+        await page.evaluate(() => {
+          const canvas = document.createElement('canvas'); const media = canvas.captureStream(24);
+          (window as any).__lateTrack = media.getVideoTracks()[0]; (window as any).__lateSource(media);
+        });
+        await page.waitForFunction(() => (window as any).__lateTrack.readyState === 'ended');
+        assert.equal(await page.locator('#screen-recording-dialog').isVisible(), false, 'a late source picker result cannot reopen a canceled recorder');
         const stateBeforeDemo = await fetch(base + '/api/recordings').then(r => r.json());
         await page.goto(base + '/demo');
         await page.locator('#screen-recording-dialog').waitFor({ state: 'visible' });
