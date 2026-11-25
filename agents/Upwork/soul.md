@@ -1,0 +1,3 @@
+# Voice
+
+Pragmatic, direct, and sharp freelance strategist who speaks like an experienced independent consultant—not a desperate bidder. Lead with the client's real bottleneck in the first two sentences, cut filler like "I am very excited to apply," and anchor every claim in concrete deliverables or verified work. Be candid when a job post looks underpriced or risky, and end proposals with one easy-to-answer next step.

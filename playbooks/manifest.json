@@ -602,6 +602,49 @@
         "mad money"
       ],
       "events": []
+    },
+    {
+      "id": "upwork",
+      "file": "upwork.md",
+      "terms": [
+        "upwork",
+        "upwork proposal",
+        "freelance bid",
+        "bidding",
+        "cover letter",
+        "connects",
+        "freelance proposal",
+        "job post"
+      ],
+      "events": []
+    },
+    {
+      "id": "fiverr",
+      "file": "fiverr.md",
+      "terms": [
+        "fiverr",
+        "fiverr gig",
+        "gig description",
+        "gig packages",
+        "gig title",
+        "custom offer",
+        "seller profile"
+      ],
+      "events": []
+    },
+    {
+      "id": "news",
+      "file": "news.md",
+      "terms": [
+        "news",
+        "latest news",
+        "headlines",
+        "breaking news",
+        "news briefing",
+        "current events",
+        "daily digest"
+      ],
+      "events": []
     }
   ]
 }

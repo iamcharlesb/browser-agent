@@ -23,6 +23,8 @@
     if (/reddit|community/.test(role)) return "blob";
     if (/instagram/.test(role)) return "heart";
     if (/linkedin/.test(role)) return "sage";
+    if (/upwork/.test(role)) return "blogger";
+    if (/fiverr/.test(role)) return "star";
     if (/\bseo\b|search optimization/.test(role)) return "yellow";
     if (/influencer/.test(role)) return "cat";
     if (/\bads\b|paid media|performance marketing/.test(role)) return "bot";

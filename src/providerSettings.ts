@@ -50,6 +50,16 @@ export async function saveProviderSettings(input: Record<string, unknown>, file 
     } else if (value) updates[variable] = value;
   }
   if (!Object.keys(updates).length) return updates;
+  await persistEnvUpdates(updates, file);
+  return updates;
+}
+
+/** Atomically update selected key=value entries in the local .env file without touching unrelated lines. */
+export async function persistEnvUpdates(
+  updates: Record<string, string | undefined>,
+  file = environmentFilePath
+): Promise<void> {
+  if (!Object.keys(updates).length) return;
   const next = saves.catch(() => undefined).then(async () => {
     const temporary = `${file}.${randomUUID()}.tmp`;
     try {
@@ -75,5 +85,4 @@ export async function saveProviderSettings(input: Record<string, unknown>, file 
   });
   saves = next;
   await next;
-  return updates;
 }

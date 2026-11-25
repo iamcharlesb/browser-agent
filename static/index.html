@@ -2842,6 +2842,65 @@ dialog::backdrop {
   font-weight: 600;
 }
 .utility-badge.ok { background: #dcfce7; color: #166534; }
+.utility-badge.warn { background: #fef3c7; color: #92400e; }
+.marketplace-list { display: flex; flex-direction: column; gap: 12px; }
+.marketplace-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.marketplace-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.marketplace-card-title { margin: 0; font-size: 14px; font-weight: 600; color: #0f172a; }
+.marketplace-card-sub { margin: 2px 0 0; font-size: 12px; color: #475569; line-height: 1.45; }
+.marketplace-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.marketplace-caps { margin: 0; padding-inline-start: 18px; font-size: 12px; color: #334155; line-height: 1.5; }
+.marketplace-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.marketplace-btn-primary {
+  padding: 6px 12px;
+  border: 1px solid #0f172a;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.marketplace-btn-primary:hover { background: #1e293b; }
+.marketplace-btn-primary:disabled, .utility-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.marketplace-form {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.marketplace-field { display: flex; flex-direction: column; gap: 4px; }
+.marketplace-field label { font-size: 12px; font-weight: 600; color: #0f172a; }
+.marketplace-secret-row { display: flex; gap: 6px; align-items: center; }
+.marketplace-field input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+}
+.marketplace-field input:focus-visible,
+.marketplace-btn-primary:focus-visible,
+.utility-btn:focus-visible { outline: 2px solid #0b57d0; outline-offset: 2px; }
+.marketplace-hint { font-size: 11px; color: #64748b; line-height: 1.4; }
+.marketplace-status { font-size: 12px; color: #334155; min-height: 16px; }
+@media (pointer: coarse) {
+  .marketplace-field input, .marketplace-btn-primary, .utility-btn { min-height: 48px; }
+}
 .side-q-thread { display: flex; flex-direction: column; gap: 10px; }
 .side-q-msg { padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
 .side-q-msg.user { background: #f1f5f9; align-self: flex-end; max-width: 90%; }
@@ -3849,22 +3908,22 @@ dialog.modal-dialog::backdrop {
 .catalog-search-toggle:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 #catalog-search-wrap { width: min(100%, 1000px); margin: -8px 0 16px; }
 #catalog-search-wrap .catalog-search { width: 100%; max-width: none; border-radius: 8px; height: 36px; }
-#welcome .template-grid { width: min(100%, 1000px); grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-#welcome .template-card { position: relative; flex-direction: column; align-items: center; justify-content: center; gap: 7px; min-height: 112px; padding: 12px 8px; border: 1px solid #dddde7; border-radius: 11px; background: transparent; text-align: center; opacity: 1; }
+#welcome .template-grid { width: min(100%, 1000px); grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+#welcome .template-card { position: relative; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 82px; padding: 8px 6px; border: 1px solid #dddde7; border-radius: 9px; background: transparent; text-align: center; opacity: 1; }
 #welcome .template-card:hover { background: #fff; border-color: #b9c9ed; box-shadow: 0 3px 12px #20335b08; }
 #welcome .template-card:focus-visible, .catalog-filter-btn:focus-visible, .catalog-create-bot:focus-visible, .catalog-favorite:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
-#welcome .template-avatar { width: 48px; height: 48px; flex: 0 0 48px; margin: 0; border-radius: 50%; background: #f0eff1; color: #111318; }
-#welcome .template-avatar > svg { width: 27px; height: 27px; }
-#welcome .template-copy { flex: 0; align-items: center; gap: 3px; width: 100%; }
-#welcome .template-card strong { font-size: 13px; font-weight: 650; color: #101116; overflow-wrap: normal; }
-#welcome .template-copy > span:not(.template-status) { font-size: 11px; line-height: 1.3; color: #34445f; }
+#welcome .template-avatar { width: 36px; height: 36px; flex: 0 0 36px; margin: 0; border-radius: 50%; background: #f0eff1; color: #111318; }
+#welcome .template-avatar > svg { width: 21px; height: 21px; }
+#welcome .template-copy { flex: 0; align-items: center; gap: 2px; width: 100%; }
+#welcome .template-card strong { font-size: 12px; font-weight: 650; color: #101116; overflow-wrap: normal; }
+#welcome .template-copy > span:not(.template-status) { font-size: 10.5px; line-height: 1.25; color: #34445f; }
 #welcome .template-status, #welcome .create-custom-card { display: none; }
 #welcome .is-onboarded .template-copy > .template-status {
-  position: absolute; top: 8px; left: 8px; display: grid; place-items: center;
-  width: 18px; height: 18px; margin: 0; padding: 0; border-radius: 50%;
+  position: absolute; top: 6px; left: 6px; display: grid; place-items: center;
+  width: 16px; height: 16px; margin: 0; padding: 0; border-radius: 50%;
   background: var(--blue); color: #fff;
 }
-#welcome .template-status svg { width: 14px; height: 14px; }
+#welcome .template-status svg { width: 12px; height: 12px; }
 .catalog-favorite { position: absolute; right: 7px; top: 4px; padding: 2px; color: #6582bd; font-size: 15px; opacity: 0; cursor: pointer; }
 .template-card:hover .catalog-favorite, .template-card:focus-within .catalog-favorite { opacity: 1; }
 .catalog-disclaimer { width: min(100%, 1000px); margin: -8px 0 16px; text-align: left; color: var(--muted); font-size: 11px; }
@@ -3874,7 +3933,7 @@ dialog.modal-dialog::backdrop {
 #welcome.is-typing .catalog-disclaimer, #welcome.is-typing .catalog-controls, #welcome.is-typing #catalog-search-wrap, #welcome.is-typing #catalog-empty { display: none; }
 #workspace.has-browser #welcome .welcome-heading { gap: 8px; margin-bottom: 12px; }
 #workspace.has-browser #welcome .welcome-mark { width: 42px; height: 42px; margin: 0; }
-@media (max-width: 1100px) { #welcome h1 { font-size: 21px; } #welcome .catalog-controls { justify-content: space-between; } .catalog-actions { position: static; } }
+@media (max-width: 1100px) { #welcome h1 { font-size: 21px; } #welcome .catalog-controls { justify-content: space-between; } .catalog-actions { position: static; } #welcome .template-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 760px) { #welcome .template-grid, #workspace.has-browser #welcome .template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } #welcome { padding: 22px 14px; } .welcome-heading { gap: 10px; } #welcome h1 { font-size: 20px; } #welcome .welcome-mark { width: 48px; height: 48px; flex-shrink: 0; } .catalog-filter-btn { min-width: 65px; } }
 @media (hover: none) { .catalog-favorite { opacity: .65; } }
 @media (prefers-reduced-motion: reduce) { #welcome .template-card, #welcome .welcome-mark { transition: none; } }
@@ -4153,6 +4212,27 @@ dialog.modal-dialog::backdrop {
                 <span>Role-targeted, ATS-safe rewrites from verified evidence only.</span>
               </div>
             </button>
+            <button type="button" class="template-card" data-name="Upwork" data-desc="Freelance bidding, proposal writing, profile positioning, and client-scope specialist for Upwork. Triages job posts for budget fit and Connects ROI, writes tailored problem-first proposals, scopes milestones, and drafts client replies. Never invents clients or metrics; approval required before submitting bids, spending Connects, or messaging clients." data-shape="circle" data-color="#14a800" data-avatar-image="./avatars/upwork.svg" data-profile-id="upwork">
+              <div class="template-avatar" data-shape="circle" data-color="#14a800"></div>
+              <div class="template-copy">
+                <strong>Upwork</strong>
+                <span>Job triage, tailored proposals, milestone scoping, and profile positioning.</span>
+              </div>
+            </button>
+            <button type="button" class="template-card" data-name="Fiverr" data-desc="Fiverr gig strategist and copywriter for productized services. Crafts SEO titles, search tags, Basic/Standard/Premium 3-tier packages, gig extras, scannable descriptions, FAQs, buyer requirements, and custom-offer replies. Never invents reviews or seller stats; approval required before publishing gigs, changing pricing, or messaging buyers." data-shape="circle" data-color="#1dbf73" data-avatar-image="./avatars/fiverr.svg" data-profile-id="fiverr">
+              <div class="template-avatar" data-shape="circle" data-color="#1dbf73"></div>
+              <div class="template-copy">
+                <strong>Fiverr</strong>
+                <span>Gig titles, 3-tier packages, descriptions, FAQs, and custom offers.</span>
+              </div>
+            </button>
+            <button type="button" class="template-card" data-name="News" data-desc="Real-time news researcher and briefing editor. Fetches the latest verified headlines via live web search and source reads, cites publication dates and links, separates confirmed facts from unverified reports, and delivers scannable briefings by topic." data-shape="circle" data-color="#0f172a" data-avatar-image="./avatars/news.svg" data-profile-id="news">
+              <div class="template-avatar" data-shape="circle" data-color="#0f172a"></div>
+              <div class="template-copy">
+                <strong>News</strong>
+                <span>Latest verified headlines, dated sources &amp; topic briefings.</span>
+              </div>
+            </button>
             <button type="button" class="template-card" data-name="Influencer" data-desc="Personal-brand and creator strategist across channels. Content pillars, hooks, audience trust, collab briefs. Distinct from Instagram Growth execution. Approval before posts, DMs, or paid collabs." data-shape="circle" data-color="#db2777">
               <div class="template-avatar" data-shape="circle" data-color="#db2777"></div>
               <div class="template-copy">
@@ -4285,6 +4365,10 @@ dialog.modal-dialog::backdrop {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 10 3 2.5L7 15M12 15h5"/></svg>
               <span>Terminal</span>
             </button>
+            <button type="button" class="pane-tab" role="tab" id="pane-tab-marketplace" data-pane="marketplace" aria-selected="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 9 5 4h14l2 5M3 9v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9M3 9h18M9 20v-6h6v6"/></svg>
+              <span>Marketplace</span>
+            </button>
           </div>
           <button type="button" id="pane-new-tab-btn" class="pane-bar-btn plus-btn" title="Open workspace launcher" aria-label="Open workspace launcher">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -4324,6 +4408,11 @@ dialog.modal-dialog::backdrop {
                 <button type="button" class="launcher-item" data-launch="side-question">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7M18 15v6M15 18h6"/></svg>
                   <span class="launcher-item-label">Side Question</span>
+                </button>
+                <button type="button" class="launcher-item" data-launch="marketplace">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 9 5 4h14l2 5M3 9v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9M3 9h18M9 20v-6h6v6"/></svg>
+                  <span class="launcher-item-label">Marketplace</span>
+                  <span class="launcher-item-meta">Add-ons</span>
                 </button>
                 <button type="button" class="launcher-item" data-launch="plugins">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
@@ -4375,6 +4464,19 @@ dialog.modal-dialog::backdrop {
                 <input id="side-q-input" type="text" placeholder="Ask a quick question without interrupting the active bot…" autocomplete="off" />
                 <button type="submit" class="utility-btn">Ask</button>
               </form>
+            </div>
+          </div>
+          <div id="pane-marketplace-view" class="utility-tabpanel" role="tabpanel" aria-labelledby="pane-tab-marketplace" hidden>
+            <div class="utility-panel-inner">
+              <div class="utility-subhead">
+                <h3>Marketplace</h3>
+                <button type="button" id="marketplace-refresh-btn" class="utility-btn">Refresh</button>
+              </div>
+              <search>
+                <input id="marketplace-search-input" class="launcher-search-input" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:8px 10px;" type="search" name="q" placeholder="Search add-ons (e.g. Outlook, mail, calendar)…" aria-label="Search marketplace add-ons" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" />
+              </search>
+              <div id="marketplace-status" class="marketplace-status" role="status" aria-live="polite"></div>
+              <div id="marketplace-list" class="marketplace-list"></div>
             </div>
           </div>
           <div id="pane-plugins-view" class="utility-tabpanel" role="tabpanel" aria-label="Plugins and Gateway" hidden>
@@ -5284,7 +5386,6 @@ dialog.modal-dialog::backdrop {
     { profileId: "website-designer", name: "Website Designer", description: "Senior web designer who ships responsive, accessible HTML websites and landing pages with relevant real photography, clear copy, real proof, focused calls to action, and lead follow-up drafts. Verifies photo sources and usage terms; labels stock imagery, prototype forms and missing details honestly. Never invents proof or service promises. Publishing, live edits, outreach, and spend require explicit approval.", color: "#7c3aed", summary: "Responsive websites with real photography, landing pages, and lead follow-up drafts." },
     { profileId: "product-marketing", name: "Product Marketing", description: "Product marketing specialist for customer research, positioning, messaging, competitive differentiation, launch briefs, and sales enablement. Turns verified capabilities and customer evidence into clear pitches, launch copy, one-pagers, and battlecards. Coordinates channel and page-build handoffs with saved specialists. Never invents proof or metrics; publishing, outreach, pricing changes, and spend require explicit approval.", color: "#db2777", summary: "Customer insight, positioning, messaging, launches, and sales enablement." },
     { profileId: "demo-director", name: "Demo Director", description: "Records real screen demos through Pilo’s built-in recorder: source preview, optional microphone narration, countdown, timed capture, playback and downloadable WebM. Use record_screen or /record 10; the user selects the source and starts capture. Never substitute HTML mockups for footage. Scripts and storyboards on request; publishing requires separate authorization.", color: "#0891b2", summary: "Real screen recordings, playback, video downloads and demo scripts." },
-    { profileId: "eb1a-research", name: "EB1A Research Agent", description: "Research public evidence and prepare attorney-review EB1A RFE materials. Prioritize independent adoption with metrics, personal attribution, critical role and comparable remuneration. Cite verified sources, mark gaps honestly, and keep USCIS and counsel checklists separate. No invented claims, approval promises, filings or recurring jobs.", color: "#1d4ed8", summary: "Evidence research, RFE issue matrix, attribution checks and counsel-ready gaps." },
     { profileId: "supervisor", name: "Supervisor Bot", description: "Workspace quality supervisor. Observes conversations for missed asks and role drift. After you approve a night schedule, validates bot behavior against public source materials with read-only research and drafts pending soul/playbook improvements—never auto-applies. Notifications alone never start paid jobs.", color: "#57534e", summary: "Observe conversations, nightly source checks, pending improvement proposals." },
     { profileId: "supercomputer", name: "Supercomputer", description: "Continuous technical builder for an assigned project folder. Channels Mark Zuckerberg's shipping urgency and Alexandr Wang's frontier systems ruthlessness toward Jarvis-grade capability: feature parity, papers, self-healing, architecture. Ranked options for approval; never silently rewrite, deploy, spend, or start paid recurring jobs. Brief Mark Zuckerberg / Alexandr Wang peers when useful. Also accepts Jarvis watch briefs from Bot Creator for new specialist bots.", color: "#0ea5e9", summary: "Jarvis-grade continuous codebase success; watches new bots when briefed." },
     { profileId: "bot-creator", name: "Bot Creator", description: "Designs powerful purpose-built specialist bots and creates their files when you approve: agents/<BotId>/AGENTS.md, soul.md, and playbooks/<id>.md (workspace_file), or artifact drafts via create_document. Never auto-seeds the roster. Then asks Supercomputer (Jarvis) and Supervisor Bot to watch over the new bot. Never spend or start paid recurring jobs without approval.", color: "#a855f7", summary: "Create bot files on disk; hand watch to Jarvis and Supervisor." },
@@ -5299,7 +5400,11 @@ dialog.modal-dialog::backdrop {
     { profileId: "mark-zuckerberg", name: "Mark Zuckerberg", description: "You are Mark Zuckerberg's published builder operating style: product velocity, ship-to-learn loops, long-term platforms, and social product intuition. Never invent Meta internals or claim to speak for Meta. Approval before publish, spend, hire, or infra.", color: "#1877F2", avatar: "./avatars/mark-zuckerberg.jpg?v=d7f4f1ba7d56", summary: "Product velocity, platform bets, and shipping to learn." },
     { profileId: "alex-wang", name: "Alexandr Wang", description: "You are Alexandr Wang's published Scale AI / frontier-systems style: data quality, evaluation infrastructure, high-agency AI systems, and ruthless clarity on model-vs-data bottlenecks. Never invent Scale benchmarks or claim to speak for Scale AI.", color: "#111827", summary: "Frontier data, evals, and high-agency AI systems." },
     { profileId: "sundar-pichai", name: "Sundar Pichai", description: "You are Sundar Pichai's published product and platform leadership style: calm prioritization, user-first product sense, and AI as helpful infrastructure. Never invent Google internals or claim to speak for Google/Alphabet.", color: "#4285F4", summary: "User-first platform leadership and measured product priorities." },
-    { profileId: "blog-writer", name: "Blog Writer", description: "Professional long-form blogger who sounds human: researched angles, lived texture, sharp titles, and edit passes that cut AI tells. When useful, open Amazon and cite 1–3 real books with title, author, and product URL—never invent ISBNs, ratings, or quotes. Outline → draft → approval before publish or paid images.", color: "#111827", avatar: "./avatars/blog-writer.svg?v=66c776dfe813", summary: "Human-sounding blogs with researched Amazon book references." }
+    { profileId: "blog-writer", name: "Blog Writer", description: "Professional long-form blogger who sounds human: researched angles, lived texture, sharp titles, and edit passes that cut AI tells. When useful, open Amazon and cite 1–3 real books with title, author, and product URL—never invent ISBNs, ratings, or quotes. Outline → draft → approval before publish or paid images.", color: "#111827", avatar: "./avatars/blog-writer.svg?v=66c776dfe813", summary: "Human-sounding blogs with researched Amazon book references." },
+    { profileId: "upwork", name: "Upwork", description: "Freelance bidding, proposal writing, profile positioning, and client-scope specialist for Upwork. Triage job posts for budget fit, client history, and Connects ROI before drafting. Write tailored, problem-first proposals, screening answers, milestone scopes, and client replies. Never invent past clients or portfolio metrics; approval before submitting bids, spending Connects, or messaging clients.", color: "#14a800", avatar: "./avatars/upwork.svg", summary: "Job triage, tailored proposals, milestone scoping & client writing." },
+    { profileId: "fiverr", name: "Fiverr", description: "Fiverr gig strategist and copywriter for productized services. Craft SEO gig titles, search tags, Basic/Standard/Premium 3-tier packages, gig extras, scannable descriptions, FAQs, buyer requirements, and custom-offer replies. Never invent seller levels or reviews; approval before publishing gigs, editing live pricing, or messaging buyers.", color: "#1dbf73", avatar: "./avatars/fiverr.svg", summary: "Gig SEO, 3-tier packages, descriptions, FAQs & custom offers." },
+    { profileId: "news", name: "News", description: "Real-time news researcher and briefing editor. Fetch the latest verified stories via web_search and fetch_url, include publication dates and source links, separate confirmed facts from developing reports, and organize scannable briefings by topic. Never invent headlines, dates, or quotes.", color: "#0f172a", avatar: "./avatars/news.svg", summary: "Latest headlines, dated sources & topic briefings." },
+    { profileId: "eb1a-research", name: "EB1A Research Agent", description: "Research public evidence and prepare attorney-review EB1A RFE materials. Prioritize independent adoption with metrics, personal attribution, critical role and comparable remuneration. Cite verified sources, mark gaps honestly, and keep USCIS and counsel checklists separate. No invented claims, approval promises, filings or recurring jobs.", color: "#1d4ed8", summary: "Research & evidence" }
   ];
 
   var SPECIALIST_NAME_ALIASES = {
@@ -7174,7 +7279,7 @@ dialog.modal-dialog::backdrop {
     ["Alexandr Wang", "AI & data"], ["Inspired by Sabri Suby", "Sales & funnels"],
     ["Bot Creator", "Build a custom bot"], ["Chief Marketing Officer", "Marketing strategy"],
     ["Competitor Intelligence", "Market research"], ["Critica", "Review & feedback"],
-    ["EB1A Research Agent", "Research & evidence"], ["Funnel Specialist", "Customer journeys"],
+    ["Funnel Specialist", "Customer journeys"],
     ["GIF Animator", "Motion & animation"], ["Influencer", "Content strategy"],
     ["Instagram Follower Growth", "Audience & engagement"], ["LinkedIn Growth", "Professional presence"]
   ];
@@ -7290,8 +7395,11 @@ dialog.modal-dialog::backdrop {
       if (avatarHolder) applyAvatarElement(avatarHolder, Object.assign({}, preset, { avatarImage: preset.avatar }), false, false);
     });
     var ordered = presets.map(function(preset) {
-      return { card: cardsByName[preset.name.toLowerCase()], added: Boolean(preset.savedId), name: preset.name };
+      return { card: cardsByName[preset.name.toLowerCase()], added: Boolean(preset.savedId), name: preset.name, profileId: preset.profileId };
     }).sort(function(a, b) {
+      var aBottom = a.profileId === "eb1a-research" || a.name === "EB1A Research Agent";
+      var bBottom = b.profileId === "eb1a-research" || b.name === "EB1A Research Agent";
+      if (aBottom !== bBottom) return aBottom ? 1 : -1;
       if (a.added !== b.added) return a.added ? 1 : -1;
       var ai = CATALOG_FEATURED.findIndex(function(item) { return item[0] === a.name; });
       var bi = CATALOG_FEATURED.findIndex(function(item) { return item[0] === b.name; });
@@ -11956,6 +12064,7 @@ dialog.modal-dialog::backdrop {
     review: "pane-review-view",
     file: "pane-file-view",
     "side-question": "pane-side-question-view",
+    marketplace: "pane-marketplace-view",
     plugins: "pane-plugins-view",
     help: "pane-help-view"
   };
@@ -12015,6 +12124,8 @@ dialog.modal-dialog::backdrop {
       loadReview();
     } else if (mode === "file") {
       loadWorkspaceFiles();
+    } else if (mode === "marketplace") {
+      loadMarketplace();
     } else if (mode === "plugins") {
       loadPlugins();
     } else if (mode === "help") {
@@ -12193,6 +12304,276 @@ dialog.modal-dialog::backdrop {
     });
   }
 
+  var cachedMarketplaceAddons = [];
+  var openMarketplaceConfigId = "";
+
+  function setMarketplaceStatus(message) {
+    var statusEl = document.getElementById("marketplace-status");
+    if (statusEl) statusEl.textContent = message || "";
+  }
+
+  function loadMarketplace() {
+    var list = document.getElementById("marketplace-list");
+    if (!list) return;
+    fetch("/api/marketplace")
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        cachedMarketplaceAddons = Array.isArray(data.addons) ? data.addons : [];
+        renderMarketplace();
+      })
+      .catch(function(err) {
+        setMarketplaceStatus("Unable to load Marketplace: " + (err && err.message ? err.message : String(err)));
+      });
+  }
+
+  function renderMarketplace() {
+    var list = document.getElementById("marketplace-list");
+    var searchInput = document.getElementById("marketplace-search-input");
+    if (!list) return;
+    var q = (searchInput && searchInput.value || "").trim().toLowerCase();
+    var items = cachedMarketplaceAddons.filter(function(addon) {
+      if (!q) return true;
+      var haystack = [addon.name, addon.tagline, addon.description, addon.category].concat(addon.capabilities || []).join(" ").toLowerCase();
+      return haystack.indexOf(q) !== -1;
+    });
+    list.textContent = "";
+    if (!items.length) {
+      list.appendChild(makeEl("div", "launcher-item-meta", "No matching Marketplace add-ons."));
+      return;
+    }
+    items.forEach(function(addon) {
+      var card = makeEl("article", "marketplace-card");
+      var head = makeEl("div", "marketplace-card-head");
+      var titleWrap = document.createElement("div");
+      var heading = makeEl("h4", "marketplace-card-title", addon.name);
+      heading.id = "addon-heading-" + addon.id;
+      titleWrap.appendChild(heading);
+      titleWrap.appendChild(makeEl("p", "marketplace-card-sub", addon.tagline));
+      head.appendChild(titleWrap);
+
+      var badges = makeEl("div", "marketplace-badges");
+      badges.appendChild(makeEl("span", "utility-badge", addon.category));
+      if (addon.installed) {
+        badges.appendChild(makeEl("span", "utility-badge " + (addon.enabled ? "ok" : "warn"), addon.enabled ? "Enabled" : "Disabled"));
+        badges.appendChild(makeEl("span", "utility-badge " + (addon.configured ? "ok" : "warn"), addon.configured ? "Configured" : "Needs setup"));
+      } else {
+        badges.appendChild(makeEl("span", "utility-badge", "Not installed"));
+      }
+      head.appendChild(badges);
+      card.appendChild(head);
+
+      card.appendChild(makeEl("p", "marketplace-card-sub", addon.description));
+
+      if (Array.isArray(addon.capabilities) && addon.capabilities.length) {
+        var ul = makeEl("ul", "marketplace-caps");
+        addon.capabilities.forEach(function(cap) {
+          ul.appendChild(makeEl("li", "", cap));
+        });
+        card.appendChild(ul);
+      }
+
+      var actions = makeEl("div", "marketplace-actions");
+      if (!addon.installed) {
+        var installBtn = makeEl("button", "marketplace-btn-primary", "Install add-on");
+        installBtn.type = "button";
+        installBtn.addEventListener("click", function() {
+          installBtn.disabled = true;
+          fetch("/api/marketplace/install", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: addon.id })
+          }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+            .then(function(res) {
+              if (!res.ok) throw new Error(res.data.detail || "Install failed.");
+              cachedMarketplaceAddons = res.data.addons || cachedMarketplaceAddons;
+              openMarketplaceConfigId = addon.id;
+              setMarketplaceStatus("Installed " + addon.name + ". Configure credentials below to connect.");
+              renderMarketplace();
+            }).catch(function(err) {
+              installBtn.disabled = false;
+              setMarketplaceStatus(err.message || String(err));
+            });
+        });
+        actions.appendChild(installBtn);
+      } else {
+        var toggleBtn = makeEl("button", "utility-btn", addon.enabled ? "Disable" : "Enable");
+        toggleBtn.type = "button";
+        toggleBtn.addEventListener("click", function() {
+          toggleBtn.disabled = true;
+          fetch("/api/marketplace/toggle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: addon.id, enabled: !addon.enabled })
+          }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+            .then(function(res) {
+              if (!res.ok) throw new Error(res.data.detail || "Toggle failed.");
+              cachedMarketplaceAddons = res.data.addons || cachedMarketplaceAddons;
+              setMarketplaceStatus(addon.name + (addon.enabled ? " disabled." : " enabled."));
+              renderMarketplace();
+            }).catch(function(err) {
+              toggleBtn.disabled = false;
+              setMarketplaceStatus(err.message || String(err));
+            });
+        });
+        actions.appendChild(toggleBtn);
+
+        var configExpanded = openMarketplaceConfigId === addon.id;
+        var configBtn = makeEl("button", "utility-btn", configExpanded ? "Hide setup" : "Configure");
+        configBtn.type = "button";
+        configBtn.setAttribute("aria-expanded", configExpanded ? "true" : "false");
+        configBtn.setAttribute("aria-controls", "addon-config-" + addon.id);
+        configBtn.addEventListener("click", function() {
+          openMarketplaceConfigId = configExpanded ? "" : addon.id;
+          renderMarketplace();
+        });
+        actions.appendChild(configBtn);
+
+        var uninstallBtn = makeEl("button", "utility-btn", "Uninstall");
+        uninstallBtn.type = "button";
+        uninstallBtn.addEventListener("click", function() {
+          uninstallBtn.disabled = true;
+          fetch("/api/marketplace/uninstall", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: addon.id })
+          }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+            .then(function(res) {
+              if (!res.ok) throw new Error(res.data.detail || "Uninstall failed.");
+              cachedMarketplaceAddons = res.data.addons || cachedMarketplaceAddons;
+              if (openMarketplaceConfigId === addon.id) openMarketplaceConfigId = "";
+              setMarketplaceStatus("Uninstalled " + addon.name + ".");
+              renderMarketplace();
+            }).catch(function(err) {
+              uninstallBtn.disabled = false;
+              setMarketplaceStatus(err.message || String(err));
+            });
+        });
+        actions.appendChild(uninstallBtn);
+      }
+      card.appendChild(actions);
+
+      if (addon.installed && openMarketplaceConfigId === addon.id) {
+        var form = makeEl("form", "marketplace-form");
+        form.id = "addon-config-" + addon.id;
+        form.method = "POST";
+        form.action = "/api/marketplace/configure";
+        form.setAttribute("aria-labelledby", heading.id);
+
+        if (Array.isArray(addon.setupSteps) && addon.setupSteps.length) {
+          var stepsList = makeEl("ol", "marketplace-caps");
+          addon.setupSteps.forEach(function(step) {
+            stepsList.appendChild(makeEl("li", "", step));
+          });
+          form.appendChild(stepsList);
+        }
+
+        (addon.configFields || []).forEach(function(field) {
+          var wrap = makeEl("div", "marketplace-field");
+          var inputId = "addon-" + addon.id + "-" + field.key;
+          var helpId = inputId + "-help";
+          var label = document.createElement("label");
+          label.htmlFor = inputId;
+          label.textContent = field.label + (addon.configuredFields && addon.configuredFields[field.key] ? " (saved)" : "");
+          wrap.appendChild(label);
+
+          var input = document.createElement("input");
+          input.id = inputId;
+          input.name = field.key;
+          input.type = field.secret ? "password" : "text";
+          input.placeholder = field.secret && addon.configuredFields && addon.configuredFields[field.key]
+            ? "Saved in .env — leave blank to keep existing"
+            : field.placeholder;
+          input.value = !field.secret && addon.publicConfig && addon.publicConfig[field.key] ? addon.publicConfig[field.key] : "";
+          input.setAttribute("aria-describedby", helpId);
+          input.setAttribute("autocorrect", "off");
+          input.setAttribute("autocapitalize", "none");
+          input.setAttribute("spellcheck", "false");
+          if (!field.secret) input.autocomplete = "off";
+
+          if (field.secret) {
+            var secretRow = makeEl("div", "marketplace-secret-row");
+            secretRow.appendChild(input);
+            var revealBtn = makeEl("button", "utility-btn", "Show");
+            revealBtn.type = "button";
+            revealBtn.setAttribute("aria-pressed", "false");
+            revealBtn.setAttribute("aria-label", "Show " + field.label);
+            revealBtn.addEventListener("click", function() {
+              var showing = input.type === "text";
+              input.type = showing ? "password" : "text";
+              revealBtn.textContent = showing ? "Show" : "Hide";
+              revealBtn.setAttribute("aria-pressed", showing ? "false" : "true");
+            });
+            secretRow.appendChild(revealBtn);
+            wrap.appendChild(secretRow);
+          } else {
+            wrap.appendChild(input);
+          }
+
+          var hint = makeEl("span", "marketplace-hint", field.helpText);
+          hint.id = helpId;
+          wrap.appendChild(hint);
+          form.appendChild(wrap);
+        });
+
+        var formActions = makeEl("div", "marketplace-actions");
+        var saveBtn = makeEl("button", "marketplace-btn-primary", "Save configuration");
+        saveBtn.type = "submit";
+        formActions.appendChild(saveBtn);
+
+        var testBtn = makeEl("button", "utility-btn", "Test connection");
+        testBtn.type = "button";
+        testBtn.addEventListener("click", function() {
+          testBtn.disabled = true;
+          setMarketplaceStatus("Testing " + addon.name + " connection…");
+          fetch("/api/marketplace/test", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: addon.id })
+          }).then(function(r) { return r.json(); })
+            .then(function(res) {
+              testBtn.disabled = false;
+              setMarketplaceStatus(res.message || (res.ok ? "Connected." : "Connection failed."));
+            }).catch(function(err) {
+              testBtn.disabled = false;
+              setMarketplaceStatus("Test error: " + (err && err.message ? err.message : String(err)));
+            });
+        });
+        formActions.appendChild(testBtn);
+        form.appendChild(formActions);
+
+        form.addEventListener("submit", function(e) {
+          e.preventDefault();
+          saveBtn.disabled = true;
+          var configPayload = {};
+          var formData = new FormData(form);
+          (addon.configFields || []).forEach(function(field) {
+            var val = String(formData.get(field.key) || "");
+            if (field.secret && !val.trim()) return;
+            configPayload[field.key] = val;
+          });
+          fetch("/api/marketplace/configure", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: addon.id, config: configPayload })
+          }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+            .then(function(res) {
+              if (!res.ok) throw new Error(res.data.detail || "Save failed.");
+              cachedMarketplaceAddons = res.data.addons || cachedMarketplaceAddons;
+              setMarketplaceStatus("Saved " + addon.name + " settings to local .env.");
+              renderMarketplace();
+            }).catch(function(err) {
+              saveBtn.disabled = false;
+              setMarketplaceStatus(err.message || String(err));
+            });
+        });
+
+        card.appendChild(form);
+      }
+
+      list.appendChild(card);
+    });
+  }
+
   function loadPlugins() {
     var container = document.getElementById("plugins-content");
     if (!container) return;
@@ -12344,6 +12725,10 @@ dialog.modal-dialog::backdrop {
   if (fileRefreshBtn) fileRefreshBtn.addEventListener("click", loadWorkspaceFiles);
   var fileFilterInput = document.getElementById("file-filter-input");
   if (fileFilterInput) fileFilterInput.addEventListener("input", function() { renderFileList(fileFilterInput.value); });
+  var marketplaceRefreshBtn = document.getElementById("marketplace-refresh-btn");
+  if (marketplaceRefreshBtn) marketplaceRefreshBtn.addEventListener("click", loadMarketplace);
+  var marketplaceSearchInput = document.getElementById("marketplace-search-input");
+  if (marketplaceSearchInput) marketplaceSearchInput.addEventListener("input", renderMarketplace);
   var pluginsRefreshBtn = document.getElementById("plugins-refresh-btn");
   if (pluginsRefreshBtn) pluginsRefreshBtn.addEventListener("click", loadPlugins);
 

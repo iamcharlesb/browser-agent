@@ -429,3 +429,35 @@ test("analyst profiles retain independent identity, role playbooks and voice aft
     assert.match(page.text, /public|sources/i);
   }
 });
+
+test("Upwork and Fiverr specialist bots load role instructions, voice, and playbooks within budget", () => {
+  const upwork = loadAgentProfile({ botName: "Upwork", profileId: "upwork", task: "Write a tailored proposal for this job post", root });
+  assert.match(upwork.instructions, /Connects/i);
+  assert.match(upwork.instructions, /approval/i);
+  assert.match(upwork.soul, /pragmatic|direct/i);
+  assert.ok(upwork.selected.includes("upwork"));
+  assert.ok(upwork.instructions.length <= 2400);
+  assert.ok(upwork.soul.length <= 900);
+  assert.ok(upwork.playbooks.length <= 3200);
+  assert.match(readPlaybookPage("upwork", 0, root).text, /Proposal Structure/i);
+
+  const fiverr = loadAgentProfile({ botName: "My Gig Writer", profileId: "fiverr", task: "Create 3-tier Fiverr gig packages and FAQs", root });
+  assert.match(fiverr.instructions, /Basic\/Standard\/Premium/i);
+  assert.match(fiverr.instructions, /approval/i);
+  assert.match(fiverr.soul, /warm|direct/i);
+  assert.ok(fiverr.selected.includes("fiverr"));
+  assert.ok(fiverr.instructions.length <= 2400);
+  assert.ok(fiverr.soul.length <= 900);
+  assert.ok(fiverr.playbooks.length <= 3200);
+  assert.match(readPlaybookPage("fiverr", 0, root).text, /Three-Tier Package/i);
+
+  const news = loadAgentProfile({ botName: "News", profileId: "news", task: "Fetch the latest AI and tech news headlines", root });
+  assert.match(news.instructions, /web_search/i);
+  assert.match(news.instructions, /publication dates/i);
+  assert.match(news.soul, /analytical|direct/i);
+  assert.ok(news.selected.includes("news"));
+  assert.ok(news.instructions.length <= 2400);
+  assert.ok(news.soul.length <= 900);
+  assert.ok(news.playbooks.length <= 3200);
+  assert.match(readPlaybookPage("news", 0, root).text, /Fetch Fresh Sources/i);
+});

@@ -9,6 +9,8 @@ import OpenAI from "openai";
 import { artifactUrlFor } from "./apiContract";
 import { BrowserActionError, BrowserController } from "./browserController";
 import { googlePropertyGuide, redditSearch } from "./siteAdapters";
+import { isMarketplaceAddonEnabled } from "./marketplace";
+import { OutlookAction, runOutlookAction } from "./outlookAddon";
 import { redactSecrets } from "./security";
 import { workspaceCode, guardedCodePatch } from "./workspaceCode";
 import { resolveWorkspacePath } from "./workspacePaths";
@@ -278,6 +280,35 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           note: { type: "string", description: "Optional focus (e.g. landing pages, conversions)." }
         },
         required: ["property"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "outlook",
+      description:
+        "Access Microsoft Outlook mail and calendar via the Marketplace Outlook addon (Microsoft Graph API). Use status, list_messages, search_messages, get_message, create_draft, send_email, reply_email, or list_events. Sending or replying to email requires explicit user approval.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: ["status", "list_messages", "search_messages", "get_message", "create_draft", "send_email", "reply_email", "list_events"]
+          },
+          folder: { type: "string", description: "Mail folder for list_messages (inbox, sentitems, drafts, archive, deleteditems, junkemail)." },
+          query: { type: "string", description: "Search query for search_messages." },
+          messageId: { type: "string", description: "Message ID for get_message or reply_email." },
+          to: { type: "string", description: "Recipient email address(es), comma-separated, for create_draft or send_email." },
+          cc: { type: "string", description: "Optional CC email address(es), comma-separated." },
+          subject: { type: "string", description: "Email subject for create_draft or send_email." },
+          body: { type: "string", description: "Plain-text email body for create_draft, send_email, or reply_email." },
+          comment: { type: "string", description: "Reply text for reply_email." },
+          limit: { type: "integer", description: "Maximum number of messages or events to return (1-25)." },
+          startDateTime: { type: "string", description: "Optional ISO start timestamp for list_events." },
+          endDateTime: { type: "string", description: "Optional ISO end timestamp for list_events." }
+        },
+        required: ["action"]
       }
     }
   },
@@ -1300,6 +1331,33 @@ export async function executeTool(
           ok: true,
           message: googlePropertyGuide(property as "analytics" | "tagmanager" | "search_console" | "ads", note)
         };
+      }
+      case "outlook": {
+        if (!isMarketplaceAddonEnabled("outlook")) {
+          return {
+            ok: false,
+            message: "The Microsoft Outlook addon is not installed or enabled. Open Marketplace to install and enable it."
+          };
+        }
+        const action = String(toolInput.action ?? "") as OutlookAction;
+        const result = await runOutlookAction(
+          {
+            action,
+            folder: typeof toolInput.folder === "string" ? toolInput.folder : undefined,
+            query: typeof toolInput.query === "string" ? toolInput.query : undefined,
+            messageId: typeof toolInput.messageId === "string" ? toolInput.messageId : undefined,
+            to: typeof toolInput.to === "string" || Array.isArray(toolInput.to) ? (toolInput.to as string | string[]) : undefined,
+            cc: typeof toolInput.cc === "string" || Array.isArray(toolInput.cc) ? (toolInput.cc as string | string[]) : undefined,
+            subject: typeof toolInput.subject === "string" ? toolInput.subject : undefined,
+            body: typeof toolInput.body === "string" ? toolInput.body : undefined,
+            comment: typeof toolInput.comment === "string" ? toolInput.comment : undefined,
+            limit: typeof toolInput.limit === "number" ? toolInput.limit : undefined,
+            startDateTime: typeof toolInput.startDateTime === "string" ? toolInput.startDateTime : undefined,
+            endDateTime: typeof toolInput.endDateTime === "string" ? toolInput.endDateTime : undefined
+          },
+          { signal }
+        );
+        return { ok: result.ok, message: result.message };
       }
       case "calculate": {
         const expr = String(toolInput.expression ?? "");

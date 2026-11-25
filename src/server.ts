@@ -101,6 +101,14 @@ import {
 import { createDefaultVerifier } from "./selfFix";
 import { parseTrigger, probeTrigger, ScheduleTrigger, TriggerState } from "./watchers";
 import { getWorkspacePluginsSummary, getWorkspaceReview } from "./workspaceReview";
+import {
+  configureMarketplaceAddon,
+  installMarketplaceAddon,
+  listMarketplaceAddons,
+  toggleMarketplaceAddon,
+  uninstallMarketplaceAddon
+} from "./marketplace";
+import { runOutlookAction } from "./outlookAddon";
 import { getHelpCatalog } from "./helpCatalog";
 import { createPatchProposer } from "./patchProposer";
 import { FixApprovalGate } from "./fixApproval";
@@ -3156,6 +3164,74 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   if (req.method === "GET" && url.pathname === "/api/workspace/plugins") {
     sendJson(res, 200, getWorkspacePluginsSummary());
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/marketplace") {
+    sendJson(res, 200, { addons: listMarketplaceAddons() });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/marketplace/install") {
+    if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Marketplace requests must come from this app." }); return; }
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const id = typeof body.id === "string" ? body.id.trim() : "";
+      if (!id) throw new Error("Choose an addon id to install.");
+      const addon = installMarketplaceAddon(id);
+      sendJson(res, 200, { addon, addons: listMarketplaceAddons() });
+    } catch (error) { sendJson(res, 400, { detail: (error as Error).message }); }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/marketplace/uninstall") {
+    if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Marketplace requests must come from this app." }); return; }
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const id = typeof body.id === "string" ? body.id.trim() : "";
+      if (!id) throw new Error("Choose an addon id to uninstall.");
+      const addon = uninstallMarketplaceAddon(id);
+      sendJson(res, 200, { addon, addons: listMarketplaceAddons() });
+    } catch (error) { sendJson(res, 400, { detail: (error as Error).message }); }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/marketplace/toggle") {
+    if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Marketplace requests must come from this app." }); return; }
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const id = typeof body.id === "string" ? body.id.trim() : "";
+      if (!id || typeof body.enabled !== "boolean") throw new Error("Provide addon id and boolean enabled.");
+      const addon = toggleMarketplaceAddon(id, body.enabled);
+      sendJson(res, 200, { addon, addons: listMarketplaceAddons() });
+    } catch (error) { sendJson(res, 400, { detail: (error as Error).message }); }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/marketplace/configure") {
+    if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Marketplace requests must come from this app." }); return; }
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const id = typeof body.id === "string" ? body.id.trim() : "";
+      const config = body.config && typeof body.config === "object" && !Array.isArray(body.config)
+        ? (body.config as Record<string, unknown>)
+        : null;
+      if (!id || !config) throw new Error("Provide addon id and config object.");
+      const addon = await configureMarketplaceAddon(id, config);
+      sendJson(res, 200, { addon, addons: listMarketplaceAddons() });
+    } catch (error) { sendJson(res, 400, { detail: (error as Error).message }); }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/marketplace/test") {
+    if (!isSameOriginRequest(req)) { sendJson(res, 403, { detail: "Marketplace requests must come from this app." }); return; }
+    try {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const id = typeof body.id === "string" ? body.id.trim() : "";
+      if (id !== "outlook") throw new Error(`Connection testing is not implemented for addon "${id}".`);
+      const result = await runOutlookAction({ action: "status" });
+      sendJson(res, result.ok ? 200 : 400, result);
+    } catch (error) { sendJson(res, 400, { ok: false, message: (error as Error).message }); }
     return;
   }
 

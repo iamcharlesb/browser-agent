@@ -26,6 +26,7 @@ import {
   inferResponseFormatForFinish
 } from "./responseFormat";
 import { TOOLS, ToolExecutionResult, executeTool } from "./agentTools";
+import { isMarketplaceAddonEnabled } from "./marketplace";
 import {
   accessDeniedRecoveryHint,
   BrowserController,
@@ -84,6 +85,7 @@ const HEADLESS_RESEARCH_TOOL_NAMES = new Set([
   "fetch_url",
   "reddit_search",
   "google_property",
+  "outlook",
   "calculate",
   "understand_youtube_video",
   "create_document",
@@ -101,6 +103,7 @@ const TOPIC_TOOLS: Record<string, RegExp> = {
   understand_youtube_video: /youtu/i,
   reddit_search: /\breddit\b|\bsubreddits?\b|\br\/\w/i,
   google_property: /\b(?:analytics|ga4|gtm|tag manager|search console|google ads|ads manager)\b/i,
+  outlook: /\b(?:outlook|inbox|emails?|mail|messages?|calendar|meetings?|o365|office\s*365|microsoft\s*365)\b/i,
   generate_image: /\b(?:images?|pictures?|photos?|illustrations?|logos?|thumbnails?|banners?|visuals?|blog|articles?|posts?|graphics?|websites?|landing pages?|homepages?|mockups?|hero)\b/i,
   code_project: CODE_TOPIC,
   workspace_file: CODE_TOPIC,
@@ -122,6 +125,7 @@ const HELPFULNESS_RULES =
   "Do the work yourself with tools rather than telling the user how to do it. End with the single most useful next action only when there is one.";
 
 const MUTATING_WORKSPACE_FILE_ACTIONS = new Set(["write", "append", "patch"]);
+const OUTWARD_OUTLOOK_ACTIONS = new Set(["send_email", "reply_email"]);
 const MAX_PREMATURE_FINISH_REJECTIONS = 2;
 const PREMATURE_FINISH_ADMISSION =
   /\b(i (?:haven['’]t|have not) (?:[a-z]+(?:\s+or\s+[a-z]+)?\s+)?(?:saved|published|completed|typed|entered|filled|verified|created|written|submitted|updated|anything)|no (?:posts?|articles?|drafts?|items?|changes?) (?:have been|were) (?:created|saved|published|written|drafted)|(?:editor|form|fields?|draft) (?:is|are) still (?:blank|empty|unsaved)|not attached to a (?:post|draft|article) yet|i['’]m paused at|i need to finish (?:checking|creating|writing|drafting|filling|verifying)|verify the (?:form|page|editor|site) supports [^\n.]{1,40} before (?:saving|creating|writing)|i should have saved|i got stuck|i['’]ll continue from|i (?:can|will) (?:now )?(?:prepare|create|draft|write|fill|check) [^.\n]{1,80} (?:as drafts?|next|before)|i should check for overlap before|haven['’]t verified that [a-z0-9 _-]+ was saved)\b/i;
@@ -169,10 +173,13 @@ export type InteractionMode = "chat" | "browse" | "act" | "turbo";
 /** "openai-sdk" = official @openai/agents Runner (default in UI); "cheap" = token-lean custom loop. */
 export type AgentEngine = "openai-sdk" | "cheap";
 
-function requiresPrivilegedApproval(toolName: string, input: Record<string, unknown>): boolean {
+export function requiresPrivilegedApproval(toolName: string, input: Record<string, unknown>): boolean {
   if (toolName === "run_terminal_command") return !isReadOnlyCommand(String(input.command ?? ""));
   if (toolName === "workspace_file") {
     return MUTATING_WORKSPACE_FILE_ACTIONS.has(String(input.action ?? ""));
+  }
+  if (toolName === "outlook") {
+    return OUTWARD_OUTLOOK_ACTIONS.has(String(input.action ?? ""));
   }
   return false;
 }
@@ -181,6 +188,15 @@ function describePrivilegedCall(toolName: string, input: Record<string, unknown>
   if (toolName === "run_terminal_command") {
     const cwd = typeof input.cwd === "string" && input.cwd ? ` (in ${input.cwd})` : "";
     return `Run shell command${cwd}: ${String(input.command ?? "")}`;
+  }
+  if (toolName === "outlook") {
+    const action = String(input.action ?? "");
+    if (action === "reply_email") {
+      return `Send Outlook reply to message ${String(input.messageId ?? "(unknown)")}`;
+    }
+    const to = Array.isArray(input.to) ? input.to.join(", ") : String(input.to ?? "(unspecified)");
+    const subject = String(input.subject ?? "(no subject)");
+    return `Send Outlook email to ${to} — "${subject}"`;
   }
   const action = String(input.action ?? "");
   const path = String(input.path ?? "");
@@ -502,6 +518,7 @@ export class AgentOrchestrator {
       if (this.interactionMode === "chat" && BROWSER_TOOL_NAMES.has(name)) return false;
       if (this.interactionMode === "browse" && INTERACTIVE_BROWSER_TOOL_NAMES.has(name)) return false;
       if (!this.allowBrowserInteraction && INTERACTIVE_BROWSER_TOOL_NAMES.has(name)) return false;
+      if (name === "outlook" && !isMarketplaceAddonEnabled("outlook")) return false;
       if (!toolNeededForRequest(name, `${this.extractUserRequestCore()}\n${options.botInstructions || ""}\n${this.expertise}`)) return false;
       return true;
     });
@@ -662,13 +679,15 @@ export class AgentOrchestrator {
   private async requestPrivilegedApproval(toolName: string, input: Record<string, unknown>): Promise<boolean> {
     if (!this.allowPrivilegedTools) return false;
     const financial = toolName === "run_terminal_command" && assessTaskRisk(String(input.command || "")).approvalsRequired.includes("financial_transaction");
-    if (!financial && (!requiresPrivilegedApproval(toolName, input) || this.standingApproval || this.taskApproval.allows(toolName))) return true;
+    const outlookOutward = toolName === "outlook" && OUTWARD_OUTLOOK_ACTIONS.has(String(input.action ?? ""));
+    const approvalKind: "shell" | "outward" | "irreversible" = financial ? "irreversible" : outlookOutward ? "outward" : "shell";
+    if (!financial && !outlookOutward && (!requiresPrivilegedApproval(toolName, input) || this.standingApproval || this.taskApproval.allows(toolName))) return true;
     const description = describePrivilegedCall(toolName, input);
     const approvalId = randomUUID();
     this.emit({
       type: "privileged_approval_required",
       approvalId,
-      approvalKind: financial ? "irreversible" : "shell",
+      approvalKind,
       toolName,
       description,
       message: `${this.botName} wants to: ${description}. Approve or deny before it runs.`
@@ -679,9 +698,9 @@ export class AgentOrchestrator {
     let approvalScope: "once" | "task" = "once";
     if (this.onTerminalApproval) {
       try {
-        const decision = await this.onTerminalApproval({ toolName, description, approvalId, approvalKind: financial ? "irreversible" : "shell" });
+        const decision = await this.onTerminalApproval({ toolName, description, approvalId, approvalKind });
         approvalScope = typeof decision === "object" && decision.scope === "task" ? "task" : "once";
-        approved = this.taskApproval.resolve(decision, financial ? "none" : "privileged");
+        approved = this.taskApproval.resolve(decision, financial || outlookOutward ? "none" : "privileged");
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error("onTerminalApproval hook raised; denying by default.", err);
@@ -1494,6 +1513,8 @@ export class AgentOrchestrator {
           connectionFailure || await this.gateBrowserAction(toolCall.name, toolCall.input);
         if (effectRefusal) {
           execResult = effectRefusal;
+        } else if (!this.allowPrivilegedTools && toolCall.name === "outlook" && String(toolCall.input.action ?? "") === "create_draft") {
+          execResult = { ok: false, message: "Scheduled or read-only runs cannot create Outlook drafts without explicit authorization." };
         } else if (requiresPrivilegedApproval(toolCall.name, toolCall.input)) {
           const approved = await this.requestPrivilegedApproval(toolCall.name, toolCall.input);
           execResult = approved
@@ -2043,6 +2064,8 @@ export class AgentOrchestrator {
             connectionFailure || await this.gateBrowserAction(toolName, toolInput);
           if (effectRefusal) {
             execResult = effectRefusal;
+          } else if (!this.allowPrivilegedTools && toolName === "outlook" && String(toolInput.action ?? "") === "create_draft") {
+            execResult = { ok: false, message: "Scheduled or read-only runs cannot create Outlook drafts without explicit authorization." };
           } else if (requiresPrivilegedApproval(toolName, toolInput)) {
             const approved = await this.requestPrivilegedApproval(toolName, toolInput);
             execResult = approved

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="News">
+  <circle cx="32" cy="32" r="32" fill="#0f172a"/>
+  <rect x="15" y="17" width="34" height="30" rx="4" fill="#ffffff"/>
+  <rect x="19" y="21" width="14" height="10" rx="1.5" fill="#2563eb"/>
+  <rect x="36" y="21" width="9" height="3" rx="1.2" fill="#0f172a"/>
+  <rect x="36" y="27" width="9" height="3" rx="1.2" fill="#475569"/>
+  <rect x="19" y="34.5" width="26" height="3" rx="1.2" fill="#334155"/>
+  <rect x="19" y="40" width="19" height="3" rx="1.2" fill="#64748b"/>
+</svg>
