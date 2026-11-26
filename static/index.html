@@ -1540,7 +1540,7 @@ dialog::backdrop {
   border-radius: 10px;
   background: #101828;
   color: #fff;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.5;
   overflow-wrap: anywhere;
   box-shadow: none;
@@ -3930,8 +3930,8 @@ dialog.modal-dialog::backdrop {
 #welcome .template-avatar { width: 36px; height: 36px; flex: 0 0 36px; margin: 0; border-radius: 50%; background: #f0eff1; color: #111318; }
 #welcome .template-avatar > svg { width: 21px; height: 21px; }
 #welcome .template-copy { flex: 0; align-items: center; gap: 2px; width: 100%; }
-#welcome .template-card strong { font-size: 12px; font-weight: 650; color: #101116; overflow-wrap: normal; }
-#welcome .template-copy > span:not(.template-status) { font-size: 10.5px; line-height: 1.25; color: #34445f; }
+#welcome .template-card strong { font-size: 14px; font-weight: 650; color: #101116; overflow-wrap: normal; }
+#welcome .template-copy > span:not(.template-status) { font-size: 12px; line-height: 1.4; color: #34445f; }
 #welcome .template-status, #welcome .create-custom-card { display: none; }
 #welcome .is-onboarded .template-copy > .template-status {
   position: absolute; top: 6px; left: 6px; display: grid; place-items: center;
@@ -3973,6 +3973,9 @@ dialog.modal-dialog::backdrop {
 #bot-welcome h2 { font-size: clamp(22px, 2.2vw, 30px); line-height: 1.25; letter-spacing: -.025em; font-weight: 600; margin: 0 0 12px; }
 #bot-welcome .bot-welcome-description { max-width: 450px; margin: 0 auto; font-size: 14px; line-height: 1.6; color: #64748b; }
 
+#app-back-btn:disabled { opacity: .3; cursor: default; }
+#app-back-btn:not(:disabled):hover { background: var(--blue-soft); color: var(--blue); }
+
 /* Home: four focused starting points; the complete catalog is one click away. */
 #welcome { font-family: var(--font-ui); }
 #welcome:not(.catalog-open) { justify-content: center; }
@@ -3990,8 +3993,8 @@ dialog.modal-dialog::backdrop {
 #home-catalog { width: min(100%, 1000px); }
 #home-catalog[hidden] { display: none; }
 #welcome .catalog-controls { justify-content: space-between; margin-bottom: 16px; }
-#catalog-heading { font-size: 16px; font-weight: 600; margin: 0; }
-#welcome .template-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+#catalog-heading { font-size: 18px; font-weight: 600; margin: 0; }
+#welcome .template-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 #welcome.is-typing .home-categories, #welcome.is-typing #home-catalog { display: none; }
 @media (max-width: 600px) {
   .home-categories { gap: 2px; }
@@ -4115,6 +4118,9 @@ dialog.modal-dialog::backdrop {
   <main id="main">
     <header id="topbar">
       <div class="topbar-left">
+        <button type="button" id="app-back-btn" class="icon-button" aria-label="Back" title="Back" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+        </button>
         <button id="toggle-sidebar-btn" class="icon-button" aria-label="Toggle sidebar navigation" title="Collapse / expand side navigation">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
         </button>
@@ -5202,6 +5208,8 @@ dialog.modal-dialog::backdrop {
   var appEl = document.getElementById("app");
   var workspace = document.getElementById("workspace");
   var welcome = document.getElementById("welcome");
+  var navigationHistory = [];
+  var navigationRestoring = false;
   var messages = document.getElementById("messages");
   var prompt = document.getElementById("prompt");
   var sendButton = document.getElementById("send-button");
@@ -5419,7 +5427,7 @@ dialog.modal-dialog::backdrop {
   function syncPromptPlaceholder() {
     var current = activeAgent();
     prompt.placeholder = current
-      ? current.kind === "huddle" ? "Ask the huddle…" : "Message " + current.name + "…"
+      ? current.kind === "huddle" ? "Ask the huddle…" : "Message " + displayBotName(current) + "…"
       : window.matchMedia("(max-width: 430px)").matches
       ? "Ask anything…"
       : "Ask anything, run $ command, or paste a URL…";
@@ -5480,7 +5488,7 @@ dialog.modal-dialog::backdrop {
     { profileId: "chief-marketing-officer", name: "Chief Marketing Officer", description: "Founder-facing CMO for brand voice, positioning, multi-channel content systems, and weekly marketing rhythm. Drafts in your voice, researches creators, maintains an editorial calendar, coordinates Ads/SEO/Funnel/LinkedIn handoffs, and reports only verified metrics. Publishing and paid actions always require your approval.", color: "#F59E0B", summary: "Brand voice, content system, channel mix, specialist handoffs, and approval-first publishing." },
     { profileId: "revenue-architect", name: "Inspired by Sabri Suby", description: "Founder-level direct-response strategist informed by Sabri Suby's published ideas. Customer research, profitable acquisition, funnel economics, persuasive copy, measurable experiments, ethical claims, and approval before campaign changes or spend.", color: "#E45532", avatar: "./avatars/sabri-suby.jpg?v=6746ddc34177", summary: "Direct response strategy, customer acquisition, persuasive copy, and profitable growth." },
     { profileId: "value-architect", name: "Alex Hormozi", description: "You are Alex Hormozi's published commercial operating style: value equation, grand-slam offers, pricing, acquisition, monetization, and unit economics. When asked for a landing or funnel page, ship a sparse Hormozi-structure HTML page (outcome headline, clarifying subhead, proof hero, clear CTA, qualified form, three objection bullets, legal footer)—do not stall with lectures. Brief Funnel/UX peers when asked to delegate. Never invent testimonials or claim to speak for Acquisition.com. Approval before pricing or spend.", color: "#147D79", avatar: "./avatars/alex-hormozi.webp?v=cc0a5ae96df8", summary: "Offers, economics, and Hormozi-style landing pages that convert qualified leads." },
-    { profileId: "systems-architect", name: "Engineering", description: "Fullstack engineering partner for websites, frontend, backend, local terminal, testing, cloud and DevOps. Build finished responsive, accessible websites and applications; inspect and edit code, run local commands, verify results, and explain architecture tradeoffs. Use real photo sources and honest proof when designing websites. Follow workspace permissions; approval before publishing, deployment, destructive work or spend.", color: "#4768A8", summary: "Build websites and apps, run commands, test, and deploy with approval.", consolidates: ["website-designer", "Website Designer", "Local Terminal & DevOps Bot", "Local Terminal & DevOps", "Principal Fullstack Engineer, Cloud & DevOps", "The Systems Architect"] },
+    { profileId: "systems-architect", name: "All-in-one Coder / Engineer", description: "Fullstack engineering partner for websites, frontend, backend, local terminal, testing, cloud and DevOps. Build finished responsive, accessible websites and applications; inspect and edit code, run local commands, verify results, and explain architecture tradeoffs. Use real photo sources and honest proof when designing websites. Follow workspace permissions; approval before publishing, deployment, destructive work or spend.", color: "#4768A8", summary: "Websites, apps, terminal, testing & DevOps.", consolidates: ["website-designer", "Website Designer", "Local Terminal & DevOps Bot", "Local Terminal & DevOps", "Principal Fullstack Engineer, Cloud & DevOps", "The Systems Architect", "Engineering"] },
     { profileId: "engineering-craftsman", name: "Addy Osmani", description: "You are Addy Osmani's published engineering operating style: maintainable frontend architecture, Core Web Vitals, developer experience, code review, and skeptical AI-assisted engineering. Measure before optimizing and verify changes. Never invent metrics or claim to speak for Google/Chrome.", color: "#7056A8", avatar: "./avatars/addy-osmani.jpg?v=29902bd27134", summary: "Software engineering, web performance, frontend architecture, and developer experience." },
     { profileId: "neural-architect", name: "Andrej Karpathy", description: "You are Andrej Karpathy's published teaching and engineering style: deep learning, Transformers, LLM systems, evaluation, and agent design from first principles. Build tiny baselines and measure hypotheses; never invent gains or claim private research.", color: "#3E7C91", avatar: "./avatars/andrej-karpathy.jpg?v=2aaa21c78fa6", summary: "Deep learning, LLM systems, evaluation, and AI from first principles." },
     { profileId: "mark-zuckerberg", name: "Mark Zuckerberg", description: "You are Mark Zuckerberg's published builder operating style: product velocity, ship-to-learn loops, long-term platforms, and social product intuition. Never invent Meta internals or claim to speak for Meta. Approval before publish, spend, hire, or infra.", color: "#1877F2", avatar: "./avatars/mark-zuckerberg.jpg?v=d7f4f1ba7d56", summary: "Product velocity, platform bets, and shipping to learn." },
@@ -5501,10 +5509,11 @@ dialog.modal-dialog::backdrop {
     "inspired by addy osmani": "Addy Osmani",
     "the neural architect": "Andrej Karpathy",
     "inspired by andrej karpathy": "Andrej Karpathy",
-    "the systems architect": "Principal Fullstack Engineer, Cloud & DevOps",
-    "principal or expert fullstack engineer, cloud and devops": "Principal Fullstack Engineer, Cloud & DevOps",
-    "expert fullstack engineer, cloud and devops": "Principal Fullstack Engineer, Cloud & DevOps",
-    "principal fullstack engineer, cloud and devops": "Principal Fullstack Engineer, Cloud & DevOps",
+    "engineering": "All-in-one Coder / Engineer",
+    "the systems architect": "All-in-one Coder / Engineer",
+    "principal or expert fullstack engineer, cloud and devops": "All-in-one Coder / Engineer",
+    "expert fullstack engineer, cloud and devops": "All-in-one Coder / Engineer",
+    "principal fullstack engineer, cloud and devops": "All-in-one Coder / Engineer",
     "paid media & performance marketing specialist": "Ads Specialist (Google, Meta & more)",
     "ads specialist": "Ads Specialist (Google, Meta & more)",
     "operator bot": "Founder Operator",
@@ -5514,6 +5523,11 @@ dialog.modal-dialog::backdrop {
     "alex wang": "Alexandr Wang",
     "tpm": "Technical Program Manager"
   };
+  function displayBotName(agent) {
+    if (!agent) return "Bot";
+    var preset = LATEST_BOT_PRESETS && LATEST_BOT_PRESETS.find(function(item) { return item.profileId === agent.profileId; });
+    return preset && preset.consolidates && preset.consolidates.some(function(alias) { return alias.toLowerCase() === String(agent.name || "").toLowerCase(); }) ? preset.name : agent.name;
+  }
   function normalizeSpecialistBot(bot) {
     if (!bot || bot.deleted) return bot;
     var renamed = SPECIALIST_NAME_ALIASES[String(bot.name || "").trim().toLowerCase()];
@@ -6245,7 +6259,7 @@ dialog.modal-dialog::backdrop {
     agentList.innerHTML = "";
     var filtered = agents.filter(function(a) {
       if (!searchQuery) return true;
-      return (a.name + " " + (a.summary || "")).toLowerCase().indexOf(searchQuery) !== -1;
+      return (a.name + " " + displayBotName(a) + " " + (a.summary || "")).toLowerCase().indexOf(searchQuery) !== -1;
     });
     filtered.sort(function(a,b) { return Number(a.kind === "huddle") - Number(b.kind === "huddle"); });
     var huddleHeadingAdded = false;
@@ -6263,11 +6277,11 @@ dialog.modal-dialog::backdrop {
       row.draggable = true;
       row.dataset.agentId = agent.id;
       row.style.setProperty("--bot-color", agent.color || "#1677ff");
-      row.setAttribute("aria-label", agent.name + (isAgentWorking ? ", working" : ", idle"));
-      row.title = agent.name;
+      row.setAttribute("aria-label", displayBotName(agent) + (isAgentWorking ? ", working" : ", idle"));
+      row.title = displayBotName(agent);
       row.innerHTML =
         '<span class="agent-avatar small"></span>' +
-        '<span class="agent-copy"><span class="agent-name">' + esc(agent.name) + '</span>' +
+        '<span class="agent-copy"><span class="agent-name">' + esc(displayBotName(agent)) + '</span>' +
         '<span class="agent-subtitle">' + esc(agent.summary || "Bot") + '</span></span>' +
         '<button type="button" class="agent-delete" title="Delete bot" aria-label="Delete bot">✕</button>';
       applyAvatarElement(row.querySelector(".agent-avatar"), agent, sidebarWorking, sidebarWorking);
@@ -6328,6 +6342,7 @@ dialog.modal-dialog::backdrop {
   }
 
   function setChip(name, subtitle, agentObj) {
+    if (agentObj) name = displayBotName(agentObj);
     chipName.textContent = name;
     chipMeta.textContent = subtitle || (name === "New Bot" || name === "New Agent" ? "Pick or create a bot" : "Autonomous Bot");
     chipMeta.title = chipMeta.textContent;
@@ -6386,7 +6401,7 @@ dialog.modal-dialog::backdrop {
     var body = document.createElement("div");
     body.className = "message-body";
     body.innerHTML =
-      '<div class="message-label">' + (role === "user" ? "You" : esc(a ? a.name : "Bot")) + '</div>' +
+      '<div class="message-label">' + (role === "user" ? "You" : esc(a ? displayBotName(a) : "Bot")) + '</div>' +
       '<div class="bubble ' + (cls || "") + '">' + html + '</div>';
     if (role === "agent") normalizeLegacyReply(body.querySelector(".bubble"));
     row.appendChild(body);
@@ -6724,7 +6739,7 @@ dialog.modal-dialog::backdrop {
     greeting.setAttribute("aria-label", "Welcome from " + agent.name);
     var avatar = document.createElement("div"); avatar.className = "agent-avatar";
     applyAvatarElement(avatar, agent, false, false);
-    var name = document.createElement("p"); name.className = "bot-welcome-name"; name.textContent = agent.name;
+    var name = document.createElement("p"); name.className = "bot-welcome-name"; name.textContent = displayBotName(agent);
     var title = document.createElement("h2"); title.textContent = "Hi! What are we working on?";
     var description = document.createElement("p"); description.className = "bot-welcome-description";
     var preset = getBotOnboardingPresets().find(function(item) { return agent.profileId && item.profileId === agent.profileId || item.name === agent.name; });
@@ -6769,9 +6784,52 @@ dialog.modal-dialog::backdrop {
     renderBotWelcome(a);
   }
 
+  function navigationView() {
+    if (welcome.hidden && activeAgentId) return { kind: "chat", agentId: activeAgentId };
+    var search = document.getElementById("catalog-search");
+    return { kind: "catalog", collection: catalogCollection || null, query: search.value, searchOpen: !document.getElementById("catalog-search-wrap").hidden, scrollTop: welcome.scrollTop };
+  }
+  function navigationKey(view) { return view.kind === "chat" ? "chat:" + view.agentId : "catalog:" + (view.collection || ""); }
+  function syncBackNavigation() {
+    var back = document.getElementById("app-back-btn");
+    back.disabled = !navigationHistory.length;
+    var previous = navigationHistory[navigationHistory.length - 1];
+    back.title = !previous ? "You’re on the home screen" : previous.kind === "chat" ? "Back to previous chat" : previous.collection ? "Back to " + (previous.collection === "operator" ? "Operator mode" : previous.collection === "all" ? "All bots" : previous.collection) : "Back to home";
+  }
+  function rememberNavigation(destination) {
+    if (navigationRestoring) return;
+    var current = navigationView();
+    if (navigationKey(current) === destination) return;
+    navigationHistory.push(current);
+    if (navigationHistory.length > 50) navigationHistory.shift();
+    syncBackNavigation();
+  }
+  function navigateBack() {
+    var previous = navigationHistory.pop();
+    if (!previous) return;
+    navigationRestoring = true;
+    try {
+      if (previous.kind === "chat" && agents.some(function(bot) { return bot.id === previous.agentId && !bot.deleted; })) selectAgent(previous.agentId);
+      else {
+        resetNewAgent();
+        catalogCollection = previous.kind === "catalog" ? previous.collection : null;
+        document.getElementById("catalog-search").value = previous.query || "";
+        document.getElementById("catalog-search-wrap").hidden = !previous.searchOpen;
+        document.getElementById("catalog-search-toggle").setAttribute("aria-expanded", String(Boolean(previous.searchOpen)));
+        document.querySelectorAll(".catalog-filter-btn").forEach(function(tab) {
+          var selected = tab.getAttribute("data-category") === catalogCollection;
+          tab.classList.toggle("active", selected); tab.setAttribute("aria-pressed", String(selected));
+        });
+        applyCatalogCollection();
+        welcome.scrollTop = previous.scrollTop || 0;
+      }
+    } finally { navigationRestoring = false; syncBackNavigation(); }
+  }
+
   function selectAgent(id) {
     var a = agents.find(function(x) { return x.id === id; });
     if (!a) return;
+    rememberNavigation("chat:" + id);
     a.intent = inferredIntent(a.name, a.description, a.profileId);
     if (!a.description) a.summary = a.intent.summary;
     saveComposerDraft();
@@ -6815,6 +6873,7 @@ dialog.modal-dialog::backdrop {
   }
 
   function resetNewAgent(force) {
+    rememberNavigation("catalog:");
     setupSessionOpen = false;
     browserFooter.classList.remove("visible");
     saveComposerDraft();
@@ -8044,12 +8103,12 @@ dialog.modal-dialog::backdrop {
     if (!q) return null;
     // 1. Exact name match
     var exact = agents.find(function(a) {
-      return a.kind !== "huddle" && a.id !== excludeId && a.name.toLowerCase() === q;
+      return a.kind !== "huddle" && a.id !== excludeId && (a.name.toLowerCase() === q || displayBotName(a).toLowerCase() === q);
     });
     if (exact) return exact;
     // 2. Substring match on name
     var sub = agents.find(function(a) {
-      var n = a.name.toLowerCase();
+      var n = displayBotName(a).toLowerCase();
       return a.kind !== "huddle" && a.id !== excludeId && (n.indexOf(q) !== -1 || q.indexOf(n) !== -1);
     });
     if (sub) return sub;
@@ -9885,7 +9944,7 @@ dialog.modal-dialog::backdrop {
         var autoName = isYt
           ? "YouTube Concept Learner"
           : isTerm
-          ? "Engineering"
+          ? "All-in-one Coder / Engineer"
           : "Codex & Browser Agent";
         var autoDesc = isYt
           ? "Understand YouTube videos headlessly (like Codex) and apply their concepts into code, notes, or answers."
@@ -10708,6 +10767,8 @@ dialog.modal-dialog::backdrop {
   newAgentButton.onclick = function() {
     openCreateBotModal();
   };
+  document.getElementById("app-back-btn").onclick = navigateBack;
+  syncBackNavigation();
   var brandHomeBtn = document.getElementById("brand-home-btn");
   if (brandHomeBtn) {
     brandHomeBtn.onclick = function() { resetNewAgent(); };
@@ -10725,6 +10786,7 @@ dialog.modal-dialog::backdrop {
   };
   document.querySelectorAll(".catalog-filter-btn").forEach(function(btn) {
     btn.onclick = function() {
+      rememberNavigation("catalog:" + btn.getAttribute("data-category"));
       catalogCollection = btn.getAttribute("data-category");
       document.querySelectorAll(".catalog-filter-btn").forEach(function(tab) {
         tab.classList.toggle("active", tab === btn);

@@ -820,6 +820,39 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       await assert.rejects(readFile(join(dataRoot, ".browser-agent-task-memory", "Reset_Running_A.json")), /ENOENT/);
       assert.match(await readFile(join(dataRoot, ".browser-agent-task-memory", "Reset_Running_B.json"), "utf8"), /ASYNC_B/);
     });
+    await t.test("Back restores a bot category and search, returns home, and preserves chat drafts without model calls", async () => {
+      const before = modelCalls;
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage();
+        await page.addInitScript(() => localStorage.setItem('agentFireworksAgentsV2', JSON.stringify([
+          {id:'back-engineering',name:'Engineering',profileId:'systems-architect',transcript:[]}
+        ])));
+        await page.goto(base);
+        await page.locator('[data-category="coding"]').waitFor({state:'visible'});
+        assert.equal(await page.locator('#app-back-btn').isDisabled(), true);
+        await page.locator('[data-category="coding"]').click();
+        assert.equal(await page.locator('#app-back-btn').isEnabled(), true);
+        await page.locator('#catalog-search-toggle').click();
+        await page.locator('#catalog-search').fill('Engineering');
+        await page.locator('.template-card[data-name="All-in-one Coder / Engineer"]').click();
+        assert.match(await page.locator('#agent-chip').innerText(), /All-in-one Coder \/ Engineer/);
+        await page.locator('#prompt').fill('Keep my engineering draft');
+        await page.locator('#app-back-btn').click();
+        assert.equal(await page.locator('#welcome').isVisible(), true);
+        assert.equal(await page.locator('#catalog-heading').innerText(), 'Coding');
+        assert.equal(await page.locator('#catalog-search').inputValue(), 'Engineering');
+        assert.equal(await page.locator('#catalog-search').isVisible(), true);
+        await page.locator('#app-back-btn').click();
+        assert.equal(await page.locator('#home-catalog').isVisible(), false);
+        assert.equal(await page.locator('#app-back-btn').isDisabled(), true);
+        await page.locator('.agent-row[data-agent-id="back-engineering"]').click();
+        assert.equal(await page.locator('#prompt').inputValue(), 'Keep my engineering draft');
+        await page.locator('#app-back-btn').click();
+        assert.equal(await page.locator('#welcome').isVisible(), true);
+        assert.equal(modelCalls, before);
+      } finally { await browser.close(); }
+    });
     await t.test("screenshots attach a still image for review, stop capture, and handle cancellation without model work", async () => {
       const before = modelCalls;
       const browser = await chromium.launch({ headless: true });
@@ -985,14 +1018,14 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.equal(await page.evaluate(() => document.fonts.check('14px Inter')), true, 'the bundled font loads locally');
         const expandedIcon = await page.locator('.category-icon').first().evaluate(el => el.getBoundingClientRect().width);
         await page.locator('[data-category="coding"]').click();
-        assert.equal(await page.locator('.template-card[data-name="Engineering"]').isVisible(), true);
+        assert.equal(await page.locator('.template-card[data-name="All-in-one Coder / Engineer"]').isVisible(), true);
         assert.equal(await page.locator('.template-card[data-name="Website Designer"], .template-card[data-name="Local Terminal & DevOps Bot"]').count(), 0, "overlapping engineering presets are consolidated");
         assert.equal(await page.locator('.template-card[data-name="News"]').isVisible(), false);
         await page.waitForFunction(width => document.querySelector('.category-icon')!.getBoundingClientRect().width < width, expandedIcon);
         assert.equal(await page.locator('.template-card[data-name="Alexandr Wang"]').isVisible(), false);
         await page.locator('[data-category="operator"]').click();
         for (const person of ['Alexandr Wang', 'Sundar Pichai', 'Andrej Karpathy', 'Alex Hormozi']) assert.equal(await page.locator('.template-card[data-name="' + person + '"]').isVisible(), true, person);
-        assert.equal(await page.locator('.template-card[data-name="Engineering"]').isVisible(), false);
+        assert.equal(await page.locator('.template-card[data-name="All-in-one Coder / Engineer"]').isVisible(), false);
         await page.locator('[data-category="marketing"]').click();
         assert.equal(await page.locator('.template-card[data-name="Blog Writer"]').isVisible(), true);
         assert.equal(await page.locator('.template-card[data-name="News"]').isVisible(), false);
