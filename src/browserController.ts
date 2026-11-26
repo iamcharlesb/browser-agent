@@ -371,6 +371,8 @@ export interface BrowserConfig {
   /** When true, launches an isolated ephemeral Guest browser context without saving cookies/sessions to disk. */
   guestMode?: boolean;
   managedChrome?: boolean;
+  /** Attach to an operator-linked external session without starting or provisioning Chrome. */
+  attachOnly?: boolean;
   /**
    * When set, attach to an already-running Chrome (or Electron) via CDP instead of launching
    * Playwright's Chrome. Used by Connected Chrome and the in-app embedded browser.
@@ -875,7 +877,7 @@ export class BrowserController {
       const identity = this.config.userAgent ? { userAgent: this.config.userAgent } : {};
       if (this.config.cdpEndpoint) {
         const endpoint = this.config.cdpEndpoint;
-        if (!this.config.embeddedMode && (this.config.managedChrome || managedChromeEnabled())) {
+        if (!this.config.attachOnly && !this.config.embeddedMode && (this.config.managedChrome || managedChromeEnabled())) {
           await ensureManagedChrome(endpoint, this.config.userDataDir, probeCdpEndpoint);
         }
         const reachable = await probeCdpEndpoint(endpoint);
@@ -890,7 +892,7 @@ export class BrowserController {
             `Connected Chrome is not running at ${endpoint}. Start it once, then retry:\n${command}`
           );
         }
-        if (!this.config.embeddedMode) {
+        if (!this.config.attachOnly && !this.config.embeddedMode) {
           await ensureCdpPageTarget(endpoint);
         }
         if (this.config.embeddedMode && desktopBrowserAvailable()) {
@@ -916,6 +918,12 @@ export class BrowserController {
             this.context = picked.context;
             this.page = picked.page;
           }
+        } else if (this.config.attachOnly) {
+          const [context, ...others] = browser.contexts();
+          if (!context || others.length || !context.pages().length) {
+            throw new BrowserActionError("External Chrome must expose one browser context with an open tab.");
+          }
+          this.context = context;
         } else {
           this.context = browser.contexts()[0] ?? (await browser.newContext({
             viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
@@ -974,9 +982,11 @@ export class BrowserController {
       context.setDefaultTimeout(this.config.actionTimeoutMs);
       if (!this.page || this.page.isClosed()) {
         if (this.config.embeddedMode) throw new BrowserActionError("The in-app browser tab closed while attaching. Open a desktop tab and retry.");
-        this.page = context.pages()[0] ?? (await context.newPage());
+        const firstPage = context.pages()[0];
+        if (!firstPage && this.config.attachOnly) throw new BrowserActionError("The external Chrome tab closed while attaching.");
+        this.page = firstPage ?? (await context.newPage());
       }
-      if (!this.config.embeddedMode) await this.page.setViewportSize(this.viewportSize);
+      if (!this.config.embeddedMode && !this.config.attachOnly) await this.page.setViewportSize(this.viewportSize);
       this.page.setDefaultNavigationTimeout(this.config.navigationTimeoutMs);
       for (const page of context.pages()) this.trackPageClose(page);
       // Automatically adopt popups/new tabs opened by target="_blank" links

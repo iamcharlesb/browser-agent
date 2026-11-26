@@ -6,7 +6,9 @@
 <title>Pilo — Autonomous Bots &amp; Agents</title>
 <link rel="icon" type="image/png" href="./pilo-mascot.png" />
 <link rel="apple-touch-icon" href="./pilo-mascot.png" />
+<link rel="preload" href="./fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin />
 <style>
+@font-face { font-family: "Inter"; src: url("./fonts/InterVariable.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
 :root {
   color-scheme: light;
   --canvas: #ffffff;
@@ -29,7 +31,7 @@
   --red-soft: #fef2f2;
   --amber: #d97706;
   --message-column-max-width: 800px;
-  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-size-body: 14px;
   --font-size-label: 12px;
   --shadow-sm: none;
@@ -1669,6 +1671,10 @@ dialog::backdrop {
   width: 32px;
   height: 32px;
 }
+/* Keep replies aligned, but show the bot icon only on the latest assistant row. */
+.message.agent:has(~ .message.agent) .msg-bot-avatar {
+  visibility: hidden;
+}
 @media (min-width: 768px) {
   .msg-bot-avatar { width: 34px; flex-basis: 34px; }
   .msg-bot-avatar svg.bot-char-svg { width: 34px; height: 34px; }
@@ -1936,18 +1942,20 @@ dialog::backdrop {
   border-color: #cbd5e1;
   color: var(--text);
 }
-.bubble p { margin: 0 0 12px; }
-.bubble :is(h1,h2,h3,h4) { margin: 24px 0 10px; font-weight: 600; line-height: 1.35; letter-spacing: -.015em; }
-.bubble h1 { font-size: 20px; }
-.bubble h2 { font-size: 17px; }
-.bubble :is(h3,h4) { font-size: 15px; }
-.bubble ul, .bubble ol { margin: 10px 0 14px; padding-left: 24px; }
-.bubble li { padding-left: 2px; margin: 4px 0; }
+.bubble p { margin: 0 0 12px; line-height: 1.65; }
+.bubble :is(h1,h2,h3,h4) { margin: 20px 0 8px; font-weight: 650; line-height: 1.35; letter-spacing: -.015em; color: #0f172a; }
+.bubble h1 { font-size: 19px; }
+.bubble h2 { font-size: 16.5px; }
+.bubble :is(h3,h4) { font-size: 14.5px; }
+.reply-content > h3:not(:first-child) { margin-top: 18px; padding-top: 14px; border-top: 1px solid #eef0f4; }
+.reply-content > h3 + p > em:only-child { display: inline-block; font-style: normal; font-size: 12px; font-weight: 500; color: #64748b; margin-top: -2px; }
+.bubble ul, .bubble ol { margin: 10px 0 14px; padding-left: 20px; }
+.bubble li { padding-left: 4px; margin: 9px 0; line-height: 1.65; }
 .bubble li > :is(ul,ol) { margin: 6px 0; }
-.bubble strong { font-weight: 600; }
+.bubble strong { font-weight: 650; color: #0f172a; }
 .reply-content > :first-child { margin-top: 0; }
 .reply-content > :last-child { margin-bottom: 0; }
-.bubble code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .86em; padding: 2px 5px; border-radius: 5px; background: #edf0f3; overflow-wrap: anywhere; }
+.bubble code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .82em; padding: 2px 6px; border-radius: 5px; background: #eff3f8; color: #1e3a5f; overflow-wrap: anywhere; }
 .bubble pre { margin: 12px 0; padding: 14px 16px; border-radius: 10px; background: #f1f3f6; color: #1d2939; font-size: 12.5px; line-height: 1.65; overflow-x: auto; scrollbar-gutter: stable; scrollbar-width: thin; white-space: pre; }
 .bubble pre code { padding: 0; background: transparent; color: inherit; font-size: inherit; overflow-wrap: normal; }
 .bubble .code-block { margin: 16px 0; border: 1px solid #dfe3e8; border-radius: 10px; overflow: clip; background: #f1f3f6; }
@@ -1975,8 +1983,15 @@ dialog::backdrop {
 .reply-table tr:last-child td { border-bottom: 0; }
 @media(max-width:600px) { .message.agent .bubble { font-size: 14px; } .bubble h1 { font-size: 18px; } .bubble h2 { font-size: 16px; } .bubble pre { padding: 12px; } }
 .bubble a {
-  color: var(--blue);
+  color: #1d4ed8;
   text-decoration: underline;
+  text-decoration-color: rgba(29, 78, 216, 0.35);
+  text-underline-offset: 3px;
+  font-weight: 500;
+}
+.bubble a:hover {
+  color: #1e40af;
+  text-decoration-color: currentColor;
 }
 .message.user .bubble a { color: #334b70; }
 .browser-tabs {
@@ -3938,6 +3953,73 @@ dialog.modal-dialog::backdrop {
 @media (hover: none) { .catalog-favorite { opacity: .65; } }
 @media (prefers-reduced-motion: reduce) { #welcome .template-card, #welcome .welcome-mark { transition: none; } }
 
+
+.agent-avatar.miniature-avatar, #welcome .template-avatar.miniature-avatar { background: #f1f3f6; color: #59677c; border-radius: 8px; box-shadow: none; }
+.miniature-avatar .mini-bot-icon { width: 20px; height: 20px; display: block; }
+#sidebar .agent-avatar.miniature-avatar { width: 28px; height: 28px; min-width: 28px; flex: 0 0 28px; margin: 5px; }
+#agent-chip .miniature-avatar .mini-bot-icon { width: 17px; height: 17px; }
+#welcome .template-avatar.miniature-avatar { width: 30px; height: 30px; flex-basis: 30px; }
+
+
+/* People keep photographic identities, framed consistently as rounded squares. */
+.agent-avatar.photo-avatar:not(.role-avatar), #welcome .template-avatar.photo-avatar:not(.role-avatar) { border-radius: 8px; overflow: hidden; }
+#agent-chip .agent-avatar.photo-avatar:not(.role-avatar) { border-radius: 6px; }
+#messages:has(#bot-welcome)::before { display: none; }
+#bot-welcome { width: min(100%, 560px); margin: auto; padding: 32px 12px; text-align: center; }
+#bot-welcome .agent-avatar { width: 56px; height: 56px; margin: 0 auto 18px; display: grid; place-items: center; }
+#bot-welcome .agent-avatar.photo-avatar { border-radius: 14px; }
+#bot-welcome .mini-bot-icon { width: 28px; height: 28px; }
+#bot-welcome .bot-welcome-name { color: #64748b; font-size: 13px; margin: 0 0 10px; }
+#bot-welcome h2 { font-size: clamp(22px, 2.2vw, 30px); line-height: 1.25; letter-spacing: -.025em; font-weight: 600; margin: 0 0 12px; }
+#bot-welcome .bot-welcome-description { max-width: 450px; margin: 0 auto; font-size: 14px; line-height: 1.6; color: #64748b; }
+
+/* Home: four focused starting points; the complete catalog is one click away. */
+#welcome { font-family: var(--font-ui); }
+#welcome:not(.catalog-open) { justify-content: center; }
+#welcome .welcome-heading { margin-bottom: 32px; text-align: center; }
+#welcome .welcome-mark { display: none; }
+#welcome h1 { font-size: clamp(24px, 2.4vw, 32px); font-weight: 500; letter-spacing: -.025em; }
+#welcome .welcome-heading p { margin-top: 10px; max-width: none; color: #737b88; }
+.home-categories { display: flex; justify-content: center; gap: 18px; width: 100%; margin-bottom: 32px; }
+.home-categories .catalog-filter-btn { display: flex; flex-direction: column; align-items: center; gap: 12px; height: auto; min-width: 76px; padding: 8px; background: transparent; border-radius: 14px; font-size: 12px; color: #626b79; cursor: pointer; }
+.category-icon { display: grid; place-items: center; width: 56px; height: 56px; border: 1px solid #e6e8ed; border-radius: 50%; background: #f7f8fa; color: #343b47; transition: background .15s, border-color .15s; }
+.category-icon svg { width: 25px; height: 25px; }
+.home-categories .catalog-filter-btn:hover .category-icon { background: #eef1f6; border-color: #bfc8d6; }
+.home-categories .catalog-filter-btn.active { color: #1d4ed8; background: transparent; }
+.home-categories .catalog-filter-btn.active .category-icon { background: #eff4ff; color: #1d4ed8; border-color: #b9cdf7; }
+#home-catalog { width: min(100%, 1000px); }
+#home-catalog[hidden] { display: none; }
+#welcome .catalog-controls { justify-content: space-between; margin-bottom: 16px; }
+#catalog-heading { font-size: 16px; font-weight: 600; margin: 0; }
+#welcome .template-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+#welcome.is-typing .home-categories, #welcome.is-typing #home-catalog { display: none; }
+@media (max-width: 600px) {
+  .home-categories { gap: 2px; }
+  .home-categories .catalog-filter-btn { min-width: 0; flex: 1; padding: 6px 2px; font-size: 11px; }
+  .category-icon { width: 44px; height: 44px; border-radius: 50%; }
+  #welcome .template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Selecting a collection turns the category launchers into compact navigation. */
+#welcome .welcome-heading { max-height: 140px; overflow: hidden; opacity: 1; transition: max-height .26s ease, margin .26s ease, opacity .18s ease, transform .26s ease; }
+#welcome.catalog-open .welcome-heading { max-height: 0; margin-bottom: 0; opacity: 0; transform: translateY(-8px); }
+.home-categories { transition: gap .26s ease, margin .26s ease; }
+.home-categories .catalog-filter-btn { transition: gap .26s ease, padding .26s ease, font-size .26s ease; }
+.category-icon { transition: width .26s ease, height .26s ease, background .15s ease, border-color .15s ease; }
+.category-icon svg { transition: width .26s ease, height .26s ease; }
+#welcome.catalog-open .home-categories { gap: 10px; margin-bottom: 22px; }
+#welcome.catalog-open .catalog-filter-btn { gap: 7px; padding: 5px 8px; font-size: 11px; }
+#welcome.catalog-open .category-icon { width: 32px; height: 32px; }
+#welcome.catalog-open .category-icon svg { width: 17px; height: 17px; }
+@media (max-width: 600px) {
+  #welcome.catalog-open .home-categories { gap: 2px; }
+  #welcome.catalog-open .catalog-filter-btn { padding: 5px 1px; font-size: 10px; }
+  .home-categories .catalog-filter-btn > span:last-child { min-height: 28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #welcome .welcome-heading, .home-categories, .home-categories .catalog-filter-btn, .category-icon, .category-icon svg { transition: none; }
+}
+
 #new-huddle-button { min-height:36px; margin: 0 0 4px; padding:6px 10px; font-weight:600; }
 #new-huddle-button:hover { background: #e9edf3; }
 .huddle-avatar { background:#e6edff !important; color:#2563eb; border-radius:8px; }
@@ -4087,14 +4169,19 @@ dialog.modal-dialog::backdrop {
         <div id="welcome">
           <div class="welcome-heading">
             <div id="welcome-avatar" class="agent-avatar welcome-mark" style="cursor:pointer;" title="Create a custom bot"><img src="./pilo-mascot.png" alt="Pilo" /></div>
-            <div class="welcome-heading-copy"><h1>Who would you like to work with?</h1><p>Choose a bot and start a conversation.</p></div>
+            <div class="welcome-heading-copy"><h1>What would you like to get done?</h1><p>Your ideas. A team to make them happen.</p></div>
           </div>
+          <nav class="home-categories" aria-label="Find a bot by category">
+            <button type="button" class="catalog-filter-btn" data-category="coding" aria-pressed="false" aria-controls="home-catalog"><span class="category-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16"/></svg></span><span>Coding</span></button>
+            <button type="button" class="catalog-filter-btn" data-category="personal" aria-pressed="false" aria-controls="home-catalog"><span class="category-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg></span><span>Personal</span></button>
+            <button type="button" class="catalog-filter-btn" data-category="marketing" aria-pressed="false" aria-controls="home-catalog"><span class="category-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 14-5v14L3 14zm4 5 1 6h4l-2-5M21 8v8"/></svg></span><span>Marketing</span></button>
+            <button type="button" class="catalog-filter-btn" data-category="news" aria-pressed="false" aria-controls="home-catalog"><span class="category-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h3m3 0h2m-8 3h8"/></svg></span><span>News</span></button>
+            <button type="button" class="catalog-filter-btn" data-category="operator" aria-pressed="false" aria-controls="home-catalog"><span class="category-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="7" width="16" height="14" rx="2"/><path d="M8 7V3h8v4M4 12h16m-10 0v3h4v-3"/></svg></span><span>Operator mode</span></button>
+            <button type="button" class="catalog-filter-btn" data-category="all" aria-pressed="false" aria-controls="home-catalog"><span class="category-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></span><span>All bots</span></button>
+          </nav>
+          <div id="home-catalog" hidden>
           <div class="catalog-controls" aria-label="Browse specialist bots">
-            <div class="catalog-filters" role="group" aria-label="Bot collection">
-              <button type="button" class="catalog-filter-btn" data-category="favorites" aria-pressed="false">Favorites</button>
-              <button type="button" class="catalog-filter-btn" data-category="recent" aria-pressed="false">Recent</button>
-              <button type="button" class="catalog-filter-btn active" data-category="all" aria-pressed="true">All bots</button>
-            </div>
+            <h2 id="catalog-heading">All bots</h2>
             <div class="catalog-actions">
               <button type="button" id="catalog-search-toggle" class="catalog-search-toggle" aria-label="Search bots" aria-expanded="false" aria-controls="catalog-search-wrap" title="Search bots"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg></button>
               <button type="button" id="catalog-create-bot" class="catalog-create-bot"><span aria-hidden="true">＋</span> Create bot</button>
@@ -4112,13 +4199,6 @@ dialog.modal-dialog::backdrop {
               <div class="template-copy">
                 <strong>YouTube Concept Learner</strong>
                 <span>Understand any YouTube video headlessly &amp; turn concepts into code or notes.</span>
-              </div>
-            </button>
-            <button type="button" class="template-card" data-name="Local Terminal & DevOps Bot" data-desc="Execute local shell/terminal commands (git, node, python3, npm, tests), inspect files, and automate workflows directly behind the browser." data-shape="circle" data-color="#10b981">
-              <div class="template-avatar" data-shape="circle" data-color="#10b981"></div>
-              <div class="template-copy">
-                <strong>Local Terminal &amp; DevOps</strong>
-                <span>Run `git`, `node`, `python3` &amp; shell commands locally with zero cloud.</span>
               </div>
             </button>
             <button type="button" class="template-card" data-name="Instagram Follower Growth" data-desc="Proactive growth specialist: plan (audit → content → engagement → follows → pacing → schedule), research real targets, then execute only what you approve." data-shape="circle" data-color="#ec4899">
@@ -4289,6 +4369,7 @@ dialog.modal-dialog::backdrop {
                 <span>Customize name, role instructions, Grok shape &amp; color.</span>
               </div>
             </button>
+          </div>
           </div>
         </div>
 
@@ -4851,6 +4932,12 @@ dialog.modal-dialog::backdrop {
       <a href="https://www.linkedin.com/in/iamcharlesb/" target="_blank" rel="noopener">LinkedIn</a> ·
       <a href="https://x.com/iamcharlesb" target="_blank" rel="noopener">X</a>
     </p>
+    <fieldset class="appearance-settings" style="border:1px solid var(--border);border-radius:10px;padding:14px;margin:0 0 14px;">
+      <legend style="font-weight:600;padding:0 5px;">Appearance</legend>
+      <label for="bot-icon-style">Bot icons</label>
+      <select id="bot-icon-style" style="margin-left:12px;padding:6px 10px;"><option value="classic">Classic</option><option value="colorful">Colorful</option></select>
+      <p style="font-size:12px;color:var(--muted);margin:8px 0 0;">Classic keeps people’s photos and uses miniature icons for other bots. Colorful adds illustrated characters. Saved on this device.</p>
+    </fieldset>
     <form id="settings-form">
       <div class="form-field">
         <label for="model-select">Active Execution Engine / Model</label>
@@ -5383,7 +5470,6 @@ dialog.modal-dialog::backdrop {
     { profileId: "wall-street-analyst", name: "Wall Street Analyst", description: "Independent AI equity-research assistant for public companies, sectors, earnings, valuation, and market scenarios. Cite dated public sources, separate facts from assumptions, and build bull/base/bear cases. Never invent prices or returns. Not affiliated with any financial institution; research is not personalized financial advice.", color: "#1e3a5f", summary: "Markets & equity research" },
     { profileId: "goldman-sachs-analyst", name: "Goldman Sachs Analyst", description: "Independent AI assistant using public investment-banking analysis methods: company profiles, comparable companies, DCF, transaction analysis, and diligence. Source assumptions and reconcile valuation bridges. Not affiliated with or endorsed by Goldman Sachs; no proprietary research or personalized financial advice.", color: "#294b68", summary: "Valuation & deal analysis" },
     { profileId: "jim-cramer", name: "Jim Cramer", description: "Independent AI market-commentary assistant inspired by Jim Cramer's published plain-English investing style: earnings catalysts, thesis homework, sector rotation, and diversification. Cite dated public sources and separate facts from estimates. Not Jim Cramer, not affiliated with CNBC, and not personalized financial advice.", color: "#c2410c", avatar: "./avatars/jim-cramer.jpg?v=4fa5f4acf2dc", summary: "Market commentary & stock homework" },
-    { profileId: "website-designer", name: "Website Designer", description: "Senior web designer who ships responsive, accessible HTML websites and landing pages with relevant real photography, clear copy, real proof, focused calls to action, and lead follow-up drafts. Verifies photo sources and usage terms; labels stock imagery, prototype forms and missing details honestly. Never invents proof or service promises. Publishing, live edits, outreach, and spend require explicit approval.", color: "#7c3aed", summary: "Responsive websites with real photography, landing pages, and lead follow-up drafts." },
     { profileId: "product-marketing", name: "Product Marketing", description: "Product marketing specialist for customer research, positioning, messaging, competitive differentiation, launch briefs, and sales enablement. Turns verified capabilities and customer evidence into clear pitches, launch copy, one-pagers, and battlecards. Coordinates channel and page-build handoffs with saved specialists. Never invents proof or metrics; publishing, outreach, pricing changes, and spend require explicit approval.", color: "#db2777", summary: "Customer insight, positioning, messaging, launches, and sales enablement." },
     { profileId: "demo-director", name: "Demo Director", description: "Records real screen demos through Pilo’s built-in recorder: source preview, optional microphone narration, countdown, timed capture, playback and downloadable WebM. Use record_screen or /record 10; the user selects the source and starts capture. Never substitute HTML mockups for footage. Scripts and storyboards on request; publishing requires separate authorization.", color: "#0891b2", summary: "Real screen recordings, playback, video downloads and demo scripts." },
     { profileId: "supervisor", name: "Supervisor Bot", description: "Workspace quality supervisor. Observes conversations for missed asks and role drift. After you approve a night schedule, validates bot behavior against public source materials with read-only research and drafts pending soul/playbook improvements—never auto-applies. Notifications alone never start paid jobs.", color: "#57534e", summary: "Observe conversations, nightly source checks, pending improvement proposals." },
@@ -5394,11 +5480,11 @@ dialog.modal-dialog::backdrop {
     { profileId: "chief-marketing-officer", name: "Chief Marketing Officer", description: "Founder-facing CMO for brand voice, positioning, multi-channel content systems, and weekly marketing rhythm. Drafts in your voice, researches creators, maintains an editorial calendar, coordinates Ads/SEO/Funnel/LinkedIn handoffs, and reports only verified metrics. Publishing and paid actions always require your approval.", color: "#F59E0B", summary: "Brand voice, content system, channel mix, specialist handoffs, and approval-first publishing." },
     { profileId: "revenue-architect", name: "Inspired by Sabri Suby", description: "Founder-level direct-response strategist informed by Sabri Suby's published ideas. Customer research, profitable acquisition, funnel economics, persuasive copy, measurable experiments, ethical claims, and approval before campaign changes or spend.", color: "#E45532", avatar: "./avatars/sabri-suby.jpg?v=6746ddc34177", summary: "Direct response strategy, customer acquisition, persuasive copy, and profitable growth." },
     { profileId: "value-architect", name: "Alex Hormozi", description: "You are Alex Hormozi's published commercial operating style: value equation, grand-slam offers, pricing, acquisition, monetization, and unit economics. When asked for a landing or funnel page, ship a sparse Hormozi-structure HTML page (outcome headline, clarifying subhead, proof hero, clear CTA, qualified form, three objection bullets, legal footer)—do not stall with lectures. Brief Funnel/UX peers when asked to delegate. Never invent testimonials or claim to speak for Acquisition.com. Approval before pricing or spend.", color: "#147D79", avatar: "./avatars/alex-hormozi.webp?v=cc0a5ae96df8", summary: "Offers, economics, and Hormozi-style landing pages that convert qualified leads." },
-    { profileId: "systems-architect", name: "Principal Fullstack Engineer, Cloud & DevOps", description: "Principal / expert fullstack engineer for cloud, DevOps, and distributed systems. Design the simplest secure, reliable, maintainable system that meets real requirements. Cover frontend, backend, data, CI/CD, infrastructure, operations, failure modes, costs, and tradeoffs. Require approval before deployment or infrastructure changes.", color: "#4768A8", summary: "Fullstack engineering, cloud architecture, DevOps, and production systems." },
+    { profileId: "systems-architect", name: "Engineering", description: "Fullstack engineering partner for websites, frontend, backend, local terminal, testing, cloud and DevOps. Build finished responsive, accessible websites and applications; inspect and edit code, run local commands, verify results, and explain architecture tradeoffs. Use real photo sources and honest proof when designing websites. Follow workspace permissions; approval before publishing, deployment, destructive work or spend.", color: "#4768A8", summary: "Build websites and apps, run commands, test, and deploy with approval.", consolidates: ["website-designer", "Website Designer", "Local Terminal & DevOps Bot", "Local Terminal & DevOps", "Principal Fullstack Engineer, Cloud & DevOps", "The Systems Architect"] },
     { profileId: "engineering-craftsman", name: "Addy Osmani", description: "You are Addy Osmani's published engineering operating style: maintainable frontend architecture, Core Web Vitals, developer experience, code review, and skeptical AI-assisted engineering. Measure before optimizing and verify changes. Never invent metrics or claim to speak for Google/Chrome.", color: "#7056A8", avatar: "./avatars/addy-osmani.jpg?v=29902bd27134", summary: "Software engineering, web performance, frontend architecture, and developer experience." },
     { profileId: "neural-architect", name: "Andrej Karpathy", description: "You are Andrej Karpathy's published teaching and engineering style: deep learning, Transformers, LLM systems, evaluation, and agent design from first principles. Build tiny baselines and measure hypotheses; never invent gains or claim private research.", color: "#3E7C91", avatar: "./avatars/andrej-karpathy.jpg?v=2aaa21c78fa6", summary: "Deep learning, LLM systems, evaluation, and AI from first principles." },
     { profileId: "mark-zuckerberg", name: "Mark Zuckerberg", description: "You are Mark Zuckerberg's published builder operating style: product velocity, ship-to-learn loops, long-term platforms, and social product intuition. Never invent Meta internals or claim to speak for Meta. Approval before publish, spend, hire, or infra.", color: "#1877F2", avatar: "./avatars/mark-zuckerberg.jpg?v=d7f4f1ba7d56", summary: "Product velocity, platform bets, and shipping to learn." },
-    { profileId: "alex-wang", name: "Alexandr Wang", description: "You are Alexandr Wang's published Scale AI / frontier-systems style: data quality, evaluation infrastructure, high-agency AI systems, and ruthless clarity on model-vs-data bottlenecks. Never invent Scale benchmarks or claim to speak for Scale AI.", color: "#111827", summary: "Frontier data, evals, and high-agency AI systems." },
+    { profileId: "alex-wang", name: "Alexandr Wang", description: "You are Alexandr Wang's published Scale AI / frontier-systems style: data quality, evaluation infrastructure, high-agency AI systems, and ruthless clarity on model-vs-data bottlenecks. Never invent Scale benchmarks or claim to speak for Scale AI.", color: "#111827", avatar: "./avatars/alexandr-wang.jpg?v=13f82ad32f9e", summary: "Frontier data, evals, and high-agency AI systems." },
     { profileId: "sundar-pichai", name: "Sundar Pichai", description: "You are Sundar Pichai's published product and platform leadership style: calm prioritization, user-first product sense, and AI as helpful infrastructure. Never invent Google internals or claim to speak for Google/Alphabet.", color: "#4285F4", summary: "User-first platform leadership and measured product priorities." },
     { profileId: "blog-writer", name: "Blog Writer", description: "Professional long-form blogger who sounds human: researched angles, lived texture, sharp titles, and edit passes that cut AI tells. When useful, open Amazon and cite 1–3 real books with title, author, and product URL—never invent ISBNs, ratings, or quotes. Outline → draft → approval before publish or paid images.", color: "#111827", avatar: "./avatars/blog-writer.svg?v=66c776dfe813", summary: "Human-sounding blogs with researched Amazon book references." },
     { profileId: "upwork", name: "Upwork", description: "Freelance bidding, proposal writing, profile positioning, and client-scope specialist for Upwork. Triage job posts for budget fit, client history, and Connects ROI before drafting. Write tailored, problem-first proposals, screening answers, milestone scopes, and client replies. Never invent past clients or portfolio metrics; approval before submitting bids, spending Connects, or messaging clients.", color: "#14a800", avatar: "./avatars/upwork.svg", summary: "Job triage, tailored proposals, milestone scoping & client writing." },
@@ -5433,7 +5519,7 @@ dialog.modal-dialog::backdrop {
     var renamed = SPECIALIST_NAME_ALIASES[String(bot.name || "").trim().toLowerCase()];
     var preset = LATEST_BOT_PRESETS.find(function(item) { return item.profileId === bot.profileId || item.name === (renamed || bot.name); });
     if (!preset) return bot;
-    if (renamed) bot.name = preset.name;
+    if (renamed && !preset.consolidates) bot.name = preset.name;
     bot.profileId = preset.profileId;
     // Keep catalog specialists on the latest role copy; custom owner notes belong in separate bot instructions.
     bot.description = preset.description;
@@ -5500,6 +5586,7 @@ dialog.modal-dialog::backdrop {
     if (key === "sundar pichai") return "./avatars/sundar-pichai.webp?v=bc41c1da4f52";
     if (key === "mark zuckerberg") return "./avatars/mark-zuckerberg.jpg?v=d7f4f1ba7d56";
     if (key === "jim cramer") return "./avatars/jim-cramer.jpg?v=4fa5f4acf2dc";
+    if (key === "alexandr wang" || key === "alexander wang" || key === "alex wang") return "./avatars/alexandr-wang.jpg?v=13f82ad32f9e";
     if (key === "blog writer") return "./avatars/blog-writer.svg?v=66c776dfe813";
     return "";
   }
@@ -5564,17 +5651,43 @@ dialog.modal-dialog::backdrop {
     if (bot) bot.style.setProperty("--bot-delay", (seed % 1100) + "ms");
   }
 
+  var botIconStyle = "classic";
+  try { if (localStorage.getItem("piloBotIconStyle") === "colorful") botIconStyle = "colorful"; } catch (_) {}
+  function renderMiniatureBotIcon(agent) {
+    var name = String(agent && (agent.name || agent.profileId) || "").toLowerCase();
+    var paths = '<rect x="5" y="7" width="14" height="12" rx="3"/><path d="M12 3v4M9 12v2m6-2v2M9 19v2m6-2v2"/>';
+    if (/news|trend/.test(name)) paths = '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h3m3 0h2m-8 3h8"/>';
+    else if (/engineer|code|coding|devops|terminal|architect|osmani|karpathy|wang|supercomputer|website/.test(name)) paths = '<path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16"/>';
+    else if (/blog|writer|resume|content/.test(name)) paths = '<path d="M14 3H5v18h14V8zm0 0v5h5M8 12h8m-8 4h6"/>';
+    else if (/seo|research|competitor/.test(name)) paths = '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>';
+    else if (/marketing|growth|ads|funnel|revenue|hormozi|sabri|influencer|fiverr|upwork/.test(name)) paths = '<path d="m3 10 14-5v14L3 14zm4 5 1 6h4l-2-5M21 8v8"/>';
+    else if (/analyst|finance|cramer|wall street|goldman/.test(name)) paths = '<path d="M4 3v17h17M8 16v-4m5 4V8m5 8V5"/>';
+    else if (/animator|designer/.test(name)) paths = '<path d="m4 20 4-1L20 7l-3-3L5 16zm10-13 3 3"/>';
+    else if (/founder|manager|zuckerberg|pichai|operator/.test(name)) paths = '<rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V3h8v4M3 12h18m-11 0v3h4v-3"/>';
+    return '<svg class="mini-bot-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
+  }
   function applyAvatarElement(el, agent, working, expressive) {
     if (!el) return;
+    el.piloAvatarState = { agent: agent, working: working, expressive: expressive };
     if (agent && agent.kind === "huddle") {
       el.className = "agent-avatar small huddle-avatar";
       el.innerHTML = document.querySelector("#new-huddle-button .agent-avatar").innerHTML;
       return;
     }
-    var seedKey = (agent && (agent.id || agent.name)) || "new-bot";
     var avatarImage = defaultAvatarImage(agent && agent.name) || (agent && agent.avatarImage);
+    var personPhoto = /\.(?:jpe?g|webp)(?:[?#]|$)/i.test(avatarImage || "");
+    var useMiniature = botIconStyle === "classic" && !personPhoto;
+    el.classList.toggle("miniature-avatar", useMiniature);
+    if (useMiniature) {
+      el.classList.remove("character-avatar", "photo-avatar", "role-avatar", "mascot-avatar", "custom-bot", "is-expressive");
+      el.classList.toggle("is-working", Boolean(working));
+      el.style.removeProperty("--bot-color");
+      el.innerHTML = renderMiniatureBotIcon(agent);
+      return;
+    }
+    var seedKey = (agent && (agent.id || agent.name)) || "new-bot";
     var showExpression = Boolean(expressive);
-    var characterName = PiloCharacters.select(Object.assign({}, agent || {}, { avatarImage: avatarImage }));
+    var characterName = botIconStyle === "colorful" ? PiloCharacters.select(Object.assign({}, agent || {}, { avatarImage: avatarImage })) : "";
     el.classList.toggle("character-avatar", Boolean(characterName));
     if (characterName) {
       el.classList.remove("photo-avatar", "role-avatar", "mascot-avatar");
@@ -5603,7 +5716,7 @@ dialog.modal-dialog::backdrop {
       el.classList.remove("photo-avatar");
       el.classList.add("custom-bot");
       el.style.setProperty("--bot-color", agent.color || "#ff2d3b");
-      el.innerHTML = renderBotIcon(agent.shape || "circle", agent.color || "#ff2d3b");
+      el.innerHTML = renderBotIcon(botIconStyle === "classic" && String(agent.shape).indexOf("character-") === 0 ? "circle" : agent.shape || "circle", agent.color || "#1677ff");
     } else if (!agent || agent.name === "New Bot" || agent.name === "New Agent") {
       el.classList.remove("photo-avatar");
       el.classList.add("custom-bot");
@@ -5724,7 +5837,7 @@ dialog.modal-dialog::backdrop {
     var presetName = SPECIALIST_NAME_ALIASES && SPECIALIST_NAME_ALIASES[String(name || "").trim().toLowerCase()] || name;
     var specialist = LATEST_BOT_PRESETS && LATEST_BOT_PRESETS.find(function(item) { return item.profileId === profileId || item.name === presetName; });
     if (specialist) {
-      var engineering = /Addy Osmani|Andrej Karpathy|Systems Architect|Fullstack Engineer|Cloud & DevOps/.test(specialist.name);
+      var engineering = specialist.profileId === "systems-architect" || /Addy Osmani|Andrej Karpathy|Systems Architect|Fullstack Engineer|Cloud & DevOps/.test(specialist.name);
       var operator = specialist.profileId === "founder-operator" || /Founder Operator/.test(specialist.name);
       var cmo = specialist.profileId === "chief-marketing-officer";
       var productMarketing = specialist.profileId === "product-marketing";
@@ -5748,7 +5861,9 @@ dialog.modal-dialog::backdrop {
       var eb1a = /EB1A/i.test(specialist.name);
       var socialGrowth = /Instagram|LinkedIn|Reddit|Influencer|X \/ Grok/i.test(specialist.name);
       var gifAnimator = /GIF Animator/i.test(specialist.name);
-      var suggestions = engineering
+      var suggestions = specialist.profileId === "systems-architect"
+        ? ["Build a website", "Fix a bug in this project", "Run and verify local commands"]
+        : engineering
         ? ["Review my architecture", "Diagnose a performance bottleneck", "Design a measurable experiment"]
         : supercomputer
           ? ["Scan this project folder for the next win", "Propose a continuous improvement schedule", "Find feature gaps and paper-backed upgrades"]
@@ -6261,6 +6376,7 @@ dialog.modal-dialog::backdrop {
     row.className = "message " + role + (role === "agent" && persist !== false ? " is-new" : "");
     var a = eventMessageAgent || activeAgent();
     var visible = !a || a.id === activeAgentId;
+    if (visible) { var greeting = document.getElementById("bot-welcome"); if (greeting) greeting.remove(); }
     if (role === "agent") {
       var av = document.createElement("div");
       av.className = "agent-avatar msg-bot-avatar";
@@ -6601,6 +6717,26 @@ dialog.modal-dialog::backdrop {
     return root.innerHTML;
   }
 
+  function renderBotWelcome(agent) {
+    if (!agent || (agent.transcript || []).length || runTracker.activeFor(agent.id)) return;
+    var greeting = document.createElement("section");
+    greeting.id = "bot-welcome";
+    greeting.setAttribute("aria-label", "Welcome from " + agent.name);
+    var avatar = document.createElement("div"); avatar.className = "agent-avatar";
+    applyAvatarElement(avatar, agent, false, false);
+    var name = document.createElement("p"); name.className = "bot-welcome-name"; name.textContent = agent.name;
+    var title = document.createElement("h2"); title.textContent = "Hi! What are we working on?";
+    var description = document.createElement("p"); description.className = "bot-welcome-description";
+    var preset = getBotOnboardingPresets().find(function(item) { return agent.profileId && item.profileId === agent.profileId || item.name === agent.name; });
+    var image = defaultAvatarImage(agent.name);
+    if (agent.kind === "huddle") description.textContent = "Your team is ready. Share a question or choose a starting point below.";
+    else if (/\.(?:jpe?g|webp)(?:[?#]|$)/i.test(image || "")) {
+      description.textContent = "I’m an AI assistant inspired by " + agent.name.replace(/^Inspired by /i, "") + "’s published work. Tell me what you’d like to explore.";
+    } else description.textContent = preset && preset.summary ? preset.summary + " Tell me what you’d like to work on." : "Tell me what you’re working on and how I can help, or choose a starting point below.";
+    greeting.appendChild(avatar); greeting.appendChild(name); greeting.appendChild(title); greeting.appendChild(description);
+    messages.appendChild(greeting);
+  }
+
   function renderTranscript() {
     messages.innerHTML = "";
     var a = activeAgent();
@@ -6630,6 +6766,7 @@ dialog.modal-dialog::backdrop {
       }
       appendMessage(e.role, cleanedHtml, cleanCls, false);
     });
+    renderBotWelcome(a);
   }
 
   function selectAgent(id) {
@@ -6691,6 +6828,11 @@ dialog.modal-dialog::backdrop {
     syncLiveBrowserChrome();
     welcome.hidden = false;
     welcome.classList.remove("is-typing");
+    catalogCollection = null;
+    document.querySelectorAll(".catalog-filter-btn").forEach(function(button) { button.classList.remove("active"); button.setAttribute("aria-pressed", "false"); });
+    var homeSearch = document.getElementById("catalog-search");
+    if (homeSearch) homeSearch.value = "";
+    applyCatalogCollection();
     messages.hidden = true;
     messages.innerHTML = "";
     setChip("New Bot", "Pick or create a bot", null);
@@ -7193,7 +7335,7 @@ dialog.modal-dialog::backdrop {
       var key = String(preset.name || "").trim().toLowerCase();
       if (!key || seen[key]) return;
       seen[key] = true;
-      presets.push({ profileId: preset.profileId, name: String(preset.name).trim(), description: String(preset.description || ""), summary: String(preset.summary || ""), shape: preset.shape || "circle", color: preset.color || "#ff2d3b", avatar: preset.avatar || defaultAvatarImage(preset.name) });
+      presets.push({ profileId: preset.profileId, name: String(preset.name).trim(), description: String(preset.description || ""), summary: String(preset.summary || ""), consolidates: preset.consolidates, shape: preset.shape || "circle", color: preset.color || "#ff2d3b", avatar: preset.avatar || defaultAvatarImage(preset.name) });
     }
     LATEST_BOT_PRESETS.forEach(add);
     document.querySelectorAll(".template-card[data-name]").forEach(function(card) {
@@ -7287,8 +7429,23 @@ dialog.modal-dialog::backdrop {
     try { var value = JSON.parse(localStorage.getItem(key)); return Array.isArray(value) ? value.filter(function(name) { return typeof name === "string"; }) : fallback; }
     catch (_) { return fallback; }
   }
-  var catalogCollection = "all";
+  var catalogCollection = null;
+  function matchesHomeCategory(name, category, persona) {
+    if (category === "all") return true;
+    if (category === "operator") return persona;
+    if (persona) return false;
+    var coding = /code|coding|engineer|devops|terminal|architect|karpathy|osmani|wang|supercomputer|bot creator|website designer|demo director/i.test(name);
+    var marketing = /market|seo|blog|ads specialist|growth|funnel|revenue|hormozi|sabri|influencer|competitor|fiverr|upwork|gif animator/i.test(name);
+    var news = /news|trend researcher/i.test(name);
+    return category === "coding" ? coding : category === "marketing" ? marketing : category === "news" ? news : category === "personal" ? !coding && !marketing && !news : category === "all";
+  }
   function applyCatalogCollection() {
+    var catalog = document.getElementById("home-catalog");
+    if (catalog) catalog.hidden = !catalogCollection;
+    welcome.classList.toggle("catalog-open", Boolean(catalogCollection));
+    welcome.querySelector(".welcome-heading").setAttribute("aria-hidden", String(Boolean(catalogCollection)));
+    var heading = document.getElementById("catalog-heading");
+    if (heading) heading.textContent = catalogCollection === "all" ? "All bots" : catalogCollection === "operator" ? "Operator mode" : catalogCollection ? catalogCollection[0].toUpperCase() + catalogCollection.slice(1) : "";
     var favorites = readCatalogPreference("piloCatalogFavorites", CATALOG_FEATURED.map(function(item) { return item[0]; }));
     var recent = readCatalogPreference("piloCatalogRecent", []);
     var cards = Array.from(document.querySelectorAll("#welcome .template-card[data-name]"));
@@ -7298,7 +7455,7 @@ dialog.modal-dialog::backdrop {
     cards.forEach(function(card) {
       var name = card.getAttribute("data-name");
       var favorite = favorites.indexOf(name) >= 0;
-      var inCollection = catalogCollection === "favorites" ? favorite : catalogCollection === "recent" ? recent.indexOf(name) >= 0 : true;
+      var inCollection = matchesHomeCategory(name, catalogCollection, card.dataset.persona === "true");
       var searchText = (name + " " + (card.getAttribute("data-desc") || "") + " " + card.textContent).toLowerCase();
       card.hidden = !inCollection || Boolean(query && searchText.indexOf(query) < 0);
       card.style.order = catalogCollection === "recent" ? (card.classList.contains("is-onboarded") ? 1000 : 0) + recent.indexOf(name) : "";
@@ -7378,6 +7535,7 @@ dialog.modal-dialog::backdrop {
       }
       var isAdded = Boolean(preset.savedId);
       card.dataset.catalogKey = preset.catalogKey;
+      card.dataset.persona = String(["revenue-architect", "value-architect", "engineering-craftsman", "neural-architect", "mark-zuckerberg", "alex-wang", "sundar-pichai", "jim-cramer"].indexOf(preset.profileId) >= 0);
       card.setAttribute("data-desc", preset.description || "");
       card.classList.toggle("is-onboarded", isAdded);
       card.hidden = false;
@@ -9372,6 +9530,7 @@ dialog.modal-dialog::backdrop {
     return media || text;
   }
 
+  window.PiloChatAttachments = { addFiles: addChatAttachments };
   function addChatAttachments(files) {
     if (attachmentUploads) { status.textContent = "Please wait for the current attachments to finish."; return Promise.resolve(); }
     if (files.length + attachments.length > 8 || files.filter(function(file) { return /^image\//.test(file.type); }).length + attachments.filter(function(file) { return file.type === "image"; }).length > 4) {
@@ -9671,6 +9830,11 @@ dialog.modal-dialog::backdrop {
     prompt.style.height = "auto";
     quickStarts.hidden = true;
     welcome.classList.remove("is-typing");
+    catalogCollection = null;
+    document.querySelectorAll(".catalog-filter-btn").forEach(function(button) { button.classList.remove("active"); button.setAttribute("aria-pressed", "false"); });
+    var homeSearch = document.getElementById("catalog-search");
+    if (homeSearch) homeSearch.value = "";
+    applyCatalogCollection();
 
     if (huddle && huddle.kind === "huddle") {
       var huddleTask = value + attachmentContext();
@@ -9721,14 +9885,17 @@ dialog.modal-dialog::backdrop {
         var autoName = isYt
           ? "YouTube Concept Learner"
           : isTerm
-          ? "Local Terminal & DevOps Bot"
+          ? "Engineering"
           : "Codex & Browser Agent";
         var autoDesc = isYt
           ? "Understand YouTube videos headlessly (like Codex) and apply their concepts into code, notes, or answers."
           : isTerm
           ? "Execute local shell/terminal commands behind the browser with zero cloud needed."
           : "Autonomous local terminal, Codex & on-demand browser specialist.";
-        createAgent(autoName, autoDesc, "circle", isYt ? "#ff2d3b" : isTerm ? "#10b981" : "#1677ff");
+        if (isTerm) {
+          var engineeringEntry = getBotCatalog().find(function(entry) { return entry.profileId === "systems-architect"; });
+          selectAgent(ensureCatalogBot(engineeringEntry).id);
+        } else createAgent(autoName, autoDesc, "circle", isYt ? "#ff2d3b" : "#1677ff");
         quickStarts.hidden = true;
         // Fall through to execute the user's message immediately!
       } else {
@@ -10546,6 +10713,16 @@ dialog.modal-dialog::backdrop {
     brandHomeBtn.onclick = function() { resetNewAgent(); };
   }
 
+  var botIconStyleSelect = document.getElementById("bot-icon-style");
+  botIconStyleSelect.value = botIconStyle;
+  botIconStyleSelect.onchange = function() {
+    botIconStyle = botIconStyleSelect.value === "colorful" ? "colorful" : "classic";
+    try { localStorage.setItem("piloBotIconStyle", botIconStyle); } catch (_) {}
+    document.querySelectorAll(".agent-avatar, .template-avatar").forEach(function(element) {
+      var state = element.piloAvatarState;
+      if (state) applyAvatarElement(element, state.agent, state.working, state.expressive);
+    });
+  };
   document.querySelectorAll(".catalog-filter-btn").forEach(function(btn) {
     btn.onclick = function() {
       catalogCollection = btn.getAttribute("data-category");

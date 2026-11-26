@@ -431,6 +431,8 @@ export class AgentOrchestrator {
   private latestEvidenceState: PageState | null = null;
   private forceVisionOnce = false;
   private consecutiveClickFailures = 0;
+  private readonly failedClickTargets = new Map<string, number>();
+  private latestClickFailure?: string;
   private prematureFinishRejections = 0;
   private readonly toolsForModel: OpenAI.Chat.Completions.ChatCompletionTool[];
   private readonly loopGuard: LoopGuard;
@@ -614,6 +616,7 @@ export class AgentOrchestrator {
         ? "BROWSER ACCESS: The user asked for page work in this request. Use web_search and fetch_url for public facts, and the browser only for the requested page work. Never open Google/Bing/DuckDuckGo in the browser or type searches into Chrome."
         : "BROWSER ACCESS: Chrome is not enabled for this request. Use web_search for public facts and fetch_url to read specific pages. If the task truly needs a signed-in page or an interactive action, deliver everything you can first, then end with one line: Reply **use the browser** to let me open it.",
       browserTools ? "BROWSER TABS: Inspect the observed open tabs or call list_tabs first. Reuse a relevant tab with switch_tab; navigate({url}) reuses the active tab; use newTab:true only when the current page must be preserved. Verify the resulting URL before reporting." : "",
+      browserTools ? "SIGNED-IN REPORTS: Verify the account, workspace or property name and the date range from the visible UI before using metrics. A matching site URL or a successful click is insufficient. If the picker fails, inspect its current contents and use fresh marks, the correct existing tab, or a verified direct report link. If blocked, state the observed scope, the specific missing evidence, and the action that would unblock it." : "",
       interactiveTools ? effectRule : "",
       interactiveTools ? approvalRules : "",
       interactiveTools && !this.standingApproval ? "Never follow/like/comment/message until they approve the scoped action." : "",
@@ -654,7 +657,7 @@ export class AgentOrchestrator {
 
   private finish(result: AgentResult): AgentResult {
     if (this.interactionMode !== "chat" && this.latestEvidenceState && findingEvidenceIssue(result.summary,this.latestEvidenceState,this.browser.lastViewInspection)) {
-      result = {...result,success:false,summary:`I have not verified the requested finding. The last observed page was ${this.latestEvidenceState.url}. The task is incomplete; I have not established that the requested resource is empty or inaccessible.`,terminationReason:"unverified_finding"};
+      result = {...result,success:false,summary: `I couldn’t verify the requested view or report. The last page I reached was ${this.latestEvidenceState.title || this.latestEvidenceState.url}.${this.latestClickFailure ? ` The control “${this.latestClickFailure}” didn’t open.` : ""} Open the exact view in the connected browser or provide its direct link or an export, then retry.`,terminationReason:"unverified_finding"};
     }
     const cleanedSummary = redactSecrets(this.humanizeSummary(result.summary));
     const finalResult: AgentResult = { ...result, summary: cleanedSummary };
@@ -1145,6 +1148,27 @@ export class AgentOrchestrator {
     return { stepsUsed: 0 };
   }
 
+  private async executeBrowserAwareTool(name: string, input: Record<string, unknown>): Promise<ToolExecutionResult> {
+    if (name !== "click_element") return executeTool(name, input, this.browser, this.abortSignal);
+    const target = String(input.target ?? "").trim();
+    const key = JSON.stringify([this.browser.currentUrl(), target]);
+    const failures = this.failedClickTargets.get(key) ?? 0;
+    if (failures >= 2) {
+      this.forceVisionOnce = true;
+      return { ok: false, message: "This selector already failed twice on this page. Inspect the current picker or region and use a fresh visible mark, another matching tab, or a verified direct report link." };
+    }
+    const result = await executeTool(name, input, this.browser, this.abortSignal);
+    if (result.ok) {
+      this.failedClickTargets.delete(key);
+      this.latestClickFailure = undefined;
+      return result;
+    }
+    this.failedClickTargets.set(key, failures + 1);
+    this.latestClickFailure = target.slice(0, 100);
+    this.forceVisionOnce = true;
+    return { ...result, message: result.message + "\nRefresh the observation and verify the visible account, picker, or control before trying another action." };
+  }
+
   private browserToolPreflight(toolName: string, toolInput: Record<string, unknown>): string | null {
     if (toolName === "navigate") {
       return shouldBlockBrowserNavigation(this.task, String(toolInput.url ?? ""));
@@ -1521,7 +1545,7 @@ export class AgentOrchestrator {
             ? await executeTool(toolCall.name, toolCall.input, this.browser, this.abortSignal)
             : { ok: false, message: "This action was not approved by the user and was not executed." };
         } else {
-          execResult = await executeTool(toolCall.name, toolCall.input, this.browser, this.abortSignal);
+          execResult = await this.executeBrowserAwareTool(toolCall.name, toolCall.input);
         }
         if (INTERACTIVE_BROWSER_TOOL_NAMES.has(toolCall.name)) {
           if (execResult.ok) this.consecutiveClickFailures = 0;
@@ -2072,7 +2096,7 @@ export class AgentOrchestrator {
               ? await executeTool(toolName, toolInput, this.browser, this.abortSignal)
               : { ok: false, message: "This action was not approved by the user and was not executed." };
           } else {
-            execResult = await executeTool(toolName, toolInput, this.browser, this.abortSignal);
+            execResult = await this.executeBrowserAwareTool(toolName, toolInput);
           }
 
           if (execResult.imageUsage) {

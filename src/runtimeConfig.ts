@@ -1,10 +1,32 @@
 import "./environment";
 import { providerDefinitions, providerDefinition, providerKey, providerModel, providerURL, providerApi } from "./providerRegistry";
 
-export type ModelProvider = "openai" | "anthropic" | "xai" | "ollama" | "claude-cli" | "local" | "qwen" | "kimi" | "compatible";
+export type ModelProvider =
+  | "openai"
+  | "anthropic"
+  | "xai"
+  | "ollama"
+  | "huggingface"
+  | "deepseek"
+  | "qwen"
+  | "kimi"
+  | "zhipu"
+  | "minimax"
+  | "yi"
+  | "baichuan"
+  | "doubao"
+  | "stepfun"
+  | "siliconflow"
+  | "claude-cli"
+  | "local"
+  | "compatible";
 export type ModelApi = "responses" | "chat";
 export interface ModelDefinition { id: string; label: string; provider: ModelProvider; api?: ModelApi }
-const providers: ModelProvider[] = ["openai", "anthropic", "xai", "ollama", "claude-cli", "local", "qwen", "kimi", "compatible"];
+const providers: ModelProvider[] = [
+  "openai", "anthropic", "xai", "ollama", "huggingface", "deepseek", "qwen", "kimi",
+  "zhipu", "minimax", "yi", "baichuan", "doubao", "stepfun", "siliconflow",
+  "claude-cli", "local", "compatible"
+];
 
 export function envInteger(name: string, fallback: number, min = 1, max = 1_000_000): number {
   const raw = process.env[name]?.trim();
@@ -49,8 +71,23 @@ export function defaultModel(): string {
 /** Explicit registry metadata wins; name inference supports existing saved selections. */
 export function resolveModel(id: string): ModelDefinition & { api: ModelApi } {
   const registered = modelCatalog().find(model => model.id === id);
-  const inferred: ModelProvider = id === "local-engine" ? "local" : id.startsWith("claude-cli") ? "claude-cli" :
-    id.startsWith("ollama:") ? "ollama" : /^qwen/i.test(id) ? "qwen" : /^(kimi|moonshot)/i.test(id) ? "kimi" : /^claude/i.test(id) ? "anthropic" : /^grok/i.test(id) ? "xai" : "openai";
+  const inferred: ModelProvider =
+    id === "local-engine" ? "local" :
+    id.startsWith("claude-cli") ? "claude-cli" :
+    id.startsWith("ollama:") ? "ollama" :
+    id.startsWith("hf:") ? "huggingface" :
+    /^deepseek/i.test(id) ? "deepseek" :
+    /^qwen/i.test(id) ? "qwen" :
+    /^(kimi|moonshot)/i.test(id) ? "kimi" :
+    /^glm/i.test(id) ? "zhipu" :
+    /^(minimax|abab)/i.test(id) ? "minimax" :
+    /^yi-/i.test(id) ? "yi" :
+    /^baichuan/i.test(id) ? "baichuan" :
+    /^doubao/i.test(id) ? "doubao" :
+    /^step-/i.test(id) ? "stepfun" :
+    /^claude/i.test(id) ? "anthropic" :
+    /^grok/i.test(id) ? "xai" :
+    "openai";
   const provider = registered?.provider ?? inferred;
   const definition = providerDefinition(provider);
   return { id, label: registered?.label ?? id, provider, api: registered?.api ?? (definition ? providerApi(definition) : "chat") };

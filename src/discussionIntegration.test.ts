@@ -46,6 +46,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   await cp(resolve(__dirname, "..", "config"), join(directory, "config"), { recursive: true });
   await mkdir(join(directory, "static"));
   await cp(resolve(__dirname, "..", "static", "avatars"), join(directory, "static", "avatars"), { recursive: true });
+  await cp(resolve(__dirname, "..", "static", "fonts"), join(directory, "static", "fonts"), { recursive: true });
   await cp(resolve(__dirname, "..", "docs"), join(directory, "docs"), { recursive: true });
   await copyFile(resolve(__dirname, "..", "README.md"), join(directory, "README.md"));
   for (const file of ["index.html", "botCharacterArtwork.js", "botCharacters.js", "botCharacters.css", "webmDuration.js", "screenRecorder.js", "guidedDemo.js", "demoAudio.js", "browserRuntime.js", "botCatalog.js", "uiState.js", "responseMarkdown.js", "runStream.js", "artifactPreview.js", "pilo-logo.png", "pilo-icon.png"]) await copyFile(resolve(__dirname, "..", "static", file), join(directory, "static", file));
@@ -173,6 +174,27 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
   const base = `http://127.0.0.1:${uiPort}`;
   try {
     await waitFor(() => fetch(base + "/api/status").then(r => r.json()), value => Boolean(value)).catch(error => { throw new Error(error.message + "\nIsolated server log:\n" + logs); });
+    await t.test("clarifying external Chrome does not fall back to Pilo or call a model", async () => {
+      const before = modelCalls;
+      const request = await fetch(base + "/api/run", {
+        method: "POST", headers: { "content-type": "application/json", origin: base },
+        body: JSON.stringify({
+          task: "yep", botName: "Funnel Specialist", interactionMode: "turbo",
+          sessionMode: "embedded", model: "integration-model",
+          conversationTurns: [
+            { role: "user", text: "can you check in the browser from catherine profile" },
+            { role: "user", text: "not from your inbrowser but from outside chrome" },
+            { role: "agent", text: "Reply use the browser" }
+          ]
+        })
+      });
+      assert.ok(request.ok, await request.clone().text());
+      const { runId } = await request.json();
+      const terminal = terminalEvents(await fetch(base + "/api/events?runId=" + runId).then(r => r.text())).at(-1);
+      assert.equal(terminal?.terminationReason, "browser_scope_unavailable");
+      assert.match(terminal?.summary, /catherine.*regular Chrome/);
+      assert.equal(modelCalls, before);
+    });
     await t.test("direct HTML and SVG artifacts cannot execute scripts or access the app API", async () => {
       const { writeFile } = await import("node:fs/promises");
       await mkdir(join(dataRoot, "artifacts"), { recursive: true });
@@ -559,16 +581,18 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
             ...["SEO Specialist", "Blog Writer", "Reddit Community Growth", "Instagram Follower Growth"].map((name, index) => ({ id: "ui-specialist-" + index, name, shape: name === "Blog Writer" ? "circle" : "character-marketing", shapeCustomized: name !== "Blog Writer",
               description: "UI_SAVED_ROLE_" + index, transcript: [{ role: "user", html: "Existing user goal " + index }] }))
           ]));
+          localStorage.setItem("piloBotIconStyle", "colorful");
           localStorage.setItem("openBotsInteractionMode", "chat"); localStorage.setItem("openBotsAgentEngine", "cheap");
         });
         await page.goto(base, { waitUntil: "domcontentloaded" });
+        await page.locator('.agent-row[data-agent-id="ui-specialist-0"] .agent-avatar').waitFor({ state: "visible" });
         const roleIcons = await page.locator('.agent-row[data-agent-id^="ui-specialist-"] .agent-avatar').evaluateAll(avatars => avatars.map(avatar => {
           const box = avatar.getBoundingClientRect();
           const row = avatar.closest('.agent-row')!.getBoundingClientRect();
           return { width: box.width, height: box.height, character: avatar.querySelector('.pilo-character')?.getAttribute('data-character'), fits: box.left >= row.left && box.right <= row.right };
         }));
         assert.deepEqual(roleIcons.map(icon => icon.character), ["yellow", "blogger", "blob", "heart"], "saved repeated icons become distinct preview characters");
-        assert.ok(roleIcons.every(icon => icon.width === 38 && icon.height === 38 && icon.fits), "larger icons fit the collapsed sidebar");
+        assert.ok(roleIcons.every(icon => icon.width === 38 && icon.height === 38 && icon.fits), "larger icons fit the collapsed sidebar: " + JSON.stringify(roleIcons));
         await page.locator('#toggle-sidebar-btn').click();
         await page.locator('#sidebar').screenshot({ path: join(tmpdir(), "pilo-larger-role-icons.png") });
         await page.locator('#agent-list .agent-row[data-agent-id="ui-coordinator"]').click();
@@ -796,6 +820,48 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       await assert.rejects(readFile(join(dataRoot, ".browser-agent-task-memory", "Reset_Running_A.json")), /ENOENT/);
       assert.match(await readFile(join(dataRoot, ".browser-agent-task-memory", "Reset_Running_B.json"), "utf8"), /ASYNC_B/);
     });
+    await t.test("screenshots attach a still image for review, stop capture, and handle cancellation without model work", async () => {
+      const before = modelCalls;
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage();
+        await page.goto(base);
+        await page.evaluate(() => {
+          const state = window as any;
+          state.screenshotStops = 0;
+          Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { configurable: true, value: async () => {
+            if (state.cancelScreenshot) throw new DOMException('Canceled', 'NotAllowedError');
+            const canvas = document.createElement('canvas'); canvas.width = 160; canvas.height = 90;
+            const ctx = canvas.getContext('2d')!; ctx.fillStyle = '#2374ab'; ctx.fillRect(0, 0, 160, 90);
+            const stream = canvas.captureStream(30);
+            const clock = setInterval(() => ctx.fillRect(0, 0, 160, 90), 25);
+            const track = stream.getVideoTracks()[0], stop = track.stop.bind(track);
+            track.stop = () => { clearInterval(clock); state.screenshotStops++; stop(); };
+            return stream;
+          }});
+        });
+        assert.equal(await page.locator('.screen-capture-control > button').count(), 1, 'one capture control in the composer');
+        await page.locator('#screen-record-button').focus();
+        await page.locator('#screen-record-button').press('ArrowDown');
+        assert.equal(await page.locator('#screen-capture-menu').isVisible(), true);
+        await page.locator('#screen-screenshot-button').press('Escape');
+        assert.equal(await page.locator('#screen-capture-menu').isVisible(), false);
+        await page.locator('#screen-record-button').click();
+        await page.locator('#screen-screenshot-button').click();
+        await page.waitForFunction(() => document.querySelector('#attachment-list')!.textContent!.includes('screenshot-'));
+        await page.waitForFunction(() => (window as any).screenshotStops === 1);
+        assert.equal(await page.locator('#attachment-list img').count(), 1);
+        assert.equal(await page.locator('#screen-recording-dialog').isVisible(), false);
+        assert.equal(await page.locator('#screen-screenshot-button').isEnabled(), true);
+        await page.evaluate(() => { (window as any).cancelScreenshot = true; });
+        await page.locator('#screen-record-button').click();
+        await page.locator('#screen-screenshot-button').click();
+        await page.waitForFunction(() => document.querySelector('#status')!.textContent!.includes('canceled'));
+        assert.equal(await page.locator('#attachment-list img').count(), 1, 'cancellation adds no attachment');
+        assert.equal(await page.locator('#screen-screenshot-button').isEnabled(), true);
+        assert.equal(modelCalls, before, 'capturing and attaching never sends the chat or starts a model');
+      } finally { await browser.close(); }
+    });
     await t.test("portraits stay inside the header and preview controls fit narrow browser panes", async () => {
       const before = modelCalls;
       for (const filename of ["sabri-suby.jpg", "alex-hormozi.webp", "addy-osmani.jpg", "andrej-karpathy.jpg", "mark-zuckerberg.jpg", "sundar-pichai.webp", "jim-cramer.jpg"]) {
@@ -809,6 +875,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       try {
         const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
         await page.addInitScript(() => {
+          localStorage.setItem("piloBotIconStyle", "classic");
           localStorage.setItem("agentFireworksAgentsV2", JSON.stringify([
             { id: "header-addy", name: "Addy Osmani", transcript: [] },
             { id: "header-mark", name: "Mark Zuckerberg", transcript: [] },
@@ -831,6 +898,11 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
               inside: box.top >= topbar.top && box.bottom <= topbar.bottom };
           });
           assert.deepEqual(metrics, { width: 20, height: 20, clipped: "hidden", inside: true });
+          assert.equal(await page.locator('#chip-avatar').evaluate(el => getComputedStyle(el).borderRadius), '6px', 'people use rounded-square frames');
+          assert.equal(await page.locator('#bot-welcome').count(), 1);
+          assert.match(await page.locator('#bot-welcome').innerText(), /Hi!|AI assistant inspired by/);
+          assert.equal(await page.locator('#bot-welcome img').count(), 1, 'the welcome retains the person’s photo');
+
           const portraitStates = await page.evaluate(() => {
             const original = document.querySelector<HTMLElement>("#chip-avatar")!;
             return ["is-working", "is-step", "needs-you", "just-finished"].map(state => {
@@ -904,6 +976,46 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         const avatars = page.locator('.template-card[data-name] .template-avatar');
         assert.ok(await avatars.count() > 0);
         assert.equal(await avatars.locator(':scope > *').count(), await avatars.count(), "every catalog bot has a rendered icon");
+        const callsBeforeBrowsing = modelCalls;
+        assert.equal(await page.locator('#home-catalog').isVisible(), false, "home starts with focused categories");
+        assert.deepEqual(await page.locator('.home-categories button').allTextContents(), ['Coding', 'Personal', 'Marketing', 'News', 'Operator mode', 'All bots']);
+        assert.equal(await page.locator('.agent-row .pilo-character').count(), 0, "classic icons are the default");
+        assert.ok(await page.locator('.agent-row .mini-bot-icon').count() > 0, "classic uses miniature role symbols");
+        await page.evaluate(async () => { await document.fonts.load('14px Inter'); });
+        assert.equal(await page.evaluate(() => document.fonts.check('14px Inter')), true, 'the bundled font loads locally');
+        const expandedIcon = await page.locator('.category-icon').first().evaluate(el => el.getBoundingClientRect().width);
+        await page.locator('[data-category="coding"]').click();
+        assert.equal(await page.locator('.template-card[data-name="Engineering"]').isVisible(), true);
+        assert.equal(await page.locator('.template-card[data-name="Website Designer"], .template-card[data-name="Local Terminal & DevOps Bot"]').count(), 0, "overlapping engineering presets are consolidated");
+        assert.equal(await page.locator('.template-card[data-name="News"]').isVisible(), false);
+        await page.waitForFunction(width => document.querySelector('.category-icon')!.getBoundingClientRect().width < width, expandedIcon);
+        assert.equal(await page.locator('.template-card[data-name="Alexandr Wang"]').isVisible(), false);
+        await page.locator('[data-category="operator"]').click();
+        for (const person of ['Alexandr Wang', 'Sundar Pichai', 'Andrej Karpathy', 'Alex Hormozi']) assert.equal(await page.locator('.template-card[data-name="' + person + '"]').isVisible(), true, person);
+        assert.equal(await page.locator('.template-card[data-name="Engineering"]').isVisible(), false);
+        await page.locator('[data-category="marketing"]').click();
+        assert.equal(await page.locator('.template-card[data-name="Blog Writer"]').isVisible(), true);
+        assert.equal(await page.locator('.template-card[data-name="News"]').isVisible(), false);
+        await page.locator('[data-category="personal"]').click();
+        assert.equal(await page.locator('.template-card[data-name="Resume Bot"]').isVisible(), true);
+        await page.locator('[data-category="news"]').click();
+        assert.equal(await page.locator('.template-card[data-name="News"]').isVisible(), true);
+        assert.equal(await page.locator('.template-card[data-name="Blog Writer"]').isVisible(), false);
+        await page.locator('[data-category="all"]').click();
+        assert.equal(await page.locator('.template-card[data-name="Blog Writer"]').isVisible(), true);
+        await page.locator('#catalog-search-toggle').click();
+        await page.locator('#catalog-search').fill('news');
+        assert.equal(await page.locator('.template-card[data-name="News"]').isVisible(), true);
+        assert.equal(await page.locator('.template-card[data-name="Blog Writer"]').isVisible(), false);
+        await page.locator('#catalog-search').press('Escape');
+        await page.locator('#header-settings-btn').click();
+        assert.equal(await page.locator('#bot-icon-style').inputValue(), 'classic');
+        await page.selectOption('#bot-icon-style', 'colorful');
+        assert.ok(await page.locator('.agent-row .pilo-character').count() > 0, "changing appearance refreshes existing icons");
+        await page.locator('#settings-modal .modal-close').click();
+        assert.equal(await page.evaluate(() => localStorage.getItem('piloBotIconStyle')), 'colorful');
+        assert.equal(modelCalls, callsBeforeBrowsing, "browsing categories and changing icons never starts model work");
+
         assert.deepEqual(await page.locator('#agent-engine-select option').allTextContents(), ['Open AI', 'Pilo Agent']);
         await page.selectOption('#agent-engine-select', 'openai-sdk');
         assert.equal(await page.evaluate(() => localStorage.getItem('openBotsAgentEngine')), 'openai-sdk');
@@ -917,10 +1029,18 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.locator('#create-bot-modal .modal-close').click();
         await page.waitForFunction(() => Boolean(document.querySelector('#model-select option[value="integration-model"]')));
         await page.selectOption("#model-select", "integration-model", { force: true });
+        await page.locator('.agent-row[data-agent-id="researcher"]').click();
+        assert.equal(await page.locator('#bot-welcome').count(), 1);
+        assert.match(await page.locator('#bot-welcome').innerText(), /Async Researcher/);
         await page.locator('.agent-row[data-agent-id="writer"]').click();
+        assert.equal(await page.locator('#bot-welcome').count(), 1);
+        assert.match(await page.locator('#bot-welcome').innerText(), /Async Writer/);
+        assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('agentFireworksAgentsV2')!).find((bot: any) => bot.id === 'writer').transcript.length), 0, 'welcome is presentation, not fabricated chat history');
+        assert.equal(modelCalls, callsBeforeBrowsing, 'selecting bots and showing greetings never starts model work');
         await page.locator("#prompt").fill("UI_A");
         await page.locator("#send-button").click();
         await waitFor(async () => asyncStarted, value => value.includes("UI_A"));
+        assert.equal(await page.locator("#bot-welcome").count(), 0, "the greeting disappears when conversation begins");
         assert.equal(submitted[0].interactionMode, "turbo");
         assert.equal(submitted[0].autoApprove, false);
         const currentAvatar = page.locator('.agent-row[data-agent-id="writer"] .agent-avatar');
@@ -1126,6 +1246,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.locator('#recording-close').click();
         await page.locator('#prompt').fill('Keep my existing draft');
         await page.locator('#screen-record-button').click();
+        await page.locator('#capture-record-option').click();
         // A short PCM tone stands in for local speech on CI. The real audio
         // mixer and WebM encoder must retain it in the saved file.
         const wav = Buffer.alloc(44 + 1600 * 2);
@@ -1172,6 +1293,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.equal(await page.evaluate(() => (window as any).__interruptedTour.report().interrupted), true);
         assert.equal(await page.evaluate(() => (window as any).__guidedClicks.length === (window as any).__clicksBeforeInterruption), true);
         await page.locator('#screen-record-button').click();
+        await page.locator('#capture-record-option').click();
         await page.locator('#recording-narration').uncheck();
         await page.locator('#recording-guided').uncheck();
         const rejected = await fetch(base + '/api/recordings', { method: 'POST', headers: { origin: 'https://untrusted.example', 'Content-Type': 'application/json' }, body: '{"durationSeconds":1}' });
@@ -1283,6 +1405,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.equal(await page.locator('#recording-seconds').inputValue(), '10');
         await page.locator('#recording-close').click();
         await page.locator('#brand-home-btn').click();
+        await page.locator('[data-category="all"]').click();
         await page.locator('.template-card[data-catalog-key="profile:demo-director"]').click();
         await page.waitForFunction(id => document.querySelector('.agent-row[data-agent-id="' + id + '"]')?.classList.contains("active"), demo.id);
         assert.equal(modelCalls, before, "tagging and opening a specialist start no models");

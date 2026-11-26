@@ -40,8 +40,9 @@ test("The Value Architect loads its compact role and on-demand offer/economics p
 });
 test("The Systems Architect loads its compact role and on-demand engineering playbook", () => {
   const profile = loadAgentProfile({ botName: "The Systems Architect", task: "Review distributed systems architecture", root });
-  assert.match(profile.instructions, /never impersonate them/i);
-  assert.match(profile.instructions, /simplest operable system/);
+  assert.match(profile.instructions, /websites, frontend, backend, local terminal, tests, cloud and DevOps/);
+  assert.match(profile.instructions, /responsive, accessible pages/);
+  assert.match(profile.instructions, /approval/);
   assert.match(profile.soul, /principal engineer|Challenge fashion/);
   assert.ok(profile.selected.includes("systems-architect"));
   assert.match(profile.playbooks, /system design method/i);

@@ -14,6 +14,14 @@ export function createModelClient(modelId: string, options: ModelClientOptions =
     timeout: options.timeoutMs ?? envInteger("BROWSER_AGENT_MODEL_TIMEOUT_MS", 120_000),
     ...(baseURL ? { baseURL } : {}), ...(options.fetch ? { fetch: options.fetch } : {}),
     ...(provider?.headers ? { defaultHeaders: provider.headers } : {}) });
-  return { client, model: model.provider === "ollama" ? modelId.replace(/^ollama:/, "") : modelId,
-    provider: model.provider, api: model.api, apiKey, baseURL };
+  return {
+    client,
+    model:
+      model.provider === "ollama"
+        ? modelId.replace(/^ollama:/, "")
+        : model.provider === "huggingface"
+        ? modelId.replace(/^hf:/, "")
+        : modelId,
+    provider: model.provider, api: model.api, apiKey, baseURL
+  };
 }

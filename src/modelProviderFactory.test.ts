@@ -70,3 +70,23 @@ test("Settings persists provider selection, endpoint and model and rejects inval
     assert.match(await readFile(file, "utf8"), /KIMI_API_KEY="fixture-kimi-key"/);
   } finally { await rm(directory, {recursive:true,force:true}); }
 });
+
+test("providerCatalog and resolveModel support Ollama, Hugging Face, and Chinese LLM providers", () => {
+  const ids = new Set(providerCatalog().map((p) => p.id));
+  for (const expected of [
+    "ollama", "huggingface", "deepseek", "qwen", "kimi",
+    "zhipu", "minimax", "yi", "baichuan", "doubao", "stepfun", "siliconflow"
+  ]) {
+    assert.ok(ids.has(expected as any), `Expected provider "${expected}" in catalog`);
+  }
+
+  assert.equal(resolveModel("hf:Qwen/Qwen2.5-72B-Instruct").provider, "huggingface");
+  assert.equal(createModelClient("hf:Qwen/Qwen2.5-72B-Instruct", { apiKey: "test-hf" }).model, "Qwen/Qwen2.5-72B-Instruct");
+  assert.equal(resolveModel("deepseek-chat").provider, "deepseek");
+  assert.equal(resolveModel("glm-4-plus").provider, "zhipu");
+  assert.equal(resolveModel("MiniMax-Text-01").provider, "minimax");
+  assert.equal(resolveModel("yi-lightning").provider, "yi");
+  assert.equal(resolveModel("Baichuan4").provider, "baichuan");
+  assert.equal(resolveModel("doubao-pro-32k").provider, "doubao");
+  assert.equal(resolveModel("step-2-16k").provider, "stepfun");
+});

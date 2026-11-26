@@ -76,7 +76,7 @@ test('shared renderer is usable in the browser and the UI ships all required ass
 test('the app avatar renderer replaces built-ins but preserves photos and custom silhouettes', () => {
   const html=readFileSync(join(__dirname,'../static/index.html'),'utf8');
   const source=html.slice(html.indexOf('  function applyAvatarElement('),html.indexOf('  function syncComposerAction('));
-  const context={PiloCharacters:characters,defaultAvatarImage:()=>'',esc:value=>value,renderBotIcon:()=>'<span class="legacy-custom"></span>',applyBotAnimPersonality:el=>{el.dataset.botExpression='happy';},setBotExpression:(el,state)=>{el.expression=state;}};
+  const context={botIconStyle:'colorful',PiloCharacters:characters,defaultAvatarImage:()=>'',esc:value=>value,renderBotIcon:()=>'<span class="legacy-custom"></span>',applyBotAnimPersonality:el=>{el.dataset.botExpression='happy';},setBotExpression:(el,state)=>{el.expression=state;}};
   vm.createContext(context);vm.runInContext(source,context);
   function element(){const classes=new Set();return {dataset:{},classList:{add:(...names)=>names.forEach(n=>classes.add(n)),remove:(...names)=>names.forEach(n=>classes.delete(n)),contains:n=>classes.has(n),toggle:(n,on)=>on?classes.add(n):classes.delete(n)},style:{removeProperty(){},setProperty(){}}};}
   const role=element();context.applyAvatarElement(role,{name:'Blog Writer',avatarImage:'./avatars/blog-writer.svg?v=1'},true,true);

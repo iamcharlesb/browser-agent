@@ -44,8 +44,8 @@ const HELP_ITEMS: HelpItem[] = [
     command: "/help env",
     steps: [
       "Copy node/browser_agent/.env.example -> node/browser_agent/.env for the Pilo app.",
-      "Set BROWSER_AGENT_PROVIDER to openai, qwen, kimi, anthropic, xai, ollama, or compatible.",
-      "Fill only the API key for your chosen provider (or none for local Ollama).",
+      "Set BROWSER_AGENT_PROVIDER to openai, ollama, huggingface, deepseek, qwen, kimi, zhipu, minimax, yi, baichuan, doubao, stepfun, siliconflow, anthropic, xai, or compatible.",
+      "Fill only the API key for your chosen provider (HF_TOKEN for Hugging Face, DEEPSEEK_API_KEY, ZHIPU_API_KEY, etc. — or none for local Ollama).",
       "Root .env configures pilo-runtime & Agent Gateway (OLLAMA_BASE_URL=http://localhost:11434 without /v1)."
     ],
     snippet: [

@@ -2,7 +2,23 @@ import "./environment";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-export type CloudProvider = "openai" | "qwen" | "kimi" | "anthropic" | "xai" | "ollama" | "compatible";
+export type CloudProvider =
+  | "openai"
+  | "ollama"
+  | "huggingface"
+  | "deepseek"
+  | "qwen"
+  | "kimi"
+  | "zhipu"
+  | "minimax"
+  | "yi"
+  | "baichuan"
+  | "doubao"
+  | "stepfun"
+  | "siliconflow"
+  | "anthropic"
+  | "xai"
+  | "compatible";
 export interface ProviderDefinition {
   id: CloudProvider; label: string; keyVariable?: string; keyAliases?: string[];
   modelVariable: string; urlVariable: string; apiVariable: string;

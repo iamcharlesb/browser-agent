@@ -12,12 +12,15 @@
       if (existing) used.add(existing.id);
       return Object.assign({}, preset, existing || {}, {
         catalogKey: preset.profileId ? "profile:" + preset.profileId : "preset:" + nameKey(preset.name),
+        name: preset.consolidates && (!existing || (preset.consolidates || []).some(alias => nameKey(alias) === nameKey(existing.name))) ? preset.name : existing && existing.name || preset.name,
+        summary: preset.consolidates ? preset.summary : existing && existing.summary || preset.summary,
         savedId: existing && existing.id,
         avatar: existing && existing.avatarImage || preset.avatar
       });
     });
     bots.forEach(function(bot) {
-      if (!used.has(bot.id)) entries.push(Object.assign({}, bot, { catalogKey: "saved:" + bot.id, savedId: bot.id, avatar: bot.avatarImage }));
+      var consolidated = (presets || []).some(preset => (preset.consolidates || []).some(alias => nameKey(alias) === nameKey(bot.name) || alias === bot.profileId));
+      if (!used.has(bot.id) && !consolidated) entries.push(Object.assign({}, bot, { catalogKey: "saved:" + bot.id, savedId: bot.id, avatar: bot.avatarImage }));
     });
     return entries;
   }

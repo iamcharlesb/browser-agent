@@ -267,10 +267,80 @@
   };
   dialog.addEventListener("cancel", function(event) { event.preventDefault(); dialog.querySelector("#recording-close").click(); });
   var button = document.createElement("button"); button.type = "button"; button.id = "screen-record-button"; button.className = "composer-action";
-  button.title = "Record a real screen demo"; button.setAttribute("aria-label", "Record screen");
+  button.title = "Screenshot or screen recording"; button.setAttribute("aria-label", "Capture screen");
   button.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="13" rx="2"/><circle cx="12" cy="10.5" r="3"/><path d="M8 21h8m-4-4v4"/></svg>';
-  var toolbar = document.querySelector(".composer-toolbar"); if (toolbar) toolbar.insertBefore(button, document.getElementById("voice-button"));
-  button.onclick = function() { open(); };
+  var toolbar = document.querySelector(".composer-toolbar");
+  var captureControl = document.createElement("div"); captureControl.className = "screen-capture-control";
+  captureControl.style.cssText = "position:relative;display:grid;place-items:center;flex-shrink:0";
+  captureControl.appendChild(button);
+  if (toolbar) toolbar.insertBefore(captureControl, document.getElementById("voice-button"));
+  var captureMenu = document.createElement("div"); captureMenu.id = "screen-capture-menu"; captureMenu.hidden = true; captureMenu.setAttribute("role", "menu"); captureMenu.setAttribute("aria-label", "Screen capture");
+  button.setAttribute("aria-haspopup", "menu"); button.setAttribute("aria-expanded", "false"); button.setAttribute("aria-controls", captureMenu.id);
+  captureControl.appendChild(captureMenu);
+  var captureStyle = document.createElement("style");
+  captureStyle.textContent = '#screen-capture-menu{position:absolute;right:0;bottom:calc(100% + 10px);z-index:80;width:190px;padding:5px;background:#fff;border:1px solid #e3e7ee;border-radius:12px;box-shadow:0 8px 30px #17203318;font:13px var(--font-ui,system-ui)}#screen-capture-menu[hidden]{display:none!important}#screen-capture-menu button{display:flex;align-items:center;gap:10px;width:100%;height:auto;min-height:38px;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:#344054;font:inherit;text-align:left;cursor:pointer}#screen-capture-menu button:hover,#screen-capture-menu button:focus-visible{background:#f1f4f9}#screen-capture-menu button:focus-visible{outline:2px solid #2563eb;outline-offset:-2px}#screen-capture-menu svg{width:18px;height:18px;flex-shrink:0}';
+  document.head.appendChild(captureStyle);
+  function closeCaptureMenu(restoreFocus) { captureMenu.hidden = true; button.setAttribute("aria-expanded", "false"); if (restoreFocus) button.focus(); }
+  function openCaptureMenu(focusItem) { captureMenu.hidden = false; button.setAttribute("aria-expanded", "true"); if (focusItem) captureMenu.querySelector("button").focus(); }
+  button.onclick = function() { if (captureMenu.hidden) openCaptureMenu(false); else closeCaptureMenu(false); };
+  button.onkeydown = function(event) { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); openCaptureMenu(true); } };
+  document.addEventListener("click", function(event) { if (!captureControl.contains(event.target)) closeCaptureMenu(false); });
+  captureControl.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeCaptureMenu(true); }
+    if (!captureMenu.hidden && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && event.target !== button) {
+      event.preventDefault(); var items = Array.from(captureMenu.querySelectorAll("button")); var index = items.indexOf(document.activeElement);
+      items[event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
+    }
+    if (event.key === "Tab") closeCaptureMenu(false);
+  });
+  var screenshotButton = document.createElement("button");
+  screenshotButton.type = "button"; screenshotButton.id = "screen-screenshot-button"; screenshotButton.className = "composer-action";
+  screenshotButton.title = desktop ? "Take a screenshot of the Pilo interface" : "Take a screenshot of a tab or window";
+  screenshotButton.setAttribute("aria-label", "Take screenshot");
+  screenshotButton.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5 6 8H3v12h18V8h-3l-2-3Z"/><circle cx="12" cy="13" r="4"/></svg>';
+  screenshotButton.className = ""; screenshotButton.setAttribute("role", "menuitem"); screenshotButton.innerHTML += '<span>Screenshot</span>'; captureMenu.appendChild(screenshotButton);
+  var recordOption = document.createElement("button"); recordOption.type = "button"; recordOption.id = "capture-record-option"; recordOption.setAttribute("role", "menuitem"); recordOption.setAttribute("aria-label", "Record screen");
+  recordOption.innerHTML = button.innerHTML + '<span>Record screen</span>'; captureMenu.appendChild(recordOption);
+  recordOption.onclick = function() { closeCaptureMenu(false); open(); };
+  var screenshotBusy = false;
+  function screenshotMessage(text) { var target = document.getElementById("status"); if (target) target.textContent = text; }
+  function screenshotOwner() { var row = document.querySelector("#agent-list .agent-row.active"); return row ? row.getAttribute("data-agent-id") : null; }
+  screenshotButton.onclick = async function() {
+    if (screenshotBusy) return;
+    closeCaptureMenu(false);
+    var capture, player, owner = screenshotOwner();
+    try {
+      screenshotBusy = true; screenshotButton.disabled = button.disabled = true;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) throw new Error("Screen capture is unavailable in this browser. Open the Pilo desktop app.");
+      screenshotMessage("Choose what to capture…");
+      if (desktop) await root.openBotsDesktop.prepareScreenCapture("interface");
+      capture = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      player = document.createElement("video"); player.muted = true; player.playsInline = true; player.srcObject = capture;
+      await player.play();
+      await new Promise(function(resolve, reject) {
+        var timeout = setTimeout(function() { reject(new Error("No screen frame received. Try taking the screenshot again.")); }, 10000);
+        function frame() { clearTimeout(timeout); resolve(); }
+        if (player.requestVideoFrameCallback) player.requestVideoFrameCallback(frame);
+        else requestAnimationFrame(frame);
+      });
+      var canvas = document.createElement("canvas"); canvas.width = player.videoWidth; canvas.height = player.videoHeight;
+      if (!canvas.width || !canvas.height) throw new Error("No screen image received. Please retry.");
+      canvas.getContext("2d").drawImage(player, 0, 0);
+      var image = await new Promise(function(resolve) { canvas.toBlob(resolve, "image/png"); });
+      if (!image) throw new Error("Could not create the screenshot. Please retry.");
+      capture.getTracks().forEach(function(track) { track.stop(); }); capture = null;
+      if (owner !== screenshotOwner()) throw new Error("The conversation changed. Take another screenshot to attach it here.");
+      if (!root.PiloChatAttachments) throw new Error("Attachments are unavailable. Refresh Pilo and retry.");
+      await root.PiloChatAttachments.addFiles([new File([image], "screenshot-" + new Date().toISOString().replace(/[:.]/g, "-") + ".png", { type: "image/png" })]);
+    } catch (error) {
+      screenshotMessage(error && ["AbortError", "NotAllowedError"].includes(error.name) ? "Screenshot canceled or screen access was denied. You can try again." : error.message || "Could not take the screenshot.");
+    } finally {
+      if (capture) capture.getTracks().forEach(function(track) { track.stop(); });
+      if (player) { player.pause(); player.srcObject = null; }
+      screenshotBusy = false; screenshotButton.disabled = button.disabled = false;
+    }
+  };
+
   root.addEventListener("pagehide", function() {
     if (request && ["pending", "recording"].includes(request.state) && navigator.sendBeacon) {
       navigator.sendBeacon("/api/recordings/" + request.id + "/fail", new Blob(["{}"], { type: "application/json" }));

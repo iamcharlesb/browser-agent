@@ -78,7 +78,7 @@ export function googlePropertyGuide(property: GoogleProperty, note?: string): st
     analytics: {
       name: "Google Analytics (GA4)",
       url: "https://analytics.google.com/",
-      tip: "Read-only by default. Open Reports → Engagement / Acquisition. Never invent metrics."
+      tip: "Read-only by default. This guide does not retrieve report data. Confirm the Analytics account and GA4 property in the property picker before opening Reports. Record the exact date range and check Traffic acquisition, Landing page, and Key events. Distinguish zero recorded key events from verified zero conversions. If the property is missing, check the signed-in Google account and the visible property list before drawing conclusions."
     },
     tagmanager: {
       name: "Google Tag Manager",
