@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, mkdir, copyFile, cp, readFile, readdir, rm, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, copyFile, cp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { chromium } from "playwright";
@@ -217,6 +217,65 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.equal(await page.locator("h1").innerText(), "Safe document");
         assert.notEqual(await page.title(), "SCRIPT_EXECUTED");
         assert.equal(apiRequests, 0);
+      } finally { await browser.close(); }
+    });
+    await t.test("artifact previews recover stale localhost links, work from Go, reload, and survive desktop tab updates", async () => {
+      const before = modelCalls;
+      await mkdir(join(dataRoot, 'artifacts'), {recursive:true});
+      await writeFile(join(dataRoot, 'artifacts', 'preview-workspace.html'), '<!doctype html><h1>Working inline preview</h1><script>parent.document.title="UNSAFE_PREVIEW"</script>');
+      await writeFile(join(dataRoot, 'artifacts', 'preview-notes.md'), '# Preview notes\nA readable document.');
+      await writeFile(join(dataRoot, 'artifacts', 'preview-code.txt'), 'const preview = true;');
+      await writeFile(join(dataRoot, 'artifacts', 'preview-image.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="blue"/></svg>');
+      const browser = await chromium.launch({headless:true});
+      try {
+        const page = await browser.newPage();
+        let logins = 0;
+        page.on('request', request => { if (request.url().includes('/api/login')) logins++; });
+        await page.addInitScript(() => {
+          localStorage.setItem('openBotsSessionMode','embedded');
+          localStorage.setItem('openBotsSelectedBot','preview-bot');
+          localStorage.setItem('agentFireworksAgentsV2',JSON.stringify([{id:'preview-bot',name:'Preview bot',transcript:[{role:'agent',html:'<a href="http://localhost:8766/api/artifacts/preview-workspace.html">Open old preview link</a>'}]}]));
+          (window as any).openBotsDesktop={isDesktop:true,platform:'darwin',setLiveBrowserVisible:(visible:boolean)=>{(window as any).previewNativeVisible=visible;},reportBrowserBounds:()=>{},getBrowserState:async()=>({tabs:[{active:true,index:0,url:'about:blank',title:'New Tab'}]}),onBrowserState:(callback:any)=>{(window as any).previewBrowserUpdate=callback;},browserCommand:async()=>({tabs:[]})};
+        });
+        await page.goto(base);
+        await page.locator('#messages a').filter({hasText:'Open old preview link'}).click();
+        await page.frameLocator('#artifact-preview-body iframe').locator('h1').waitFor();
+        assert.equal(await page.frameLocator('#artifact-preview-body iframe').locator('h1').innerText(),'Working inline preview');
+        assert.equal(await page.locator('#browser-address').inputValue(),base+'/api/artifacts/preview-workspace.html');
+        assert.notEqual(await page.title(),'UNSAFE_PREVIEW');
+        assert.equal(await page.evaluate(()=>(window as any).previewNativeVisible),false,'native browser must not cover the artifact');
+        await page.evaluate(()=>(window as any).previewBrowserUpdate({tabs:[{active:true,index:0,url:'https://example.com/',title:'Background tab'}]}));
+        assert.equal(await page.locator('#browser-address').inputValue(),base+'/api/artifacts/preview-workspace.html','background tabs do not overwrite preview URL');
+        await writeFile(join(dataRoot, 'artifacts', 'preview-workspace.html'), '<h1>Refreshed inline preview</h1>');
+        await page.locator('#browser-reload').click();
+        await page.frameLocator('#artifact-preview-body iframe').getByText('Refreshed inline preview').waitFor();
+        for (const [filename, selector, expected] of [['preview-notes.md','.artifact-markdown','Preview notes'],['preview-code.txt','pre','const preview = true;']] as const) {
+          await page.locator('#browser-address').fill('http://localhost:8766/api/artifacts/'+filename);
+          await page.locator('#browser-go').click();
+          await page.locator('#artifact-preview-body '+selector).filter({hasText:expected}).waitFor();
+        }
+        await page.locator('#browser-address').fill('http://localhost:8766/api/artifacts/preview-image.svg');
+        await page.locator('#browser-go').click();
+        await page.waitForFunction(()=>{const img=document.querySelector<HTMLImageElement>('#artifact-preview-body > img');return img?.complete && img.naturalWidth===40;});
+        await page.locator('#browser-address').fill('/api/artifacts/does-not-exist.html');
+        await page.locator('#browser-go').click();
+        await page.getByText('Artifact not found.',{exact:true}).waitFor();
+        assert.equal(logins,0,'artifact previews never start or attach a live browser session');
+        // A previously requested live browser may finish opening after a document preview.
+        let pendingLogin: any;
+        await page.route(base + '/api/login', route => { pendingLogin = route; });
+        await page.addInitScript(() => localStorage.setItem('openBotsSessionMode','cdp'));
+        await page.reload();
+        await page.locator('#messages').evaluate(el => el.insertAdjacentHTML('beforeend','<a id="late-live-link" href="https://example.com/">Open live site</a>'));
+        await page.locator('#late-live-link').click();
+        await waitFor(() => pendingLogin, value => Boolean(value));
+        await page.locator('#messages a').filter({hasText:'Open old preview link'}).click();
+        await page.frameLocator('#artifact-preview-body iframe').getByText('Refreshed inline preview').waitFor();
+        await pendingLogin.fulfill({status:200,contentType:'application/json',body:JSON.stringify({sessionMode:'guest',url:'https://example.com/',tabs:[]})});
+        await page.waitForFunction(()=>localStorage.getItem('openBotsSessionMode')==='guest');
+        assert.equal(await page.locator('#browser-address').inputValue(),base+'/api/artifacts/preview-workspace.html','late live-browser responses do not replace the active preview');
+        assert.equal(await page.locator('#artifact-preview-body iframe').count(),1);
+        assert.equal(modelCalls,before);
       } finally { await browser.close(); }
     });
     await t.test("HTTP boundary blocks cross-origin commands and approvals before any work", async () => {

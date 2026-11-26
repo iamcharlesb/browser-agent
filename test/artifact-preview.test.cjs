@@ -38,10 +38,16 @@ function load() {
   return { api: sandbox.window.PiloArtifacts, state: state };
 }
 
-test("artifactUrl accepts same-origin artifact paths only", () => {
+test("artifactUrl normalizes workspace links and rejects external or nested paths", () => {
   const { api } = load();
   assert.equal(api.artifactUrl("/api/artifacts/ticket.html").pathname, "/api/artifacts/ticket.html");
   assert.equal(api.artifactUrl("sandbox:/api/artifacts/ticket.html").pathname, "/api/artifacts/ticket.html");
+  for (const value of ["http://localhost:8766/api/artifacts/ticket.html", "http://[::1]:8766/api/artifacts/ticket.html", "localhost:8766/api/artifacts/ticket.html", "/artifacts/ticket.html"]) {
+    assert.equal(api.artifactUrl(value).href, "http://127.0.0.1:8765/api/artifacts/ticket.html");
+  }
+  assert.equal(api.artifactUrl("http://localhost.evil.example/api/artifacts/ticket.html"), null);
+  assert.equal(api.artifactUrl("http://owner:password@localhost/api/artifacts/ticket.html"), null);
+  assert.equal(api.artifactUrl("/api/artifacts/nested%2Fticket.html"), null);
   assert.equal(api.artifactUrl("https://example.com/api/artifacts/ticket.html"), null);
   assert.equal(api.artifactUrl("/api/artifacts/nested/ticket.html"), null);
   assert.equal(api.artifactUrl("javascript:alert(1)"), null);

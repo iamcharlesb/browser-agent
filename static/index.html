@@ -3927,7 +3927,7 @@ dialog.modal-dialog::backdrop {
 #welcome .template-card { position: relative; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 82px; padding: 8px 6px; border: 1px solid #dddde7; border-radius: 9px; background: transparent; text-align: center; opacity: 1; }
 #welcome .template-card:hover { background: #fff; border-color: #b9c9ed; box-shadow: 0 3px 12px #20335b08; }
 #welcome .template-card:focus-visible, .catalog-filter-btn:focus-visible, .catalog-create-bot:focus-visible, .catalog-favorite:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
-#welcome .template-avatar { width: 36px; height: 36px; flex: 0 0 36px; margin: 0; border-radius: 50%; background: #f0eff1; color: #111318; }
+#welcome .template-avatar { width: 48px; height: 48px; flex: 0 0 48px; margin: 0; border-radius: 50%; background: #f0eff1; color: #111318; }
 #welcome .template-avatar > svg { width: 21px; height: 21px; }
 #welcome .template-copy { flex: 0; align-items: center; gap: 2px; width: 100%; }
 #welcome .template-card strong { font-size: 14px; font-weight: 650; color: #101116; overflow-wrap: normal; }
@@ -3958,12 +3958,14 @@ dialog.modal-dialog::backdrop {
 .miniature-avatar .mini-bot-icon { width: 20px; height: 20px; display: block; }
 #sidebar .agent-avatar.miniature-avatar { width: 28px; height: 28px; min-width: 28px; flex: 0 0 28px; margin: 5px; }
 #agent-chip .miniature-avatar .mini-bot-icon { width: 17px; height: 17px; }
-#welcome .template-avatar.miniature-avatar { width: 30px; height: 30px; flex-basis: 30px; }
+#welcome .template-avatar.miniature-avatar { width: 48px; height: 48px; flex-basis: 48px; }
+#welcome .template-avatar.miniature-avatar .mini-bot-icon { width: 26px; height: 26px; }
 
 
 /* People keep photographic identities, framed consistently as rounded squares. */
 .agent-avatar.photo-avatar:not(.role-avatar), #welcome .template-avatar.photo-avatar:not(.role-avatar) { border-radius: 8px; overflow: hidden; }
 #agent-chip .agent-avatar.photo-avatar:not(.role-avatar) { border-radius: 6px; }
+#welcome .template-avatar.photo-avatar:not(.role-avatar) { border-radius: 12px; }
 #messages:has(#bot-welcome)::before { display: none; }
 #bot-welcome { width: min(100%, 560px); margin: auto; padding: 32px 12px; text-align: center; }
 #bot-welcome .agent-avatar { width: 56px; height: 56px; margin: 0 auto 18px; display: grid; place-items: center; }
@@ -6934,12 +6936,14 @@ dialog.modal-dialog::backdrop {
   }
 
   function openArtifactPreview(url) {
-    if (!artifactViewer) return false;
+    var target = window.PiloArtifacts && window.PiloArtifacts.artifactUrl(url);
+    if (!artifactViewer || !target) return false;
     browserPanelEl.classList.add("artifact-opening");
     try {
       showBrowser();
-      browserAddress.value = String(url).replace(/^sandbox:\s*/, "");
-      artifactViewer.open(url);
+      browserAddress.value = target.href;
+      status.textContent = "";
+      artifactViewer.open(target.href);
       syncLiveBrowserChrome();
     } finally {
       browserPanelEl.classList.remove("artifact-opening");
@@ -7962,6 +7966,7 @@ dialog.modal-dialog::backdrop {
   }
 
   function openInteractiveBrowser(url, showSetupBanner, modeOverride) {
+    if (window.PiloArtifacts && window.PiloArtifacts.artifactUrl(url) && openArtifactPreview(url)) return;
     closeArtifactPreview();
     if (desktopApi && desktopApi.browserCommand && (modeOverride || currentSessionMode) === "embedded") {
       currentSessionMode = "embedded";
@@ -8019,6 +8024,7 @@ dialog.modal-dialog::backdrop {
           renderSessionModeUI();
         }
         viewport = { width: body.viewportWidth || 1280, height: body.viewportHeight || 800 };
+        if (browserPanelEl.classList.contains("artifact-mode")) { syncLiveBrowserChrome(); return; }
         if (body.url) {
           browserAddress.value = body.url === "about:blank" ? "" : body.url;
           if (body.url === "about:blank") {
@@ -8076,7 +8082,7 @@ dialog.modal-dialog::backdrop {
       .then(function(body) {
         setupSessionOpen = false;
         browserFooter.classList.remove("visible");
-        if (body.currentUrl) browserAddress.value = body.currentUrl;
+        if (body.currentUrl && !browserPanelEl.classList.contains("artifact-mode")) browserAddress.value = body.currentUrl;
         appendMessage("agent", "Session ready. Starting autonomous mission in the live browser…", "success");
         var a = activeAgent();
         if (a) startRun(a.intent.task);
@@ -9038,7 +9044,7 @@ dialog.modal-dialog::backdrop {
     if (e.type === "observe") {
       // Keep the browser panel collapsed unless the user explicitly opened it!
       if (!browserFrames) connectBrowserFrames(true);
-      if (e.url) browserAddress.value = e.url;
+      if (e.url && !browserPanelEl.classList.contains("artifact-mode")) browserAddress.value = e.url;
       if (e.screenshotB64) {
         if (!usesNativeBrowser()) framePresenter.push(e.screenshotB64);
       }
@@ -9049,7 +9055,7 @@ dialog.modal-dialog::backdrop {
       if (e.terminalEntry) {
         appendTerminalEntry(e.terminalEntry);
       }
-      if (e.url && e.url !== "about:blank") {
+      if (e.url && e.url !== "about:blank" && !browserPanelEl.classList.contains("artifact-mode")) {
         browserAddress.value = e.url;
       }
       if (e.screenshotB64) {
@@ -9381,10 +9387,11 @@ dialog.modal-dialog::backdrop {
   window.addEventListener("pagehide", function() { saveComposerDraft(); closeBrowserFrames(); framePresenter.clear(); });
 
   function syncBrowserFromStatus() {
+    if (browserPanelEl.classList.contains("artifact-mode")) return;
     fetch("/api/status")
       .then(readResponse)
       .then(function(body) {
-        if (body && body.currentUrl && document.activeElement !== browserAddress) {
+        if (body && body.currentUrl && !browserPanelEl.classList.contains("artifact-mode") && document.activeElement !== browserAddress) {
           browserAddress.value = body.currentUrl === "about:blank" ? "" : body.currentUrl;
         }
         if (body && body.tabs) renderBrowserTabs(body.tabs);
@@ -9413,7 +9420,7 @@ dialog.modal-dialog::backdrop {
   }
 
   function applyNativeBrowserState(state) {
-    if (!state || !usesNativeBrowser()) return;
+    if (!state || !usesNativeBrowser() || browserPanelEl.classList.contains("artifact-mode")) return;
     var tab = state.tabs.find(function(item) { return item.active; });
     if (tab && document.activeElement !== browserAddress) browserAddress.value = tab.url === "about:blank" ? "" : tab.url;
     renderBrowserTabs(state.tabs);
@@ -9446,7 +9453,7 @@ dialog.modal-dialog::backdrop {
         if (body && body.viewportWidth && body.viewportHeight) viewport = { width: body.viewportWidth, height: body.viewportHeight };
         // resizeViewport restarts CDP capture on the existing stream. Reconnecting
         // SSE here would trigger another resize and can leave an old-sized frame.
-        if (body && body.url && document.activeElement !== browserAddress) {
+        if (body && body.url && !browserPanelEl.classList.contains("artifact-mode") && document.activeElement !== browserAddress) {
           browserAddress.value = body.url;
         }
         if (body && body.tabs) {
@@ -9699,6 +9706,7 @@ dialog.modal-dialog::backdrop {
   function navigateBrowser() {
     var url = browserAddress.value.trim();
     if (!url) return;
+    if (openArtifactPreview(url)) return;
     showBrowser();
     status.textContent = "Navigating to " + url + "…";
     remoteInput({ type: "navigate", url: url });
@@ -10841,7 +10849,10 @@ dialog.modal-dialog::backdrop {
   document.getElementById("browser-go").onclick = navigateBrowser;
   document.getElementById("browser-back").onclick = function() { remoteInput({ type: "back" }); };
   document.getElementById("browser-forward").onclick = function() { remoteInput({ type: "forward" }); };
-  document.getElementById("browser-reload").onclick = function() { remoteInput({ type: "reload" }); };
+  document.getElementById("browser-reload").onclick = function() {
+    if (browserPanelEl.classList.contains("artifact-mode") && openArtifactPreview(browserAddress.value)) return;
+    remoteInput({ type: "reload" });
+  };
   document.getElementById("browser-new-tab").onclick = function() { remoteInput({ type: "new_tab", url: "https://www.google.com/" }); };
   document.getElementById("browser-collapse-btn").onclick = function() {
     workspace.classList.remove("has-browser");
@@ -12232,7 +12243,7 @@ dialog.modal-dialog::backdrop {
         }).catch(function() {});
       }
       if (usesNativeBrowser() && desktopApi.getBrowserState) desktopApi.getBrowserState().then(applyNativeBrowserState).catch(function() {});
-      if (!usesNativeBrowser() && st.currentUrl && st.currentUrl !== "about:blank") {
+      if (!usesNativeBrowser() && st.currentUrl && st.currentUrl !== "about:blank" && !browserPanelEl.classList.contains("artifact-mode")) {
         browserAddress.value = st.currentUrl;
       }
       if (!usesNativeBrowser() && st.tabs && st.tabs.length) {

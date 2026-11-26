@@ -2,8 +2,17 @@
   "use strict";
   function artifactUrl(value) {
     try {
-      var url = new URL(String(value).replace(/^sandbox:/, ""), location.href);
-      return url.origin === location.origin && /^\/api\/artifacts\/[^/]+$/.test(url.pathname) ? url : null;
+      var raw = String(value || "").trim().replace(/^sandbox:\s*/, "");
+      if (/^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\//i.test(raw)) raw = "http://" + raw;
+      var url = new URL(raw, location.href);
+      var loopback = function(host) { return ["localhost", "127.0.0.1", "[::1]"].indexOf(host.toLowerCase()) >= 0; };
+      var match = /^\/(?:api\/)?artifacts\/([^/]+)$/.exec(url.pathname);
+      if (!match || url.username || url.password || !/^https?:$/.test(url.protocol)) return null;
+      if (url.origin !== location.origin && !(loopback(url.hostname) && loopback(new URL(location.href).hostname))) return null;
+      var filename = decodeURIComponent(match[1]);
+      if (!filename || /[\/\\]/.test(filename) || filename === "." || filename === "..") return null;
+      // Saved links can refer to a previous local port; files belong to the current workspace.
+      return new URL("/api/artifacts/" + encodeURIComponent(filename), location.href);
     } catch (_) { return null; }
   }
   function createViewer(options) {
@@ -29,23 +38,28 @@
         if (request !== sequence) return true;
         options.body.replaceChildren();
         var element;
+        var resource = artifactUrl(data.url || value) || artifactUrl(value);
         if (data.kind === "markdown") {
           element = document.createElement("article");
           element.className = "artifact-markdown";
           element.innerHTML = options.formatMarkdown(data.text);
           // Documents cannot silently load remote tracking images.
-          element.querySelectorAll("img").forEach(function(img) { if (!artifactUrl(img.getAttribute("src"))) img.replaceWith(document.createTextNode(img.alt || "External image")); });
+          element.querySelectorAll("img").forEach(function(img) {
+            var image = artifactUrl(img.getAttribute("src"));
+            if (image) img.src = image.href;
+            else img.replaceWith(document.createTextNode(img.alt || "External image"));
+          });
         } else if (data.kind === "text") {
           element = document.createElement("pre"); element.textContent = data.text;
         } else if (data.kind === "image") {
-          element = document.createElement("img"); element.src = data.url; element.alt = data.filename;
+          element = document.createElement("img"); element.src = resource.href; element.alt = data.filename;
         } else if (data.kind === "video") {
-          element = document.createElement("video"); element.src = data.url; element.controls = true; element.preload = "metadata"; element.style.width = "100%";
+          element = document.createElement("video"); element.src = resource.href; element.controls = true; element.preload = "metadata"; element.style.width = "100%";
         } else if (data.kind === "html" || data.kind === "pdf") {
           element = document.createElement("iframe"); element.title = data.filename;
           element.setAttribute("sandbox", "");
           if (data.kind === "html") element.srcdoc = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; style-src \'unsafe-inline\'">' + data.text;
-          else element.src = data.url;
+          else element.src = resource.href;
         } else {
           element = document.createElement("p"); element.textContent = data.note || "A preview is not available for this format. Use Download to open the file.";
         }
