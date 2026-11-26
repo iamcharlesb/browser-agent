@@ -258,6 +258,9 @@ export interface AgentOrchestratorOptions {
   fetch?: typeof fetch;
   baseURL?: string;
   model?: string;
+  reasoningEffort?: "low" | "medium" | "high";
+  /** Optional shared per-discussion cache for read-only web_search/fetch_url lookups. */
+  researchCache?: Map<string, Promise<ToolExecutionResult>>;
   maxSteps?: number;
   maxDurationSeconds?: number;
   keepRecentImages?: number;
@@ -428,6 +431,9 @@ export class AgentOrchestrator {
   private readonly resolvedApiKey: string;
   private readonly resolvedBaseURL?: string;
   private readonly maxStepsConfig: number;
+  private readonly consultationOnly: boolean;
+  private readonly reasoningEffort: "low" | "medium" | "high";
+  private readonly researchCache?: Map<string, Promise<ToolExecutionResult>>;
   private latestEvidenceState: PageState | null = null;
   private forceVisionOnce = false;
   private consecutiveClickFailures = 0;
@@ -501,6 +507,9 @@ export class AgentOrchestrator {
     this.resolvedApiKey = resolvedKey;
     this.resolvedBaseURL = resolvedBaseURL;
     this.maxStepsConfig = options.maxSteps ?? envInteger("BROWSER_AGENT_MAX_STEPS", 25);
+    this.consultationOnly = Boolean(options.consultationOnly);
+    this.reasoningEffort = options.reasoningEffort ?? REASONING_EFFORT;
+    this.researchCache = options.researchCache;
     // Chat never drives the browser; browse/act honor allowBrowserInteraction for scheduled runs.
     this.allowBrowserInteraction =
       this.interactionMode === "chat"
@@ -620,9 +629,11 @@ export class AgentOrchestrator {
       interactiveTools ? effectRule : "",
       interactiveTools ? approvalRules : "",
       interactiveTools && !this.standingApproval ? "Never follow/like/comment/message until they approve the scoped action." : "",
-      has("knowledge_base") || has("delegate_to_bot")
-        ? "COORDINATION: knowledge_base(action=read,id=workspace:bots) returns the saved roster, jobs, schedules and consultation receipts. Read it before claiming you contacted a bot or that a bot is working. Use exact saved names for delegate_to_bot. A consultation is a read-only reply, not a background assignment. Reported bot history is not live job state."
-        : "",
+      this.consultationOnly
+        ? "COORDINATION: You are a read-only huddle specialist. Answer directly from the prior conversation context and your role expertise when sufficient; use web_search/fetch_url/calculate only for missing or time-sensitive facts. Do not call knowledge_base(workspace:bots) unless the question specifically asks about saved jobs, schedules, or workspace files."
+        : has("knowledge_base") || has("delegate_to_bot")
+          ? "COORDINATION: knowledge_base(action=read,id=workspace:bots) returns the saved roster, jobs, schedules and consultation receipts. Read it before claiming you contacted a bot or that a bot is working. Use exact saved names for delegate_to_bot. A consultation is a read-only reply, not a background assignment. Reported bot history is not live job state."
+          : "",
       has("plan_workflow") ? "TEAM DELIVERY: Use plan_workflow to save a draft when the user wants a team to prepare deliverables, with exact bot names, dependencies, outputs and acceptance criteria. Workflows run only after Start workflow in the app; never claim a draft is running." : "",
       has("code_project") ? "CODING TASKS: use code_project to index/map/search the local workspace, read live source, patch with workspace_file and verify with authorized terminal tests. Imported project:ID folders are read-only. Load playbook:coding-workflow for the full procedure." : "",
       has("schedule_task") ? `SCHEDULING: schedule_task for one-time/daily jobs with timezone ${this.scheduleTimeZone}. Unattended runs use only the permissions saved on the schedule. Recurring paid runs require explicit approval.` : "",
@@ -1149,6 +1160,22 @@ export class AgentOrchestrator {
   }
 
   private async executeBrowserAwareTool(name: string, input: Record<string, unknown>): Promise<ToolExecutionResult> {
+    if (this.researchCache && (name === "web_search" || name === "fetch_url")) {
+      const normalizedKey = name === "web_search"
+        ? "web_search:" + String(input.query ?? "").trim().toLowerCase().replace(/\s+/g, " ")
+        : "fetch_url:" + String(input.url ?? "").trim();
+      const cached = this.researchCache.get(normalizedKey);
+      if (cached) return cached;
+      const pending = executeTool(name, input, this.browser, this.abortSignal).then(result => {
+        if (!result.ok) this.researchCache?.delete(normalizedKey);
+        return result;
+      }, err => {
+        this.researchCache?.delete(normalizedKey);
+        throw err;
+      });
+      this.researchCache.set(normalizedKey, pending);
+      return pending;
+    }
     if (name !== "click_element") return executeTool(name, input, this.browser, this.abortSignal);
     const target = String(input.target ?? "").trim();
     const key = JSON.stringify([this.browser.currentUrl(), target]);
@@ -1739,7 +1766,7 @@ export class AgentOrchestrator {
             tool_choice: "auto",
             parallel_tool_calls: true,
             max_output_tokens: MAX_TOKENS,
-            reasoning: { effort: REASONING_EFFORT }
+            reasoning: { effort: this.reasoningEffort }
           }, { signal: this.abortSignal });
           this.responsesPreviousId = response.id;
           const calls = response.output

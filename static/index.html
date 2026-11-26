@@ -4029,10 +4029,74 @@ dialog.modal-dialog::backdrop {
 #new-huddle-button:hover { background: #e9edf3; }
 .huddle-avatar { background:#e6edff !important; color:#2563eb; border-radius:8px; }
 #sidebar .agent-row:not(.is-working) .agent-avatar, #sidebar .agent-row:not(.is-working) .agent-avatar * { animation:none !important; }
-#huddle-members { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 20px; border-bottom:1px solid var(--border); }
-#huddle-member-list { display:flex; flex-wrap:wrap; gap:6px; min-width:0; }
-.huddle-member { padding:3px 9px; background:var(--blue-soft); color:var(--text-secondary); border-radius:999px; font-size:11px; }
-#edit-huddle { flex-shrink:0; border:0; background:transparent; color:var(--blue); cursor:pointer; font-size:12px; }
+#huddle-members { flex:0 0 auto; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:7px 14px; background:rgba(255,255,255,.88); backdrop-filter:blur(12px); border-bottom:1px solid rgba(15,23,42,.08); }
+#huddle-member-list { display:grid; grid-auto-flow:column; grid-auto-columns:max-content; gap:8px; overflow-x:auto; min-width:0; flex:1; }
+.huddle-member { display:grid; grid-template-columns:24px minmax(0,1fr) auto; align-items:center; align-content:start; column-gap:8px; row-gap:1px; padding:5px 10px 5px 6px; border:1px solid rgba(15,23,42,.09); border-radius:14px; width:max-content; min-width:164px; max-width:248px; background:var(--panel,#fff); box-shadow:0 1px 2px rgba(15,23,42,.03); transition:border-color 140ms ease, background 140ms ease; }
+.huddle-member.is-working { border-color:rgba(37,99,235,.35); background:#f4f8ff; }
+.huddle-member .agent-avatar { width:24px; height:24px; grid-row:1 / 3; border-radius:50%; overflow:hidden; }
+.huddle-member .agent-avatar svg, .huddle-member .agent-avatar img { display:block; width:24px; height:24px; }
+.huddle-member-name { grid-column:2; font-size:11.5px; line-height:15px; font-weight:600; letter-spacing:-.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.huddle-member-status { grid-column:2; display:inline-flex; align-items:center; gap:5px; font-size:10.5px; line-height:13px; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-inline-size:0; }
+.huddle-member-status::before { content:""; inline-size:6px; block-size:6px; border-radius:50%; flex:0 0 auto; background:#cbd5e1; }
+.huddle-member[data-status="done"] .huddle-member-status::before { background:#10b981; }
+.huddle-member[data-status="working"] .huddle-member-status::before { background:#2563eb; }
+.huddle-member[data-status="warning"] .huddle-member-status::before { background:#f59e0b; }
+.huddle-member-result { grid-column:3; grid-row:1 / 3; font-size:10.5px; line-height:1.5; overflow-wrap:anywhere; }
+.huddle-member-result[open] { grid-column:1 / -1; grid-row:3; margin-top:6px; padding-top:6px; border-top:1px solid rgba(15,23,42,.07); }
+.huddle-member-result summary { cursor:pointer; color:var(--blue); font-weight:500; }
+.huddle-member-result > div { max-height:180px; overflow:auto; margin-top:6px; white-space:pre-wrap; }
+#huddle-discussion-status:not(.sr-only) { flex:0 0 100%; order:3; margin:3px 0 0; font-size:11px; color:var(--text-secondary); }
+.huddle-discussion-reply { border-left:2px solid var(--blue); padding-left:10px; }
+.huddle-conversation .huddle-discussion-reply[data-huddle-speaker=""] { border:1px solid rgba(37,99,235,.14); border-radius:14px; padding:14px 16px; background:linear-gradient(180deg,#f8faff 0%,#f3f7ff 100%); }
+.huddle-conversation .huddle-discussion-reply[data-huddle-speaker=""] > strong { display:block; font-size:12px; font-weight:600; letter-spacing:-.01em; color:#2563eb; margin-block-end:6px; }
+.huddle-finding { margin-block-start:14px; padding-block-start:14px; border-top:1px solid rgba(15,23,42,.07); }
+.huddle-finding:first-child { margin-block-start:0; padding-block-start:0; border-top:0; }
+.huddle-comment-item { display:grid; grid-template-columns:24px minmax(0,1fr); column-gap:10px; row-gap:4px; align-items:start; }
+.huddle-comment-item > .huddle-comment-avatar { grid-column:1; grid-row:1 / span 3; width:24px; height:24px; margin-block-start:1px; border-radius:50%; overflow:hidden; }
+.huddle-comment-item > strong { grid-column:2; font-size:13px; line-height:1.35; font-weight:600; letter-spacing:-.01em; color:var(--text); min-inline-size:0; }
+.huddle-comment-item > :not(.huddle-comment-avatar):not(strong) { grid-column:2; min-inline-size:0; }
+.huddle-comment-avatar { width:24px; height:24px; flex:0 0 24px; }
+.huddle-comment-avatar svg, .huddle-comment-avatar img { display:block; width:24px; height:24px; }
+.huddle-peer-discussion { margin-block-start:16px; padding-block-start:14px; border-top:1px solid rgba(15,23,42,.07); }
+.huddle-peer-discussion > strong { display:block; font-size:12px; font-weight:600; letter-spacing:-.01em; color:var(--text-secondary); margin-block-end:8px; }
+.huddle-peer-discussion .huddle-discussion-reply { margin-block-start:8px; border:1px solid rgba(15,23,42,.07); border-radius:12px; padding:10px 12px; background:#f8fafc; }
+.huddle-meta-details { margin-block-start:14px; padding-block-start:10px; border-top:1px solid rgba(15,23,42,.07); font-size:12px; color:var(--text-secondary); }
+.huddle-meta-details > summary { list-style:none; display:inline-flex; align-items:safe center; gap:6px; cursor:pointer; user-select:none; color:var(--text-secondary); font-size:12px; font-weight:500; padding:3px 6px; margin-inline-start:-6px; border-radius:7px; }
+.huddle-meta-details > summary::-webkit-details-marker { display:none; }
+.huddle-meta-details > summary:hover { background:rgba(15,23,42,.05); color:var(--text); }
+.huddle-meta-details > summary::before { content:""; inline-size:6px; block-size:6px; flex:0 0 auto; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(-45deg); margin-inline-end:2px; }
+.huddle-meta-details[open] > summary::before { transform:rotate(45deg); }
+@media (prefers-reduced-motion: no-preference) {
+  .huddle-meta-details > summary::before { transition:transform 180ms ease; }
+}
+.huddle-meta-body { margin-block-start:8px; padding:10px 12px; border-radius:10px; background:#f8fafc; border:1px solid rgba(15,23,42,.06); font-size:12px; line-height:1.55; color:var(--text-secondary); }
+.huddle-meta-body strong { display:block; color:var(--text); font-weight:600; margin-block-end:4px; }
+.huddle-meta-row { margin:2px 0; }
+#conversation.huddle-conversation #messages { padding:14px 20px 8px; }
+#conversation.huddle-conversation #messages::before { margin-top:0; }
+.huddle-conversation .message { margin-bottom:12px; gap:10px; }
+.huddle-conversation .message.agent:has(~ .message.agent) .msg-bot-avatar { visibility:visible; }
+.huddle-conversation .message.agent .msg-bot-avatar { border-radius:50%; overflow:hidden; }
+.huddle-conversation .message.agent .bubble:not(.step-feed):not(.error) { background:transparent; border-color:transparent; padding:2px 0; line-height:1.6; }
+.huddle-conversation .message.agent .msg-feedback { margin-top:6px; gap:2px; }
+.huddle-conversation .message.agent .msg-feedback button { border-color:transparent; background:transparent; color:var(--text-secondary); padding:4px 8px; border-radius:8px; box-shadow:none; }
+.huddle-conversation .message.agent .msg-feedback button:hover { background:rgba(15,23,42,.05); color:var(--text); transform:none; }
+.huddle-conversation .message:has(.step-feed) .message-label,
+.huddle-conversation .message:has(.step-feed) .msg-feedback { display:none; }
+.huddle-conversation .message:has(.step-feed) .msg-bot-avatar { width:22px; height:22px; flex:0 0 22px; }
+.huddle-conversation .message:has(.step-feed) .msg-bot-avatar svg,
+.huddle-conversation .message:has(.step-feed) .msg-bot-avatar img { display:block; width:22px; height:22px; }
+.huddle-conversation .bubble p { margin-bottom:6px; }
+.huddle-conversation .bubble li { margin:4px 0; }
+.huddle-conversation .run-presence { margin:2px auto 6px; }
+#conversation.huddle-conversation #composer-wrap { padding:6px 18px 10px; }
+.huddle-conversation #composer { padding:7px 8px; gap:3px; }
+.huddle-conversation #composer textarea { height:34px; min-height:34px; }
+#huddle-list { margin-top:16px; border-top:1px solid var(--border); padding-top:8px; }
+.huddle-list-empty { margin:8px 12px; color:var(--muted); font-size:11px; }
+#app.sidebar-collapsed .huddle-list-empty { display:none; }
+#edit-huddle { flex-shrink:0; border:0; background:transparent; color:var(--blue); cursor:pointer; font-size:12px; font-weight:500; padding:5px 10px; border-radius:999px; }
+#edit-huddle:hover { background:rgba(37,99,235,.08); }
 #huddle-modal { width:min(92vw,500px); max-height:calc(100dvh - 32px); border-radius:18px; box-shadow:0 24px 80px #0f172a26; }
 #huddle-form { display:flex; flex-direction:column; max-height:calc(100dvh - 34px); }
 .huddle-modal-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:24px 24px 18px; }
@@ -4384,7 +4448,7 @@ dialog.modal-dialog::backdrop {
         <section id="saved-bot-instructions" hidden aria-label="Edit bot profile">
           <button id="edit-bot-instructions" type="button" aria-label="Edit bot profile" title="Edit bot profile"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m14 5 5 5"/></svg></button>
         </section>
-        <section id="huddle-members" hidden aria-label="Huddle participants"><div id="huddle-member-list"></div><button type="button" id="edit-huddle">Edit huddle</button></section>
+        <section id="huddle-members" hidden aria-label="Huddle participants"><div id="huddle-member-list"></div><button type="button" id="edit-huddle" aria-label="Edit huddle">Edit</button><p id="huddle-discussion-status" class="sr-only" role="status">Share a question to begin. Individual findings → peer discussion → shared conclusion.</p></section>
         <div id="messages" hidden></div>
 
         <div id="composer-wrap">
@@ -5154,6 +5218,8 @@ dialog.modal-dialog::backdrop {
     onEvent: receiveTrackedRunEvent,
     onChange: function(record) {
       if (record.ownerId === activeAgentId) restoreSelectedRun(false);
+      var owner = agents.find(function(agent) { return agent.id === record.ownerId; });
+      if (owner && owner.kind === "huddle" && !runTracker.activeFor(owner.id)) recoverHuddleResults(owner);
       renderSidebar();
     },
     onError: function(error) { console.error("Run event could not be rendered:", error.message); }
@@ -5686,10 +5752,14 @@ dialog.modal-dialog::backdrop {
     if (!el) return;
     el.piloAvatarState = { agent: agent, working: working, expressive: expressive };
     if (agent && agent.kind === "huddle") {
-      el.className = "agent-avatar small huddle-avatar";
+      el.classList.remove("miniature-avatar", "character-avatar", "photo-avatar", "role-avatar", "mascot-avatar", "custom-bot", "is-expressive", "is-working");
+      el.classList.add("agent-avatar", "huddle-avatar");
+      if (!el.classList.contains("msg-bot-avatar")) el.classList.add("small");
+      el.style.removeProperty("--bot-color");
       el.innerHTML = document.querySelector("#new-huddle-button .agent-avatar").innerHTML;
       return;
     }
+    el.classList.remove("huddle-avatar");
     var avatarImage = defaultAvatarImage(agent && agent.name) || (agent && agent.avatarImage);
     var personPhoto = /\.(?:jpe?g|webp)(?:[?#]|$)/i.test(avatarImage || "");
     var useMiniature = botIconStyle === "classic" && !personPhoto;
@@ -6264,12 +6334,10 @@ dialog.modal-dialog::backdrop {
       return (a.name + " " + displayBotName(a) + " " + (a.summary || "")).toLowerCase().indexOf(searchQuery) !== -1;
     });
     filtered.sort(function(a,b) { return Number(a.kind === "huddle") - Number(b.kind === "huddle"); });
-    var huddleHeadingAdded = false;
+    var huddleSection = document.createElement("section"); huddleSection.id = "huddle-list"; huddleSection.setAttribute("aria-label", "All huddles");
+    var heading = document.createElement("div"); heading.className = "sidebar-section-label"; heading.textContent = "Huddles (" + filtered.filter(function(a) { return a.kind === "huddle"; }).length + ")";
+    huddleSection.appendChild(heading);
     filtered.forEach(function(agent) {
-      if (agent.kind === "huddle" && !huddleHeadingAdded) {
-        var heading = document.createElement("div"); heading.className = "sidebar-section-label"; heading.textContent = "Huddles";
-        agentList.appendChild(heading); huddleHeadingAdded = true;
-      }
       var isCurrent = agent.id === activeAgentId;
       var isAgentWorking = Boolean(runTracker.activeFor(agent.id));
       var mainBotVisible = isCurrent || (isRunning && agent.id === runningAgentId && runConversationAgentId === activeAgentId);
@@ -6324,8 +6392,12 @@ dialog.modal-dialog::backdrop {
         saveAgents();
         renderSidebar();
       });
-      agentList.appendChild(row);
+      (agent.kind === "huddle" ? huddleSection : agentList).appendChild(row);
     });
+    if (!huddleSection.querySelector(".agent-row")) {
+      var empty = document.createElement("p"); empty.className = "huddle-list-empty"; empty.textContent = searchQuery ? "No matching huddles." : "Create a huddle to bring bots together."; huddleSection.appendChild(empty);
+    }
+    agentList.appendChild(huddleSection);
     renderWelcomeBotCatalog();
     renderBotOnboardingPresets();
     newAgentButton.classList.toggle("active", activeAgentId === null);
@@ -6406,6 +6478,15 @@ dialog.modal-dialog::backdrop {
       '<div class="message-label">' + (role === "user" ? "You" : esc(a ? displayBotName(a) : "Bot")) + '</div>' +
       '<div class="bubble ' + (cls || "") + '">' + html + '</div>';
     if (role === "agent") normalizeLegacyReply(body.querySelector(".bubble"));
+    var attributed = body.querySelector("[data-huddle-speaker]");
+    if (role === "agent" && a && a.kind === "huddle" && attributed) {
+      var speakerBot = availableHuddleBots(a).find(function(bot) { return bot.name === attributed.dataset.huddleSpeaker; });
+      if (speakerBot) {
+        applyAvatarElement(av, speakerBot, false);
+        body.querySelector(".message-label").textContent = speakerBot.name;
+      }
+    }
+    if (role === "agent" && a && a.kind === "huddle") decorateHuddleCommentIcons(body.querySelector(".bubble"), a);
     row.appendChild(body);
     bindHumanVerificationActions(body.querySelector(".bubble"));
     // Like / Correction / Reply on every agent reply. This is the cheapest read we get on whether the
@@ -6857,7 +6938,7 @@ dialog.modal-dialog::backdrop {
     messages.hidden = false;
     var roleLabel = a.description || a.summary || (a.intent.expertise ? a.intent.expertise.split(",")[0] : "Autonomous Bot");
     setChip(a.name, roleLabel, a);
-    document.getElementById("saved-bot-instructions").hidden = !a.description;
+    document.getElementById("saved-bot-instructions").hidden = !a.description || a.kind === "huddle";
     renderTranscript();
     var selectedRun = runTracker.activeFor(a.id);
     if (selectedRun) { selectedRun.liveStepFeedBubble = null; selectedRun.liveStepFeedRecord = null; }
@@ -6867,6 +6948,7 @@ dialog.modal-dialog::backdrop {
     renderSidebar();
     renderQuickStarts(a);
     renderHuddleMembers(a);
+    if (a.kind === "huddle") reconcileOwnerRunFromStatus(a.id);
     syncPromptPlaceholder();
     if (a.intent && a.intent.url) {
       browserAddress.value = a.intent.url;
@@ -7164,16 +7246,169 @@ dialog.modal-dialog::backdrop {
   function availableHuddleBots(session) {
     return (session.participantIds || []).map(function(id) { return agents.find(function(bot) { return bot.id === id && bot.kind !== "huddle" && !bot.deleted; }); }).filter(Boolean);
   }
+  function findHuddleCommentBot(session, name) {
+    var target = String(name || "").trim();
+    if (!target) return null;
+    return availableHuddleBots(session).find(function(bot) { return bot.name === target; }) ||
+      agents.find(function(bot) { return bot && bot.kind !== "huddle" && !bot.deleted && bot.name === target; }) || null;
+  }
+  function formatHuddleErrorReason(reason) {
+    var text = String(reason || "no usable reply").trim();
+    var budgetMatch = text.match(/Maximum time budget of\s+([0-9]+s)\s+exceeded/i);
+    if (budgetMatch) return "timed out after " + budgetMatch[1];
+    return text.replace(/^CircuitBreakerTriggered:\s*/i, "");
+  }
+  function decorateHuddleCommentIcons(bubble, session) {
+    if (!bubble || !session || session.kind !== "huddle") return;
+    // Upgrade legacy persisted coordination telemetry into a quiet disclosure at the bottom.
+    var firstStrong = bubble.firstElementChild;
+    if (firstStrong && firstStrong.tagName === "STRONG" && firstStrong.textContent.trim() === "Actual coordination results" && !bubble.querySelector(".huddle-meta-details")) {
+      var details = document.createElement("details");
+      details.className = "huddle-meta-details";
+      var summary = document.createElement("summary");
+      summary.textContent = "Coordination details · Read-only";
+      var metaBody = document.createElement("div");
+      metaBody.className = "huddle-meta-body";
+      var node = bubble.firstChild;
+      while (node && !(node.nodeType === 1 && (node.tagName === "SECTION" || node.classList.contains("huddle-peer-discussion")))) {
+        var next = node.nextSibling;
+        metaBody.appendChild(node);
+        node = next;
+      }
+      var emptyPeer = bubble.querySelector(".huddle-peer-discussion");
+      if (emptyPeer && !emptyPeer.querySelector(".huddle-discussion-reply")) {
+        metaBody.appendChild(emptyPeer);
+      }
+      details.append(summary, metaBody);
+      bubble.appendChild(details);
+    }
+    bubble.querySelectorAll("[data-huddle-comment-bot], section, .huddle-peer-discussion .huddle-discussion-reply").forEach(function(block) {
+      if (block.querySelector(":scope > .huddle-comment-avatar")) return;
+      var heading = block.querySelector(":scope > strong");
+      if (!heading) return;
+      var candidate = block.dataset.huddleCommentBot || String(heading.textContent || "").replace(/\s+[—–-]\s+(?:findings|saved reply|failed|interrupted)$/i, "").trim();
+      var bot = findHuddleCommentBot(session, candidate);
+      if (!bot) return;
+      block.classList.add("huddle-comment-item");
+      if (block.tagName === "SECTION") {
+        block.classList.add("huddle-finding");
+        block.style.removeProperty("margin-top");
+      }
+      var avatar = document.createElement("span");
+      avatar.className = "agent-avatar small huddle-comment-avatar";
+      avatar.setAttribute("aria-hidden", "true");
+      applyAvatarElement(avatar, bot, false, false);
+      block.insertBefore(avatar, block.firstChild);
+    });
+  }
   function renderHuddleMembers(session) {
     var panel = document.getElementById("huddle-members");
     panel.hidden = !session || session.kind !== "huddle";
+    document.getElementById("conversation").classList.toggle("huddle-conversation", !panel.hidden);
     var list = document.getElementById("huddle-member-list"); list.innerHTML = "";
     if (panel.hidden) return;
     (session.participantIds || []).forEach(function(id) {
       var bot = agents.find(function(item) { return item.id === id && !item.deleted; });
-      var chip = document.createElement("span"); chip.className = "huddle-member";
-      chip.textContent = bot ? bot.name : "Unavailable participant"; list.appendChild(chip);
+      var progress = (session.huddleProgress || {})[id] || {};
+      var activityText = progress.activity || (bot ? "Ready" : "Unavailable");
+      var statusKind = progress.working ? "working"
+        : (activityText === "Result shared" || activityText === "Saved reply") ? "done"
+        : (activityText === "Needs follow-up" || activityText === "Failed") ? "warning"
+        : "idle";
+      var chip = document.createElement("article"); chip.className = "huddle-member" + (progress.working ? " is-working" : "");
+      chip.dataset.status = statusKind;
+      var avatar = document.createElement("span"); avatar.className = "agent-avatar small";
+      if (bot) applyAvatarElement(avatar, bot, Boolean(progress.working), Boolean(progress.working));
+      var name = document.createElement("span"); name.className = "huddle-member-name"; name.textContent = bot ? bot.name : "Unavailable participant";
+      var activity = document.createElement("span"); activity.className = "huddle-member-status"; activity.textContent = activityText;
+      chip.title = (bot ? bot.name : "Unavailable participant") + " — " + activity.textContent;
+      chip.append(avatar, name, activity);
+      if (progress.result) {
+        var details = document.createElement("details"); details.className = "huddle-member-result";
+        var summary = document.createElement("summary"); summary.textContent = "Result";
+        var result = document.createElement("div"); result.textContent = progress.result;
+        details.append(summary, result); chip.appendChild(details);
+      }
+      list.appendChild(chip);
     });
+    document.getElementById("huddle-discussion-status").classList.toggle("sr-only", !session.huddleInterrupted);
+    document.getElementById("huddle-discussion-status").textContent = session.huddleStage || "Share a question to begin. Individual findings → peer discussion → shared conclusion.";
+  }
+  function updateHuddleProgress(owner, record, event) {
+    if (!owner || owner.kind !== "huddle") return;
+    owner.huddleProgress = owner.huddleProgress || {};
+    owner.huddleRunId = record.runId;
+    if (event.discussionId) owner.huddleDiscussionId = event.discussionId;
+    if (event.type === "execution_configuration") owner.huddlePending = true;
+    var bot = availableHuddleBots(owner).find(function(bot) { return bot.name === record.botName; });
+    if (bot) {
+      var progress = owner.huddleProgress[bot.id] = owner.huddleProgress[bot.id] || {};
+      if (event.type === "execution_configuration") { progress.turns = (progress.turns || 0) + 1; progress.working = true; progress.activity = progress.turns > 1 ? "Reviewing peer findings" : "Developing a perspective"; }
+      if (event.type === "step") { progress.working = true; progress.activity = runStepActivity(event); }
+      if (event.type === "terminal") { progress.working = false; progress.activity = event.success ? "Result shared" : "Needs follow-up"; progress.result = event.summary || "No result received."; }
+      owner.huddleStage = (progress.turns > 1 ? "Peer discussion: " : "Individual perspectives: ") + bot.name + (event.type === "terminal" ? " shared a result." : " is contributing…");
+    } else if (event.type === "execution_configuration") owner.huddleStage = "Preparing the shared conclusion…";
+    if (event.coordination) {
+      availableHuddleBots(owner).forEach(function(member) {
+        var replies = (event.coordination.consultations || []).filter(function(item) { return item.bot === member.name; });
+        var last = replies[replies.length - 1];
+        owner.huddleProgress[member.id] = { working:false, turns:replies.length,
+          activity:last ? last.status === "completed" ? "Result shared" : "Needs follow-up" : "Not contacted within discussion limits",
+          result:last && last.summary || "" };
+      });
+    }
+    if (event.type === "terminal" && (event.discussionFinal || event.terminationReason === "stopped" || event.terminationReason === "connection_lost")) {
+      owner.huddlePending = false;
+      owner.huddleInterrupted = !event.discussionFinal;
+
+      Object.keys(owner.huddleProgress).forEach(function(id) { owner.huddleProgress[id].working = false; });
+      owner.huddleStage = owner.huddleInterrupted ? "Discussion interrupted. Send your question again to retry." : event.success ? "Discussion complete. See the shared conclusion below." : "Discussion ended with gaps. Review the results below.";
+      if (owner.huddleInterrupted) Object.keys(owner.huddleProgress).forEach(function(id) {
+        if (!owner.huddleProgress[id].result) owner.huddleProgress[id].activity = "Interrupted";
+      });
+    }
+    saveAgents();
+    if (owner.id === activeAgentId) renderHuddleMembers(owner);
+  }
+
+  var huddleRecoveryRequests = new Set();
+  function recoverHuddleResults(owner) {
+    if (!owner || owner.kind !== "huddle" || startRunLock || runTracker.activeFor(owner.id) || huddleRecoveryRequests.has(owner.id)) return Promise.resolve();
+    var stale = owner.huddlePending || owner.huddleInterrupted || Object.values(owner.huddleProgress || {}).some(function(item) { return item.working; });
+    if (!stale) return Promise.resolve();
+    var requestRunId = owner.huddleRunId;
+    huddleRecoveryRequests.add(owner.id);
+    return fetch("/api/coordination?bot=" + encodeURIComponent(owner.name)).then(readResponse).then(function(state) {
+      if (startRunLock || runTracker.activeFor(owner.id) || owner.huddleRunId !== requestRunId) return;
+      var receipts = state.consultations || [];
+      var latest = receipts[receipts.length - 1];
+      var discussionId = owner.huddleDiscussionId || latest && latest.discussionId;
+      var records = receipts.filter(function(item) { return item.discussionId === discussionId; });
+      var earlier = availableHuddleBots(owner).map(function(bot) {
+        return receipts.slice().reverse().find(function(item) { return item.toBot === bot.name && item.discussionId !== discussionId && item.status === "completed"; });
+      }).filter(Boolean);
+      owner.huddlePending = false; owner.huddleInterrupted = true;
+      owner.huddleStage = "Discussion interrupted. Saved replies are available below; send your question again to retry.";
+      owner.huddleProgress = owner.huddleProgress || {};
+      availableHuddleBots(owner).forEach(function(bot) {
+        var replies = records.filter(function(item) { return item.toBot === bot.name; });
+        var last = replies[replies.length - 1];
+        var old = owner.huddleProgress[bot.id] || {};
+        var prior = earlier.find(function(item) { return item.toBot === bot.name; });
+        owner.huddleProgress[bot.id] = { working:false, result:last && last.summary || (prior ? "Earlier saved reply (" + prior.updatedAt + "):\n" + prior.summary : old.result || ""),
+          activity:last && last.status === "completed" ? "Saved reply" : last && last.status === "failed" ? "Failed" : "Interrupted" };
+      });
+      var signature = JSON.stringify(records.concat(earlier).map(function(item) { return [item.id, item.status, item.updatedAt]; }));
+      if (owner.huddleRecoverySignature !== signature) {
+        owner.huddleRecoverySignature = signature;
+        var previousOwner = eventMessageAgent; eventMessageAgent = owner;
+        try {
+          appendMessage("agent", '<strong>Huddle interrupted</strong><p>The runtime no longer has an active run for this huddle. Completed replies below are saved results, not a new analysis. Send your question again to retry.</p>' +
+            records.map(function(item) { return '<section class="huddle-finding" data-huddle-comment-bot="' + esc(item.toBot) + '"><strong>' + esc(item.toBot) + ' — ' + esc(item.status === "completed" ? "saved reply" : item.status === "failed" ? "failed" : "interrupted") + '</strong><div>' + esc(item.updatedAt || "") + '</div><div>' + (item.summary ? formatMarkdown(item.summary) : 'No completed reply was saved.') + '</div></section>'; }).join("") + (earlier.length ? '<strong>Earlier saved replies — different request</strong>' + earlier.map(function(item) { return '<section class="huddle-finding" data-huddle-comment-bot="' + esc(item.toBot) + '"><strong>' + esc(item.toBot) + '</strong><div>' + esc(item.updatedAt || '') + '</div><div>' + formatMarkdown(item.summary || '') + '</div></section>'; }).join('') : ''), "huddle-recovery");
+        } finally { eventMessageAgent = previousOwner; }
+      }
+      saveAgents(); if (owner.id === activeAgentId) renderHuddleMembers(owner);
+    }).catch(function() {}).finally(function() { huddleRecoveryRequests.delete(owner.id); });
   }
   function updateHuddleSelection() {
     var inputs = Array.from(document.querySelectorAll("#huddle-choices input"));
@@ -7916,7 +8151,7 @@ dialog.modal-dialog::backdrop {
     }
     var activity = toolName === "code_project" ? "Inspecting the codebase"
       : toolName === "workspace_file" ? "Working with project files"
-      : toolName === "knowledge_base" ? "Reading workspace knowledge"
+      : toolName === "knowledge_base" ? (/playbook:/i.test(text) ? "Loading role playbook" : /project:/i.test(text) ? "Reading project files" : "Reading workspace knowledge")
       : toolName === "learning_kb" ? "Updating learning notes"
       : "";
     if (activity && (!text || text.charAt(0) === "{")) return esc(activity);
@@ -8416,7 +8651,14 @@ dialog.modal-dialog::backdrop {
     if (!agent || runTracker.activeFor(ownerId)) return Promise.resolve();
     return fetch("/api/status").then(readResponse).then(function(st) {
       var match = (st.activeRuns || []).find(function(run) { return (run.conversationBotName || run.botName || "") === agent.name; });
-      if (!match || !match.runId) return;
+      if (!match || !match.runId) {
+        var discussion = (st.activeDiscussions || []).find(function(item) { return item.coordinator === agent.name; });
+        if (discussion && discussion.runId) {
+          runTracker.subscribe({ runId:discussion.runId, ownerId:ownerId, botName:discussion.botName || agent.name });
+          restoreSelectedRun(false); return;
+        }
+        return recoverHuddleResults(agent);
+      }
       runTracker.subscribe({ runId: match.runId, ownerId: ownerId, botName: match.botName || agent.name });
       restoreSelectedRun(false);
     }).catch(function() {});
@@ -8526,6 +8768,7 @@ dialog.modal-dialog::backdrop {
     var owner = agents.find(function(agent) { return agent.id === record.ownerId; });
     if (!owner) return;
     if ((event.conversationResetAt || 0) < (owner.conversationResetAt || 0)) return;
+    updateHuddleProgress(owner, record, event);
     if (event.type === "step") record.lastStep = event;
     if (event.type === "privileged_approval_resolved" || event.type === "human_verification_resolved") record.pendingRendered = false;
     var previousOwner = eventMessageAgent;
@@ -8545,14 +8788,21 @@ dialog.modal-dialog::backdrop {
         record.liveStepFeedRecord = liveStepFeedRecord;
         if (event.type === "privileged_approval_required" || event.type === "human_verification") record.pendingRendered = true;
       } else if (event.type === "terminal" && !event.delegateTo) {
-        var prefix = record.botName !== owner.name ? "<strong>" + esc(record.botName) + " replied:</strong> " : "";
-        appendMessage("agent", prefix + formatMarkdown(event.summary || "Run ended."), event.success ? "" : "error");
+        if (owner.kind === "huddle") {
+          var bgSpeaker = record.botName || owner.name;
+          var bgIsMember = availableHuddleBots(owner).some(function(bot) { return bot.name === bgSpeaker; });
+          appendMessage("agent", '<div class="huddle-discussion-reply" data-huddle-speaker="' + esc(bgIsMember ? bgSpeaker : '') + '"><strong>' + esc(bgIsMember ? bgSpeaker : event.discussionFinal ? "Shared conclusion" : "Huddle discussion") + '</strong><div>' + formatMarkdown(event.summary || "Run ended.") + '</div></div>', event.success ? "" : "error");
+        } else {
+          var prefix = record.botName !== owner.name ? "<strong>" + esc(record.botName) + " replied:</strong> " : "";
+          appendMessage("agent", prefix + formatMarkdown(event.summary || "Run ended."), event.success ? "" : "error");
+        }
       } else if (event.type === "step") {
         record.stepRows = record.stepRows || [];
         record.stepRows.push('<div class="step-item"><span class="step-badge">Step ' + esc(event.step) + '</span><span>' + esc(event.message || event.toolName || "Working") +
           (event.artifactUrl ? ' <a href="' + esc(event.artifactUrl) + '" download>Download artifact</a>' : "") + '</span></div>');
         record.stepRows = record.stepRows.slice(-50);
-        var markup = '<details class="step-details"><summary><span class="step-badge">' + record.stepRows.length + ' steps</span> Background work</summary><div class="step-items-list">' + record.stepRows.join("") + '</div></details>';
+        var bgStepSpeaker = owner.kind === "huddle" && availableHuddleBots(owner).some(function(bot) { return bot.name === record.botName; }) ? record.botName : "";
+        var markup = '<details class="step-details"' + (bgStepSpeaker ? ' data-huddle-speaker="' + esc(bgStepSpeaker) + '"' : '') + '><summary><span class="step-badge">' + record.stepRows.length + ' steps</span> Background work</summary><div class="step-items-list">' + record.stepRows.join("") + '</div></details>';
         if (!record.backgroundStepRecord) record.backgroundStepRecord = persistMessage("agent", markup, "step-feed");
         else { record.backgroundStepRecord.html = markup; saveAgents(); }
       }
@@ -9083,10 +9333,13 @@ dialog.modal-dialog::backdrop {
       var stepBody = formatStepDisplay(tool, stepText) + artifactLink;
       var stepRowHtml =
         '<div class="step-item"><span class="step-badge">Step ' + esc(e.step) + "</span><span>" + stepBody + "</span></div>";
+      var stepHuddleOwner = eventMessageAgent || activeAgent();
+      var stepSpeaker = stepHuddleOwner && stepHuddleOwner.kind === "huddle" && availableHuddleBots(stepHuddleOwner).some(function(bot) { return bot.name === runningAgentName; })
+        ? runningAgentName : "";
       if (!liveStepFeedBubble) {
         liveStepFeedBubble = appendMessage(
           "agent",
-          '<details class="step-details">' +
+          '<details class="step-details"' + (stepSpeaker ? ' data-huddle-speaker="' + esc(stepSpeaker) + '"' : '') + '>' +
             '<summary title="Click to expand or collapse step details">' +
               '<span class="step-summary-left">' +
                 '<span class="step-badge step-count-badge">1 step</span>' +
@@ -9254,20 +9507,52 @@ dialog.modal-dialog::backdrop {
       var delegatedPrefix = runningAgentId && runningAgentId !== runConversationAgentId
         ? "<strong>" + esc(runningAgentName) + " replied:</strong> "
         : "";
-      if (!e.delegateTo) appendMessage(
+      var huddleOwner = eventMessageAgent || activeAgent();
+      if (huddleOwner && huddleOwner.kind === "huddle" && !e.delegateTo) {
+        var speaker = runningAgentName || huddleOwner.name;
+        var isMember = availableHuddleBots(huddleOwner).some(function(bot) { return bot.name === speaker; });
+        appendMessage("agent", '<div class="huddle-discussion-reply" data-huddle-speaker="' + esc(isMember ? speaker : '') + '"><strong>' + esc(isMember ? speaker : e.discussionFinal ? "Shared conclusion" : "Huddle discussion") + '</strong><div>' + prefix + formatMarkdown(e.summary || "") + '</div></div>', e.success ? "" : "error");
+      } else if (!e.delegateTo) appendMessage(
         "agent",
         delegatedPrefix + prefix + formatMarkdown(e.summary || ""),
         e.success ? "" : "error"
       );
       if (e.coordination) {
         var coverage = e.coordination;
-        appendMessage("agent", "<strong>Actual coordination results</strong><br>Replies received: " + esc((coverage.completed || []).join(", ") || "none") +
-          ((coverage.failed || []).length ? "<br>Failed: " + esc(coverage.failed.map(function(item) { return item.bot + ": " + (item.reason || "no usable reply"); }).join("; ")) : "") +
-          ((coverage.notContacted || []).length ? "<br>Not contacted within this discussion's limit: " + esc(coverage.notContacted.join(", ")) : "") +
-          "<br>These were read-only consultations. No ongoing work or recurring schedule was started." +
-          (coverage.consultations || []).filter(function(item) { return item.status === "completed" && item.summary; }).map(function(item) {
-            return '<section style="margin-top:12px;"><strong>' + esc(item.bot) + ' — findings</strong><div>' + formatMarkdown(item.summary) + '</div></section>';
-          }).join(""));
+        var findingsHtml = (coverage.consultations || []).filter(function(item) { return item.status === "completed" && item.summary && (coverage.consultations || []).find(function(first) { return first.bot === item.bot && first.status === "completed"; }) === item; }).map(function(item) {
+          return '<section class="huddle-finding" data-huddle-comment-bot="' + esc(item.bot) + '"><strong>' + esc(item.bot) + ' — findings</strong><div>' + formatMarkdown(item.summary) + '</div></section>';
+        }).join("");
+        if (huddleOwner && huddleOwner.kind === "huddle") {
+          var completedList = coverage.completed || [];
+          var failedList = coverage.failed || [];
+          var skippedList = coverage.notContacted || [];
+          var totalCount = Math.max(availableHuddleBots(huddleOwner).length, completedList.length + failedList.length + skippedList.length);
+          var summaryBits = [completedList.length + " of " + totalCount + " replied"];
+          if (failedList.length) summaryBits.push(failedList.map(function(item) { return item.bot + " " + formatHuddleErrorReason(item.reason); }).join(", "));
+          if (skippedList.length) summaryBits.push(skippedList.length === 1 ? skippedList[0] + " skipped" : skippedList.length + " skipped");
+          summaryBits.push("Read-only");
+          var peerRepliesHtml = (coverage.consultations || []).filter(function(item, index, items) {
+            return item.status === "completed" && item.summary && items.slice(0, index).some(function(prior) { return prior.bot === item.bot; });
+          }).map(function(item) {
+            return '<div class="huddle-discussion-reply" data-huddle-comment-bot="' + esc(item.bot) + '"><strong>' + esc(item.bot) + '</strong><div>' + formatMarkdown(item.summary) + '</div></div>';
+          }).join("");
+          var metaHtml = '<details class="huddle-meta-details"><summary>' + esc(summaryBits.join(" · ")) + '</summary><div class="huddle-meta-body">' +
+            '<strong>Actual coordination results</strong>' +
+            '<div class="huddle-meta-row">Replies received: ' + esc(completedList.join(", ") || "none") + '</div>' +
+            (failedList.length ? '<div class="huddle-meta-row">Needs follow-up: ' + esc(failedList.map(function(item) { return item.bot + ": " + formatHuddleErrorReason(item.reason); }).join("; ")) + '</div>' : "") +
+            (skippedList.length ? '<div class="huddle-meta-row">Not contacted within this discussion’s limit: ' + esc(skippedList.join(", ")) + '</div>' : "") +
+            (!peerRepliesHtml ? '<div class="huddle-meta-row">Peer discussion: no peer review replies were received within the discussion limits.</div>' : "") +
+            '<div class="huddle-meta-row">These were read-only consultations. No ongoing work or recurring schedule was started.</div>' +
+            '</div></details>';
+          appendMessage("agent", findingsHtml +
+            (peerRepliesHtml ? '<div class="huddle-peer-discussion"><strong>Peer discussion</strong>' + peerRepliesHtml + '</div>' : "") +
+            metaHtml);
+        } else {
+          appendMessage("agent", "<strong>Actual coordination results</strong><br>Replies received: " + esc((coverage.completed || []).join(", ") || "none") +
+            ((coverage.failed || []).length ? "<br>Failed: " + esc(coverage.failed.map(function(item) { return item.bot + ": " + (item.reason || "no usable reply"); }).join("; ")) : "") +
+            ((coverage.notContacted || []).length ? "<br>Not contacted within this discussion's limit: " + esc(coverage.notContacted.join(", ")) : "") +
+            "<br>These were read-only consultations. No ongoing work or recurring schedule was started." + findingsHtml);
+        }
       }
       setAgentMotion(e.success ? "done" : "failed");
       clearRunClientState();
@@ -9904,6 +10189,8 @@ dialog.modal-dialog::backdrop {
     applyCatalogCollection();
 
     if (huddle && huddle.kind === "huddle") {
+      huddle.huddleProgress = {}; huddle.huddlePending = true; huddle.huddleInterrupted = false; huddle.huddleDiscussionId = null; huddle.huddleRunId = null; huddle.huddleRecoverySignature = null; huddle.huddleStage = "Gathering individual perspectives…";
+      renderHuddleMembers(huddle);
       var huddleTask = value + attachmentContext();
       appendMessage("user", userMessageWithAttachments(displayValue));
       clearAttachments();

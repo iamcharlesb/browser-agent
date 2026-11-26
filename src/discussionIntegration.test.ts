@@ -96,7 +96,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
       } else {
         teamPrompts.push({ name, text: instructions, tools: names });
         if (scenario === "team-failure" && name === "SEO Specialist") { res.statusCode = 400; res.end(JSON.stringify({ error: { message: "Synthetic SEO outage", type: "invalid_request_error" } })); }
-        else res.end(JSON.stringify(response(message(`${name}: a concrete role-specific next action, with historical work clearly labelled.`), modelCalls)));
+        else res.end(JSON.stringify(response(message(instructions.includes("PEER DISCUSSION:") ? `${name}: after reviewing peer findings, I challenge the acquisition assumption and revise the recommendation based on the shared evidence.` : `${name}: a concrete role-specific next action, with historical work clearly labelled.`), modelCalls)));
       }
       return;
     }
@@ -725,6 +725,20 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         assert.deepEqual(new Set(teamPrompts.map(item => item.name)), new Set(["SEO Specialist", "Blog Writer"]));
         assert.equal(await page.locator("#messages section").filter({ hasText: "— findings" }).count(), 2);
         assert.ok(teamPrompts[1].text.includes(teamPrompts[0].name), "later speakers receive the attributed shared discussion context");
+        assert.equal(teamPrompts.length, 4, "each selected participant gets an initial and peer-review turn within the configured budget");
+        for (const review of teamPrompts.slice(2)) {
+          assert.match(review.text, /PEER DISCUSSION:/);
+          for (const name of ["SEO Specialist", "Blog Writer"]) assert.ok(review.text.includes(name), "reviewers receive all initial findings");
+        }
+        assert.equal(await page.locator("#huddle-list .agent-row").count(), 1);
+        assert.equal(await page.locator("#huddle-member-list .agent-avatar").count(), 2);
+        const positions = await page.locator("#huddle-member-list .huddle-member").evaluateAll(cards => cards.map(card => { const r = card.getBoundingClientRect(); return { top: r.top, left: r.left }; }));
+        assert.equal(positions[0].top, positions[1].top, "participant cards share one horizontal row");
+        assert.ok(positions[1].left > positions[0].left);
+        assert.equal(await page.locator(".huddle-member-result").count(), 2);
+        assert.match(await page.locator("#messages").innerText(), /Shared conclusion/);
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await page.screenshot({ path: join(tmpdir(), "pilo-huddle-discussion.png"), fullPage: true });
         await page.waitForFunction(() => document.querySelector("#status-badge-text")!.textContent === "Ready");
         teamPrompts.length = 0;
         await page.locator("#edit-huddle").click();
@@ -739,6 +753,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
           throw new Error(error.message + "\n" + JSON.stringify({ submitted, teamPrompts, text: await page.locator("#messages").innerText(), status: await page.locator("#status").innerText() }));
         });
         assert.deepEqual(new Set(teamPrompts.map(item => item.name)), new Set(["SEO Specialist", "Founder Operator"]));
+        assert.ok(teamPrompts.every(item => item.text.includes("PRIOR HUDDLE CONVERSATION") && item.text.includes("What should our launch prioritize?")), "follow-up huddle specialists receive prior huddle conversation memory");
         assert.equal(await page.locator("#messages").innerText().then(text => text.includes("What should our launch prioritize?")), true);
         await page.waitForFunction(() => document.querySelector("#status-badge-text")!.textContent === "Ready");
         scenario = "async"; asyncStarted.length = 0; releaseAsync.clear();
@@ -754,7 +769,7 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.waitForFunction(() => document.querySelector("#status-badge-text")!.textContent === "Ready");
         releaseAsync.get("UI_C")!();
         await page.waitForTimeout(400);
-        assert.deepEqual(asyncStarted, ["UI_C"], "Stop cancels the remaining speakers and queued follow-up");
+        assert.ok(asyncStarted.length >= 1 && asyncStarted.length <= 2 && asyncStarted.every(v => v === "UI_C"), "Stop cancels remaining peer speakers and queued follow-up while Round 1 runs concurrently");
         assert.equal(await page.locator("#command-queue").isVisible(), false);
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }
@@ -802,6 +817,63 @@ test("real server discussion lifecycle terminates repetition, worker failure, an
         await page.locator("#send-button").click();
         await page.waitForFunction(()=>document.querySelector("#messages")!.textContent!.includes("Actual coordination results"));
         assert.deepEqual(new Set(teamPrompts.map(item=>item.name)),new Set(["Wall Street Analyst","Goldman Sachs Analyst","My Custom Reviewer"]));
+        assert.equal(await page.locator("#huddle-member-list .agent-avatar").count(), 3);
+        assert.equal(await page.locator("#huddle-member-list .huddle-member-result").count(), 3, "final receipts recover all participant results even if a fast stream was skipped");
+        assert.match(await page.locator(".huddle-peer-discussion").innerText(), /after reviewing peer findings/);
+        assert.equal(await page.locator("#messages section.huddle-finding .huddle-comment-avatar").count(), 3, "each participant findings comment shows its icon");
+        assert.ok(await page.locator(".huddle-peer-discussion .huddle-comment-avatar").count() >= 1, "peer discussion comments show participant icons");
+        const hiddenHuddleAvatars = await page.locator("#messages .message.agent .msg-bot-avatar").evaluateAll(nodes => nodes.filter(node => getComputedStyle(node).visibility !== "visible").length);
+        assert.equal(hiddenHuddleAvatars, 0, "all huddle reasoning and reply messages keep their speaker icons visible");
+        await page.waitForFunction(() => document.querySelector("#status-badge-text")!.textContent === "Ready");
+        await page.locator("#toggle-sidebar-btn").click();
+        await page.locator("#huddle-list").scrollIntoViewIfNeeded();
+        const tops = await page.locator("#huddle-member-list .huddle-member").evaluateAll(cards => cards.map(card => card.getBoundingClientRect().top));
+        assert.equal(new Set(tops).size, 1, "three participant icons appear horizontally");
+        const panelHeight = await page.locator("#huddle-members").evaluate(panel => panel.getBoundingClientRect().height);
+        assert.ok(panelHeight <= 60, "the participant strip fits in a slim toolbar: " + panelHeight);
+        assert.equal(await page.locator("#messages").evaluate(el => getComputedStyle(el, "::before").marginTop), "0px", "huddles do not add empty space above messages");
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await page.screenshot({ path: join(tmpdir(), "pilo-three-person-huddle.png"), fullPage: true });
+        await page.setViewportSize({ width: 390, height: 844 });
+        assert.ok(await page.locator("#huddle-member-list").evaluate(el => el.scrollWidth > el.clientWidth), "narrow screens scroll the participant row horizontally");
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "participant cards do not widen the page");
+        assert.deepEqual(errors,[]);
+      } finally { await browser.close(); }
+    });
+    await t.test("reopening an interrupted huddle recovers saved replies and clears stale activity without model work", async () => {
+      const browser = await chromium.launch({ headless:true });
+      try {
+        const page = await browser.newPage();
+        const errors:string[] = []; page.on("pageerror", error => errors.push(error.message));
+        await page.route("**/api/coordination?bot=*", route => route.fulfill({ json:{ consultations:[
+          { id:"older-b", discussionId:"earlier-discussion", toBot:"Analyst B", status:"completed", summary:"EARLIER_FINDING: a previous request with a different forecast horizon.", updatedAt:"2026-11-24T12:00:00Z" },
+          { id:"saved-a", discussionId:"lost-discussion", toBot:"Analyst A", status:"completed", summary:"SAVED_FINDING: compare cash flow and funding assumptions.", updatedAt:"2026-11-25T12:00:00Z" },
+          { id:"saved-b", discussionId:"lost-discussion", toBot:"Analyst B", status:"interrupted", updatedAt:"2026-11-25T12:01:00Z" }
+        ] } }));
+        await page.addInitScript(() => {
+          localStorage.setItem("agentFireworksAgentsV2", JSON.stringify([
+            { id:"analyst-a", name:"Analyst A", transcript:[] }, { id:"analyst-b", name:"Analyst B", transcript:[] },
+            { id:"lost-huddle", name:"Huddle: Interrupted research", kind:"huddle", participantIds:["analyst-a","analyst-b"], transcript:[],
+              huddleProgress:{ "analyst-a":{ working:true, activity:"Searching the web" } }, huddleStage:"Gathering individual perspectives…" }
+          ]));
+          localStorage.setItem("openBotsSelectedBot", "lost-huddle");
+        });
+        const before = modelCalls;
+        await page.goto(base, { waitUntil:"domcontentloaded" });
+        await page.waitForFunction(() => document.querySelector("#messages")!.textContent!.includes("SAVED_FINDING"));
+        assert.equal(await page.locator(".huddle-member.is-working").count(),0);
+        assert.match(await page.locator("#huddle-discussion-status").innerText(),/Discussion interrupted/);
+        assert.match(await page.locator("#huddle-member-list").innerText(),/Saved reply/);
+        assert.match(await page.locator("#huddle-member-list").innerText(),/Interrupted/);
+        await page.locator(".huddle-member-result summary").first().click();
+        assert.match(await page.locator(".huddle-member-result").first().innerText(),/SAVED_FINDING/);
+        assert.match(await page.locator("#messages").innerText(),/Earlier saved replies — different request/);
+        assert.match(await page.locator("#messages").innerText(),/EARLIER_FINDING/);
+        assert.ok(await page.locator("#messages section.huddle-finding .huddle-comment-avatar").count() >= 2, "recovered huddle comments show participant icons");
+        await page.reload();
+        await page.waitForFunction(() => document.querySelector("#messages")!.textContent!.includes("SAVED_FINDING"));
+        assert.equal(await page.locator("#messages").innerText().then(text => text.split("SAVED_FINDING").length-1),1,"recovery does not duplicate saved receipts on reload");
+        assert.equal(modelCalls,before,"recovery is read-only and starts no paid model requests");
         assert.deepEqual(errors,[]);
       } finally { await browser.close(); }
     });

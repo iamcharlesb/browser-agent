@@ -123,9 +123,9 @@ export class DiscussionController {
     const perEntry = Math.floor(budget / Math.max(1, this.consultations.length));
     const entries = this.consultations.map(item => [
       `${item.bot} | ${item.status} | consultation ${item.id}${item.outcomeRef ? ` | source ${item.outcomeRef}` : ""}`,
-      `Question: ${item.task.slice(0, Math.floor(perEntry * .2))}`,
-      `Supplied evidence/context (coordinator report): ${item.suppliedContext.slice(0, Math.floor(perEntry * .3))}`,
-      `Specialist answer (reported): ${(item.summary || "Awaiting result").slice(0, Math.floor(perEntry * .4))}`
+      `Question: ${item.task.slice(0, Math.floor(perEntry * .18))}`,
+      `Supplied evidence/context (coordinator report): ${item.suppliedContext.slice(0, Math.floor(perEntry * .18))}`,
+      `Specialist answer (reported): ${(item.summary || "Awaiting result").slice(0, Math.floor(perEntry * .6))}`
     ].join("\n").slice(0, perEntry));
     return [header, ...entries].join("\n\n").slice(0, this.limits.contextChars);
   }

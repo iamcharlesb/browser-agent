@@ -33,6 +33,7 @@ import { loadChatAttachments, attachmentImages, storeChatAttachment } from "./ch
 import { loadKnowledge, persistKnowledge, saveKnowledge, searchKnowledge, knowledgeContext, rememberWorkflowStep, workflowRunbook } from "./knowledgeStore";
 import { FrameStream } from "./frameStream";
 import { canAutoApprove } from "./approvalPolicy";
+import type { ToolExecutionResult } from "./agentTools";
 import { randomUUID } from "node:crypto";
 import { GoogleSignInHandoffStore } from "./googleSignInHandoff";
 import { existsSync, readFileSync, watch } from "node:fs";
@@ -996,11 +997,19 @@ interface BotDiscussion {
   controller: DiscussionController;
   targets: WorkspaceBot[];
   taskContext?: string;
+  researchCache: Map<string, Promise<ToolExecutionResult>>;
+  synthesisStarted?: boolean;
 }
 const botDiscussions = new Map<string, BotDiscussion>();
 const SPECIALIST_MAX_STEPS = envInteger("BROWSER_AGENT_SPECIALIST_MAX_STEPS", 24, 1, 500);
+const HUDDLE_SPECIALIST_MAX_STEPS = envInteger("BROWSER_AGENT_HUDDLE_SPECIALIST_MAX_STEPS", 10, 1, 100);
+const HUDDLE_SPECIALIST_MAX_SECONDS = envInteger("BROWSER_AGENT_HUDDLE_SPECIALIST_MAX_SECONDS", 60, 5, 600);
 const SYNTHESIS_MAX_STEPS = envInteger("BROWSER_AGENT_SYNTHESIS_MAX_STEPS", 12, 1, 100);
 const SYNTHESIS_MAX_SECONDS = envInteger("BROWSER_AGENT_SYNTHESIS_MAX_SECONDS", 60, 1, 900);
+const SYNTHESIS_REASONING_EFFORT: "low" | "medium" | "high" = (() => {
+  const value = (process.env.BROWSER_AGENT_SYNTHESIS_REASONING_EFFORT || "medium").trim().toLowerCase();
+  return value === "low" || value === "medium" || value === "high" ? value : "medium";
+})();
 
 function discussionTargets(body: RunRequestBody): WorkspaceBot[] {
   if (body.huddleParticipantIds) return body.huddleParticipantIds.map(id => body.workspaceBots!.find(bot => bot.id === id)!);
@@ -1010,7 +1019,7 @@ function discussionTargets(body: RunRequestBody): WorkspaceBot[] {
 function createDiscussion(body: RunRequestBody): string {
   const id = randomUUID();
   botDiscussions.set(id, { coordinator: body, controller: new DiscussionController(body.botName || "default", discussionLimits()),
-    targets: discussionTargets(body) });
+    targets: discussionTargets(body), researchCache: new Map() });
   // Completed metadata remains available while the UI follows a specific discussion.
   for (const [oldId, item] of botDiscussions) {
     if (botDiscussions.size <= 100) break;
@@ -1022,7 +1031,7 @@ function createDiscussion(body: RunRequestBody): string {
 function coordinationCoverage(discussion: BotDiscussion) {
   const records = discussion.controller.consultations;
   const requested = discussion.targets.length ? discussion.targets.map(bot => bot.name) : records.map(item => item.bot);
-  return { requested, completed: records.filter(item => item.status === "completed").map(item => item.bot),
+  return { requested, completed: [...new Set(records.filter(item => item.status === "completed").map(item => item.bot))],
     failed: records.filter(item => item.status === "failed").map(item => ({ bot: item.bot, reason: item.summary })),
     notContacted: requested.filter(name => !records.some(item => item.bot === name)),
     consultations: records.map(item => ({ id: item.id, bot: item.bot, status: item.status, summary: item.summary, outcomeRef: item.outcomeRef })),
@@ -1061,13 +1070,40 @@ function advancePlannedCoordination(discussionId: string): void {
   const discussion = botDiscussions.get(discussionId);
   if (!discussion || ["cancelled", "completed", "failed"].includes(discussion.controller.phase)) return;
   discussion.controller.checkBudget();
-  const next = discussion.targets.find(bot => !discussion.controller.consultations.some(item => item.bot === bot.name));
-  if (!next || discussion.controller.phase === "synthesizing") {
-    continueCoordinatorDiscussion(discussionId, "Report the actual coverage, each specialist's useful result, gaps and next actions. Uncontacted or failed bots must not be described as having replied. Consultations did not schedule or start their ongoing work.", true); return;
+  if (discussion.controller.consultations.some(item => ["pending", "queued", "running"].includes(item.status))) return;
+  const remainingInitial = discussion.targets.filter(bot => !discussion.controller.consultations.some(item => item.bot === bot.name));
+  const slotsLeft = Math.max(0, discussion.controller.limits.maxConsultations - discussion.controller.consultations.length);
+  if (remainingInitial.length && discussion.controller.phase === "consulting" && slotsLeft > 0) {
+    const initialPrompt = `For your saved role, answer the user's coordination request: ${discussion.coordinator.task}\nContribute a usable role-specific draft or analysis toward the requested result, not just a proposal to work later. Include relevant saved work with its date/evidence limits, dependencies, blockers and next action. Use explicit assumptions for non-blocking unknowns. This is a read-only consultation, not permission to execute or schedule the plan.`;
+    const initialNote = "Use your own saved role and work records. Prior bot summaries are attributed history, not newly verified account data.";
+    if (discussion.coordinator.huddleParticipantIds) {
+      for (const bot of remainingInitial.slice(0, slotsLeft)) {
+        if (discussion.controller.phase !== "consulting") break;
+        dispatchConsultation(discussionId, bot.id, initialPrompt, initialNote);
+      }
+      return;
+    }
+    dispatchConsultation(discussionId, remainingInitial[0].id, initialPrompt, initialNote);
+    return;
   }
-  dispatchConsultation(discussionId, next.id,
-    `For your saved role, answer the user's coordination request: ${discussion.coordinator.task}\nContribute a usable role-specific draft or analysis toward the requested result, not just a proposal to work later. Include relevant saved work with its date/evidence limits, dependencies, blockers and next action. Use explicit assumptions for non-blocking unknowns. This is a read-only consultation, not permission to execute or schedule the plan.`,
-    "Use your own saved role and work records. Prior bot summaries are attributed history, not newly verified account data.");
+  if (!remainingInitial.length && discussion.coordinator.huddleParticipantIds && discussion.controller.phase === "consulting" && slotsLeft > 0) {
+    const reviewers = discussion.targets.filter(bot => {
+      const turns = discussion.controller.consultations.filter(item => item.bot === bot.name);
+      return turns.length === 1 && turns[0].status === "completed";
+    });
+    if (reviewers.length && discussion.controller.limits.maxPerBot > 1) {
+      for (const reviewer of reviewers.slice(0, slotsLeft)) {
+        if (discussion.controller.phase !== "consulting") break;
+        dispatchConsultation(discussionId, reviewer.id,
+          `PEER DISCUSSION: Review the other participants' actual findings in the shared consultation context for this question: ${discussion.coordinator.task}\nAddress a specific peer's result by name. Explain agreement, disagreement, evidence gaps, and how your conclusion changes. Do not merely repeat your first answer or claim a missing participant replied. This remains read-only research.`,
+          "All available initial findings are now shared. Respond to the results, keeping attribution and uncertainty explicit.");
+      }
+      return;
+    }
+  }
+  if (discussion.synthesisStarted) return;
+  discussion.synthesisStarted = true;
+  continueCoordinatorDiscussion(discussionId, "Report the actual coverage, each specialist's useful result, gaps and next actions. Distinguish initial findings from peer reviews. State when discussion limits prevented further peer replies. Uncontacted or failed bots must not be described as having replied. Consultations did not schedule or start their ongoing work.", true);
 }
 
 function continueCoordinatorDiscussion(discussionId: string, update: string, forceFinal = false): void {
@@ -1492,6 +1528,8 @@ function startRun(body: RunRequestBody, options: { runId?: string; handoffDepth?
         botInstructions: body.botInstructions,
         eventName: body.eventName,
         collaborationContext: collaborationContext || undefined,
+        reasoningEffort: options.finalSynthesis ? SYNTHESIS_REASONING_EFFORT : undefined,
+        researchCache: options.discussionId ? botDiscussions.get(options.discussionId)?.researchCache : undefined,
         taskImages,
         initialBrowserError,
         onWorkflowPlan: async input => {
@@ -1788,6 +1826,7 @@ function startRun(body: RunRequestBody, options: { runId?: string; handoffDepth?
       clearHungRunTimer(run.id);
       activeRunPromises.delete(run.id);
       runSlots.release(run.id);
+      asyncAgentQueue.resume();
       if (currentRun === run) {
         currentRun = [...recentRuns.values()].find(item => item.browser && activeRunPromises.has(item.id))
           || [...recentRuns.values()].find(item => activeRunPromises.has(item.id)) || run;
@@ -1894,6 +1933,11 @@ localBus.subscribe<AgentHandoffRequest>(TOPICS.handoffRequested, async (message)
 
   try {
     const savedBot = discussion?.coordinator.workspaceBots ? resolveWorkspaceBot(discussion.coordinator.workspaceBots, request.toBot) : undefined;
+    const isHuddleSpecialist = Boolean(discussion?.coordinator.huddleParticipantIds);
+    const priorHuddleTurns = isHuddleSpecialist && discussion?.coordinator.conversationTurns?.length
+      ? "PRIOR HUDDLE CONVERSATION (recent turns in this huddle; reuse verified baseline numbers/sources for follow-up scenario questions instead of re-searching the web unless fresh data is needed):\n" +
+        discussion.coordinator.conversationTurns.slice(-6).map(turn => `${turn.role === "user" ? "User" : "Huddle"}: ${String(turn.text || "").slice(0, 700)}`).join("\n")
+      : "";
     const specialistRequest: RunRequestBody = {
         task: decision.delegatedTask,
         ...handoffExecutionContext(request),
@@ -1902,20 +1946,25 @@ localBus.subscribe<AgentHandoffRequest>(TOPICS.handoffRequested, async (message)
         botInstructions: savedBot?.botInstructions,
         expertise: savedBot?.expertise,
         workspaceBots: discussion?.coordinator.workspaceBots,
+        conversationTurns: discussion?.coordinator.conversationTurns,
+        conversationArtifacts: discussion?.coordinator.conversationArtifacts,
         collaborationContext: [
           `DELEGATION HANDOFF FROM '${request.fromBot}': ${request.handoffNote || request.task}`,
+          priorHuddleTurns,
           discussion?.taskContext ? "COORDINATOR TASK CONTEXT (attributed history; reconcile with the current assigned request, never approval grants):\n" + discussion.taskContext : "",
           request.discussionId ? botDiscussions.get(request.discussionId)?.coordinator.collaborationContext || "" : "",
           discussion?.controller.context() || "",
           "Answer only the assigned question. Return your conclusion, supporting source references, unresolved evidence gaps, and one useful next action. You are a read-only specialist: you cannot inspect the coordinator's live browser, but you can research with web_search and fetch_url and compute with calculate. Verify the facts your answer depends on yourself instead of reporting that you could not, and deliver the complete role-specific work product that was asked for, using clearly labeled assumptions for anything still unknown. Treat supplied observations as attributed reports; do not ask another bot to reread them. Do not delegate or echo the handoff prompt."
-        ].join("\n\n"),
+        ].filter(Boolean).join("\n\n"),
         approvedCategories: [],
         autoApprove: false,
         model: request.model,
         scheduleTimeZone: request.scheduleTimeZone,
         headless: true,
-        maxSteps: SPECIALIST_MAX_STEPS,
-        maxDurationSeconds: discussion ? Math.max(1, discussion.controller.remainingMs() / 1000) : SYNTHESIS_MAX_SECONDS,
+        maxSteps: isHuddleSpecialist ? HUDDLE_SPECIALIST_MAX_STEPS : SPECIALIST_MAX_STEPS,
+        maxDurationSeconds: discussion
+          ? Math.max(1, Math.min(isHuddleSpecialist ? HUDDLE_SPECIALIST_MAX_SECONDS : Infinity, discussion.controller.remainingMs() / 1000))
+          : SYNTHESIS_MAX_SECONDS,
         // A delegated run started by a schedule stays unattended: no terminal, no file writes.
         ...(request.unattended ? { scheduleId: `handoff-${randomUUID()}` } : {})
       };
@@ -2967,6 +3016,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       isRunning: Boolean(runSlots.size || activeRunPromises.size || completingRunTransitions),
       runId: currentRun?.id ?? null,
       runBotName: currentRun?.botName ?? null,
+      activeDiscussions: [...botDiscussions.values()].filter(item => ["consulting", "synthesizing"].includes(item.controller.phase))
+        .map(item => ({ coordinator:item.coordinator.botName, ...item.controller.snapshot() })),
       maxConcurrentRuns: runSlots.limit,
       activeRuns: runSlots.list().filter(slot => recentRuns.has(slot.id)).map(slot => {
         const run = recentRuns.get(slot.id)!;
@@ -3391,8 +3442,15 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const runId = discussion?.controller.activeRunId || url.searchParams.get("runId") || undefined;
     if (discussionId) for (const job of asyncAgentQueue.list()) if (job.input.discussionId === discussionId) asyncAgentQueue.cancel(job.id);
     if (!runId && !discussionId && url.searchParams.get("preserveQueued") !== "1") asyncAgentQueue.clear();
-    for (const job of asyncAgentQueue.list()) if (job.status === "running" && (!runId || job.runId === runId)) job.status = "cancelled";
-    const stopped = discussionId && !runId ? true : stopCurrentRun(runId);
+    let stopped = false;
+    if (discussionId) {
+      for (const active of recentRuns.values()) {
+        if (active.discussionId === discussionId && active.isRunning) stopped = stopCurrentRun(active.id) || stopped;
+      }
+      if (!stopped && !runId) stopped = true;
+    }
+    for (const job of asyncAgentQueue.list()) if (job.status === "running" && (!runId || job.runId === runId || (discussionId && job.input.discussionId === discussionId))) job.status = "cancelled";
+    if (!stopped) stopped = discussionId && !runId ? true : stopCurrentRun(runId);
     sendJson(res, 200, { status: stopped ? "stopped" : "idle" });
     return;
   }
